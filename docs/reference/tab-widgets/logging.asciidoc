@@ -20,11 +20,6 @@ recommend you set `path.logs` to a location outside of `$ES_HOME`.
 See <<path-settings>>.
 // end::mac[]
 
-// tag::brew[]
-For <<brew,macOS Homebrew>> installations, {es} writes logs to
-`/usr/local/var/log/elasticsearch`.
-// end::brew[]
-
 // tag::linux[]
 For <<targz,Linux `.tar.gz`>> installations, {es} writes logs to
 `$ES_HOME/logs`.

@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
@@ -26,7 +28,7 @@ int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
 
 dependencies {
   "yamlRestTestV${compatVersion}CompatImplementation" project(':test:framework')
-  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(xpackProject('plugin')))
+  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(project(':x-pack:plugin')))
   compatXpackTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
 }
 
@@ -34,10 +36,10 @@ dependencies {
 tasks.named("copyRestCompatTestTask").configure { task ->
     task.dependsOn(configurations.compatXpackTests);
     task.setXpackConfig(configurations.compatXpackTests);
-    task.getIncludeXpack().set(List.of("ml", "rollup", "license", "migration", "ssl"));
+    task.getIncludeXpack().set(List.of("license", "migration", "ml", "rollup", "sql", "ssl"));
     task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/v${compatVersion}/yamlTests/original"));
     task.setXpackConfigToFileTree(
-      config -> project.fileTree(
+      config -> fileTree(
         config.getSingleFile().toPath()
       )
     )
@@ -55,7 +57,7 @@ File serviceTokens = file("$extraResourceDir/service_tokens")
 // it can run in a FIPS 140 JVM
 // TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
 // https://github.com/elastic/elasticsearch/pull/32201
-tasks.register("copyExtraResources", Copy) {
+def copyExtraResources = tasks.register("copyExtraResources", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }
@@ -65,7 +67,12 @@ tasks.register("copyExtraResources", Copy) {
   into extraResourceDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets."yamlRestTestV${compatVersion}Compat".resources.srcDir(extraResourceDir)
+sourceSets."yamlRestTestV${compatVersion}Compat".resources.compiledBy(copyExtraResources, t -> {
+  def dirProp = project.objects.directoryProperty()
+  dirProp.set(t.destinationDir)
+  return dirProp;
+})
+
 tasks.named("processYamlRestTestV${compatVersion}CompatResources").configure {
   dependsOn("copyExtraResources")
 }
@@ -87,16 +94,15 @@ testClusters.configureEach {
   setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-  setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
 
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile serviceTokens.name, serviceTokens
 
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
 // transform (again) the (already) transformed x-pack compatibility tests to test the xpack prefixes
@@ -113,15 +119,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
 
   task.replaceKeyInDo("migration.deprecations", "xpack-migration.deprecations")
   task.addAllowedWarningRegex(".*_xpack/migration.* is deprecated.*")
-
-  task.replaceKeyInDo("rollup.delete_job", "xpack-rollup.delete_job")
-  task.replaceKeyInDo("rollup.get_jobs", "xpack-rollup.get_jobs")
-  task.replaceKeyInDo("rollup.get_rollup_caps", "xpack-rollup.get_rollup_caps")
-  task.replaceKeyInDo("rollup.get_rollup_index_caps", "xpack-rollup.get_rollup_index_caps")
-  task.replaceKeyInDo("rollup.put_job", "xpack-rollup.put_job")
-  task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
-  task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
-  task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
 
   task.replaceKeyInDo("ml.close_job", "xpack-ml.close_job")
   task.replaceKeyInDo("ml.delete_calendar", "xpack-ml.delete_calendar")
@@ -169,6 +166,21 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.replaceKeyInDo("ml.validate", "xpack-ml.validate")
   task.replaceKeyInDo("ml.validate_detector", "xpack-ml.validate_detector")
   task.addAllowedWarningRegex(".*_xpack/ml.* is deprecated.*")
+  task.addAllowedWarningRegex("bucket_span .* is not an integral .* of the number of sconds in 1d.* This is now deprecated.*")
+
+  task.replaceKeyInDo("rollup.delete_job", "xpack-rollup.delete_job")
+  task.replaceKeyInDo("rollup.get_jobs", "xpack-rollup.get_jobs")
+  task.replaceKeyInDo("rollup.get_rollup_caps", "xpack-rollup.get_rollup_caps")
+  task.replaceKeyInDo("rollup.get_rollup_index_caps", "xpack-rollup.get_rollup_index_caps")
+  task.replaceKeyInDo("rollup.put_job", "xpack-rollup.put_job")
+  task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
+  task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
+  task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
+
+  task.replaceKeyInDo("sql.clear_cursor", "xpack-sql.clear_cursor")
+  task.replaceKeyInDo("sql.query", "xpack-sql.query")
+  task.replaceKeyInDo("sql.translate", "xpack-sql.translate")
+  task.addAllowedWarningRegex(".*_xpack/sql.* is deprecated.*")
 
   task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
   task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")

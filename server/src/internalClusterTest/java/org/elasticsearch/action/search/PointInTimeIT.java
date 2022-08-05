@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashSet;
@@ -41,6 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -155,8 +158,9 @@ public class PointInTimeIT extends ESIntegTestCase {
             final Set<String> dataNodes = clusterService().state()
                 .nodes()
                 .getDataNodes()
+                .values()
                 .stream()
-                .map(e -> e.getValue().getId())
+                .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
             assertAcked(
@@ -321,9 +325,10 @@ public class PointInTimeIT extends ESIntegTestCase {
             .state()
             .nodes()
             .getDataNodes()
+            .values()
             .stream()
-            .map(e -> e.getValue().getName())
-            .collect(Collectors.toList());
+            .map(DiscoveryNode::getName)
+            .toList();
         final String assignedNodeForIndex1 = randomFrom(dataNodes);
 
         createIndex(
@@ -413,6 +418,12 @@ public class PointInTimeIT extends ESIntegTestCase {
         } finally {
             closePointInTime(pit);
         }
+    }
+
+    public void testCloseInvalidPointInTime() {
+        expectThrows(Exception.class, () -> client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest("")).actionGet());
+        List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
+        assertThat(tasks, empty());
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

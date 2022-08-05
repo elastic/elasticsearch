@@ -27,7 +27,7 @@
     - do:
         index:
             index:  phonetic_sample
-            id:     1
+            id:     "1"
             body:   { "text": "hello world" }
     - do:
         indices.refresh: {}

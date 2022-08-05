@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -123,7 +124,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        new Authentication(new User("kibana"), new Authentication.RealmRef("realm", "type", "node"), null).writeToContext(threadContext);
+        AuthenticationTestHelper.builder()
+            .user(new User("kibana"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false)
+            .writeToContext(threadContext);
 
         indexRequests = new ArrayList<>();
         bulkRequests = new ArrayList<>();
@@ -221,7 +226,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -255,21 +260,14 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             new SamlNameId(NameID.TRANSIENT, nameId, null, null, null),
             session
         );
-        final Authentication authentication = new Authentication(
-            user,
-            realmRef,
-            null,
-            null,
-            Authentication.AuthenticationType.REALM,
-            tokenMetadata
-        );
+        final Authentication authentication = Authentication.newRealmAuthentication(user, realmRef);
 
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenId, authentication, false, client);
+        mockGetTokenFromId(tokenService, userTokenId, authentication, tokenMetadata, false, client);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();
         request.setToken(accessToken);

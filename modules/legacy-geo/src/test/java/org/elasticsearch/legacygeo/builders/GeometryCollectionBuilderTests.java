@@ -20,30 +20,14 @@ public class GeometryCollectionBuilderTests extends AbstractShapeBuilderTestCase
         int shapes = randomIntBetween(0, 8);
         for (int i = 0; i < shapes; i++) {
             switch (randomIntBetween(0, 7)) {
-                case 0:
-                    geometryCollection.shape(PointBuilderTests.createRandomShape());
-                    break;
-                case 1:
-                    geometryCollection.shape(CircleBuilderTests.createRandomShape());
-                    break;
-                case 2:
-                    geometryCollection.shape(EnvelopeBuilderTests.createRandomShape());
-                    break;
-                case 3:
-                    geometryCollection.shape(LineStringBuilderTests.createRandomShape());
-                    break;
-                case 4:
-                    geometryCollection.shape(MultiLineStringBuilderTests.createRandomShape());
-                    break;
-                case 5:
-                    geometryCollection.shape(MultiPolygonBuilderTests.createRandomShape());
-                    break;
-                case 6:
-                    geometryCollection.shape(MultiPointBuilderTests.createRandomShape());
-                    break;
-                case 7:
-                    geometryCollection.shape(PolygonBuilderTests.createRandomShape());
-                    break;
+                case 0 -> geometryCollection.shape(PointBuilderTests.createRandomShape());
+                case 1 -> geometryCollection.shape(CircleBuilderTests.createRandomShape());
+                case 2 -> geometryCollection.shape(EnvelopeBuilderTests.createRandomShape());
+                case 3 -> geometryCollection.shape(LineStringBuilderTests.createRandomShape());
+                case 4 -> geometryCollection.shape(MultiLineStringBuilderTests.createRandomShape());
+                case 5 -> geometryCollection.shape(MultiPolygonBuilderTests.createRandomShape());
+                case 6 -> geometryCollection.shape(MultiPointBuilderTests.createRandomShape());
+                case 7 -> geometryCollection.shape(PolygonBuilderTests.createRandomShape());
             }
         }
         return geometryCollection;
@@ -59,35 +43,19 @@ public class GeometryCollectionBuilderTests extends AbstractShapeBuilderTestCase
         if (mutation.shapes.size() > 0) {
             int shapePosition = randomIntBetween(0, mutation.shapes.size() - 1);
             ShapeBuilder<?, ?, ?> shapeToChange = mutation.shapes.get(shapePosition);
-            switch (shapeToChange.type()) {
-                case POINT:
-                    shapeToChange = PointBuilderTests.mutate((PointBuilder) shapeToChange);
-                    break;
-                case CIRCLE:
-                    shapeToChange = CircleBuilderTests.mutate((CircleBuilder) shapeToChange);
-                    break;
-                case ENVELOPE:
-                    shapeToChange = EnvelopeBuilderTests.mutate((EnvelopeBuilder) shapeToChange);
-                    break;
-                case LINESTRING:
-                    shapeToChange = LineStringBuilderTests.mutate((LineStringBuilder) shapeToChange);
-                    break;
-                case MULTILINESTRING:
-                    shapeToChange = MultiLineStringBuilderTests.mutate((MultiLineStringBuilder) shapeToChange);
-                    break;
-                case MULTIPOLYGON:
-                    shapeToChange = MultiPolygonBuilderTests.mutate((MultiPolygonBuilder) shapeToChange);
-                    break;
-                case MULTIPOINT:
-                    shapeToChange = MultiPointBuilderTests.mutate((MultiPointBuilder) shapeToChange);
-                    break;
-                case POLYGON:
-                    shapeToChange = PolygonBuilderTests.mutate((PolygonBuilder) shapeToChange);
-                    break;
-                case GEOMETRYCOLLECTION:
-                    throw new UnsupportedOperationException("GeometryCollection should not be nested inside each other");
-            }
-            mutation.shapes.set(shapePosition, shapeToChange);
+            mutation.shapes.set(shapePosition, switch (shapeToChange.type()) {
+                case POINT -> PointBuilderTests.mutate((PointBuilder) shapeToChange);
+                case CIRCLE -> CircleBuilderTests.mutate((CircleBuilder) shapeToChange);
+                case ENVELOPE -> EnvelopeBuilderTests.mutate((EnvelopeBuilder) shapeToChange);
+                case LINESTRING -> LineStringBuilderTests.mutate((LineStringBuilder) shapeToChange);
+                case MULTILINESTRING -> MultiLineStringBuilderTests.mutate((MultiLineStringBuilder) shapeToChange);
+                case MULTIPOLYGON -> MultiPolygonBuilderTests.mutate((MultiPolygonBuilder) shapeToChange);
+                case MULTIPOINT -> MultiPointBuilderTests.mutate((MultiPointBuilder) shapeToChange);
+                case POLYGON -> PolygonBuilderTests.mutate((PolygonBuilder) shapeToChange);
+                case GEOMETRYCOLLECTION -> throw new UnsupportedOperationException(
+                    "GeometryCollection should not be nested inside each other"
+                );
+            });
         } else {
             mutation.shape(RandomShapeGenerator.createShape(random()));
         }

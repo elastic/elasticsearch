@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -45,8 +46,10 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -57,8 +60,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -67,6 +68,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -98,15 +100,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             ParentJoinPlugin.class,
             InternalSettingsPlugin.class,
             PercolatorPlugin.class,
-            DenseVectorPlugin.class,
             SpatialPlugin.class
         );
-    }
-
-    @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        // a test requires the real SpatialPlugin because it utilizes the shape query
-        return false;
     }
 
     @Override
@@ -177,7 +172,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                   - names: '*'
                     privileges: [ ALL ]
                     field_security:
-                       grant: [ field2, query* ]
+                       grant: [ field2, query*]
             role4:
               cluster: [ all ]
               indices:
@@ -281,7 +276,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .get();
         assertHitCount(response, 1);
 
-        // user1 has no access to field1, so the query should not match with the document:
+        // user1 has no access to field2, so the query should not match with the document:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("test")
             .setQuery(matchQuery("field2", "value2"))
@@ -396,7 +391,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(builder));
 
         client().prepareIndex("test")
-            .setSource("field1", "value1", "vector", new float[] { 0.0f, 0.0f, 0.0f })
+            .setSource("field1", "value1", "field2", "value2", "vector", new float[] { 0.0f, 0.0f, 0.0f })
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
@@ -427,6 +422,26 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .get();
         assertHitCount(response, 1);
         assertNull(response.getHits().getAt(0).field("vector"));
+
+        // user1 can access field1, so the filtered query should match with the document:
+        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder("vector", queryVector, 10).addFilterQuery(
+            QueryBuilders.matchQuery("field1", "value1")
+        );
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(filterQuery1)
+            .get();
+        assertHitCount(response, 1);
+
+        // user1 cannot access field2, so the filtered query should not match with the document:
+        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder("vector", queryVector, 10).addFilterQuery(
+            QueryBuilders.matchQuery("field2", "value2")
+        );
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(filterQuery2)
+            .get();
+        assertHitCount(response, 0);
     }
 
     public void testPercolateQueryWithIndexedDocWithFLS() {
@@ -2063,6 +2078,134 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .setQuery(existsQuery("alias"))
             .get();
         assertHitCount(response, 0);
+    }
+
+    public void testLookupRuntimeFields() throws Exception {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("hosts")
+                .setMapping("field1", "type=keyword", "field2", "type=text", "field3", "type=text")
+        );
+        client().prepareIndex("hosts")
+            .setId("1")
+            .setSource("field1", "192.168.1.1", "field2", "windows", "field3", "canada")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        client().prepareIndex("hosts")
+            .setId("2")
+            .setSource("field1", "192.168.1.2", "field2", "macos", "field3", "us")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("logs")
+                .setMapping("field1", "type=keyword", "field2", "type=text", "field3", "type=date,format=yyyy-MM-dd")
+        );
+
+        client().prepareIndex("logs")
+            .setId("1")
+            .setSource("field1", "192.168.1.1", "field2", "out of memory", "field3", "2021-01-20")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        client().prepareIndex("logs")
+            .setId("2")
+            .setSource("field1", "192.168.1.2", "field2", "authentication fails", "field3", "2021-01-21")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        Map<String, Object> lookupField = Map.of(
+            "type",
+            "lookup",
+            "target_index",
+            "hosts",
+            "input_field",
+            "field1",
+            "target_field",
+            "field1",
+            "fetch_fields",
+            List.of("field1", "field2", "field3")
+        );
+        SearchRequest request = new SearchRequest("logs").source(
+            new SearchSourceBuilder().fetchSource(false)
+                .fetchField("field1")
+                .fetchField("field2")
+                .fetchField("field3")
+                .fetchField("host")
+                .sort("field1")
+                .runtimeMappings(Map.of("host", lookupField))
+        );
+        SearchResponse response;
+        // user1 has access to field1
+        response = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .search(request)
+            .actionGet();
+        assertHitCount(response, 2);
+        {
+            SearchHit hit0 = response.getHits().getHits()[0];
+            assertThat(hit0.getDocumentFields().keySet(), equalTo(Set.of("field1", "host")));
+            assertThat(hit0.field("field1").getValues(), equalTo(List.of("192.168.1.1")));
+            assertThat(hit0.field("host").getValues(), equalTo(List.of(Map.of("field1", List.of("192.168.1.1")))));
+        }
+        {
+            SearchHit hit1 = response.getHits().getHits()[1];
+            assertThat(hit1.getDocumentFields().keySet(), equalTo(Set.of("field1", "host")));
+            assertThat(hit1.field("field1").getValues(), equalTo(List.of("192.168.1.2")));
+            assertThat(hit1.field("host").getValues(), equalTo(List.of(Map.of("field1", List.of("192.168.1.2")))));
+        }
+        // user3 has access to field1, field2
+        response = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+            .search(request)
+            .actionGet();
+        assertHitCount(response, 2);
+        {
+            SearchHit hit0 = response.getHits().getHits()[0];
+            assertThat(hit0.getDocumentFields().keySet(), equalTo(Set.of("field1", "field2", "host")));
+            assertThat(hit0.field("field1").getValues(), equalTo(List.of("192.168.1.1")));
+            assertThat(hit0.field("field2").getValues(), equalTo(List.of("out of memory")));
+            assertThat(
+                hit0.field("host").getValues(),
+                equalTo(List.of(Map.of("field1", List.of("192.168.1.1"), "field2", List.of("windows"))))
+            );
+        }
+        {
+            SearchHit hit1 = response.getHits().getHits()[1];
+            assertThat(hit1.getDocumentFields().keySet(), equalTo(Set.of("field1", "field2", "host")));
+            assertThat(hit1.field("field1").getValues(), equalTo(List.of("192.168.1.2")));
+            assertThat(hit1.field("field2").getValues(), equalTo(List.of("authentication fails")));
+            assertThat(
+                hit1.field("host").getValues(),
+                equalTo(List.of(Map.of("field1", List.of("192.168.1.2"), "field2", List.of("macos"))))
+            );
+        }
+        // user6 has access to field1, field2, and field3
+        response = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+            .search(request)
+            .actionGet();
+        assertHitCount(response, 2);
+        {
+            SearchHit hit0 = response.getHits().getHits()[0];
+            assertThat(hit0.getDocumentFields().keySet(), equalTo(Set.of("field1", "field2", "field3", "host")));
+            assertThat(hit0.field("field1").getValues(), equalTo(List.of("192.168.1.1")));
+            assertThat(hit0.field("field2").getValues(), equalTo(List.of("out of memory")));
+            assertThat(hit0.field("field3").getValues(), equalTo(List.of("2021-01-20")));
+            assertThat(
+                hit0.field("host").getValues(),
+                equalTo(List.of(Map.of("field1", List.of("192.168.1.1"), "field2", List.of("windows"), "field3", List.of("canada"))))
+            );
+        }
+        {
+            SearchHit hit1 = response.getHits().getHits()[1];
+            assertThat(hit1.getDocumentFields().keySet(), equalTo(Set.of("field1", "field2", "field3", "host")));
+            assertThat(hit1.field("field1").getValues(), equalTo(List.of("192.168.1.2")));
+            assertThat(hit1.field("field2").getValues(), equalTo(List.of("authentication fails")));
+            assertThat(hit1.field("field3").getValues(), equalTo(List.of("2021-01-21")));
+            assertThat(
+                hit1.field("host").getValues(),
+                equalTo(List.of(Map.of("field1", List.of("192.168.1.2"), "field2", List.of("macos"), "field3", List.of("us"))))
+            );
+        }
     }
 
 }

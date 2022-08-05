@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +28,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -1174,7 +1173,7 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testOverlappingComplexMatchSettings() {
-        Set<Setting<?>> settings = new LinkedHashSet<>(2);
+        Set<Setting<?>> settings = Sets.newLinkedHashSetWithExpectedSize(2);
         final boolean groupFirst = randomBoolean();
         final Setting<?> groupSetting = Setting.groupSetting("foo.", Property.NodeScope);
         final Setting<?> listSetting = Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), Property.NodeScope);
@@ -1473,7 +1472,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
                 @Override
                 public List<String> getListValue(final List<String> value) {
-                    return value.stream().map(s -> "new." + s).collect(Collectors.toList());
+                    return value.stream().map(s -> "new." + s).toList();
                 }
             })
         );
@@ -1488,10 +1487,7 @@ public class ScopedSettingsTests extends ESTestCase {
         final Settings upgradedSettings = service.upgradeSettings(settings);
         assertFalse(oldSetting.exists(upgradedSettings));
         assertTrue(newSetting.exists(upgradedSettings));
-        assertThat(
-            newSetting.get(upgradedSettings),
-            equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).collect(Collectors.toList()))
-        );
+        assertThat(newSetting.get(upgradedSettings), equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).toList()));
     }
 
 }

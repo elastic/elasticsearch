@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation.decider;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -17,7 +18,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider {
 
@@ -32,8 +32,14 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
         "xpack.searchable.snapshot.allocate_on_rolling_restart",
         false,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
+
+    static {
+        // TODO xpack.searchable.snapshot.allocate_on_rolling_restart was only temporary, remove it in the next major
+        assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
+    }
 
     private volatile EnableAllocationDecider.Allocation enableAllocation;
     private volatile boolean allocateOnRollingRestart;
@@ -64,7 +70,7 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
+        if (indexMetadata.isSearchableSnapshot()) {
             EnableAllocationDecider.Allocation enableAllocationCopy = this.enableAllocation;
             boolean allocateOnRollingRestartCopy = this.allocateOnRollingRestart;
             if (enableAllocationCopy == EnableAllocationDecider.Allocation.PRIMARIES) {

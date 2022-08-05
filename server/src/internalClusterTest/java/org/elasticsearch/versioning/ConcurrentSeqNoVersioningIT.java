@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.versioning;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -50,9 +49,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -138,14 +137,14 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         List<Partition> partitions = IntStream.range(0, numberOfKeys)
             .mapToObj(i -> client().prepareIndex("test").setId("ID:" + i).setSource("value", -1).get())
             .map(response -> new Partition(response.getId(), new Version(response.getPrimaryTerm(), response.getSeqNo())))
-            .collect(Collectors.toList());
+            .toList();
 
         int threadCount = randomIntBetween(3, 20);
         CyclicBarrier roundBarrier = new CyclicBarrier(threadCount + 1); // +1 for main thread.
 
         List<CASUpdateThread> threads = IntStream.range(0, threadCount)
             .mapToObj(i -> new CASUpdateThread(i, roundBarrier, partitions, disruptTimeSeconds + 1))
-            .collect(Collectors.toList());
+            .toList();
 
         logger.info("--> Starting {} threads", threadCount);
         threads.forEach(Thread::start);
@@ -263,10 +262,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             if (version.compareTo(partition.latestSuccessfulVersion()) <= 0) {
                                 historyResponse.accept(new FailureHistoryOutput());
                             }
-                            logger.info(
-                                new ParameterizedMessage("Received failure for request [{}], version [{}]", indexRequest, version),
-                                e
-                            );
+                            Version versionToLog = version;
+                            logger.info(() -> format("Received failure for request [%s], version [%s]", indexRequest, versionToLog), e);
                             if (stop) {
                                 // interrupt often comes as a RuntimeException so check to stop here too.
                                 return;
@@ -481,9 +478,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         @Override
         public Optional<Object> nextState(Object currentState, Object input, Object output) {
             State state = (State) currentState;
-            if (output instanceof IndexResponseHistoryOutput) {
+            if (output instanceof IndexResponseHistoryOutput indexResponseHistoryOutput) {
                 if (input.equals(state.safeVersion) || (state.lastFailed && ((Version) input).compareTo(state.safeVersion) > 0)) {
-                    return Optional.of(casSuccess(((IndexResponseHistoryOutput) output).getVersion()));
+                    return Optional.of(casSuccess(indexResponseHistoryOutput.getVersion()));
                 } else {
                     return Optional.empty();
                 }
@@ -493,35 +490,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
-    private static final class State {
-        private final Version safeVersion;
-        private final boolean lastFailed;
-
-        private State(Version safeVersion, boolean lastFailed) {
-            this.safeVersion = safeVersion;
-            this.lastFailed = lastFailed;
-        }
+    private record State(Version safeVersion, boolean lastFailed) {
 
         public State failed() {
             return lastFailed ? this : casFail(safeVersion);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            State that = (State) o;
-            return lastFailed == that.lastFailed && safeVersion.equals(that.safeVersion);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(safeVersion, lastFailed);
-        }
-
-        @Override
-        public String toString() {
-            return "State{" + "safeVersion=" + safeVersion + ", lastFailed=" + lastFailed + '}';
         }
     }
 
@@ -688,9 +660,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     }
 
     private static void writeEvent(LinearizabilityChecker.Event event, BytesStreamOutput output) throws IOException {
-        output.writeEnum(event.type);
-        output.writeNamedWriteable((NamedWriteable) event.value);
-        output.writeInt(event.id);
+        output.writeEnum(event.type());
+        output.writeNamedWriteable((NamedWriteable) event.value());
+        output.writeInt(event.id());
     }
 
     private static LinearizabilityChecker.Event readEvent(StreamInput input) throws IOException {

@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -25,10 +24,12 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -67,7 +68,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldType ft = simpleMappedFieldType();
-                BooleanScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BooleanScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -104,7 +105,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BooleanScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BooleanScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [false]}"));
@@ -235,16 +236,12 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     @Override
     protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         // Builds a random range query that doesn't degenerate into match none
-        switch (randomInt(2)) {
-            case 0:
-                return ft.rangeQuery(true, true, true, true, null, null, null, ctx);
-            case 1:
-                return ft.rangeQuery(false, true, true, true, null, null, null, ctx);
-            case 2:
-                return ft.rangeQuery(false, true, false, true, null, null, null, ctx);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomInt(2)) {
+            case 0 -> ft.rangeQuery(true, true, true, true, null, null, null, ctx);
+            case 1 -> ft.rangeQuery(false, true, true, true, null, null, null, ctx);
+            case 2 -> ft.rangeQuery(false, true, false, true, null, null, null, ctx);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     @Override
@@ -308,26 +305,30 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
     @Override
     protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        switch (randomInt(2)) {
-            case 0:
-                return ft.termsQuery(List.of(true), ctx);
-            case 1:
-                return ft.termsQuery(List.of(false), ctx);
-            case 2:
-                return ft.termsQuery(List.of(false, true), ctx);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomInt(2)) {
+            case 0 -> ft.termsQuery(List.of(true), ctx);
+            case 1 -> ft.termsQuery(List.of(false), ctx);
+            case 2 -> ft.termsQuery(List.of(false, true), ctx);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     public void testDualingQueries() throws IOException {
-        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", ScriptCompiler.NONE).build(MapperBuilderContext.ROOT);
+        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", ScriptCompiler.NONE, Version.CURRENT).build(
+            MapperBuilderContext.ROOT
+        );
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);
             String source = "{\"foo\": " + values + "}";
             XContentParser parser = createParser(JsonXContent.jsonXContent, source);
             SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
-            DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.EMPTY, null, null, null, sourceToParse) {
+            DocumentParserContext ctx = new TestDocumentParserContext(
+                MappingLookup.EMPTY,
+                MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
+                null,
+                null,
+                sourceToParse
+            ) {
                 @Override
                 public XContentParser parser() {
                     return parser;
@@ -417,34 +418,30 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     private static BooleanFieldScript.Factory factory(Script script) {
-        switch (script.getIdOrCode()) {
-            case "read_foo":
-                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit((Boolean) foo);
-                        }
+        return switch (script.getIdOrCode()) {
+            case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit((Boolean) foo);
                     }
-                };
-            case "xor_param":
-                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
-                        }
+                }
+            };
+            case "xor_param" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
                     }
-                };
-            case "loop":
-                return (fieldName, params, lookup) -> {
-                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                    lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("should have thrown on the line above");
-                };
-            default:
-                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
-        }
+                }
+            };
+            case "loop" -> (fieldName, params, lookup) -> {
+                // Indicate that this script wants the field call "test", which *is* the name of this field
+                lookup.forkAndTrackFieldReferences("test");
+                throw new IllegalStateException("should have thrown on the line above");
+            };
+            default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        };
     }
 
     private static BooleanScriptFieldType build(Script script) {

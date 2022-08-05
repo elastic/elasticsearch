@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -49,6 +48,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
@@ -217,7 +218,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         // If there's no relocating shards and shards still on this node, we need to figure out why
         final RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
-            currentState.getRoutingNodes(),
             currentState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
@@ -290,12 +290,12 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.STALLED,
                 totalRemainingShards,
-                new ParameterizedMessage(
-                    "shard [{}] [{}] of index [{}] cannot move, use the Cluster Allocation Explain API on this shard for details",
+                format(
+                    "shard [%s] [%s] of index [%s] cannot move, use the Cluster Allocation Explain API on this shard for details",
                     shardRouting.shardId().getId(),
                     shardRouting.primary() ? "primary" : "replica",
                     shardRouting.index().getName()
-                ).getFormattedMessage(),
+                ),
                 decision
             );
         } else {

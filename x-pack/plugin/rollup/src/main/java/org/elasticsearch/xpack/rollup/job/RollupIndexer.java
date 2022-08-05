@@ -122,7 +122,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
             // make sure we always compute complete buckets that appears before the configured delay
             .query(createBoundaryQuery(position))
             .aggregation(compositeBuilder.aggregateAfter(position));
-        return new SearchRequest(job.getConfig().getIndexPattern()).allowPartialSearchResults(false).source(searchSource);
+        return new SearchRequest(job.getConfig().indices()).allowPartialSearchResults(false).source(searchSource);
     }
 
     @Override

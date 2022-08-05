@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -45,13 +45,13 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +67,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -218,6 +218,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     // pkg-private for testing
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
+        final String roleName = role.getName();
+        assert NativeRealmValidationUtil.validateRoleName(roleName, false) == null : "Role name was invalid or reserved: " + roleName;
+
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
@@ -227,7 +230,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 return;
             }
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(getIdForRole(role.getName()))
+                .setId(getIdForRole(roleName))
                 .setSource(xContentBuilder)
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .request();
@@ -240,12 +243,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     public void onResponse(IndexResponse indexResponse) {
                         final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                         logger.trace("Created role: [{}]", indexRequest);
-                        clearRoleCache(role.getName(), listener, created);
+                        clearRoleCache(roleName, listener, created);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error(new ParameterizedMessage("failed to put role [{}]", request.name()), e);
+                        logger.error(() -> "failed to put role [" + roleName + "]", e);
                         listener.onFailure(e);
                     }
                 },
@@ -255,7 +258,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        Map<String, Object> usageStats = new HashMap<>(3);
+        Map<String, Object> usageStats = Maps.newMapWithExpectedSize(3);
         if (securityIndex.isAvailable() == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
@@ -388,7 +391,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear cache for role [{}]", role), e);
+                logger.error(() -> "unable to clear cache for role [" + role + "]", e);
                 ElasticsearchException exception = new ElasticsearchException(
                     "clearing the cache for [" + role + "] failed. please clear the role cache manually",
                     e
@@ -427,7 +430,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 if (dlsEnabled) {
                     unlicensedFeatures.add("dls");
                 }
-                Map<String, Object> transientMap = new HashMap<>(2);
+                Map<String, Object> transientMap = Maps.newMapWithExpectedSize(2);
                 transientMap.put("unlicensed_features", unlicensedFeatures);
                 transientMap.put("enabled", false);
                 return new RoleDescriptor(
@@ -442,7 +445,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 return roleDescriptor;
             }
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("error in the format of data for role [{}]", name), e);
+            logger.error(() -> "error in the format of data for role [" + name + "]", e);
             return null;
         }
     }

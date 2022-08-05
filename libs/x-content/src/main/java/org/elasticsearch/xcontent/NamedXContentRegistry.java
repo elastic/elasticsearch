@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -42,7 +42,7 @@ public class NamedXContentRegistry {
         /** A name for the entry which is unique within the {@link #categoryClass}. */
         public final ParseField name;
 
-        public final Function<RestApiVersion, Boolean> restApiCompatibility;
+        public final Predicate<RestApiVersion> restApiCompatibility;
 
         /** A parser capability of parser the entry's class. */
         private final ContextParser<Object, ?> parser;
@@ -58,7 +58,7 @@ public class NamedXContentRegistry {
             Class<T> categoryClass,
             ParseField name,
             CheckedFunction<XContentParser, ? extends T, IOException> parser,
-            Function<RestApiVersion, Boolean> restApiCompatibility
+            Predicate<RestApiVersion> restApiCompatibility
         ) {
             this(categoryClass, name, (p, c) -> parser.apply(p), restApiCompatibility);
         }
@@ -75,7 +75,7 @@ public class NamedXContentRegistry {
             Class<T> categoryClass,
             ParseField name,
             ContextParser<Object, ? extends T> parser,
-            Function<RestApiVersion, Boolean> restApiCompatibility
+            Predicate<RestApiVersion> restApiCompatibility
         ) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
@@ -90,7 +90,7 @@ public class NamedXContentRegistry {
         this.registry = unmodifiableMap(createRegistry(entries));
     }
 
-    private Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> createRegistry(List<Entry> entries) {
+    private static Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> createRegistry(List<Entry> entries) {
         if (entries.isEmpty()) {
             return emptyMap();
         }
@@ -109,7 +109,7 @@ public class NamedXContentRegistry {
         return newRegistry;
     }
 
-    private void registerParsers(
+    private static void registerParsers(
         Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> newRegistry,
         Entry entry,
         String name,

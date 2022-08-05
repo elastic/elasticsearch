@@ -6,13 +6,12 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -22,7 +21,7 @@ import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -217,20 +216,13 @@ public class IndexResolver {
         String[] indexWildcards = Strings.commaDelimitedListToStringArray(indexWildcard);
         Set<IndexInfo> indexInfos = new HashSet<>();
         if (retrieveAliases && clusterIsLocal(clusterWildcard)) {
-            GetAliasesRequest aliasRequest = new GetAliasesRequest().local(true)
-                .aliases(indexWildcards)
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
-
-            client.admin().indices().getAliases(aliasRequest, wrap(aliases -> {
-                if (aliases != null) {
-                    for (List<AliasMetadata> aliasList : aliases.getAliases().values()) {
-                        for (AliasMetadata amd : aliasList) {
-                            String alias = amd.alias();
-                            if (alias != null) {
-                                indexInfos.add(new IndexInfo(clusterName, alias, IndexType.ALIAS));
-                            }
-                        }
-                    }
+            ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(indexWildcards, IndicesOptions.lenientExpandOpen());
+            client.admin().indices().resolveIndex(resolveRequest, wrap(response -> {
+                for (ResolveIndexAction.ResolvedAlias alias : response.getAliases()) {
+                    indexInfos.add(new IndexInfo(clusterName, alias.getName(), IndexType.ALIAS));
+                }
+                for (ResolveIndexAction.ResolvedDataStream dataStream : response.getDataStreams()) {
+                    indexInfos.add(new IndexInfo(clusterName, dataStream.getName(), IndexType.ALIAS));
                 }
                 resolveIndices(clusterWildcard, indexWildcards, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos, listener);
             }, ex -> {
@@ -625,7 +617,7 @@ public class IndexResolver {
         DataTypeRegistry typeRegistry,
         String javaRegex,
         FieldCapabilitiesResponse fieldCaps,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases
+        Map<String, List<AliasMetadata>> aliases
     ) {
         return buildIndices(typeRegistry, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null);
     }
@@ -643,7 +635,7 @@ public class IndexResolver {
         DataTypeRegistry typeRegistry,
         String javaRegex,
         FieldCapabilitiesResponse fieldCapsResponse,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        Map<String, List<AliasMetadata>> aliases,
         Function<String, String> indexNameProcessor,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier
     ) {
@@ -655,9 +647,8 @@ public class IndexResolver {
 
         Set<String> resolvedAliases = new HashSet<>();
         if (aliases != null) {
-            Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iterator = aliases.iterator();
-            while (iterator.hasNext()) {
-                for (AliasMetadata alias : iterator.next().value) {
+            for (var aliasList : aliases.values()) {
+                for (AliasMetadata alias : aliasList) {
                     resolvedAliases.add(alias.getAlias());
                 }
             }
@@ -665,7 +656,7 @@ public class IndexResolver {
 
         List<String> resolvedIndices = new ArrayList<>(asList(fieldCapsResponse.getIndices()));
         int mapSize = CollectionUtils.mapSize(resolvedIndices.size() + resolvedAliases.size());
-        Map<String, Fields> indices = new LinkedHashMap<>(mapSize);
+        Map<String, Fields> indices = Maps.newLinkedHashMapWithExpectedSize(mapSize);
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
         // sort fields in reverse order to build the field hierarchy
@@ -828,7 +819,7 @@ public class IndexResolver {
     private static Map<String, InvalidMappedField> getInvalidFieldsForAliases(
         String fieldName,
         Map<String, FieldCapabilities> types,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases
+        Map<String, List<AliasMetadata>> aliases
     ) {
         if (aliases == null || aliases.isEmpty()) {
             return emptyMap();
@@ -837,13 +828,11 @@ public class IndexResolver {
         Map<String, Set<String>> typesErrors = new HashMap<>(); // map holding aliases and a list of unique field types across its indices
         Map<String, Set<String>> aliasToIndices = new HashMap<>(); // map with aliases and their list of indices
 
-        Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iter = aliases.iterator();
-        while (iter.hasNext()) {
-            ObjectObjectCursor<String, List<AliasMetadata>> index = iter.next();
-            for (AliasMetadata aliasMetadata : index.value) {
+        for (var entry : aliases.entrySet()) {
+            for (AliasMetadata aliasMetadata : entry.getValue()) {
                 String aliasName = aliasMetadata.alias();
                 aliasToIndices.putIfAbsent(aliasName, new HashSet<>());
-                aliasToIndices.get(aliasName).add(index.key);
+                aliasToIndices.get(aliasName).add(entry.getKey());
             }
         }
 

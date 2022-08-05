@@ -11,6 +11,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,6 +47,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
      * The default value for ignore_unmapped.
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+
+    private static final boolean DEFAULT_SCORE = false;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField PARENT_TYPE_FIELD = new ParseField("parent_type");
@@ -178,7 +181,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
         Query childFilter = joiner.childrenFilter(parentType);
         MappedFieldType fieldType = context.getFieldType(joiner.childJoinField(parentType));
-        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         return new HasChildQueryBuilder.LateParsingQuery(
             childFilter,
             innerQuery,
@@ -197,9 +200,13 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         builder.field(QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
         builder.field(PARENT_TYPE_FIELD.getPreferredName(), parentType);
-        builder.field(SCORE_FIELD.getPreferredName(), score);
-        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
-        printBoostAndQueryName(builder);
+        if (score != DEFAULT_SCORE) {
+            builder.field(SCORE_FIELD.getPreferredName(), score);
+        }
+        if (ignoreUnmapped != DEFAULT_IGNORE_UNMAPPED) {
+            builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
+        }
+        boostAndQueryNameToXContent(builder);
         if (innerHitBuilder != null) {
             builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
@@ -209,7 +216,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     public static HasParentQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String parentType = null;
-        boolean score = false;
+        boolean score = DEFAULT_SCORE;
         String queryName = null;
         InnerHitBuilder innerHits = null;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
@@ -304,4 +311,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         }
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

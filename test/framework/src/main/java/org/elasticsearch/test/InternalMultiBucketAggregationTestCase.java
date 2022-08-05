@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +33,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation> extends
     InternalAggregationTestCase<T> {
@@ -71,9 +74,9 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             subAggregationsSupplier = () -> InternalAggregations.EMPTY;
         } else {
             subAggregationsSupplier = () -> {
-                final int numAggregations = randomIntBetween(1, 3);
+                int numSubAggs = randomIntBetween(1, 3);
                 List<InternalAggregation> aggs = new ArrayList<>();
-                for (int i = 0; i < numAggregations; i++) {
+                for (int i = 0; i < numSubAggs; i++) {
                     aggs.add(createTestInstanceForXContent(randomAlphaOfLength(5), emptyMap(), InternalAggregations.EMPTY));
                 }
                 return InternalAggregations.from(aggs);
@@ -110,6 +113,24 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     public void testIterators() throws IOException {
         final T aggregation = createTestInstanceForXContent();
         assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false, false), true);
+    }
+
+    @Override
+    protected void assertSampled(T sampled, T reduced, SamplingContext samplingContext) {
+        assertBucketCountsScaled(sampled.getBuckets(), reduced.getBuckets(), samplingContext);
+    }
+
+    protected void assertBucketCountsScaled(
+        List<? extends MultiBucketsAggregation.Bucket> sampled,
+        List<? extends MultiBucketsAggregation.Bucket> reduced,
+        SamplingContext samplingContext
+    ) {
+        assertEquals(sampled.size(), reduced.size());
+        Iterator<? extends MultiBucketsAggregation.Bucket> sampledIt = sampled.iterator();
+        for (MultiBucketsAggregation.Bucket reducedBucket : reduced) {
+            MultiBucketsAggregation.Bucket sampledBucket = sampledIt.next();
+            assertEquals(sampledBucket.getDocCount(), samplingContext.scaleUp(reducedBucket.getDocCount()));
+        }
     }
 
     private void assertMultiBucketsAggregations(Aggregation expected, Aggregation actual, boolean checkOrder) {
@@ -209,6 +230,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
+            () -> false,
+            mock(AggregationBuilder.class),
             new IntConsumer() {
                 int buckets;
 
@@ -220,8 +243,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                     }
                 }
             },
-            PipelineTree.EMPTY,
-            () -> false
+            PipelineTree.EMPTY
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> agg.reduce(List.of(agg), reduceContext));
         assertThat(e.getMessage(), equalTo("too big!"));

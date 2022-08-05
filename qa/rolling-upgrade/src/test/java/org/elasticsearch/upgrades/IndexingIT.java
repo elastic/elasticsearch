@@ -144,18 +144,16 @@ public class IndexingIT extends AbstractRollingTestCase {
         bulk.setJsonEntity(b);
 
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 Request createTestIndex = new Request("PUT", "/" + indexName);
                 createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
                 client().performRequest(createTestIndex);
-                break;
-            case MIXED:
+            }
+            case MIXED -> {
                 Request waitForGreen = new Request("GET", "/_cluster/health");
                 waitForGreen.addParameter("wait_for_nodes", "3");
                 client().performRequest(waitForGreen);
-
                 Version minNodeVersion = minNodeVersion();
-
                 if (minNodeVersion.before(Version.V_7_5_0)) {
                     ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                     assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
@@ -169,19 +167,16 @@ public class IndexingIT extends AbstractRollingTestCase {
                 } else {
                     client().performRequest(bulk);
                 }
-                break;
-            case UPGRADED:
-                client().performRequest(bulk);
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            }
+            case UPGRADED -> client().performRequest(bulk);
+            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 
     public void testDateNanosFormatUpgrade() throws IOException {
         final String indexName = "test_date_nanos";
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 Request createIndex = new Request("PUT", "/" + indexName);
                 XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
@@ -198,7 +193,6 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .endObject();
                 createIndex.setJsonEntity(Strings.toString(mappings));
                 client().performRequest(createIndex);
-
                 Request index = new Request("POST", "/" + indexName + "/_doc/");
                 XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
@@ -208,9 +202,8 @@ public class IndexingIT extends AbstractRollingTestCase {
                 index.addParameter("refresh", "true");
                 index.setJsonEntity(Strings.toString(doc));
                 client().performRequest(index);
-                break;
-
-            case UPGRADED:
+            }
+            case UPGRADED -> {
                 Request search = new Request("POST", "/" + indexName + "/_search");
                 XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
@@ -218,19 +211,14 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .endObject();
                 search.setJsonEntity(Strings.toString(query));
                 Map<String, Object> response = entityAsMap(client().performRequest(search));
-
                 Map<?, ?> bestHit = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", response))).get(0);
                 List<?> date = (List<?>) XContentMapValues.extractValue("fields.date", bestHit);
                 assertThat(date.size(), equalTo(1));
                 assertThat(date.get(0), equalTo("2015-01-01T12:10:30.123Z"));
-
                 List<?> dateNanos = (List<?>) XContentMapValues.extractValue("fields.date_nanos", bestHit);
                 assertThat(dateNanos.size(), equalTo(1));
                 assertThat(dateNanos.get(0), equalTo("2015-01-01T12:10:30.123456789Z"));
-                break;
-
-            default:
-                break;
+            }
         }
     }
 
@@ -259,18 +247,19 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     public void testTsdb() throws IOException {
-        assumeTrue("sort by _tsid added in 8.1.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
+        assumeTrue("indexing time series indices changed in 8.2.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_2_0));
 
         StringBuilder bulk = new StringBuilder();
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 createTsdbIndex();
                 tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[0], TSDB_TIMES[1], 0.1);
                 tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[0], TSDB_TIMES[1], -0.1);
                 bulk("tsdb", bulk.toString());
                 assertTsdbAgg(closeTo(215.95, 0.005), closeTo(-215.95, 0.005));
                 return;
-            case MIXED:
+            }
+            case MIXED -> {
                 if (FIRST_MIXED_ROUND) {
                     tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[1], TSDB_TIMES[2], 0.1);
                     tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[1], TSDB_TIMES[2], -0.1);
@@ -286,7 +275,8 @@ public class IndexingIT extends AbstractRollingTestCase {
                 bulk("tsdb", bulk.toString());
                 assertTsdbAgg(closeTo(218.95, 0.005), closeTo(-218.95, 0.005), closeTo(2408.45, 0.005), closeTo(21895, 0.5));
                 return;
-            case UPGRADED:
+            }
+            case UPGRADED -> {
                 tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[3], TSDB_TIMES[4], 0.1);
                 tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[3], TSDB_TIMES[4], -0.1);
                 tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[3], TSDB_TIMES[4], 1.1);
@@ -301,6 +291,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     closeTo(-11022.5, 0.5)
                 );
                 return;
+            }
         }
     }
 
@@ -366,6 +357,76 @@ public class IndexingIT extends AbstractRollingTestCase {
             entityAsMap(client().performRequest(request)),
             matchesMap().extraOk()
                 .entry("aggregations", matchesMap().entry("tsids", matchesMap().extraOk().entry("buckets", tsidsExpected)))
+        );
+    }
+
+    public void testSyntheticSource() throws IOException {
+        assumeTrue("added in 8.4.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0));
+
+        switch (CLUSTER_TYPE) {
+            case OLD -> {
+                Request createIndex = new Request("PUT", "/synthetic");
+                XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+                indexSpec.startObject("mappings");
+                {
+                    indexSpec.startObject("_source").field("mode", "synthetic").endObject();
+                    indexSpec.startObject("properties").startObject("kwd").field("type", "keyword").endObject().endObject();
+                }
+                indexSpec.endObject();
+                createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
+                client().performRequest(createIndex);
+                bulk("synthetic", """
+                    {"index": {"_index": "synthetic", "_id": "old"}}
+                    {"kwd": "old", "int": -12}
+                    """);
+                break;
+            }
+            case MIXED -> {
+                if (FIRST_MIXED_ROUND) {
+                    bulk("synthetic", """
+                        {"index": {"_index": "synthetic", "_id": "mixed_1"}}
+                        {"kwd": "mixed_1", "int": 22}
+                        """);
+                } else {
+                    bulk("synthetic", """
+                        {"index": {"_index": "synthetic", "_id": "mixed_2"}}
+                        {"kwd": "mixed_2", "int": 33}
+                        """);
+                }
+                break;
+            }
+            case UPGRADED -> {
+                bulk("synthetic", """
+                    {"index": {"_index": "synthetic", "_id": "new"}}
+                    {"kwd": "new", "int": 21341325}
+                    """);
+            }
+        }
+
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/old"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "old").entry("int", -12))
+        );
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            return;
+        }
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/mixed_1"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "mixed_1").entry("int", 22))
+        );
+        if (CLUSTER_TYPE == ClusterType.MIXED && FIRST_MIXED_ROUND) {
+            return;
+        }
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/mixed_2"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "mixed_2").entry("int", 33))
+        );
+        if (CLUSTER_TYPE == ClusterType.MIXED) {
+            return;
+        }
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/new"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "new").entry("int", 21341325))
         );
     }
 

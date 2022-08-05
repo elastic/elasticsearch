@@ -38,8 +38,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -61,7 +60,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(CustomScriptPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class);
     }
 
     @Override
@@ -76,10 +75,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     @Override
     protected TermsSetQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomValueOtherThanMany(
-            value -> value.equals(GEO_POINT_FIELD_NAME) || value.equals(GEO_SHAPE_FIELD_NAME),
-            () -> randomFrom(MAPPED_FIELD_NAMES)
-        );
+        String fieldName = randomValueOtherThanMany(value -> value.equals(GEO_POINT_FIELD_NAME), () -> randomFrom(MAPPED_FIELD_NAMES));
         List<?> randomTerms = randomValues(fieldName);
         TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, randomTerms);
         if (randomBoolean()) {
@@ -150,22 +146,14 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         Script minimumShouldMatchScript = null;
 
         switch (randomIntBetween(0, 3)) {
-            case 0:
-                Predicate<String> predicate = s -> s.equals(instance.getFieldName()) == false
-                    && s.equals(GEO_POINT_FIELD_NAME) == false
-                    && s.equals(GEO_SHAPE_FIELD_NAME) == false;
+            case 0 -> {
+                Predicate<String> predicate = s -> s.equals(instance.getFieldName()) == false && s.equals(GEO_POINT_FIELD_NAME) == false;
                 fieldName = randomValueOtherThanMany(predicate, () -> randomFrom(MAPPED_FIELD_NAMES));
                 values = randomValues(fieldName);
-                break;
-            case 1:
-                values = randomValues(fieldName);
-                break;
-            case 2:
-                minimumShouldMatchField = randomAlphaOfLengthBetween(1, 10);
-                break;
-            case 3:
-                minimumShouldMatchScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, randomAlphaOfLength(10), emptyMap());
-                break;
+            }
+            case 1 -> values = randomValues(fieldName);
+            case 2 -> minimumShouldMatchField = randomAlphaOfLengthBetween(1, 10);
+            case 3 -> minimumShouldMatchScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, randomAlphaOfLength(10), emptyMap());
         }
 
         TermsSetQueryBuilder newInstance = new TermsSetQueryBuilder(fieldName, values);

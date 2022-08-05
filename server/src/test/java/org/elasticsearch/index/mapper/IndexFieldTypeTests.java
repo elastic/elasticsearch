@@ -70,7 +70,7 @@ public class IndexFieldTypeTests extends ESTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,

@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.RuntimeMappingsValidator;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,7 +84,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * used around integral types and booleans so they can take <code>null</code>
  * values.
  */
-public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
+public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXContentObject {
 
     private static final Version RUNTIME_MAPPINGS_INTRODUCED = Version.V_7_11_0;
 
@@ -538,21 +539,26 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         out.writeOptionalWriteable(delayedDataCheckConfig);
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
-        out.writeMap(runtimeMappings);
+        out.writeGenericMap(runtimeMappings);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final boolean forInternalStorage = params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false);
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
         builder.field(JOB_ID.getPreferredName(), jobId);
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
-            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            if (forInternalStorage) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
-            if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-                assertNoAuthorizationHeader(headers);
-                builder.field(HEADERS.getPreferredName(), headers);
+            if (headers.isEmpty() == false) {
+                if (forInternalStorage) {
+                    assertNoAuthorizationHeader(headers);
+                    builder.field(HEADERS.getPreferredName(), headers);
+                } else {
+                    XContentUtils.addAuthorizationInfo(builder, headers);
+                }
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             if (chunkingConfig != null) {
@@ -844,7 +850,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (indicesOptions != null) {
                 indicesOptions.writeIndicesOptions(out);
             }
-            out.writeMap(runtimeMappings);
+            out.writeGenericMap(runtimeMappings);
         }
 
         @Override
@@ -1035,7 +1041,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(getMessage(INVALID_ID, ID.getPreferredName(), id));
             }
-            if (indices == null || indices.isEmpty() || indices.contains(null) || indices.contains("")) {
+            if (indices == null || indices.isEmpty() || indices.contains("")) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
 

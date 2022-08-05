@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -28,7 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -165,12 +165,9 @@ public class TreeInferenceModelTests extends ESTestCase {
         );
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2, 1.0f) {
-            {
-                put("foo", 0.3);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.3);
+        featureMap.put("bar", null);
         assertThat(
             0.1,
             closeTo(
@@ -222,12 +219,9 @@ public class TreeInferenceModelTests extends ESTestCase {
         }
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2) {
-            {
-                put("foo", 0.3);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.3);
+        featureMap.put("bar", null);
         probabilities = ((ClassificationInferenceResults) tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
             .getTopClasses();
         for (int i = 0; i < expectedProbs.size(); i++) {

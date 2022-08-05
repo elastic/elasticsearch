@@ -149,11 +149,12 @@ public class WatcherServiceTests extends ESTestCase {
         Index watchIndex = new Index(Watch.INDEX, "uuid");
         ShardId shardId = new ShardId(watchIndex, 0);
 
-        IndexShardRoutingTable indexShardRoutingTable = new IndexShardRoutingTable.Builder(shardId).addShard(
-            TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED)
-        ).build();
-
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(watchIndex).addIndexShard(indexShardRoutingTable).build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(watchIndex)
+            .addIndexShard(
+                IndexShardRoutingTable.builder(shardId)
+                    .addShard(TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED))
+            )
+            .build();
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
         csBuilder.routingTable(routingTable);
 
@@ -172,7 +173,15 @@ public class WatcherServiceTests extends ESTestCase {
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(RefreshRequest.class), anyActionListener());
 
         // empty scroll response, no further scrolling needed
-        SearchResponseSections scrollSearchSections = new SearchResponseSections(SearchHits.empty(), null, null, false, false, null, 1);
+        SearchResponseSections scrollSearchSections = new SearchResponseSections(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            null,
+            null,
+            false,
+            false,
+            null,
+            1
+        );
         SearchResponse scrollSearchResponse = new SearchResponse(
             scrollSearchSections,
             "scrollId",

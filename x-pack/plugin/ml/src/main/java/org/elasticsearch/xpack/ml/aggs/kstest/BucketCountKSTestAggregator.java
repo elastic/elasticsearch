@@ -143,17 +143,13 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
         for (Alternative alternative : alternatives) {
             double statistic = sidedStatistic(x, y, alternative);
             switch (alternative) {
-                case GREATER:
-                case LESS:
+                case GREATER, LESS -> {
                     double z = Math.sqrt(zConstant) * statistic;
                     double unBounded = Math.exp(-2 * Math.pow(z, 2) - 2 * z * continuityConstant / 3.0);
                     results.put(alternative.toString(), Math.min(1.0, Math.max(unBounded, 0.0)));
-                    break;
-                case TWO_SIDED:
-                    results.put(alternative.toString(), KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false));
-                    break;
-                default:
-                    throw new AggregationExecutionException("unexpected alternative [" + alternative + "]");
+                }
+                case TWO_SIDED -> results.put(alternative.toString(), KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false));
+                default -> throw new AggregationExecutionException("unexpected alternative [" + alternative + "]");
             }
 
         }
@@ -220,14 +216,11 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
     }
 
     private static double sidedKSStat(double a, double b, Alternative alternative) {
-        switch (alternative) {
-            case LESS:
-                return Math.max(b - a, 0);
-            case GREATER:
-                return Math.max(a - b, 0);
-            default:
-                return Math.abs(b - a);
-        }
+        return switch (alternative) {
+            case LESS -> Math.max(b - a, 0);
+            case GREATER -> Math.max(a - b, 0);
+            default -> Math.abs(b - a);
+        };
     }
 
     @Override

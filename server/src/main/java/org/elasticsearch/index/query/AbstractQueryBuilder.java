@@ -78,8 +78,25 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
-    protected void printBoostAndQueryName(XContentBuilder builder) throws IOException {
+    /**
+     * Add {@code boost} and {@code query_name} to the builder.
+     * @deprecated use {@link #boostAndQueryNameToXContent}
+     */
+    @Deprecated
+    protected final void printBoostAndQueryName(XContentBuilder builder) throws IOException {
         builder.field(BOOST_FIELD.getPreferredName(), boost);
+        if (queryName != null) {
+            builder.field(NAME_FIELD.getPreferredName(), queryName);
+        }
+    }
+
+    /**
+     * Add {@code boost} and {@code query_name} to the builder.
+     */
+    protected final void boostAndQueryNameToXContent(XContentBuilder builder) throws IOException {
+        if (boost != DEFAULT_BOOST) {
+            builder.field(BOOST_FIELD.getPreferredName(), boost);
+        }
         if (queryName != null) {
             builder.field(NAME_FIELD.getPreferredName(), queryName);
         }
@@ -234,20 +251,15 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return getWriteableName();
     }
 
-    static void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
+    protected static void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
         out.writeVInt(queries.size());
         for (QueryBuilder query : queries) {
             out.writeNamedWriteable(query);
         }
     }
 
-    static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        List<QueryBuilder> queries = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            queries.add(in.readNamedWriteable(QueryBuilder.class));
-        }
-        return queries;
+    protected static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
+        return in.readNamedWriteableList(QueryBuilder.class);
     }
 
     @Override

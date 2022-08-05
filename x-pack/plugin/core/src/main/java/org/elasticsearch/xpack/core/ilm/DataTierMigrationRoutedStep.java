@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.index.Index;
@@ -32,6 +33,8 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
     private static final Logger logger = LogManager.getLogger(DataTierMigrationRoutedStep.class);
 
+    private static final AllocationDeciders DECIDERS = new AllocationDeciders(List.of(DataTierAllocationDecider.INSTANCE));
+
     DataTierMigrationRoutedStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
@@ -43,7 +46,6 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(new DataTierAllocationDecider()));
         IndexMetadata idxMeta = clusterState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
@@ -53,7 +55,8 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         List<String> preferredTierConfiguration = idxMeta.getTierPreference();
         Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(
             preferredTierConfiguration,
-            clusterState.getNodes()
+            clusterState.getNodes(),
+            DesiredNodes.latestFromClusterState(clusterState)
         );
 
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
@@ -95,7 +98,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             return new Result(true, null);
         }
 
-        int allocationPendingAllShards = getPendingAllocations(index, allocationDeciders, clusterState);
+        int allocationPendingAllShards = getPendingAllocations(index, DECIDERS, clusterState);
 
         if (allocationPendingAllShards > 0) {
             String statusMessage = availableDestinationTier.map(

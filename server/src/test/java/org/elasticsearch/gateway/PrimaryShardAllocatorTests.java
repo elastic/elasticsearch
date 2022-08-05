@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -486,19 +485,12 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
             .build();
-        return new RoutingAllocation(
-            allocationDeciders,
-            state.mutableRoutingNodes(),
-            state,
-            null,
-            new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
-                @Override
-                public Long getShardSize(ShardRouting shardRouting) {
-                    return shardSize;
-                }
-            },
-            System.nanoTime()
-        );
+        return new RoutingAllocation(allocationDeciders, state.mutableRoutingNodes(), state, null, new SnapshotShardSizeInfo(Map.of()) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return shardSize;
+            }
+        }, System.nanoTime());
     }
 
     private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(
@@ -517,18 +509,10 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         switch (reason) {
-
-            case INDEX_CREATED:
-                routingTableBuilder.addAsNew(metadata.index(shardId.getIndex()));
-                break;
-            case CLUSTER_RECOVERED:
-                routingTableBuilder.addAsRecovery(metadata.index(shardId.getIndex()));
-                break;
-            case INDEX_REOPENED:
-                routingTableBuilder.addAsFromCloseToOpen(metadata.index(shardId.getIndex()));
-                break;
-            default:
-                throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
+            case INDEX_CREATED -> routingTableBuilder.addAsNew(metadata.index(shardId.getIndex()));
+            case CLUSTER_RECOVERED -> routingTableBuilder.addAsRecovery(metadata.index(shardId.getIndex()));
+            case INDEX_REOPENED -> routingTableBuilder.addAsFromCloseToOpen(metadata.index(shardId.getIndex()));
+            default -> throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
         }
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
@@ -541,7 +525,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     private void assertClusterHealthStatus(RoutingAllocation allocation, ClusterHealthStatus expectedStatus) {
         RoutingTable oldRoutingTable = allocation.routingTable();
         RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
+        final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster")).routingTable(newRoutingTable).build();
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
         assertThat(clusterStateHealth.getStatus().ordinal(), lessThanOrEqualTo(expectedStatus.ordinal()));

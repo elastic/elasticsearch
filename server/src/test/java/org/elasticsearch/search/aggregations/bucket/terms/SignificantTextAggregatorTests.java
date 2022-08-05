@@ -23,6 +23,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -42,6 +43,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
@@ -125,7 +129,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             indexDocuments(w);
 
-            String[] incExcValues = { "duplicate" };
+            SortedSet<BytesRef> incExcValues = new TreeSet<>(Set.of(new BytesRef("duplicate")));
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
@@ -134,7 +138,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 // Inclusive of values
                 {
                     SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").includeExclude(
-                        new IncludeExclude(incExcValues, null)
+                        new IncludeExclude(null, null, incExcValues, null)
                     );
                     SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
                     if (randomBoolean()) {
@@ -152,7 +156,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 // Exclusive of values
                 {
                     SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").includeExclude(
-                        new IncludeExclude(null, incExcValues)
+                        new IncludeExclude(null, null, null, incExcValues)
                     );
                     SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
                     if (randomBoolean()) {
@@ -335,6 +339,11 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
-        return new MockFieldMapper(ft, Map.of(ft.name(), ft.getTextSearchInfo().getSearchAnalyzer()));
+        return new MockFieldMapper(ft) {
+            @Override
+            public Map<String, NamedAnalyzer> indexAnalyzers() {
+                return Map.of(ft.name(), ft.getTextSearchInfo().searchAnalyzer());
+            }
+        };
     }
 }

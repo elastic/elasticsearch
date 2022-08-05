@@ -8,13 +8,14 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.BitMixer;
-
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
@@ -24,15 +25,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.Mockito.mock;
+
 public class InternalCardinalityTests extends InternalAggregationTestCase<InternalCardinality> {
     private static List<HyperLogLogPlusPlus> algos;
-    private static int p;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         algos = new ArrayList<>();
-        p = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
     }
 
     @After // we force @After to have it run before ESTestCase#after otherwise it fails
@@ -46,16 +47,31 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected InternalCardinality createTestInstance(String name, Map<String, Object> metadata) {
+        return createTestInstance(name, metadata, randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION));
+    }
+
+    private InternalCardinality createTestInstance(String name, Map<String, Object> metadata, int precision) {
         HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(
-            p,
+            precision,
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
             1
         );
         algos.add(hllpp);
-        for (int i = 0; i < 100; i++) {
-            hllpp.collect(0, BitMixer.mix64(randomIntBetween(1, 100)));
+        int values = between(0, 1000);
+        for (int i = 0; i < values; i++) {
+            hllpp.collect(0, BitMixer.mix64(randomInt()));
         }
         return new InternalCardinality(name, hllpp, metadata);
+    }
+
+    @Override
+    protected BuilderAndToReduce<InternalCardinality> randomResultsToReduce(String name, int size) {
+        int precision = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
+        List<InternalCardinality> result = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            result.add(createTestInstance(name, createTestMetadata(), precision));
+        }
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), result);
     }
 
     @Override
@@ -85,10 +101,8 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         AbstractHyperLogLogPlusPlus state = instance.getState();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 HyperLogLogPlusPlus newState = new HyperLogLogPlusPlus(
                     state.precision(),
                     new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
@@ -99,17 +113,16 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
                 }
                 algos.add(newState);
                 state = newState;
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalCardinality(name, state, metadata);
     }

@@ -29,10 +29,10 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -95,10 +95,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
             }
             Settings settings = Settings.builder()
-                .putList(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())
-                )
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), roles.stream().map(DiscoveryNodeRole::roleName).toList())
                 .build();
             internalCluster().startNode(settings);
             total++;
@@ -276,7 +273,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
             }""").get();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
-        Set<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        List<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
         for (FieldStats stat : stats) {
             if (stat.getName().equals("integer")) {
                 assertThat(stat.getCount(), greaterThanOrEqualTo(1));

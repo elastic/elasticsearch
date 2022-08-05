@@ -25,10 +25,6 @@
 ---
 "Test cat segments output":
 
-  - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/81928"
-
   - do:
       cat.segments: {}
 
@@ -111,10 +107,6 @@
 
 ---
 "Test cat segments using wildcards":
-
-  - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/81928"
 
   - do:
       indices.create:

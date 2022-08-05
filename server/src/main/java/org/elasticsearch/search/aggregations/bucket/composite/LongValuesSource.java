@@ -15,7 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -177,10 +177,14 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
                     int num = dvs.docValueCount();
+                    long previous = Long.MAX_VALUE;
                     for (int i = 0; i < num; i++) {
                         currentValue = dvs.nextValue();
                         missingCurrentValue = false;
-                        next.collect(doc, bucket);
+                        if (i == 0 || previous != currentValue) {
+                            next.collect(doc, bucket);
+                            previous = currentValue;
+                        }
                     }
                 } else if (missingBucket) {
                     missingCurrentValue = true;
@@ -224,11 +228,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             return true;
         } else if (query.getClass() == MatchAllDocsQuery.class) {
             return true;
-        } else if (query instanceof PointRangeQuery) {
-            PointRangeQuery pointQuery = (PointRangeQuery) query;
+        } else if (query instanceof PointRangeQuery pointQuery) {
             return fieldName.equals(pointQuery.getField());
-        } else if (query instanceof DocValuesFieldExistsQuery) {
-            DocValuesFieldExistsQuery existsQuery = (DocValuesFieldExistsQuery) query;
+        } else if (query instanceof FieldExistsQuery existsQuery) {
             return fieldName.equals(existsQuery.getField());
         } else {
             return false;
@@ -243,8 +245,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         }
         final byte[] lowerPoint;
         final byte[] upperPoint;
-        if (query instanceof PointRangeQuery) {
-            final PointRangeQuery rangeQuery = (PointRangeQuery) query;
+        if (query instanceof final PointRangeQuery rangeQuery) {
             lowerPoint = rangeQuery.getLowerPoint();
             upperPoint = rangeQuery.getUpperPoint();
         } else {
@@ -252,8 +253,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             upperPoint = null;
         }
 
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
+        if (fieldType instanceof NumberFieldMapper.NumberFieldType ft) {
             final ToLongFunction<byte[]> toBucketFunction;
 
             switch (ft.typeName()) {

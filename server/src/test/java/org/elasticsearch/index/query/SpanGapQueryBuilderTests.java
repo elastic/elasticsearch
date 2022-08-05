@@ -51,8 +51,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
             query,
             either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class)).or(instanceOf(MatchAllQueryBuilder.class))
         );
-        if (query instanceof SpanNearQuery) {
-            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+        if (query instanceof SpanNearQuery spanNearQuery) {
             assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
             assertThat(spanNearQuery.isInOrder(), equalTo(queryBuilder.inOrder()));
             assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
@@ -80,8 +79,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
                 "clauses" : [ {
                   "span_term" : {
                     "field" : {
-                      "value" : "value1",
-                      "boost" : 1.0
+                      "value" : "value1"
                     }
                   }
                 }, {
@@ -90,14 +88,12 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
                 }, {
                   "span_term" : {
                     "field" : {
-                      "value" : "value3",
-                      "boost" : 1.0
+                      "value" : "value3"
                     }
                   }
                 } ],
                 "slop" : 12,
-                "in_order" : false,
-                "boost" : 1.0
+                "in_order" : false
               }
             }""";
 

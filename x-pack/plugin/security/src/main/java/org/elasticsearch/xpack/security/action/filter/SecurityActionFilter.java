@@ -47,7 +47,6 @@ public class SecurityActionFilter implements ActionFilter {
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
     private final AuditTrailService auditTrailService;
-    private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
@@ -102,15 +101,12 @@ public class SecurityActionFilter implements ActionFilter {
         final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
         try {
             if (useSystemUser) {
-                securityContext.executeAsUser(
-                    SystemUser.INSTANCE,
-                    (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); },
-                    Version.CURRENT
-                );
+                securityContext.executeAsSystemUser(original -> applyInternal(task, chain, action, request, contextPreservingListener));
             } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
                 AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
                     threadContext,
                     securityContext,
+                    Version.CURRENT, // current version since this is on the same node
                     (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); }
                 );
             } else {
@@ -155,7 +151,7 @@ public class SecurityActionFilter implements ActionFilter {
          the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
          here if a request is not associated with any other user.
          */
-        final String securityAction = actionMapper.action(action, request);
+        final String securityAction = SecurityActionMapper.action(action, request);
         authcService.authenticate(securityAction, request, SystemUser.INSTANCE, ActionListener.wrap((authc) -> {
             if (authc != null) {
                 final String requestId = AuditUtil.extractRequestId(threadContext);

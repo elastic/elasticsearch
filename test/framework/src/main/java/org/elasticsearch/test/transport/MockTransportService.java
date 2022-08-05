@@ -26,9 +26,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -36,17 +36,20 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -100,21 +103,28 @@ public final class MockTransportService extends TransportService {
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings
     ) {
-        MockNioTransport mockTransport = newMockTransport(settings, version, threadPool);
-        return createNewService(settings, mockTransport, version, threadPool, clusterSettings, Collections.emptySet());
+        return createNewService(
+            settings,
+            newMockTransport(settings, version, threadPool),
+            version,
+            threadPool,
+            clusterSettings,
+            Collections.emptySet()
+        );
     }
 
-    public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
+    public static TcpTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        return new MockNioTransport(
+        return new Netty4Transport(
             settings,
             version,
             threadPool,
             new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(settings),
             namedWriteableRegistry,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(settings)
         );
     }
 
@@ -140,7 +150,7 @@ public final class MockTransportService extends TransportService {
     ) {
         return new MockTransportService(
             settings,
-            transport,
+            new StubbableTransport(transport),
             threadPool,
             interceptor,
             boundAddress -> new DiscoveryNode(
@@ -152,7 +162,7 @@ public final class MockTransportService extends TransportService {
                 version
             ),
             clusterSettings,
-            taskHeaders
+            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
         );
     }
 
@@ -174,7 +184,7 @@ public final class MockTransportService extends TransportService {
     ) {
         this(
             settings,
-            transport,
+            new StubbableTransport(transport),
             threadPool,
             interceptor,
             (boundAddress) -> DiscoveryNode.createLocal(
@@ -183,7 +193,7 @@ public final class MockTransportService extends TransportService {
                 settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())
             ),
             clusterSettings,
-            Collections.emptySet()
+            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
         );
     }
 
@@ -203,7 +213,34 @@ public final class MockTransportService extends TransportService {
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
-        this(settings, new StubbableTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+        this(
+            settings,
+            new StubbableTransport(transport),
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
+        );
+    }
+
+    public MockTransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings
+    ) {
+        this(
+            settings,
+            new StubbableTransport(transport),
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
+        );
     }
 
     private MockTransportService(
@@ -213,7 +250,7 @@ public final class MockTransportService extends TransportService {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        TaskManager taskManager
     ) {
         super(
             settings,
@@ -222,8 +259,9 @@ public final class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            taskHeaders,
-            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport))
+            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())),
+            taskManager,
+            Tracer.NOOP
         );
         this.original = transport.getDelegate();
     }
@@ -236,12 +274,11 @@ public final class MockTransportService extends TransportService {
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
     }
 
-    @Override
-    protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+    private static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
-            return super.createTaskManager(settings, threadPool, taskHeaders);
+            return new TaskManager(settings, threadPool, taskHeaders, tracer);
         }
     }
 

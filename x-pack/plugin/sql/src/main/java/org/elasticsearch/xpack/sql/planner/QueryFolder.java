@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.Score;
@@ -95,6 +96,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.MONTH_INTERVAL;
@@ -192,7 +194,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     queryC.limit(),
                     queryC.shouldTrackHits(),
                     queryC.shouldIncludeFrozen(),
-                    queryC.minPageSize()
+                    queryC.minPageSize(),
+                    queryC.allowPartialSearchResults()
                 );
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
@@ -227,7 +230,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     qContainer.limit(),
                     qContainer.shouldTrackHits(),
                     qContainer.shouldIncludeFrozen(),
-                    qContainer.minPageSize()
+                    qContainer.minPageSize(),
+                    qContainer.allowPartialSearchResults()
                 );
 
                 return exec.with(qContainer);
@@ -554,7 +558,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             if (matchingGroup != null) {
                                 if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
                                     Processor action = null;
-                                    boolean isDateBased = isDateBased(exp.dataType());
+                                    DataType dataType = exp.dataType();
                                     /*
                                      * special handling of dates since aggs return the typed Date object which needs
                                      * extraction instead of handling this in the scroller, the folder handles this
@@ -562,14 +566,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                      */
                                     if (exp instanceof DateTimeHistogramFunction) {
                                         action = ((UnaryPipe) p).action();
-                                        isDateBased = true;
+                                        dataType = DATETIME;
                                     }
-                                    return new AggPathInput(
-                                        exp.source(),
-                                        exp,
-                                        new GroupByRef(matchingGroup.id(), null, isDateBased),
-                                        action
-                                    );
+                                    return new AggPathInput(exp.source(), exp, new GroupByRef(matchingGroup.id(), null, dataType), action);
                                 }
                             }
                             // or found an aggregate expression (which has to work on an attribute used for grouping)
@@ -607,19 +606,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // attributes can only refer to declared groups
                         if (target instanceof Attribute) {
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(target));
-                            queryC = queryC.addColumn(
-                                new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())),
-                                id,
-                                ne.toAttribute()
-                            );
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, target.dataType()), id, ne.toAttribute());
                         }
                         // handle histogram
                         else if (target instanceof GroupingFunction) {
-                            queryC = queryC.addColumn(
-                                new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())),
-                                id,
-                                ne.toAttribute()
-                            );
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, target.dataType()), id, ne.toAttribute());
                         }
                         // handle literal
                         else if (target.foldable()) {
@@ -650,11 +641,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         matchingGroup = groupingContext.groupFor(target);
                         Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                        queryC = queryC.addColumn(
-                            new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())),
-                            id,
-                            ne.toAttribute()
-                        );
+                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, ne.dataType()), id, ne.toAttribute());
                     }
                     // fallback
                     else {
@@ -667,7 +654,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             if (a.aggregates().stream().allMatch(e -> e.anyMatch(Expression::foldable))) {
                 for (Expression grouping : a.groupings()) {
                     GroupByKey matchingGroup = groupingContext.groupFor(grouping);
-                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id, null);
+                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, grouping.dataType()), id, null);
                 }
             }
             return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
@@ -692,7 +679,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // if the count points to the total track hits, enable accurate count retrieval
                         queryC = queryC.withTrackHits();
                     } else {
-                        ref = new GroupByRef(groupingAgg.id(), Property.COUNT, false);
+                        ref = new GroupByRef(groupingAgg.id(), Property.COUNT, c.dataType());
                     }
 
                     Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(queryC.pseudoFunctions());
@@ -905,7 +892,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         query.limit(),
                         query.shouldTrackHits(),
                         query.shouldIncludeFrozen(),
-                        values.size()
+                        values.size(),
+                        query.allowPartialSearchResults()
                     )
                 );
             }

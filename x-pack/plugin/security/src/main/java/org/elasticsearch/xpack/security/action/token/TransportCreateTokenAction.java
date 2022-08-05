@@ -69,26 +69,19 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         CreateTokenRequest.GrantType type = CreateTokenRequest.GrantType.fromString(request.getGrantType());
         assert type != null : "type should have been validated in the action";
         switch (type) {
-            case PASSWORD:
-            case KERBEROS:
-                authenticateAndCreateToken(type, request, listener);
-                break;
-            case CLIENT_CREDENTIALS:
+            case PASSWORD, KERBEROS -> authenticateAndCreateToken(type, request, listener);
+            case CLIENT_CREDENTIALS -> {
                 Authentication authentication = securityContext.getAuthentication();
-                if (authentication.isAuthenticatedWithServiceAccount() && false == authentication.getUser().isRunAs()) {
+                if (authentication.isServiceAccount()) {
                     // Service account itself cannot create OAuth2 tokens.
-                    // But it is possible to create an oauth2 token if the service account run-as a different user.
-                    // In this case, the token will be created for the run-as user (not the service account).
                     listener.onFailure(new ElasticsearchException("OAuth2 token creation is not supported for service accounts"));
                     return;
                 }
                 createToken(type, request, authentication, authentication, false, listener);
-                break;
-            default:
-                listener.onFailure(
-                    new IllegalStateException("grant_type [" + request.getGrantType() + "] is not supported by the create token action")
-                );
-                break;
+            }
+            default -> listener.onFailure(
+                new IllegalStateException("grant_type [" + request.getGrantType() + "] is not supported by the create token action")
+            );
         }
     }
 
@@ -123,7 +116,10 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         }
     }
 
-    private Tuple<AuthenticationToken, Optional<Exception>> extractAuthenticationToken(GrantType grantType, CreateTokenRequest request) {
+    private static Tuple<AuthenticationToken, Optional<Exception>> extractAuthenticationToken(
+        GrantType grantType,
+        CreateTokenRequest request
+    ) {
         AuthenticationToken authToken = null;
         if (grantType == GrantType.PASSWORD) {
             authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());
@@ -144,7 +140,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         return new Tuple<>(authToken, Optional.empty());
     }
 
-    private void clearCredentialsFromRequest(GrantType grantType, CreateTokenRequest request) {
+    private static void clearCredentialsFromRequest(GrantType grantType, CreateTokenRequest request) {
         if (grantType == GrantType.PASSWORD) {
             request.getPassword().close();
         } else if (grantType == GrantType.KERBEROS) {

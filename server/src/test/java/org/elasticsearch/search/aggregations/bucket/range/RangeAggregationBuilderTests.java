@@ -48,20 +48,15 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
         double r = 0;
         for (int i = 0; i < rangeCount; i++) {
             switch (between(0, 2)) {
-                case 0:
-                    builder.addUnboundedFrom(randomAlphaOfLength(2), r);
-                    break;
-                case 1:
-                    builder.addUnboundedTo(randomAlphaOfLength(2), r);
-                    break;
-                case 2:
+                case 0 -> builder.addUnboundedFrom(randomAlphaOfLength(2), r);
+                case 1 -> builder.addUnboundedTo(randomAlphaOfLength(2), r);
+                case 2 -> {
                     double from = r;
                     r += randomDouble(); // less than 1
                     double to = r;
                     builder.addRange(randomAlphaOfLength(2), from, to);
-                    break;
-                default:
-                    fail();
+                }
+                default -> fail();
             }
             r += randomDouble(); // less than 1
         }
@@ -75,23 +70,16 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
         String field = builder.field();
         List<RangeAggregator.Range> ranges = builder.ranges();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(1);
-                break;
-            case 1:
-                keyed = keyed == false;
-                break;
-            case 2:
-                field += randomAlphaOfLength(1);
-                break;
-            case 3:
+            case 0 -> name += randomAlphaOfLength(1);
+            case 1 -> keyed = keyed == false;
+            case 2 -> field += randomAlphaOfLength(1);
+            case 3 -> {
                 ranges = new ArrayList<>(ranges);
                 double from = ranges.get(ranges.size() - 1).from;
                 double to = from + randomDouble();
                 ranges.add(new RangeAggregator.Range(randomAlphaOfLength(2), from, to));
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         RangeAggregationBuilder mutant = new RangeAggregationBuilder(name).keyed(keyed).field(field);
         ranges.stream().forEach(mutant::addRange);

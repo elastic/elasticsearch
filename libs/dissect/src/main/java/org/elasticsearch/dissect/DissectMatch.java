@@ -60,22 +60,13 @@ final class DissectMatch {
             return;
         }
         switch (key.getModifier()) {
-            case NONE:
-                simpleResults.put(key.getName(), value);
-                break;
-            case APPEND:
-                appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator)).addValue(value, implicitAppendOrder++);
-                break;
-            case APPEND_WITH_ORDER:
-                appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator))
-                    .addValue(value, key.getAppendPosition());
-                break;
-            case FIELD_NAME:
-                referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setKey(value);
-                break;
-            case FIELD_VALUE:
-                referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setValue(value);
-                break;
+            case NONE -> simpleResults.put(key.getName(), value);
+            case APPEND -> appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator))
+                .addValue(value, implicitAppendOrder++);
+            case APPEND_WITH_ORDER -> appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator))
+                .addValue(value, key.getAppendPosition());
+            case FIELD_NAME -> referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setKey(value);
+            case FIELD_VALUE -> referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setValue(value);
         }
     }
 

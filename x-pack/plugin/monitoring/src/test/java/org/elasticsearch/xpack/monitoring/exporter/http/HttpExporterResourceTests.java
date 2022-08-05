@@ -66,7 +66,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final boolean validLicense = randomBoolean();
 
     /**
-     * kibana, logstash, and beats
+     * kibana, logstash, beats and enterprise search
      */
     private final int EXPECTED_TEMPLATES = TEMPLATE_NAMES.length;
     private final int EXPECTED_WATCHES = ClusterAlertsUtil.WATCH_IDS.length;
@@ -397,9 +397,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         assertWarnings(
             "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release! See the breaking changes documentation for the next major version.",
+                + "removed in a future release.",
             "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch and "
-                + "will be removed in a future release! See the breaking changes documentation for the next major version."
+                + "will be removed in a future release."
         );
     }
 
@@ -469,7 +469,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         assertWarnings(
             "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch "
-                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+                + "and will be removed in a future release."
         );
     }
 

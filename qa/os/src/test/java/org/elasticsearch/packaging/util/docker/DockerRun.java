@@ -34,6 +34,7 @@ public class DockerRun {
     private Integer uid;
     private Integer gid;
     private final List<String> extraArgs = new ArrayList<>();
+    private final List<String> runArgs = new ArrayList<>();
     private String memory = "2g"; // default to 2g memory limit
 
     private DockerRun() {}
@@ -95,6 +96,11 @@ public class DockerRun {
         return this;
     }
 
+    public DockerRun runArgs(String... args) {
+        Collections.addAll(this.runArgs, args);
+        return this;
+    }
+
     String build() {
         final List<String> cmd = new ArrayList<>();
 
@@ -144,6 +150,8 @@ public class DockerRun {
         // Image name
         cmd.add(getImageName(distribution));
 
+        cmd.addAll(this.runArgs);
+
         return String.join(" ", cmd);
     }
 
@@ -153,32 +161,14 @@ public class DockerRun {
      * @return an image name
      */
     public static String getImageName(Distribution distribution) {
-        String suffix;
-
-        switch (distribution.packaging) {
-            case DOCKER:
-                suffix = "";
-                break;
-
-            case DOCKER_UBI:
-                suffix = "-ubi8";
-                break;
-
-            case DOCKER_IRON_BANK:
-                suffix = "-ironbank";
-                break;
-
-            case DOCKER_CLOUD:
-                suffix = "-cloud";
-                break;
-
-            case DOCKER_CLOUD_ESS:
-                suffix = "-cloud-ess";
-                break;
-
-            default:
-                throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
-        }
+        String suffix = switch (distribution.packaging) {
+            case DOCKER -> "";
+            case DOCKER_UBI -> "-ubi8";
+            case DOCKER_IRON_BANK -> "-ironbank";
+            case DOCKER_CLOUD -> "-cloud";
+            case DOCKER_CLOUD_ESS -> "-cloud-ess";
+            default -> throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
+        };
 
         return "elasticsearch" + suffix + ":test";
     }

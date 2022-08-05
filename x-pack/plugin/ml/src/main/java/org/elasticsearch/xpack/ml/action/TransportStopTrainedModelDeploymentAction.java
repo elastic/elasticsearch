@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -35,18 +34,21 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationClusterService;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
@@ -66,8 +68,8 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
 
     private final Client client;
     private final IngestService ingestService;
-    private final TrainedModelAllocationService trainedModelAllocationService;
-    private final TrainedModelAllocationClusterService trainedModelAllocationClusterService;
+    private final TrainedModelAssignmentClusterService trainedModelAssignmentClusterService;
+    private final InferenceAuditor auditor;
 
     @Inject
     public TransportStopTrainedModelDeploymentAction(
@@ -76,8 +78,8 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         ActionFilters actionFilters,
         Client client,
         IngestService ingestService,
-        TrainedModelAllocationService trainedModelAllocationService,
-        TrainedModelAllocationClusterService trainedModelAllocationClusterService
+        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService,
+        InferenceAuditor auditor
     ) {
         super(
             StopTrainedModelDeploymentAction.NAME,
@@ -91,8 +93,8 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.ingestService = ingestService;
-        this.trainedModelAllocationService = trainedModelAllocationService;
-        this.trainedModelAllocationClusterService = trainedModelAllocationClusterService;
+        this.trainedModelAssignmentClusterService = trainedModelAssignmentClusterService;
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Override
@@ -109,9 +111,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             return;
         }
 
-        logger.debug(
-            () -> new ParameterizedMessage("[{}] Received request to undeploy{}", request.getId(), request.isForce() ? " (force)" : "")
-        );
+        logger.debug(() -> format("[%s] Received request to undeploy%s", request.getId(), request.isForce() ? " (force)" : ""));
 
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelsResponse -> {
             List<TrainedModelConfig> models = getModelsResponse.getResources().results();
@@ -124,12 +124,12 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                 return;
             }
 
-            Optional<TrainedModelAllocation> maybeAllocation = TrainedModelAllocationMetadata.allocationForModelId(
+            Optional<TrainedModelAssignment> maybeAssignment = TrainedModelAssignmentMetadata.assignmentForModelId(
                 clusterService.state(),
                 models.get(0).getModelId()
             );
 
-            if (maybeAllocation.isEmpty()) {
+            if (maybeAssignment.isEmpty()) {
                 listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
                 return;
             }
@@ -150,10 +150,11 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             }
 
             // NOTE, should only run on Master node
-            trainedModelAllocationClusterService.setModelAllocationToStopping(
+            assert clusterService.localNode().isMasterNode();
+            trainedModelAssignmentClusterService.setModelAssignmentToStopping(
                 modelId,
                 ActionListener.wrap(
-                    setToStopping -> normalUndeploy(task, models.get(0).getModelId(), maybeAllocation.get(), request, listener),
+                    setToStopping -> normalUndeploy(task, models.get(0).getModelId(), maybeAssignment.get(), request, listener),
                     failure -> {
                         if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
                             listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
@@ -190,36 +191,28 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
     private void normalUndeploy(
         Task task,
         String modelId,
-        TrainedModelAllocation modelAllocation,
+        TrainedModelAssignment modelAssignment,
         StopTrainedModelDeploymentAction.Request request,
         ActionListener<StopTrainedModelDeploymentAction.Response> listener
     ) {
-        request.setNodes(modelAllocation.getNodeRoutingTable().keySet().toArray(String[]::new));
+        request.setNodes(modelAssignment.getNodeRoutingTable().keySet().toArray(String[]::new));
         ActionListener<StopTrainedModelDeploymentAction.Response> finalListener = ActionListener.wrap(r -> {
-            waitForTaskRemoved(modelId, modelAllocation, request, r, ActionListener.wrap(waited -> {
-                trainedModelAllocationService.deleteModelAllocation(
-                    modelId,
-                    ActionListener.wrap(deleted -> listener.onResponse(r), deletionFailed -> {
-                        logger.error(
-                            () -> new ParameterizedMessage(
-                                "[{}] failed to delete model allocation after nodes unallocated the deployment",
-                                modelId
-                            ),
-                            deletionFailed
-                        );
-                        listener.onFailure(
-                            ExceptionsHelper.serverError(
-                                "failed to delete model allocation after nodes unallocated the deployment. Attempt to stop again",
-                                deletionFailed
-                            )
-                        );
-                    })
+            assert clusterService.localNode().isMasterNode();
+            trainedModelAssignmentClusterService.removeModelAssignment(modelId, ActionListener.wrap(deleted -> {
+                auditor.info(modelId, Messages.INFERENCE_DEPLOYMENT_STOPPED);
+                listener.onResponse(r);
+            }, deletionFailed -> {
+                logger.error(
+                    () -> format("[%s] failed to delete model assignment after nodes unallocated the deployment", modelId),
+                    deletionFailed
                 );
-            },
-                // TODO should we attempt to delete the deployment here?
-                listener::onFailure
-            ));
-
+                listener.onFailure(
+                    ExceptionsHelper.serverError(
+                        "failed to delete model assignment after nodes unallocated the deployment. Attempt to stop again",
+                        deletionFailed
+                    )
+                );
+            }));
         }, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof FailedNodeException) {
                 // A node has dropped out of the cluster since we started executing the requests.
@@ -233,24 +226,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             }
         });
         super.doExecute(task, request, finalListener);
-    }
-
-    void waitForTaskRemoved(
-        String modelId,
-        TrainedModelAllocation trainedModelAllocation,
-        StopTrainedModelDeploymentAction.Request request,
-        StopTrainedModelDeploymentAction.Response response,
-        ActionListener<StopTrainedModelDeploymentAction.Response> listener
-    ) {
-        final Set<String> nodesOfConcern = trainedModelAllocation.getNodeRoutingTable().keySet();
-        client.admin()
-            .cluster()
-            .prepareListTasks(nodesOfConcern.toArray(String[]::new))
-            .setDetailed(true)
-            .setWaitForCompletion(true)
-            .setActions(modelId)
-            .setTimeout(request.getTimeout())
-            .execute(ActionListener.wrap(complete -> listener.onResponse(response), listener::onFailure));
     }
 
     @Override
@@ -271,11 +246,14 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         StopTrainedModelDeploymentAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<StopTrainedModelDeploymentAction.Response> listener
     ) {
-        task.stop("undeploy_trained_model (api)");
-        listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
+        task.stop(
+            "undeploy_trained_model (api)",
+            ActionListener.wrap(r -> listener.onResponse(new StopTrainedModelDeploymentAction.Response(true)), listener::onFailure)
+        );
     }
 }

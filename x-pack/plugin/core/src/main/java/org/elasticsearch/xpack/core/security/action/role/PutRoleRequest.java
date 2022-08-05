@@ -15,12 +15,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +26,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -67,50 +64,11 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (name == null) {
-            validationException = addValidationError("role name is missing", validationException);
+        Validation.Error error = NativeRealmValidationUtil.validateRoleName(this.name, false);
+        if (error != null) {
+            validationException = addValidationError(error.toString(), validationException);
         }
-        if (clusterPrivileges != null) {
-            for (String cp : clusterPrivileges) {
-                try {
-                    ClusterPrivilegeResolver.resolve(cp);
-                } catch (IllegalArgumentException ile) {
-                    validationException = addValidationError(ile.getMessage(), validationException);
-                }
-            }
-        }
-        if (indicesPrivileges != null) {
-            for (RoleDescriptor.IndicesPrivileges idp : indicesPrivileges) {
-                try {
-                    IndexPrivilege.get(Set.of(idp.getPrivileges()));
-                } catch (IllegalArgumentException ile) {
-                    validationException = addValidationError(ile.getMessage(), validationException);
-                }
-            }
-        }
-        if (applicationPrivileges != null) {
-            for (RoleDescriptor.ApplicationResourcePrivileges privilege : applicationPrivileges) {
-                try {
-                    ApplicationPrivilege.validateApplicationNameOrWildcard(privilege.getApplication());
-                } catch (IllegalArgumentException e) {
-                    validationException = addValidationError(e.getMessage(), validationException);
-                }
-                for (String privilegeName : privilege.getPrivileges()) {
-                    try {
-                        ApplicationPrivilege.validatePrivilegeOrActionName(privilegeName);
-                    } catch (IllegalArgumentException e) {
-                        validationException = addValidationError(e.getMessage(), validationException);
-                    }
-                }
-            }
-        }
-        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError(
-                "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                validationException
-            );
-        }
-        return validationException;
+        return RoleDescriptorRequestValidator.validate(roleDescriptor(), validationException);
     }
 
     public void name(String name) {
@@ -217,7 +175,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         ConfigurableClusterPrivileges.writeArray(out, this.configurableClusterPrivileges);
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
     }
 
     public RoleDescriptor roleDescriptor() {

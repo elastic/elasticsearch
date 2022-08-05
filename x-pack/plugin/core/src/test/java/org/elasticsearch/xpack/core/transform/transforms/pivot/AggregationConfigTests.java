@@ -146,16 +146,12 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
 
     private static AggregationBuilder getRandomSupportedAggregation() {
         final int numberOfSupportedAggs = 4;
-        switch (randomIntBetween(1, numberOfSupportedAggs)) {
-            case 1:
-                return AggregationBuilders.avg("avg_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-            case 2:
-                return AggregationBuilders.min("min_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-            case 3:
-                return AggregationBuilders.max("max_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-            case 4:
-                return AggregationBuilders.sum("sum_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-        }
-        return null;
+        return switch (randomIntBetween(1, numberOfSupportedAggs)) {
+            case 1 -> AggregationBuilders.avg("avg_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 2 -> AggregationBuilders.min("min_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 3 -> AggregationBuilders.max("max_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 4 -> AggregationBuilders.sum("sum_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            default -> null;
+        };
     }
 }

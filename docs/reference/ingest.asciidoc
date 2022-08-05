@@ -37,18 +37,24 @@ with the `ingest` role. For heavy ingest loads, we recommend creating
 [[create-manage-ingest-pipelines]]
 === Create and manage pipelines
 
-In {kib}, open the main menu and click **Stack Management** > **Ingest
+In {kib}, open the main menu and click **Stack Management > Ingest
 Pipelines**. From the list view, you can:
 
 * View a list of your pipelines and drill down into details
 * Edit or clone existing pipelines
 * Delete pipelines
 
-To create a new pipeline, click **Create pipeline**. For an example tutorial,
-see <<common-log-format-example>>.
-
 [role="screenshot"]
 image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list view,align="center"]
+
+To create a pipeline, click **Create pipeline > New pipeline**. For an example
+tutorial, see <<common-log-format-example>>.
+
+TIP: The **New pipeline from CSV** option lets you use a CSV to create an ingest
+pipeline that maps custom data to the {ecs-ref}[Elastic Common Schema (ECS)].
+Mapping your custom data to ECS makes the data easier to search and lets you
+reuse visualizations from other datasets. To get started, check
+{ecs-ref}/ecs-converting.html[Map custom data to ECS].
 
 You can also use the <<ingest-apis,ingest APIs>> to create and manage pipelines.
 The following <<put-pipeline-api,create pipeline API>> request creates
@@ -185,6 +191,7 @@ The API returns transformed documents:
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
           "my-keyword-field": "foo"
         },
@@ -197,6 +204,7 @@ The API returns transformed documents:
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
           "my-keyword-field": "bar"
         },
@@ -262,8 +270,8 @@ POST _reindex
 === Set a default pipeline
 
 Use the <<index-default-pipeline,`index.default_pipeline`>> index setting to set
-a default pipeline. {es} applies this pipeline if no `pipeline` parameter
-is specified.
+a default pipeline. {es} applies this pipeline to indexing requests if no
+`pipeline` parameter is specified.
 
 [discrete]
 [[set-final-pipeline]]
@@ -848,7 +856,7 @@ You can also specify a <<modules-scripting-stored-scripts,stored script>> as the
 
 [source,console]
 ----
-PUT _scripts/my-stored-script
+PUT _scripts/my-prod-tag-script
 {
   "script": {
     "lang": "painless",
@@ -872,12 +880,21 @@ PUT _ingest/pipeline/my-pipeline
     {
       "drop": {
         "description": "Drop documents that don't contain 'prod' tag",
-        "if": { "id": "my-stored-script" }
+        "if": { "id": "my-prod-tag-script" }
       }
     }
   ]
 }
 ----
+
+////
+[source,console]
+----
+DELETE _scripts/my-prod-tag-script
+DELETE _ingest/pipeline/my-pipeline
+----
+// TEST[continued]
+////
 
 Incoming documents often contain object fields. If a processor script attempts
 to access a field whose parent object does not exist, {es} returns a

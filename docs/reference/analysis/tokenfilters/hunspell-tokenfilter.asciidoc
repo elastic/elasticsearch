@@ -24,13 +24,12 @@ See <<dictionary-stemmers>>.
 [[analysis-hunspell-tokenfilter-dictionary-config]]
 ==== Configure Hunspell dictionaries
 
-By default, Hunspell dictionaries are stored and detected on a dedicated
-hunspell directory on the filesystem: `<path.config>/hunspell`. Each dictionary
+Hunspell dictionaries are stored and detected on a dedicated
+`hunspell` directory on the filesystem: `<$ES_PATH_CONF>/hunspell`. Each dictionary
 is expected to have its own directory, named after its associated language and
 locale (e.g., `pt_BR`, `en_GB`). This dictionary directory is expected to hold a
 single `.aff` and one or more `.dic` files, all of which will automatically be
-picked up. For example, assuming the default `<path.config>/hunspell` path
-is used, the following directory layout will define the `en_US` dictionary:
+picked up. For example, the following directory layout will define the `en_US` dictionary:
 
 [source,txt]
 --------------------------------------------------
@@ -47,16 +46,16 @@ Each dictionary can be configured with one setting:
 `ignore_case`::
 (Static, Boolean)
 If true, dictionary matching will be case insensitive. Defaults to `false`.
-
++
 This setting can be configured globally in `elasticsearch.yml` using
 `indices.analysis.hunspell.dictionary.ignore_case`.
-
++
 To configure the setting for a specific locale, use the
 `indices.analysis.hunspell.dictionary.<locale>.ignore_case` setting (e.g., for
 the `en_US` (American English) locale, the setting is
 `indices.analysis.hunspell.dictionary.en_US.ignore_case`).
-
-It is also possible to add `settings.yml` file under the dictionary
++
+You can also add a `settings.yml` file under the dictionary
 directory which holds these settings. This overrides any other `ignore_case`
 settings defined in `elasticsearch.yml`.
 
@@ -67,7 +66,7 @@ The following analyze API request uses the `hunspell` filter to stem
 `the foxes jumping quickly` to `the fox jump quick`.
 
 The request specifies the `en_US` locale, meaning that the
-`.aff` and `.dic` files in the `<path.config>/hunspell/en_US` directory are used
+`.aff` and `.dic` files in the `<$ES_PATH_CONF>/hunspell/en_US` directory are used
 for the Hunspell dictionary.
 
 [source,console]
@@ -140,11 +139,8 @@ One or more `.dic` files (e.g, `en_US.dic, my_custom.dic`) to use for the
 Hunspell dictionary.
 +
 By default, the `hunspell` filter uses all `.dic` files in the
-`<path.config>/hunspell/<locale>` directory specified using the
-`lang`, `language`, or `locale` parameter. To use another directory, the
-directory's path must be registered using the
-<<indices-analysis-hunspell-dictionary-location,
-`indices.analysis.hunspell.dictionary.location`>> setting.
+`<$ES_PATH_CONF>/hunspell/<locale>` directory specified using the
+`lang`, `language`, or `locale` parameter.
 
 `dedup`::
 (Optional, Boolean)
@@ -194,7 +190,7 @@ uses a custom `hunspell` filter, `my_en_US_dict_stemmer`, to configure a new
 <<analysis-custom-analyzer,custom analyzer>>.
 
 The `my_en_US_dict_stemmer` filter uses a `locale` of `en_US`, meaning that the
-`.aff` and `.dic` files in the `<path.config>/hunspell/en_US` directory are
+`.aff` and `.dic` files in the `<$ES_PATH_CONF>/hunspell/en_US` directory are
 used. The filter also includes a `dedup` argument of `false`, meaning that
 duplicate tokens added from the dictionary are not removed from the filter's
 output.
@@ -236,12 +232,3 @@ If `true`, the loading of Hunspell dictionaries is deferred until a dictionary
 is used. If `false`, the dictionary directory is checked for dictionaries when
 the node starts, and any dictionaries are automatically loaded. Defaults to
 `false`.
-
-[[indices-analysis-hunspell-dictionary-location]]
-`indices.analysis.hunspell.dictionary.location`::
-(Static, string)
-Path to a Hunspell dictionary directory. This path must be absolute or
-relative to the `config` location.
-+
-By default, the `<path.config>/hunspell` directory is used, as described in
-<<analysis-hunspell-tokenfilter-dictionary-config>>.

@@ -75,16 +75,15 @@ For more complex or time-consuming searches, you can use <<async-search>> with
 // tag::searchable-snapshot-repo-types[]
 Use any of the following repository types with searchable snapshots:
 
-* {plugins}/repository-s3.html[AWS S3]
-* {plugins}/repository-gcs.html[Google Cloud Storage]
-* {plugins}/repository-azure.html[Azure Blob Storage]
+* <<repository-s3,AWS S3>>
+* <<repository-gcs,Google Cloud Storage>>
+* <<repository-azure,Azure Blob Storage>>
 * {plugins}/repository-hdfs.html[Hadoop Distributed File Store (HDFS)]
 * <<snapshots-filesystem-repository,Shared filesystems>> such as NFS
 * <<snapshots-read-only-repository,Read-only HTTP and HTTPS repositories>>
 
 You can also use alternative implementations of these repository types, for
-instance
-{plugins}/repository-s3-client.html#repository-s3-compatible-services[MinIO],
+instance <<repository-s3-client,MinIO>>,
 as long as they are fully compatible. Use the <<repo-analysis-api>> API
 to analyze your repository's suitability for use with searchable snapshots.
 // end::searchable-snapshot-repo-types[]
@@ -131,21 +130,23 @@ snapshot repository. While recovery is ongoing, search performance may be
 slower than with a regular index because a search may need some data that has
 not yet been retrieved into the local copy. If that happens, {es} will eagerly
 retrieve the data needed to complete the search in parallel with the ongoing
-recovery.
+recovery. On-disk data is preserved across restarts, such that the node does
+not need to re-download data that is already stored on the node after a restart.
 +
-Indices managed by {ilm-init} are prefixed with `recovered-` when fully mounted.
+Indices managed by {ilm-init} are prefixed with `restored-` when fully mounted.
 
 [[partially-mounted]]
 Partially mounted index::
 Uses a local cache containing only recently searched parts of the snapshotted
-index's data. This cache has a fixed size and is shared across nodes in the
-frozen tier. {ilm-init} uses this option in the `frozen` phase.
+index's data. This cache has a fixed size and is shared across shards of partially
+mounted indices allocated on the same data node. {ilm-init} uses this option in the
+`frozen` phase.
 +
 If a search requires data that is not in the cache, {es} fetches the missing
 data from the snapshot repository. Searches that require these fetches are
 slower, but the fetched data is stored in the cache so that similar searches
 can be served more quickly in future. {es} will evict infrequently used data
-from the cache to free up space.
+from the cache to free up space. The cache is cleared when a node is restarted.
 +
 Although slower than a fully mounted index or a regular index, a
 partially mounted index still returns search results quickly, even for
@@ -294,6 +295,10 @@ A snapshot of a {search-snap} index contains only a small amount of metadata
 which identifies its original index snapshot. It does not contain any data from
 the original index. The restore of a backup will fail to restore any
 {search-snap} indices whose original index snapshot is unavailable.
+
+Because {search-snap} indices are not regular indices, it is not possible to
+use a <<snapshots-source-only-repository,source-only repository>> to take
+snapshots of {search-snap} indices.
 
 [discrete]
 [[searchable-snapshots-reliability]]

@@ -40,9 +40,13 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -139,7 +143,8 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer
         ) {
             taskExecutor = new TaskExecutor(client, clusterService, threadPool);
             return Collections.singletonList(taskExecutor);
@@ -160,6 +165,17 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return Collections.singletonList(
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, "task_name", TestTaskParams::new)
+            );
+        }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return Collections.singletonList(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    TestTaskParams.TASK_NAME,
+                    (p, c) -> TestTaskParams.fromXContent(p)
+                )
             );
         }
     }
@@ -218,13 +234,24 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             return builder;
         }
 
+        public static final ParseField TASK_NAME = new ParseField("task_name");
+        public static final ObjectParser<TestTaskParams, Void> PARSER = new ObjectParser<TestTaskParams, Void>(
+            TASK_NAME.getPreferredName(),
+            true,
+            () -> new TestTaskParams()
+        );
+
+        public static TestTaskParams fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
         public TestTaskParams() {}
 
         public TestTaskParams(StreamInput in) {}
 
         @Override
         public String getWriteableName() {
-            return "task_name";
+            return TASK_NAME.getPreferredName();
         }
 
         @Override

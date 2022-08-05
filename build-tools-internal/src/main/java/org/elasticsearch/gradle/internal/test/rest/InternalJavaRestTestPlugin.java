@@ -16,7 +16,7 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTestDependenciesDefaults;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupJavaRestTestDependenciesDefaults;
 
 /**
  * Apply this plugin to run the Java based REST tests.
@@ -37,7 +37,7 @@ public class InternalJavaRestTestPlugin implements Plugin<Project> {
         registerTestTask(project, javaTestSourceSet);
 
         // setup dependencies
-        setupTestDependenciesDefaults(project, javaTestSourceSet);
+        setupJavaRestTestDependenciesDefaults(project, javaTestSourceSet);
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, javaTestSourceSet);

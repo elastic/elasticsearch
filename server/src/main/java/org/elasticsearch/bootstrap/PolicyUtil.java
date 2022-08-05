@@ -8,10 +8,10 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.script.ClassPermission;
 
 import java.io.FilePermission;
@@ -184,7 +184,8 @@ public class PolicyUtil {
             new RuntimePermission("createClassLoader"),
             new RuntimePermission("getFileStoreAttributes"),
             new RuntimePermission("accessUserInformation"),
-            new AuthPermission("modifyPrivateCredentials")
+            new AuthPermission("modifyPrivateCredentials"),
+            new RuntimePermission("accessSystemModules")
         );
         PermissionCollection modulePermissionCollection = new Permissions();
         namedPermissions.forEach(modulePermissionCollection::add);
@@ -299,7 +300,7 @@ public class PolicyUtil {
 
     // pakcage private for tests
     static PluginPolicyInfo readPolicyInfo(Path pluginRoot) throws IOException {
-        Path policyFile = pluginRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        Path policyFile = pluginRoot.resolve(PluginDescriptor.ES_PLUGIN_POLICY);
         if (Files.exists(policyFile) == false) {
             return null;
         }
@@ -357,9 +358,9 @@ public class PolicyUtil {
         if (info == null) {
             return;
         }
-        validatePolicyPermissionsForJar(type, info.file, null, info.policy, allowedPermissions, tmpDir);
-        for (URL jar : info.jars) {
-            validatePolicyPermissionsForJar(type, info.file, jar, info.policy, allowedPermissions, tmpDir);
+        validatePolicyPermissionsForJar(type, info.file(), null, info.policy(), allowedPermissions, tmpDir);
+        for (URL jar : info.jars()) {
+            validatePolicyPermissionsForJar(type, info.file(), jar, info.policy(), allowedPermissions, tmpDir);
         }
     }
 

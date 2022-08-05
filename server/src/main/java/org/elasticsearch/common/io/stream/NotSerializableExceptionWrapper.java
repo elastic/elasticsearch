@@ -34,8 +34,7 @@ public final class NotSerializableExceptionWrapper extends ElasticsearchExceptio
         for (Throwable otherSuppressed : other.getSuppressed()) {
             addSuppressed(otherSuppressed);
         }
-        if (other instanceof ElasticsearchException) {
-            ElasticsearchException ex = (ElasticsearchException) other;
+        if (other instanceof ElasticsearchException ex) {
             for (String key : ex.getHeaderKeys()) {
                 this.addHeader(key, ex.getHeader(key));
             }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
@@ -23,6 +24,7 @@ import java.util.regex.Pattern;
 
 public class LogTextStructureFinder implements TextStructureFinder {
 
+    private static final int TOO_MANY_IDENTICAL_DELIMITERS_BEFORE_WILDCARDS = 8;
     private final List<String> sampleMessages;
     private final TextStructure structure;
 
@@ -145,14 +147,17 @@ public class LogTextStructureFinder implements TextStructureFinder {
         fieldStats.put("message", TextStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
 
         Map<String, String> customGrokPatternDefinitions = timestampFormatFinder.getCustomGrokPatternDefinitions();
+
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(
             explanation,
             sampleMessages,
             fieldMappings,
             fieldStats,
             customGrokPatternDefinitions,
-            timeoutChecker
+            timeoutChecker,
+            Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
         );
+
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField = overrides.getTimestampField();
         String grokPattern = overrides.getGrokPattern();
@@ -190,6 +195,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
             .setJavaTimestampFormats(timestampFormatFinder.getJavaTimestampFormats())
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
+            .setEcsCompatibility(overrides.getEcsCompatibility())
             .setIngestPipeline(
                 TextStructureUtils.makeIngestPipelineDefinition(
                     grokPattern,
@@ -199,7 +205,8 @@ public class LogTextStructureFinder implements TextStructureFinder {
                     interimTimestampField,
                     timestampFormatFinder.getJavaTimestampFormats(),
                     needClientTimeZone,
-                    timestampFormatFinder.needNanosecondPrecision()
+                    timestampFormatFinder.needNanosecondPrecision(),
+                    overrides.getEcsCompatibility()
                 )
             )
             .setMappings(Collections.singletonMap(TextStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings))
@@ -237,7 +244,8 @@ public class LogTextStructureFinder implements TextStructureFinder {
             false,
             false,
             false,
-            timeoutChecker
+            timeoutChecker,
+            Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
         );
 
         for (String sampleLine : sampleLines) {
@@ -250,10 +258,24 @@ public class LogTextStructureFinder implements TextStructureFinder {
     static String createMultiLineMessageStartRegex(Collection<String> prefaces, String simpleDateRegex) {
 
         StringBuilder builder = new StringBuilder("^");
-        GrokPatternCreator.addIntermediateRegex(builder, prefaces);
+        int complexity = GrokPatternCreator.addIntermediateRegex(builder, prefaces);
         builder.append(simpleDateRegex);
         if (builder.substring(0, 3).equals("^\\b")) {
             builder.delete(1, 3);
+        }
+        // This is here primarily to protect against the horrible patterns that are generated when a not-quite-valid-CSV file
+        // has its timestamp column near the end of each line. The algorithm used to produce the multi-line start patterns can
+        // then produce patterns like this:
+        // ^.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}
+        // If a pattern like this is matched against a line that nearly matches but not quite (which is basically guaranteed in
+        // the not-quite-valid-CSV file case) then the backtracking will cause the match attempt to run for many days. Therefore
+        // it's better to just error out in this case and let the user try again with overrides.
+        if (complexity >= TOO_MANY_IDENTICAL_DELIMITERS_BEFORE_WILDCARDS) {
+            throw new IllegalArgumentException(
+                "Generated multi-line start pattern based on timestamp position ["
+                    + builder
+                    + "] is too complex. If your sample is delimited then try overriding the format."
+            );
         }
         return builder.toString();
     }

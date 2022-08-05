@@ -74,8 +74,8 @@ public final class PemKeyConfig implements SslKeyConfig {
         final List<StoredCertificate> info = new ArrayList<>(certificates.size());
         boolean first = true;
         for (Certificate cert : certificates) {
-            if (cert instanceof X509Certificate) {
-                info.add(new StoredCertificate((X509Certificate) cert, this.certificate, "PEM", null, first));
+            if (cert instanceof X509Certificate x509Certificate) {
+                info.add(new StoredCertificate(x509Certificate, this.certificate, "PEM", null, first));
             }
             first = false;
         }
@@ -105,8 +105,8 @@ public final class PemKeyConfig implements SslKeyConfig {
             return List.of();
         }
         final Certificate leafCertificate = certificates.get(0);
-        if (leafCertificate instanceof X509Certificate) {
-            return List.of(Tuple.tuple(getPrivateKey(keyPath), (X509Certificate) leafCertificate));
+        if (leafCertificate instanceof X509Certificate x509Certificate) {
+            return List.of(Tuple.tuple(getPrivateKey(keyPath), x509Certificate));
         } else {
             return List.of();
         }

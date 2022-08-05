@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -18,7 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionStateTests.createCustomMetadata;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,25 +40,16 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
         StepKey targetNextStepKey = instance.getTargetNextStepKey();
 
-        switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
-                break;
-            case 3:
-                targetNextStepKey = new StepKey(
-                    targetNextStepKey.getPhase(),
-                    targetNextStepKey.getAction(),
-                    targetNextStepKey.getName() + randomAlphaOfLength(5)
-                );
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+        switch (between(0, 3)) {
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
+            case 3 -> targetNextStepKey = new StepKey(
+                targetNextStepKey.getPhase(),
+                targetNextStepKey.getAction(),
+                targetNextStepKey.getName() + randomAlphaOfLength(5)
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new CopyExecutionStateStep(key, nextKey, indexNameSupplier, targetNextStepKey);
@@ -93,18 +85,18 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
 
-        LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
-        LifecycleExecutionState newIndexData = LifecycleExecutionState.fromIndexMetadata(
-            newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
-        );
+        LifecycleExecutionState oldIndexData = originalIndexMetadata.getLifecycleExecutionState();
+        LifecycleExecutionState newIndexData = newClusterState.metadata()
+            .index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
+            .getLifecycleExecutionState();
 
         StepKey targetNextStepKey = step.getTargetNextStepKey();
-        assertEquals(newIndexData.getLifecycleDate(), oldIndexData.getLifecycleDate());
-        assertEquals(newIndexData.getPhase(), targetNextStepKey.getPhase());
-        assertEquals(newIndexData.getAction(), targetNextStepKey.getAction());
-        assertEquals(newIndexData.getStep(), targetNextStepKey.getName());
-        assertEquals(newIndexData.getSnapshotRepository(), oldIndexData.getSnapshotRepository());
-        assertEquals(newIndexData.getSnapshotName(), oldIndexData.getSnapshotName());
+        assertEquals(newIndexData.lifecycleDate(), oldIndexData.lifecycleDate());
+        assertEquals(newIndexData.phase(), targetNextStepKey.getPhase());
+        assertEquals(newIndexData.action(), targetNextStepKey.getAction());
+        assertEquals(newIndexData.step(), targetNextStepKey.getName());
+        assertEquals(newIndexData.snapshotRepository(), oldIndexData.snapshotRepository());
+        assertEquals(newIndexData.snapshotName(), oldIndexData.snapshotName());
     }
 
     public void testAllStateCopied() {
@@ -127,10 +119,10 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
 
-        LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
-        LifecycleExecutionState newIndexData = LifecycleExecutionState.fromIndexMetadata(
-            newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
-        );
+        LifecycleExecutionState oldIndexData = originalIndexMetadata.getLifecycleExecutionState();
+        LifecycleExecutionState newIndexData = newClusterState.metadata()
+            .index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
+            .getLifecycleExecutionState();
 
         Map<String, String> beforeMap = new HashMap<>(oldIndexData.asMap());
         // The target step key's StepKey is used in the new metadata, so update the "before" map with the new info so it can be compared

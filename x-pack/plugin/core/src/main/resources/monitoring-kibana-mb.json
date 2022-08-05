@@ -3,6 +3,7 @@
   "version": ${xpack.stack.monitoring.template.release.version},
   "template": {
     "mappings": {
+      "dynamic": false,
       "properties": {
         "process": {
           "properties": {
@@ -390,6 +391,74 @@
                   }
                 }
               }
+            },
+            "cluster_rules": {
+              "properties": {
+                "overdue": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "delay": {
+                      "properties": {
+                        "p50": {
+                          "type": "float"
+                        },
+                        "p99": {
+                          "type": "float"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "node_rules": {
+              "properties": {
+                "failures": {
+                  "type": "long"
+                },
+                "executions": {
+                  "type": "long"
+                },
+                "timeouts": {
+                  "type": "long"
+                }
+              }
+            },
+            "cluster_actions": {
+              "properties": {
+                "overdue": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "delay": {
+                      "properties": {
+                        "p50": {
+                          "type": "float"
+                        },
+                        "p99": {
+                          "type": "float"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "node_actions": {
+              "properties": {
+                "failures": {
+                  "type": "long"
+                },
+                "executions": {
+                  "type": "long"
+                },
+                "timeouts": {
+                  "type": "long"
+                }
+              }
             }
           }
         },
@@ -492,6 +561,10 @@
                 "uuid": {
                   "type": "alias",
                   "path": "service.id"
+                },
+                "version": {
+                  "type": "alias",
+                  "path": "service.version"
                 }
               }
             },
@@ -644,7 +717,8 @@
       }
     },
     "settings": {
-      "index.mapping.total_fields.limit": 2000
+      "index.mapping.total_fields.limit": 2000,
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }
   },
   "data_stream": {}

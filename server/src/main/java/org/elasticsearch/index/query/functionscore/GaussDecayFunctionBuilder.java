@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ParseField;
@@ -48,6 +49,11 @@ public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFu
     @Override
     public DecayFunction getDecayFunction() {
         return GAUSS_DECAY_FUNCTION;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     private static final class GaussScoreFunction implements DecayFunction {

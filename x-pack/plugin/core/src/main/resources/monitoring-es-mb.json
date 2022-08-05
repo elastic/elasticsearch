@@ -3,6 +3,7 @@
   "version": ${xpack.stack.monitoring.template.release.version},
   "template": {
     "mappings": {
+      "dynamic": false,
       "properties": {
         "@timestamp": {
           "type": "date"
@@ -731,14 +732,16 @@
                                 "usage": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "long"
+                                      "ignore_above": 1024,
+                                      "type": "keyword"
                                     }
                                   }
                                 },
                                 "limit": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "long"
+                                      "ignore_above": 1024,
+                                      "type": "keyword"
                                     }
                                   }
                                 }
@@ -3292,7 +3295,8 @@
       }
     },
     "settings": {
-      "index.mapping.total_fields.limit": 2000
+      "index.mapping.total_fields.limit": 2000,
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }
   },
   "data_stream": {}

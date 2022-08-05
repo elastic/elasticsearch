@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -188,11 +189,60 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(
-                client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata().index("test")
-            );
-            assertThat(lifecycleState.getStep(), equalTo("complete"));
+            LifecycleExecutionState lifecycleState = client().admin()
+                .cluster()
+                .prepareState()
+                .execute()
+                .actionGet()
+                .getState()
+                .getMetadata()
+                .index("test")
+                .getLifecycleExecutionState();
+            assertThat(lifecycleState.step(), equalTo("complete"));
         });
+    }
+
+    public void testNoOpPolicyUpdates() throws Exception {
+        internalCluster().startNode();
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("hot", new Phase("hot", TimeValue.ZERO, Map.of()));
+        LifecyclePolicy policy = new LifecyclePolicy("mypolicy", phases);
+
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(policy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+
+        GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request())
+            .get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(policy));
+        assertThat(responseItem.getVersion(), equalTo(1L));
+
+        // Put the same policy in place, which should be a no-op
+        putLifecycleRequest = new PutLifecycleAction.Request(policy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+
+        getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(policy));
+        // Version should still be 1
+        assertThat(responseItem.getVersion(), equalTo(1L));
+
+        // Generate a brand new policy
+        Map<String, Phase> newPhases = new HashMap<>(phases);
+        newPhases.put("cold", new Phase("cold", TimeValue.timeValueDays(1), Map.of()));
+        policy = new LifecyclePolicy("mypolicy", newPhases);
+
+        putLifecycleRequest = new PutLifecycleAction.Request(policy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+
+        getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(policy));
+        // Version should now be 2
+        assertThat(responseItem.getVersion(), equalTo(2L));
     }
 
     public void testExplainExecution() throws Exception {
@@ -408,10 +458,16 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(
-                client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata().index("test")
-            );
-            assertThat(lifecycleState.getStep(), equalTo("complete"));
+            LifecycleExecutionState lifecycleState = client().admin()
+                .cluster()
+                .prepareState()
+                .execute()
+                .actionGet()
+                .getState()
+                .getMetadata()
+                .index("test")
+                .getLifecycleExecutionState();
+            assertThat(lifecycleState.step(), equalTo("complete"));
         });
     }
 

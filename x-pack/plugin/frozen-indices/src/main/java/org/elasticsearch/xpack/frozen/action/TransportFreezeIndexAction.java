@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.frozen.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -32,18 +32,19 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.SortedMap;
 
@@ -129,7 +130,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
 
             @Override
             public void onFailure(final Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
+                logger.debug(() -> "failed to close indices [" + Arrays.toString(concreteIndices) + "]", t);
                 listener.onFailure(t);
             }
         });
@@ -140,14 +141,14 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
         final FreezeRequest request,
         final ActionListener<FreezeResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "toggle-frozen-settings",
             new AckedClusterStateUpdateTask(Priority.URGENT, request, listener.delegateFailure((delegate, acknowledgedResponse) -> {
                 OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
                     .masterNodeTimeout(request.masterNodeTimeout())
                     .indices(concreteIndices)
                     .waitForActiveShards(request.waitForActiveShards());
-                indexStateService.openIndex(
+                indexStateService.openIndices(
                     updateRequest,
                     delegate.delegateFailure(
                         (l, openIndexClusterStateUpdateResponse) -> l.onResponse(
@@ -193,7 +194,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                         } else {
                             settingsBuilder.remove(FrozenEngine.INDEX_FROZEN.getKey());
                             settingsBuilder.remove(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
-                            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings()) == false) {
+                            if (indexMetadata.isSearchableSnapshot() == false) {
                                 settingsBuilder.remove("index.blocks.write");
                                 blocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
                             }
@@ -216,5 +217,10 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
     protected ClusterBlockException checkBlock(FreezeRequest request, ClusterState state) {
         return state.blocks()
             .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

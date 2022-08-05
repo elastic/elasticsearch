@@ -20,12 +20,14 @@ public class ZeroBytesReference extends AbstractBytesReference {
     private final int length;
 
     public ZeroBytesReference(int length) {
+        assert 0 <= length : length;
         this.length = length;
     }
 
     @Override
     public int indexOf(byte marker, int from) {
-        if (marker == 0) {
+        assert 0 <= from && from <= length : from + " vs " + length;
+        if (marker == 0 && from < length) {
             return from;
         } else {
             return -1;
@@ -34,6 +36,7 @@ public class ZeroBytesReference extends AbstractBytesReference {
 
     @Override
     public byte get(int index) {
+        assert 0 <= index && index < length : index + " vs " + length;
         return 0;
     }
 
@@ -44,6 +47,7 @@ public class ZeroBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
+        assert from + length <= this.length : from + " and " + length + " vs " + this.length;
         return new ZeroBytesReference(length);
     }
 

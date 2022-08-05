@@ -25,18 +25,18 @@ public class SearchShardTests extends ESTestCase {
             randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
             new ShardId(index, index + "-uuid", randomIntBetween(0, 1024))
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(searchShard, s -> new SearchShard(s.getClusterAlias(), s.getShardId()), s -> {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(searchShard, s -> new SearchShard(s.clusterAlias(), s.shardId()), s -> {
             if (randomBoolean()) {
-                return new SearchShard(s.getClusterAlias() == null ? randomAlphaOfLengthBetween(3, 10) : null, s.getShardId());
+                return new SearchShard(s.clusterAlias() == null ? randomAlphaOfLengthBetween(3, 10) : null, s.shardId());
             } else {
-                String indexName = s.getShardId().getIndexName();
-                int shardId = s.getShardId().getId();
+                String indexName = s.shardId().getIndexName();
+                int shardId = s.shardId().getId();
                 if (randomBoolean()) {
                     indexName += randomAlphaOfLength(5);
                 } else {
                     shardId += randomIntBetween(1, 1024);
                 }
-                return new SearchShard(s.getClusterAlias(), new ShardId(indexName, indexName + "-uuid", shardId));
+                return new SearchShard(s.clusterAlias(), new ShardId(indexName, indexName + "-uuid", shardId));
             }
         });
     }

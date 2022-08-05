@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -32,10 +31,13 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 
@@ -44,9 +46,21 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETT
  * those indices can be automatically managed. Only some system indices are managed
  * internally to Elasticsearch - others are created and managed externally, e.g.
  * Kibana indices.
+ *
+ * Other metadata updates are handled by {@link org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}.
  */
 public class SystemIndexManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SystemIndexManager.class);
+
+    public static final Set<String> MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
+    static {
+        Set<String> allowlist = new HashSet<>();
+        // Add all the blocks, we need to be able to clear those
+        for (IndexMetadata.APIBlock blockType : IndexMetadata.APIBlock.values()) {
+            allowlist.add(blockType.settingName());
+        }
+        MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST = Collections.unmodifiableSet(allowlist);
+    }
 
     private final SystemIndices systemIndices;
     private final Client client;
@@ -84,9 +98,19 @@ public class SystemIndexManager implements ClusterStateListener {
         }
 
         if (isUpgradeInProgress.compareAndSet(false, true)) {
-            final List<SystemIndexDescriptor> descriptors = getEligibleDescriptors(state.getMetadata()).stream()
-                .filter(descriptor -> getUpgradeStatus(state, descriptor) == UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
-                .collect(Collectors.toList());
+            final List<SystemIndexDescriptor> descriptors = new ArrayList<>();
+            for (SystemIndexDescriptor systemIndexDescriptor : getEligibleDescriptors(state.getMetadata())) {
+                UpgradeStatus upgradeStatus;
+                try {
+                    upgradeStatus = getUpgradeStatus(state, systemIndexDescriptor);
+                } catch (Exception e) {
+                    logger.warn("Failed to calculate upgrade status: {}" + e.getMessage(), e);
+                    continue;
+                }
+                if (upgradeStatus == UpgradeStatus.NEEDS_MAPPINGS_UPDATE) {
+                    descriptors.add(systemIndexDescriptor);
+                }
+            }
 
             if (descriptors.isEmpty() == false) {
                 // Use a GroupedActionListener so that we only release the lock once all upgrade attempts have succeeded or failed.
@@ -116,7 +140,7 @@ public class SystemIndexManager implements ClusterStateListener {
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .filter(d -> metadata.hasIndexAbstraction(d.getPrimaryIndex()))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     enum UpgradeStatus {
@@ -135,7 +159,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * @param descriptor information about the system index to check
      * @return a value that indicates the index's state.
      */
-    UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
+    static UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
         final State indexState = calculateIndexState(clusterState, descriptor);
 
         final String indexDescription = "[" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
@@ -212,7 +236,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * @param descriptor the system index to check
      * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
-    State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
+    static State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
         final IndexMetadata indexMetadata = state.metadata().index(descriptor.getPrimaryIndex());
 
         if (indexMetadata == null) {
@@ -246,7 +270,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * Checks whether an index's mappings are up-to-date. If an index is encountered that has
      * a version higher than Version.CURRENT, it is still considered up-to-date.
      */
-    private boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
+    private static boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
         final MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {
             return false;
@@ -258,14 +282,20 @@ public class SystemIndexManager implements ClusterStateListener {
     /**
      * Fetches the mapping version from an index's mapping's `_meta` info.
      */
-    @SuppressWarnings("unchecked")
-    private Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
+    private static Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
         final String indexName = descriptor.getPrimaryIndex();
         try {
+            @SuppressWarnings("unchecked")
             Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
             if (meta == null) {
-                logger.warn("Missing _meta field in mapping [{}] of index [{}]", mappingMetadata.type(), indexName);
-                throw new IllegalStateException("Cannot read version string in index " + indexName);
+                logger.warn(
+                    "Missing _meta field in mapping [{}] of index [{}], assuming mappings update required",
+                    mappingMetadata.type(),
+                    indexName
+                );
+                // This can happen with old system indices, such as .watches, which were created before we had the convention of
+                // storing a version under `_meta.` We should just replace the template to be sure.
+                return Version.V_EMPTY;
             }
 
             final Object rawVersion = meta.get(descriptor.getVersionMetaKey());
@@ -276,17 +306,14 @@ public class SystemIndexManager implements ClusterStateListener {
             }
             final String versionString = rawVersion != null ? rawVersion.toString() : null;
             if (versionString == null) {
-                logger.warn("No value found in mappings for [_meta.{}]", descriptor.getVersionMetaKey());
+                logger.warn("No value found in mappings for [_meta.{}], assuming mappings update required", descriptor.getVersionMetaKey());
                 // If we called `Version.fromString(null)`, it would return `Version.CURRENT` and we wouldn't update the mappings
                 return Version.V_EMPTY;
             }
             return Version.fromString(versionString);
-        } catch (ElasticsearchParseException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
-            throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
-        } catch (IllegalArgumentException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
-            throw e;
+        } catch (ElasticsearchParseException | IllegalArgumentException e) {
+            logger.error(() -> "Cannot parse the mapping for index [" + indexName + "]", e);
+            return Version.V_EMPTY;
         }
     }
 

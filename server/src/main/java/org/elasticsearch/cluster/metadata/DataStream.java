@@ -12,8 +12,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +22,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -29,22 +31,25 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
-public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
+public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
+    public static final TimestampField TIMESTAMP_FIELD = new DataStream.TimestampField("@timestamp");
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
@@ -69,7 +74,6 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     private final LongSupplier timeProvider;
     private final String name;
-    private final TimestampField timeStampField;
     private final List<Index> indices;
     private final long generation;
     private final Map<String, Object> metadata;
@@ -77,53 +81,25 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private final boolean replicated;
     private final boolean system;
     private final boolean allowCustomRouting;
-
-    public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata) {
-        this(name, timeStampField, indices, generation, metadata, false, false, false, false);
-    }
+    private final IndexMode indexMode;
 
     public DataStream(
         String name,
-        TimestampField timeStampField,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata,
-        boolean hidden,
-        boolean replicated,
-        boolean allowCustomRouting
-    ) {
-        this(name, timeStampField, indices, generation, metadata, hidden, replicated, false, System::currentTimeMillis, allowCustomRouting);
-    }
-
-    public DataStream(
-        String name,
-        TimestampField timeStampField,
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
         boolean hidden,
         boolean replicated,
         boolean system,
-        boolean allowCustomRouting
+        boolean allowCustomRouting,
+        IndexMode indexMode
     ) {
-        this(
-            name,
-            timeStampField,
-            indices,
-            generation,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            System::currentTimeMillis,
-            allowCustomRouting
-        );
+        this(name, indices, generation, metadata, hidden, replicated, system, System::currentTimeMillis, allowCustomRouting, indexMode);
     }
 
     // visible for testing
     DataStream(
         String name,
-        TimestampField timeStampField,
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
@@ -131,11 +107,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         boolean replicated,
         boolean system,
         LongSupplier timeProvider,
-        boolean allowCustomRouting
+        boolean allowCustomRouting,
+        IndexMode indexMode
     ) {
         this.name = name;
-        this.timeStampField = timeStampField;
-        this.indices = Collections.unmodifiableList(indices);
+        this.indices = List.copyOf(indices);
         this.generation = generation;
         this.metadata = metadata;
         assert system == false || hidden; // system indices must be hidden
@@ -144,11 +120,18 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.timeProvider = timeProvider;
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
-        assert indices.size() > 0;
+        this.indexMode = indexMode;
+        assert assertConsistent(this.indices);
     }
 
-    public DataStream(String name, TimestampField timeStampField, List<Index> indices) {
-        this(name, timeStampField, indices, indices.size(), null);
+    private static boolean assertConsistent(List<Index> indices) {
+        assert indices.size() > 0;
+        final Set<String> indexNames = new HashSet<>();
+        for (Index index : indices) {
+            final boolean added = indexNames.add(index.getName());
+            assert added : "found duplicate index entries in " + indices;
+        }
+        return true;
     }
 
     public String getName() {
@@ -156,7 +139,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public TimestampField getTimeStampField() {
-        return timeStampField;
+        // This was always fixed to @timestamp with the idea that one day this field could be configurable. This idea no longer exists.
+        return TIMESTAMP_FIELD;
     }
 
     public List<Index> getIndices() {
@@ -169,6 +153,92 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public Index getWriteIndex() {
         return indices.get(indices.size() - 1);
+    }
+
+    /**
+     * @param timestamp The timestamp used to select a backing index based on its start and end time.
+     * @param metadata  The metadata that is used to fetch the start and end times for backing indices of this data stream.
+     * @return a backing index with a start time that is greater or equal to the provided timestamp and
+     *         an end time that is less than the provided timestamp. Otherwise <code>null</code> is returned.
+     */
+    public Index selectTimeSeriesWriteIndex(Instant timestamp, Metadata metadata) {
+        for (int i = indices.size() - 1; i >= 0; i--) {
+            Index index = indices.get(i);
+            IndexMetadata im = metadata.index(index);
+
+            // TODO: make index_mode, start and end time fields in IndexMetadata class.
+            // (this to avoid the overhead that occurs when reading a setting)
+            if (im.getIndexMode() != IndexMode.TIME_SERIES) {
+                // Not a tsdb backing index, so skip.
+                // (This can happen if this is a migrated tsdb data stream)
+                continue;
+            }
+
+            Instant start = im.getTimeSeriesStart();
+            Instant end = im.getTimeSeriesEnd();
+            // Check should be in sync with DataStreamTimestampFieldMapper#validateTimestamp(...) method
+            if (timestamp.compareTo(start) >= 0 && timestamp.compareTo(end) < 0) {
+                return index;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Validates this data stream. If this is a time series data stream then this method validates that temporal range
+     * of backing indices (defined by index.time_series.start_time and index.time_series.end_time) do not overlap with each other.
+     *
+     * @param imSupplier Function that supplies {@link IndexMetadata} instances based on the provided index name
+     */
+    public void validate(Function<String, IndexMetadata> imSupplier) {
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // Get a sorted overview of each backing index with there start and end time range:
+            var startAndEndTimes = indices.stream().map(index -> {
+                IndexMetadata im = imSupplier.apply(index.getName());
+                if (im == null) {
+                    throw new IllegalStateException("index [" + index.getName() + "] is not found in the index metadata supplier");
+                }
+                return im;
+            })
+                .filter(
+                    // Migrated tsdb data streams have non tsdb backing indices:
+                    im -> im.getTimeSeriesStart() != null && im.getTimeSeriesEnd() != null
+                )
+                .map(im -> {
+                    Instant start = im.getTimeSeriesStart();
+                    Instant end = im.getTimeSeriesEnd();
+                    assert end.isAfter(start); // This is also validated by TIME_SERIES_END_TIME setting.
+                    return new Tuple<>(im.getIndex().getName(), new Tuple<>(start, end));
+                })
+                .sorted(Comparator.comparing(entry -> entry.v2().v1())) // Sort by start time
+                .toList();
+
+            Tuple<String, Tuple<Instant, Instant>> previous = null;
+            var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+            for (var current : startAndEndTimes) {
+                if (previous == null) {
+                    previous = current;
+                } else {
+                    // The end_time of previous backing index should be equal or less than start_time of current backing index.
+                    // If previous.end_time > current.start_time then we should fail here:
+                    if (previous.v2().v2().compareTo(current.v2().v1()) > 0) {
+                        String range1 = formatter.format(previous.v2().v1()) + " TO " + formatter.format(previous.v2().v2());
+                        String range2 = formatter.format(current.v2().v1()) + " TO " + formatter.format(current.v2().v2());
+                        throw new IllegalArgumentException(
+                            "backing index ["
+                                + previous.v1()
+                                + "] with range ["
+                                + range1
+                                + "] is overlapping with backing index ["
+                                + current.v1()
+                                + "] with range ["
+                                + range2
+                                + "]"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     @Nullable
@@ -198,26 +268,46 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return allowCustomRouting;
     }
 
+    @Nullable
+    public IndexMode getIndexMode() {
+        return indexMode;
+    }
+
     /**
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param writeIndex new write index
-     * @param generation new generation
+     * @param writeIndex    new write index
+     * @param generation    new generation
+     * @param timeSeries    whether the template that created this data stream is in time series mode
      *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index writeIndex, long generation) {
+    public DataStream rollover(Index writeIndex, long generation, boolean timeSeries) {
         ensureNotReplicated();
+
+        return unsafeRollover(writeIndex, generation, timeSeries);
+    }
+
+    /**
+     * Like {@link #rollover(Index, long, boolean)}, but does no validation, use with care only.
+     */
+    public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries) {
+        IndexMode indexMode = this.indexMode;
+        // This allows for migrating a data stream to be a tsdb data stream:
+        // (only if index_mode=null|standard then allow it to be set to time_series)
+        if ((indexMode == null || indexMode == IndexMode.STANDARD) && timeSeries) {
+            indexMode = IndexMode.TIME_SERIES;
+        }
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting);
+        return new DataStream(name, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting, indexMode);
     }
 
     /**
      * Performs a dummy rollover on a {@code DataStream} instance and returns the tuple of the next write index name and next generation
-     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long)}.
+     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long, boolean)}.
      *
      * @param clusterMetadata Cluster metadata
      *
@@ -225,6 +315,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      */
     public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata) {
         ensureNotReplicated();
+        return unsafeNextWriteIndexAndGeneration(clusterMetadata);
+    }
+
+    /**
+     * Like {@link #nextWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
+     */
+    public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata) {
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();
@@ -270,17 +367,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(
-            name,
-            timeStampField,
-            backingIndices,
-            generation + 1,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            allowCustomRouting
-        );
+        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
     }
 
     /**
@@ -312,17 +399,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(
-            name,
-            timeStampField,
-            backingIndices,
-            generation + 1,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            allowCustomRouting
-        );
+        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
     }
 
     /**
@@ -361,9 +438,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                     "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
                     index.getName(),
                     getName(),
-                    Strings.collectionToCommaDelimitedString(
-                        im.getAliases().stream().map(Map.Entry::getKey).sorted().collect(Collectors.toList())
-                    )
+                    Strings.collectionToCommaDelimitedString(im.getAliases().keySet().stream().sorted().toList())
                 )
             );
         }
@@ -371,22 +446,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
         assert backingIndices.size() == indices.size() + 1;
-        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated, system);
+        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
     }
 
     public DataStream promoteDataStream() {
-        return new DataStream(
-            name,
-            timeStampField,
-            indices,
-            getGeneration(),
-            metadata,
-            hidden,
-            false,
-            system,
-            timeProvider,
-            allowCustomRouting
-        );
+        return new DataStream(name, indices, getGeneration(), metadata, hidden, false, system, timeProvider, allowCustomRouting, indexMode);
     }
 
     /**
@@ -411,14 +475,14 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
         return new DataStream(
             name,
-            timeStampField,
             reconciledIndices,
             generation,
             metadata == null ? null : new HashMap<>(metadata),
             hidden,
             replicated,
             system,
-            allowCustomRouting
+            allowCustomRouting,
+            indexMode
         );
     }
 
@@ -456,33 +520,41 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public DataStream(StreamInput in) throws IOException {
         this(
             in.readString(),
-            new TimestampField(in),
-            in.readList(Index::new),
+            readIndices(in),
             in.readVLong(),
             in.readMap(),
             in.readBoolean(),
             in.readBoolean(),
             in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false
+            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false,
+            in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null
         );
     }
 
+    static List<Index> readIndices(StreamInput in) throws IOException {
+        in.readString(); // timestamp field, which is always @timestamp
+        return in.readList(Index::new);
+    }
+
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(DataStream::new, in);
+        return SimpleDiffable.readDiffFrom(DataStream::new, in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        timeStampField.writeTo(out);
+        TIMESTAMP_FIELD.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeBoolean(allowCustomRouting);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeOptionalEnum(indexMode);
         }
     }
 
@@ -495,22 +567,23 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public static final ParseField REPLICATED_FIELD = new ParseField("replicated");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+    public static final ParseField INDEX_MODE = new ParseField("index_mode");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
-        "data_stream",
-        args -> new DataStream(
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
+        assert TIMESTAMP_FIELD == args[1];
+        return new DataStream(
             (String) args[0],
-            (TimestampField) args[1],
             (List<Index>) args[2],
             (Long) args[3],
             (Map<String, Object>) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
-            args[8] != null && (boolean) args[8]
-        )
-    );
+            args[8] != null && (boolean) args[8],
+            args[9] != null ? IndexMode.fromString((String) args[9]) : null
+        );
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -522,6 +595,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REPLICATED_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -532,7 +606,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), timeStampField);
+        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), TIMESTAMP_FIELD);
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
         if (metadata != null) {
@@ -542,6 +616,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         builder.field(REPLICATED_FIELD.getPreferredName(), replicated);
         builder.field(SYSTEM_FIELD.getPreferredName(), system);
         builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
+        if (indexMode != null) {
+            builder.field(INDEX_MODE.getPreferredName(), indexMode);
+        }
         builder.endObject();
         return builder;
     }
@@ -552,18 +629,18 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
         return name.equals(that.name)
-            && timeStampField.equals(that.timeStampField)
             && indices.equals(that.indices)
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
             && hidden == that.hidden
             && replicated == that.replicated
-            && allowCustomRouting == that.allowCustomRouting;
+            && allowCustomRouting == that.allowCustomRouting
+            && indexMode == that.indexMode;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, metadata, hidden, replicated, allowCustomRouting);
+        return Objects.hash(name, indices, generation, metadata, hidden, replicated, allowCustomRouting, indexMode);
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {
@@ -575,7 +652,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
             "timestamp_field",
-            args -> new TimestampField((String) args[0])
+            args -> {
+                if (FIXED_TIMESTAMP_FIELD.equals(args[0]) == false) {
+                    throw new IllegalArgumentException("unexpected timestamp field [" + args[0] + "]");
+                }
+                return TIMESTAMP_FIELD;
+            }
         );
 
         static {

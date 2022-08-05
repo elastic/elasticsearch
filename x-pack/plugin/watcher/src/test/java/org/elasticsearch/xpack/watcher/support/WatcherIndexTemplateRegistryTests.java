@@ -25,16 +25,15 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -140,7 +139,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             .filter(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME))
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the watch history template to be put"));
-        assertThat(req.indexTemplate().template().settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy"));
+        assertThat(req.indexTemplate().template().settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy-16"));
     }
 
     public void testThatNonExistingTemplatesAreAddedEvenWithILMUsageDisabled() {
@@ -222,7 +221,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         LifecyclePolicy policy = policies.get(0);
         try (
             XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), policyStr)
         ) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policy.getName());
             policyMap.put(policy.getName(), different);
@@ -254,6 +253,23 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             existingTemplates.put(".watches", INDEX_TEMPLATE_VERSION);
             assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(true));
         }
+
+        {
+            Map<String, Integer> existingTemplates = new HashMap<>();
+            existingTemplates.put(".watch-history-11", 11);
+            existingTemplates.put(".triggered_watches", 11);
+            existingTemplates.put(".watches", 11);
+            assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(false));
+        }
+
+        {
+            Map<String, Integer> existingTemplates = new HashMap<>();
+            existingTemplates.put(".watch-history-15", 15);
+            existingTemplates.put(".triggered_watches", 15);
+            existingTemplates.put(".watches", 15);
+            assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(true));
+        }
+
         {
             Map<String, Integer> existingTemplates = new HashMap<>();
             existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
@@ -301,7 +317,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> indexTemplates = ImmutableOpenMap.builder();
+        Map<String, IndexTemplateMetadata> indexTemplates = new HashMap<>();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
             final IndexTemplateMetadata mockTemplate = mock(IndexTemplateMetadata.class);
             when(mockTemplate.version()).thenReturn(template.getValue());
@@ -317,7 +333,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
-                    .templates(indexTemplates.build())
+                    .templates(indexTemplates)
                     .transientSettings(nodeSettings)
                     .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
                     .build()

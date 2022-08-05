@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -125,6 +126,11 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalGeoCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
+    }
+
+    @Override
     protected boolean mustReduceOnSingleInternalAgg() {
         return false;
     }
@@ -135,18 +141,13 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
             return this;
         } else if (path.size() == 1) {
             String coordinate = path.get(0);
-            switch (coordinate) {
-                case "value":
-                    return centroid;
-                case "lat":
-                    return centroid.lat();
-                case "lon":
-                    return centroid.lon();
-                case "count":
-                    return count;
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
-            }
+            return switch (coordinate) {
+                case "value" -> centroid;
+                case "lat" -> centroid.lat();
+                case "lon" -> centroid.lon();
+                case "count" -> count;
+                default -> throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
+            };
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }

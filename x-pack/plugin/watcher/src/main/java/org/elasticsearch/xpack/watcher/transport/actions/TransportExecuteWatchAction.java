@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -59,12 +61,15 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteWatchRequest, ExecuteWatchResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportExecuteWatchAction.class);
+
     private final ThreadPool threadPool;
     private final ExecutionService executionService;
     private final Clock clock;
     private final TriggerService triggerService;
     private final WatchParser watchParser;
     private final Client client;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportExecuteWatchAction(
@@ -76,7 +81,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
         XPackLicenseState licenseState,
         WatchParser watchParser,
         Client client,
-        TriggerService triggerService
+        TriggerService triggerService,
+        ClusterService clusterService
     ) {
         super(ExecuteWatchAction.NAME, transportService, actionFilters, licenseState, ExecuteWatchRequest::new);
         this.threadPool = threadPool;
@@ -85,6 +91,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
         this.triggerService = triggerService;
         this.watchParser = watchParser;
         this.client = client;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -127,7 +134,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 );
                 executeWatch(request, listener, watch, false);
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("failed to parse [{}]", request.getId()), e);
+                logger.error(() -> "failed to parse [" + request.getId() + "]", e);
                 listener.onFailure(e);
             }
         } else {
@@ -146,7 +153,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
              * Ensure that the headers from the incoming request are used instead those of the stored watch otherwise the watch would run
              * as the user who stored the watch, but it needs to run as the user who executes this request.
              */
-            watch.status().setHeaders(ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()));
+            watch.status()
+                .setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state()));
 
             final String triggerType = watch.trigger().type();
             final TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());

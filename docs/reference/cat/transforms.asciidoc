@@ -5,6 +5,13 @@
 <titleabbrev>cat transforms</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<get-transform,get transforms API>>.
+====
+
 Returns configuration and usage information about {transforms}.
 
 [[cat-transforms-api-request]]

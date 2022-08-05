@@ -226,25 +226,21 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         flow.protocol = Transport.fromObject(protocol);
 
         switch (flow.protocol) {
-            case Tcp:
-            case Udp:
-            case Sctp:
+            case Tcp, Udp, Sctp -> {
                 flow.sourcePort = parseIntFromObjectOrString(sourcePort.get(), "source port");
                 if (flow.sourcePort < 1 || flow.sourcePort > 65535) {
                     throw new IllegalArgumentException("invalid source port [" + sourcePort.get() + "]");
                 }
-
                 flow.destinationPort = parseIntFromObjectOrString(destinationPort.get(), "destination port");
                 if (flow.destinationPort < 1 || flow.destinationPort > 65535) {
                     throw new IllegalArgumentException("invalid destination port [" + destinationPort.get() + "]");
                 }
-                break;
-            case Icmp:
-            case IcmpIpV6:
+            }
+            case Icmp, IcmpIpV6 -> {
                 // tolerate missing or invalid ICMP types and codes
                 flow.icmpType = parseIntFromObjectOrString(icmpType, "icmp type");
                 flow.icmpCode = parseIntFromObjectOrString(icmpCode, "icmp code");
-                break;
+            }
         }
 
         return flow;
@@ -441,30 +437,19 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
 
         public static Transport fromNumber(int transportNumber) {
-            switch (transportNumber) {
-                case 1:
-                    return Icmp;
-                case 2:
-                    return Igmp;
-                case 6:
-                    return Tcp;
-                case 17:
-                    return Udp;
-                case 47:
-                    return Gre;
-                case 58:
-                    return IcmpIpV6;
-                case 88:
-                    return Eigrp;
-                case 89:
-                    return Ospf;
-                case 103:
-                    return Pim;
-                case 132:
-                    return Sctp;
-                default:
-                    throw new IllegalArgumentException("unknown transport protocol number [" + transportNumber + "]");
-            }
+            return switch (transportNumber) {
+                case 1 -> Icmp;
+                case 2 -> Igmp;
+                case 6 -> Tcp;
+                case 17 -> Udp;
+                case 47 -> Gre;
+                case 58 -> IcmpIpV6;
+                case 88 -> Eigrp;
+                case 89 -> Ospf;
+                case 103 -> Pim;
+                case 132 -> Sctp;
+                default -> throw new IllegalArgumentException("unknown transport protocol number [" + transportNumber + "]");
+            };
         }
 
         public static Transport fromObject(Object o) {
@@ -557,55 +542,33 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
 
         public static IcmpType fromNumber(int type) {
-            switch (type) {
-                case 0:
-                    return EchoReply;
-                case 8:
-                    return EchoRequest;
-                case 9:
-                    return RouterAdvertisement;
-                case 10:
-                    return RouterSolicitation;
-                case 13:
-                    return TimestampRequest;
-                case 14:
-                    return TimestampReply;
-                case 15:
-                    return InfoRequest;
-                case 16:
-                    return InfoReply;
-                case 17:
-                    return AddressMaskRequest;
-                case 18:
-                    return AddressMaskReply;
-                case 128:
-                    return V6EchoRequest;
-                case 129:
-                    return V6EchoReply;
-                case 133:
-                    return V6RouterSolicitation;
-                case 134:
-                    return V6RouterAdvertisement;
-                case 135:
-                    return V6NeighborSolicitation;
-                case 136:
-                    return V6NeighborAdvertisement;
-                case 130:
-                    return V6MLDv1MulticastListenerQueryMessage;
-                case 131:
-                    return V6MLDv1MulticastListenerReportMessage;
-                case 139:
-                    return V6WhoAreYouRequest;
-                case 140:
-                    return V6WhoAreYouReply;
-                case 144:
-                    return V6HomeAddressDiscoveryRequest;
-                case 145:
-                    return V6HomeAddressDiscoveryResponse;
-                default:
+            return switch (type) {
+                case 0 -> EchoReply;
+                case 8 -> EchoRequest;
+                case 9 -> RouterAdvertisement;
+                case 10 -> RouterSolicitation;
+                case 13 -> TimestampRequest;
+                case 14 -> TimestampReply;
+                case 15 -> InfoRequest;
+                case 16 -> InfoReply;
+                case 17 -> AddressMaskRequest;
+                case 18 -> AddressMaskReply;
+                case 128 -> V6EchoRequest;
+                case 129 -> V6EchoReply;
+                case 133 -> V6RouterSolicitation;
+                case 134 -> V6RouterAdvertisement;
+                case 135 -> V6NeighborSolicitation;
+                case 136 -> V6NeighborAdvertisement;
+                case 130 -> V6MLDv1MulticastListenerQueryMessage;
+                case 131 -> V6MLDv1MulticastListenerReportMessage;
+                case 139 -> V6WhoAreYouRequest;
+                case 140 -> V6WhoAreYouReply;
+                case 144 -> V6HomeAddressDiscoveryRequest;
+                case 145 -> V6HomeAddressDiscoveryResponse;
+                default ->
                     // don't fail if the type is unknown
-                    return EchoReply;
-            }
+                    EchoReply;
+            };
         }
 
         public static Integer codeEquivalent(int icmpType, boolean isIpV6) {

@@ -12,8 +12,6 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.ingest.useragent.UserAgentParser.Details;
 
-import java.util.Objects;
-
 class UserAgentCache {
     private final Cache<CompositeCacheKey, Details> cache;
 
@@ -29,26 +27,5 @@ class UserAgentCache {
         cache.put(new CompositeCacheKey(parserName, userAgent), details);
     }
 
-    private static final class CompositeCacheKey {
-        private final String parserName;
-        private final String userAgent;
-
-        CompositeCacheKey(String parserName, String userAgent) {
-            this.parserName = parserName;
-            this.userAgent = userAgent;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof CompositeCacheKey cck) {
-                return parserName.equals(cck.parserName) && userAgent.equals(cck.userAgent);
-            }
-            return false;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(parserName, userAgent);
-        }
-    }
+    private record CompositeCacheKey(String parserName, String userAgent) {}
 }

@@ -14,15 +14,15 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.autoscaling.LocalStateAutoscaling;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
 
-public class AutoscalingStorageIntegTestCase extends DiskUsageIntegTestCase {
+public abstract class AutoscalingStorageIntegTestCase extends DiskUsageIntegTestCase {
     protected static final long HIGH_WATERMARK_BYTES = 10240;
     protected static final long LOW_WATERMARK_BYTES = 2 * HIGH_WATERMARK_BYTES;
 

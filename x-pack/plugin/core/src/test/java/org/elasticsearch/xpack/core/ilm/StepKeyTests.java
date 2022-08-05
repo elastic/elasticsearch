@@ -6,10 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+
+import java.io.IOException;
 
 public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
 
@@ -39,19 +43,22 @@ public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
         String step = instance.getName();
 
         switch (between(0, 2)) {
-            case 0:
-                phase += randomAlphaOfLength(5);
-                break;
-            case 1:
-                action += randomAlphaOfLength(5);
-                break;
-            case 2:
-                step += randomAlphaOfLength(5);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> phase += randomAlphaOfLength(5);
+            case 1 -> action += randomAlphaOfLength(5);
+            case 2 -> step += randomAlphaOfLength(5);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new StepKey(phase, action, step);
+    }
+
+    public void testToString() throws IOException {
+        // toString yields parseable json
+        StepKey s = randomStepKey();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, s.toString());
+        assertEquals(s, StepKey.parse(parser));
+
+        // although we're not actually using Strings.toString for performance reasons, we expect the same result as if we had
+        assertEquals(Strings.toString(s), s.toString());
     }
 }

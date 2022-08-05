@@ -68,7 +68,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
-        plugins.add(new Security(settings, configPath) {
+        plugins.add(new Security(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();

@@ -274,22 +274,22 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         assertThat(capturedRequests.length, equalTo(nbReplicas));
 
         for (CapturingTransport.CapturedRequest capturedRequest : capturedRequests) {
-            final String actionName = capturedRequest.action;
+            final String actionName = capturedRequest.action();
             if (actionName.startsWith(ShardStateAction.SHARD_FAILED_ACTION_NAME)) {
-                assertThat(capturedRequest.request, instanceOf(ShardStateAction.FailedShardEntry.class));
-                String allocationId = ((ShardStateAction.FailedShardEntry) capturedRequest.request).getAllocationId();
+                assertThat(capturedRequest.request(), instanceOf(ShardStateAction.FailedShardEntry.class));
+                String allocationId = ((ShardStateAction.FailedShardEntry) capturedRequest.request()).getAllocationId();
                 assertTrue(unavailableShards.stream().anyMatch(shardRouting -> shardRouting.allocationId().getId().equals(allocationId)));
-                transport.handleResponse(capturedRequest.requestId, TransportResponse.Empty.INSTANCE);
+                transport.handleResponse(capturedRequest.requestId(), TransportResponse.Empty.INSTANCE);
 
             } else if (actionName.startsWith(TransportVerifyShardBeforeCloseAction.NAME)) {
-                assertThat(capturedRequest.request, instanceOf(ConcreteShardRequest.class));
-                String allocationId = ((ConcreteShardRequest) capturedRequest.request).getTargetAllocationID();
+                assertThat(capturedRequest.request(), instanceOf(ConcreteShardRequest.class));
+                String allocationId = ((ConcreteShardRequest) capturedRequest.request()).getTargetAllocationID();
                 assertFalse(unavailableShards.stream().anyMatch(shardRouting -> shardRouting.allocationId().getId().equals(allocationId)));
                 assertTrue(inSyncAllocationIds.stream().anyMatch(inSyncAllocationId -> inSyncAllocationId.equals(allocationId)));
-                transport.handleResponse(capturedRequest.requestId, new TransportReplicationAction.ReplicaResponse(0L, 0L));
+                transport.handleResponse(capturedRequest.requestId(), new TransportReplicationAction.ReplicaResponse(0L, 0L));
 
             } else {
-                fail("Test does not support action " + capturedRequest.action);
+                fail("Test does not support action " + capturedRequest.action());
             }
         }
 

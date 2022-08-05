@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
@@ -162,6 +162,35 @@ public class PrimaryReplicaSyncer {
     ) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         final TaskManager taskManager = transportService.getTaskManager();
+
+        try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+            doResync(
+                shardId,
+                primaryAllocationId,
+                primaryTerm,
+                snapshot,
+                startingSeqNo,
+                maxSeqNo,
+                maxSeenAutoIdTimestamp,
+                listener,
+                request,
+                taskManager
+            );
+        }
+    }
+
+    private void doResync(
+        ShardId shardId,
+        String primaryAllocationId,
+        long primaryTerm,
+        Translog.Snapshot snapshot,
+        long startingSeqNo,
+        long maxSeqNo,
+        long maxSeenAutoIdTimestamp,
+        ActionListener<ResyncTask> listener,
+        ResyncRequest request,
+        TaskManager taskManager
+    ) {
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
         ActionListener<Void> wrappedListener = new ActionListener<Void>() {
             @Override

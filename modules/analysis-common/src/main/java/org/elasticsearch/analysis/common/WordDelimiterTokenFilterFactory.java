@@ -46,7 +46,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
 
     @SuppressWarnings("HiddenField")
     public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         // Sample Format for the type table:
         // $ => DIGIT
@@ -95,7 +95,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 
-    public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
+    public static int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
         if (settings.getAsBoolean(key, defaultValue)) {
             return flag;
         }
@@ -103,7 +103,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     }
 
     // source => type
-    private static Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
+    private static final Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
 
     /**
      * parses a list of MappingCharFilter style rules into a custom byte[] type table
@@ -152,29 +152,17 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
                 if (readPos >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
                 c = s.charAt(readPos++);
                 switch (c) {
-                    case '\\':
-                        c = '\\';
-                        break;
-                    case 'n':
-                        c = '\n';
-                        break;
-                    case 't':
-                        c = '\t';
-                        break;
-                    case 'r':
-                        c = '\r';
-                        break;
-                    case 'b':
-                        c = '\b';
-                        break;
-                    case 'f':
-                        c = '\f';
-                        break;
-                    case 'u':
+                    case '\\' -> c = '\\';
+                    case 'n' -> c = '\n';
+                    case 't' -> c = '\t';
+                    case 'r' -> c = '\r';
+                    case 'b' -> c = '\b';
+                    case 'f' -> c = '\f';
+                    case 'u' -> {
                         if (readPos + 3 >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
                         c = (char) Integer.parseInt(s.substring(readPos, readPos + 4), 16);
                         readPos += 4;
-                        break;
+                    }
                 }
             }
             out[writePos++] = c;

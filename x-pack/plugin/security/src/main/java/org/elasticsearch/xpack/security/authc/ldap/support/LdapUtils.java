@@ -27,8 +27,6 @@ import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
@@ -36,8 +34,8 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
@@ -53,6 +51,8 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import javax.naming.ldap.Rdn;
+
+import static org.elasticsearch.core.Strings.format;
 
 public final class LdapUtils {
 
@@ -436,14 +436,10 @@ public final class LdapUtils {
      * purposes of this method.
      */
     private static boolean isSuccess(SearchResult searchResult) {
-        switch (searchResult.getResultCode().intValue()) {
-            case ResultCode.SUCCESS_INT_VALUE:
-            case ResultCode.COMPARE_FALSE_INT_VALUE:
-            case ResultCode.COMPARE_TRUE_INT_VALUE:
-                return true;
-            default:
-                return false;
-        }
+        return switch (searchResult.getResultCode().intValue()) {
+            case ResultCode.SUCCESS_INT_VALUE, ResultCode.COMPARE_FALSE_INT_VALUE, ResultCode.COMPARE_TRUE_INT_VALUE -> true;
+            default -> false;
+        };
     }
 
     private static SearchResult emptyResult(SearchResult parentResult) {
@@ -662,13 +658,7 @@ public final class LdapUtils {
                             searchResult
                         );
                     } catch (LDAPException e) {
-                        LOGGER.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "caught exception while trying to follow referral [{}]",
-                                referralUrl
-                            ),
-                            e
-                        );
+                        LOGGER.warn(() -> format("caught exception while trying to follow referral [%s]", referralUrl), e);
                         if (ignoreReferralErrors) {
                             // Needed in order for the countDown to be correct
                             referralListener.onResponse(emptyResult(searchResult));
@@ -748,10 +738,7 @@ public final class LdapUtils {
                 if (ignoreErrors) {
                     if (LOGGER.isDebugEnabled()) {
                         LOGGER.debug(
-                            new ParameterizedMessage(
-                                "Failed to retrieve results from referral URL [{}]." + " Treating as 'no results'",
-                                referralURL
-                            ),
+                            () -> format("Failed to retrieve results from referral URL [%s]." + " Treating as 'no results'", referralURL),
                             e
                         );
                     }

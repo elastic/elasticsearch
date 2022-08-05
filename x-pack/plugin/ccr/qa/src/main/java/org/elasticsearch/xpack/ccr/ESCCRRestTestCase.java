@@ -26,9 +26,11 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -57,13 +59,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
+        final Request request = new Request("POST", "/" + index + "/_doc" + (id == null ? "" : "/" + id));
         request.setJsonEntity(Strings.toString(document));
         assertOK(client.performRequest(request));
-    }
-
-    protected static void refresh(String index) throws IOException {
-        assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
     protected static void resumeFollow(String followIndex) throws IOException {
@@ -222,13 +220,15 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         Request request = new Request("GET", "/.monitoring-*/_search");
         request.setJsonEntity("""
             {"query": {"term": {"type": "ccr_auto_follow_stats"}}}""");
+        String responseEntity;
         Map<String, ?> response;
         try {
-            response = toMap(adminClient().performRequest(request));
+            responseEntity = EntityUtils.toString(adminClient().performRequest(request).getEntity());
+            response = toMap(responseEntity);
         } catch (ResponseException e) {
             throw new AssertionError("error while searching", e);
         }
-
+        assertNotNull(responseEntity);
         int numberOfSuccessfulFollowIndices = 0;
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
@@ -244,7 +244,11 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             numberOfSuccessfulFollowIndices = Math.max(numberOfSuccessfulFollowIndices, foundNumberOfOperationsReceived);
         }
 
-        assertThat(numberOfSuccessfulFollowIndices, greaterThanOrEqualTo(1));
+        assertThat(
+            "Unexpected number of followed indices [" + responseEntity + ']',
+            numberOfSuccessfulFollowIndices,
+            greaterThanOrEqualTo(1)
+        );
     }
 
     protected static Map<String, Object> toMap(Response response) throws IOException {
@@ -271,7 +275,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         });
     }
 
-    protected int countCcrNodeTasks() throws IOException {
+    protected Set<CcrNodeTask> getCcrNodeTasks() throws IOException {
         final Request request = new Request("GET", "/_tasks");
         request.addParameter("detailed", "true");
         Map<String, Object> rsp1 = toMap(adminClient().performRequest(request));
@@ -279,26 +283,26 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertThat(nodes.size(), equalTo(1));
         Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
         Map<?, ?> nodeTasks = (Map<?, ?>) node.get("tasks");
-        int numNodeTasks = 0;
+        var ccrNodeTasks = new HashSet<CcrNodeTask>();
         for (Map.Entry<?, ?> entry : nodeTasks.entrySet()) {
             Map<?, ?> nodeTask = (Map<?, ?>) entry.getValue();
             String action = (String) nodeTask.get("action");
             if (action.startsWith("xpack/ccr/shard_follow_task")) {
-                numNodeTasks++;
+                var status = (Map<?, ?>) nodeTask.get("status");
+                ccrNodeTasks.add(
+                    new CcrNodeTask(
+                        (String) status.get("remote_cluster"),
+                        (String) status.get("leader_index"),
+                        (String) status.get("follower_index"),
+                        (Integer) status.get("shard_id")
+                    )
+                );
             }
         }
-        return numNodeTasks;
+        return ccrNodeTasks;
     }
 
-    protected static void createIndex(String name, Settings settings) throws IOException {
-        createIndex(name, settings, "");
-    }
-
-    protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        final Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{ \"settings\": " + Strings.toString(settings) + ", \"mappings\" : {" + mapping + "} }");
-        assertOK(adminClient().performRequest(request));
-    }
+    protected record CcrNodeTask(String remoteCluster, String leaderIndex, String followerIndex, int shardId) {}
 
     protected static boolean indexExists(String index) throws IOException {
         Response response = adminClient().performRequest(new Request("HEAD", "/" + index));
@@ -331,7 +335,13 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return List.copyOf(actualBackingIndices);
     }
 
-    protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {
+    protected static void createAutoFollowPattern(
+        RestClient client,
+        String name,
+        String pattern,
+        String remoteCluster,
+        String followIndexPattern
+    ) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
@@ -341,6 +351,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
                     bodyBuilder.value(pattern);
                 }
                 bodyBuilder.endArray();
+                if (followIndexPattern != null) {
+                    bodyBuilder.field("follow_index_pattern", followIndexPattern);
+                }
                 bodyBuilder.field("remote_cluster", remoteCluster);
             }
             bodyBuilder.endObject();

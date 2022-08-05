@@ -24,7 +24,7 @@ public class IrishAnalyzerProvider extends AbstractIndexAnalyzerProvider<IrishAn
     private final IrishAnalyzer analyzer;
 
     IrishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new IrishAnalyzer(
             Analysis.parseStopWords(env, settings, IrishAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

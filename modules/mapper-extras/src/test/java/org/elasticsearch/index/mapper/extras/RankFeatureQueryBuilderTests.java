@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.extras.RankFeatureQueryBuilder.ScoreFuncti
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +53,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(MapperExtrasPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(MapperExtrasPlugin.class);
     }
 
     @Override
@@ -146,5 +145,22 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             "Cannot use the [log] function with a field that has a negative score impact as it would trigger negative scores",
             e.getMessage()
         );
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String json = """
+            {
+              "rank_feature" : {
+                "field": "foo",
+                "boost": 1,
+                "saturation": {}
+              }
+            }""";
+        checkGeneratedJson("""
+            {
+              "rank_feature": {
+                "field": "foo"
+              }
+            }""", parseQuery(json));
     }
 }

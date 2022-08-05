@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemp
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -30,8 +31,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,7 +73,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         final int aliasCount = randomIntBetween(0, 3);
-        Map<String, AliasMetadata> aliases = new HashMap<>(aliasCount);
+        Map<String, AliasMetadata> aliases = Maps.newMapWithExpectedSize(aliasCount);
         for (int k = 0; k < aliasCount; k++) {
             final AliasMetadata am = randomAlias(null);
             aliases.put(am.alias(), am);
@@ -199,7 +200,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             dataStreamName,
             systemDataStreamDescriptor(),
             TimeValue.MAX_VALUE,
-            TimeValue.ZERO
+            TimeValue.ZERO,
+            true
         );
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
@@ -219,7 +221,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
-        DataStream existingDataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex()));
+        DataStream existingDataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream), Map.of()).build())
             .build();
@@ -342,12 +344,11 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     }
 
     private static SystemIndices getSystemIndices() {
-        Map<String, Feature> map = Map.of(
-            "system",
+        List<Feature> features = List.of(
             new Feature("systemFeature", "system feature description", List.of(), List.of(systemDataStreamDescriptor()))
         );
 
-        return new SystemIndices(map);
+        return new SystemIndices(features);
     }
 
     private static SystemDataStreamDescriptor systemDataStreamDescriptor() {

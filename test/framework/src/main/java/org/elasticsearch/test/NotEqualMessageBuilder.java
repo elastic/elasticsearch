@@ -146,8 +146,7 @@ public class NotEqualMessageBuilder {
             return;
         }
         if (Objects.equals(expected, actual)) {
-            if (expected instanceof String) {
-                String expectedString = (String) expected;
+            if (expected instanceof String expectedString) {
                 if (expectedString.length() > 50) {
                     expectedString = expectedString.substring(0, 50) + "...";
                 }

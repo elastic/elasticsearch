@@ -138,6 +138,13 @@ public class ZeroShotClassificationConfig implements NlpConfig {
             throw ExceptionsHelper.badRequestException("[{}] must not be empty", LABELS.getPreferredName());
         }
         this.resultsField = resultsField;
+        if (this.tokenization.span != -1) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] does not support windowing long text sequences; configured span [{}]",
+                NAME,
+                this.tokenization.span
+            );
+        }
     }
 
     public ZeroShotClassificationConfig(StreamInput in) throws IOException {
@@ -241,8 +248,8 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         return hypothesisTemplate;
     }
 
-    public List<String> getLabels() {
-        return Optional.ofNullable(labels).orElse(List.of());
+    public Optional<List<String>> getLabels() {
+        return Optional.ofNullable(labels);
     }
 
     @Override

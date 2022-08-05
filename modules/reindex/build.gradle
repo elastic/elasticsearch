@@ -9,6 +9,7 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.transform.UnzipTransform
@@ -32,13 +33,12 @@ testClusters.configureEach {
   module ':modules:lang-painless'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
 dependencies {
   api project(":client:rest")
   api project(":libs:elasticsearch-ssl-config")
-  // for http - testing reindex from remote
-  testImplementation project(':modules:transport-netty4')
   // for parent/child testing
   testImplementation project(':modules:parent-join')
 }
@@ -93,6 +93,11 @@ jdks {
   }
 }
 
+if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+  jdks.legacy.vendor = 'zulu'
+  jdks.legacy.distributionVersion = '8.56.0.23'
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   tasks.named("javaRestTest").configure {
@@ -111,8 +116,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
    * To avoid testing against too many old versions, always pick first and last version per major
    */
   project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
-    transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
-    transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
+    transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
   });
 
   def versions = ['2', '1', '090']
@@ -123,7 +128,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   }
   versions.each { version ->
     def oldEsDependency = configurations['es' + version]
-    oldEsDependency.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    oldEsDependency.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
     TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
@@ -174,3 +179,11 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     task.addAllowedWarningRegex("\\[types removal\\].*")
 }
 
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'update_by_query/80_scripting/Can\'t change _id',
+    'update_by_query/80_scripting/Set unsupported operation type',
+    'update_by_query/80_scripting/Setting bogus context is an error',
+
+  ].join(',')
+}

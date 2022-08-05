@@ -33,6 +33,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -53,9 +54,9 @@ import java.util.function.Supplier;
 
 public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlugin {
 
-    private static final String CIRCUIT_BREAKER_NAME = "eql_sequence";
-    private static final long CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
-    private static final double CIRCUIT_BREAKER_OVERHEAD = 1.0D;
+    public static final String CIRCUIT_BREAKER_NAME = "eql_sequence";
+    public static final long CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+    public static final double CIRCUIT_BREAKER_OVERHEAD = 1.0D;
     private final SetOnce<CircuitBreaker> circuitBreaker = new SetOnce<>();
 
     public static final Setting<Boolean> EQL_ENABLED_SETTING = Setting.boolSetting(
@@ -79,7 +80,8 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         return createComponents(client, environment.settings(), clusterService);
     }

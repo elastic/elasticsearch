@@ -16,11 +16,11 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ALIVE_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
-import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ALIVE_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.SQL_ASYNC_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.action.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.action.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 
 public class RestSqlAsyncGetResultsAction extends BaseRestHandler {
     @Override

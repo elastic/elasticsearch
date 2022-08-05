@@ -107,7 +107,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         );
         assertEquals("""
             async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], source\
-            [{"query":{"term":{"field":{"value":"value","boost":1.0}}}}]}""", asyncSearchTask.getDescription());
+            [{"query":{"term":{"field":{"value":"value"}}}}]}""", asyncSearchTask.getDescription());
     }
 
     public void testWaitForInit() throws InterruptedException {
@@ -411,7 +411,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         ShardSearchFailure... failures
     ) {
         InternalSearchResponse response = new InternalSearchResponse(
-            SearchHits.empty(),
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             InternalAggregations.EMPTY,
             null,
             null,

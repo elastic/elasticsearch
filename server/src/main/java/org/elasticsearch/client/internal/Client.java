@@ -73,13 +73,10 @@ import java.util.Map;
 public interface Client extends ElasticsearchClient, Releasable {
 
     Setting<String> CLIENT_TYPE_SETTING_S = new Setting<>("client.type", "node", (s) -> {
-        switch (s) {
-            case "node":
-            case "transport":
-                return s;
-            default:
-                throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
-        }
+        return switch (s) {
+            case "node", "transport" -> s;
+            default -> throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
+        };
     }, Property.NodeScope);
 
     /**

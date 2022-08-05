@@ -34,14 +34,14 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
@@ -1135,11 +1135,7 @@ public class ExecutionServiceTests extends ESTestCase {
             UpdateRequest request = (UpdateRequest) invocation.getArguments()[0];
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        request.doc().source().streamInput()
-                    )
+                    .createParser(XContentParserConfiguration.EMPTY, request.doc().source().streamInput())
             ) {
                 Map<String, Object> map = parser.map();
                 Map<String, String> state = ObjectPath.eval("status.state", map);
@@ -1210,11 +1206,10 @@ public class ExecutionServiceTests extends ESTestCase {
         context.ensureWatchExists(() -> watch);
         assertNull(context.getUser());
 
-        Authentication authentication = new Authentication(
-            new User("joe", "admin"),
-            new Authentication.RealmRef("native_realm", "native", "node1"),
-            null
-        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new Authentication.RealmRef("native_realm", "native", "node1"))
+            .build(false);
 
         // Should no longer be null now that the proper header is set
         when(status.getHeaders()).thenReturn(Collections.singletonMap(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));

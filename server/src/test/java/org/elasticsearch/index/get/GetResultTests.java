@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
@@ -418,8 +419,8 @@ public class GetResultTests extends ESTestCase {
         boolean isMetaFields
     ) {
         int numFields = isMetaFields ? randomIntBetween(1, 3) : randomIntBetween(2, 10);
-        Map<String, DocumentField> fields = new HashMap<>(numFields);
-        Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
+        Map<String, DocumentField> fields = Maps.newMapWithExpectedSize(numFields);
+        Map<String, DocumentField> expectedFields = Maps.newMapWithExpectedSize(numFields);
         // As we are using this to construct a GetResult object that already contains
         // index, id, version, seqNo, and source fields, we need to exclude them from random fields
         Predicate<String> excludeMetaFieldFilter = field -> field.equals(IndexFieldMapper.NAME)

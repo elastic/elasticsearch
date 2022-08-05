@@ -9,6 +9,19 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -41,8 +54,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -55,7 +70,9 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -104,6 +121,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -332,7 +350,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertRecoveryState(nodeBRecoveryState, 0, PeerRecoverySource.INSTANCE, false, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+        internalCluster().stopNode(nodeA);
 
         if (closedIndex) {
             assertAcked(client().admin().indices().prepareOpen(INDEX_NAME));
@@ -343,6 +361,15 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     public void testCancelNewShardRecoveryAndUsesExistingShardCopy() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                )
+        );
 
         logger.info("--> create index on node: {}", nodeA);
         createIndex(
@@ -624,7 +651,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         if (randomBoolean()) {
             // shutdown node with relocation source of replica shard and check if recovery continues
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+            internalCluster().stopNode(nodeA);
             ensureStableCluster(2);
 
             response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
@@ -698,7 +725,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
+        Repository repository = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
         final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
@@ -832,10 +859,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         String firstNodeToStop = randomFrom(internalCluster().getNodeNames());
         Settings firstNodeToStopDataPathSettings = internalCluster().dataPathSettings(firstNodeToStop);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(firstNodeToStop));
+        internalCluster().stopNode(firstNodeToStop);
         String secondNodeToStop = randomFrom(internalCluster().getNodeNames());
         Settings secondNodeToStopDataPathSettings = internalCluster().dataPathSettings(secondNodeToStop);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(secondNodeToStop));
+        internalCluster().stopNode(secondNodeToStop);
 
         final long desyncNanoTime = System.nanoTime();
         // noinspection StatementWithEmptyBody
@@ -984,7 +1011,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         List<String> nodes = randomSubsetOf(
             2,
-            clusterService().state().nodes().getDataNodes().stream().map(node -> node.getValue().getName()).collect(Collectors.toSet())
+            clusterService().state().nodes().getDataNodes().values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet())
         );
         String indexName = "test-index";
         createIndex(
@@ -1048,9 +1075,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final long lastSyncedGlobalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
         final long localCheckpointOfSafeCommit;
         try (Engine.IndexCommitRef safeCommitRef = shard.acquireSafeIndexCommit()) {
-            localCheckpointOfSafeCommit = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-                safeCommitRef.getIndexCommit().getUserData().entrySet()
-            ).localCheckpoint;
+            localCheckpointOfSafeCommit = getLocalCheckpointOfSafeCommit(safeCommitRef.getIndexCommit());
         }
         final long maxSeqNo = shard.seqNoStats().getMaxSeqNo();
         shard.failShard("test", new IOException("simulated"));
@@ -1058,10 +1083,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info(
             "--> start recovery request: starting seq_no {}, commit {}",
             startRecoveryRequest.startingSeqNo(),
-            startRecoveryRequest.metadataSnapshot().getCommitUserData()
+            startRecoveryRequest.metadataSnapshot().commitUserData()
         );
         SequenceNumbers.CommitInfo commitInfoAfterLocalRecovery = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-            startRecoveryRequest.metadataSnapshot().getCommitUserData().entrySet()
+            startRecoveryRequest.metadataSnapshot().commitUserData().entrySet()
         );
         assertThat(commitInfoAfterLocalRecovery.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
         assertThat(commitInfoAfterLocalRecovery.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));
@@ -1456,7 +1481,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
             return singletonMap(
                 "test_token_filter",
-                (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(indexSettings, name, settings) {
+                (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name, settings) {
                     @Override
                     public TokenStream create(TokenStream tokenStream) {
                         if (throwParsingError.get()) {
@@ -1551,7 +1576,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
             .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
-            .collect(Collectors.toList());
+            .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
         ensureGreen();
         internalCluster().stopRandomDataNode();
@@ -1667,7 +1692,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
             .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
-            .collect(Collectors.toList());
+            .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
         assertThat(client().admin().indices().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
 
@@ -1699,7 +1724,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                             .stream()
                             .flatMap(s -> Arrays.stream(s.getShards()))
                             .map(s -> s.getStats().getStore().getReservedSize().getBytes())
-                            .collect(Collectors.toList()),
+                            .toList(),
                         everyItem(equalTo(StoreStats.UNKNOWN_RESERVED_BYTES))
                     );
                 }
@@ -1796,5 +1821,49 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             equalTo(SnapshotState.SUCCESS)
         );
         return createSnapshotResponse;
+    }
+
+    private long getLocalCheckpointOfSafeCommit(IndexCommit safeIndexCommit) throws IOException {
+        final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+            safeIndexCommit.getUserData().entrySet()
+        );
+        final long commitLocalCheckpoint = commitInfo.localCheckpoint;
+        final long maxSeqNo = commitInfo.maxSeqNo;
+        final LocalCheckpointTracker localCheckpointTracker = new LocalCheckpointTracker(maxSeqNo, commitLocalCheckpoint);
+
+        // In certain scenarios it is possible that the local checkpoint captured during commit lags behind,
+        // meaning that it's possible that there are operations stored in the safe commit that have > seqNo
+        // than the captured local checkpoint. When a shard is recovered locally, the local checkpoint can
+        // be > than the safe commit local checkpoint, since that's checked and updated in
+        // InternalEngine#restoreVersionMapAndCheckpointTracker
+        try (DirectoryReader directoryReader = DirectoryReader.open(safeIndexCommit)) {
+            final IndexSearcher searcher = new IndexSearcher(directoryReader);
+            searcher.setQueryCache(null);
+            final Query query = new BooleanQuery.Builder().add(
+                LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, commitLocalCheckpoint + 1, Long.MAX_VALUE),
+                BooleanClause.Occur.MUST
+            ).add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST).build();
+            final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            for (LeafReaderContext leaf : directoryReader.leaves()) {
+                final Scorer scorer = weight.scorer(leaf);
+                if (scorer == null) {
+                    continue;
+                }
+                final NumericDocValues seqNoDocValue = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                final DocIdSetIterator iterator = scorer.iterator();
+                int docId;
+                while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (seqNoDocValue.advanceExact(docId) == false) {
+                        throw new IllegalStateException();
+                    }
+                    final long docSeqNo = seqNoDocValue.longValue();
+                    assertThat(docSeqNo, is(greaterThan(commitLocalCheckpoint)));
+                    localCheckpointTracker.markSeqNoAsProcessed(docSeqNo);
+                    localCheckpointTracker.markSeqNoAsPersisted(docSeqNo);
+                }
+            }
+            assertThat(localCheckpointTracker.getPersistedCheckpoint(), is(greaterThanOrEqualTo(commitLocalCheckpoint)));
+            return localCheckpointTracker.getPersistedCheckpoint();
+        }
     }
 }

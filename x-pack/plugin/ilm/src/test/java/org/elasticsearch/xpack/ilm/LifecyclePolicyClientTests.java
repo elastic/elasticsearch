@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.mockito.Mockito;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -90,7 +90,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
-        Map<String, String> headers = new HashMap<>(1);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(1);
         headers.put("foo", "foo");
         headers.put("bar", "bar");
 
@@ -131,7 +131,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
-        Map<String, String> headers = new HashMap<>(1);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(1);
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
 

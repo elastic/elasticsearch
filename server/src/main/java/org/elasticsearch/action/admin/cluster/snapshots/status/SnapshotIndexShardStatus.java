@@ -60,25 +60,14 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
 
     SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus.Copy indexShardStatus, String nodeId) {
         super(shardId);
-        switch (indexShardStatus.getStage()) {
-            case INIT:
-                stage = SnapshotIndexShardStage.INIT;
-                break;
-            case STARTED:
-                stage = SnapshotIndexShardStage.STARTED;
-                break;
-            case FINALIZE:
-                stage = SnapshotIndexShardStage.FINALIZE;
-                break;
-            case DONE:
-                stage = SnapshotIndexShardStage.DONE;
-                break;
-            case FAILURE:
-                stage = SnapshotIndexShardStage.FAILURE;
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
-        }
+        stage = switch (indexShardStatus.getStage()) {
+            case INIT -> SnapshotIndexShardStage.INIT;
+            case STARTED -> SnapshotIndexShardStage.STARTED;
+            case FINALIZE -> SnapshotIndexShardStage.FINALIZE;
+            case DONE -> SnapshotIndexShardStage.DONE;
+            case FAILURE -> SnapshotIndexShardStage.FAILURE;
+            default -> throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
+        };
         this.stats = new SnapshotStats(
             indexShardStatus.getStartTime(),
             indexShardStatus.getTotalTime(),

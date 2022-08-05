@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -17,6 +16,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -92,8 +92,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         assertThat(query, notNullValue());
         assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(PrefixQuery.class)));
 
-        if (query instanceof PrefixQuery) {
-            final PrefixQuery prefixQuery = (PrefixQuery) query;
+        if (query instanceof final PrefixQuery prefixQuery) {
             assertThat(prefixQuery.getPrefix().text(), equalToIgnoringCase((String) queryBuilder.value()));
         } else {
             assertThat(query, instanceOf(BooleanQuery.class));
@@ -162,12 +161,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             {
               "match_bool_prefix": {
                 "fieldName": {
-                  "query": "fieldValue",
-                  "operator": "OR",
-                  "prefix_length": 0,
-                  "max_expansions": 50,
-                  "fuzzy_transpositions": true,
-                  "boost": 1.0
+                  "query": "fieldValue"
                 }
               }
             }""";

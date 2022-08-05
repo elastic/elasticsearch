@@ -10,14 +10,13 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -68,6 +67,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.apache.logging.log4j.Level.DEBUG;
+import static org.apache.logging.log4j.Level.ERROR;
+import static org.elasticsearch.cluster.service.MasterService.isPublishFailureException;
+import static org.elasticsearch.core.Strings.format;
+
 public class ShardStateAction {
 
     private static final Logger logger = LogManager.getLogger(ShardStateAction.class);
@@ -80,7 +84,7 @@ public class ShardStateAction {
     private final ThreadPool threadPool;
 
     // we deduplicate these shard state requests in order to avoid sending duplicate failed/started shard requests for a shard
-    private final ResultDeduplicator<TransportRequest, Void> remoteShardStateUpdateDeduplicator = new ResultDeduplicator<>();
+    private final ResultDeduplicator<TransportRequest, Void> remoteShardStateUpdateDeduplicator;
 
     @Inject
     public ShardStateAction(
@@ -93,26 +97,19 @@ public class ShardStateAction {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.remoteShardStateUpdateDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
 
         transportService.registerRequestHandler(
             SHARD_STARTED_ACTION_NAME,
             ThreadPool.Names.SAME,
             StartedShardEntry::new,
-            new ShardStartedTransportHandler(
-                clusterService,
-                new ShardStartedClusterStateTaskExecutor(allocationService, rerouteService, logger),
-                logger
-            )
+            new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, rerouteService))
         );
         transportService.registerRequestHandler(
             SHARD_FAILED_ACTION_NAME,
             ThreadPool.Names.SAME,
             FailedShardEntry::new,
-            new ShardFailedTransportHandler(
-                clusterService,
-                new ShardFailedClusterStateTaskExecutor(allocationService, rerouteService, logger),
-                logger
-            )
+            new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, rerouteService))
         );
     }
 
@@ -142,8 +139,8 @@ public class ShardStateAction {
                         waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
                     } else {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "unexpected failure while sending request [{}]" + " to [{}] for shard entry [{}]",
+                            () -> format(
+                                "unexpected failure while sending request [%s]" + " to [%s] for shard entry [%s]",
                                 actionName,
                                 masterNode,
                                 request
@@ -281,113 +278,65 @@ public class ShardStateAction {
         }, changePredicate);
     }
 
+    // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
     private static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
         private final ClusterService clusterService;
         private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
-        private final Logger logger;
 
         ShardFailedTransportHandler(
             ClusterService clusterService,
-            ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor,
-            Logger logger
+            ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor
         ) {
             this.clusterService = clusterService;
             this.shardFailedClusterStateTaskExecutor = shardFailedClusterStateTaskExecutor;
-            this.logger = logger;
         }
+
+        private static final String TASK_SOURCE = "shard-failed";
 
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) throws Exception {
-            logger.debug(() -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
+            logger.debug(() -> format("%s received shard failed for [%s]", request.getShardId(), request), request.failure);
+            var update = new FailedShardUpdateTask(request, new ChannelActionListener<>(channel, TASK_SOURCE, request));
             clusterService.submitStateUpdateTask(
-                "shard-failed",
-                request,
+                TASK_SOURCE,
+                update,
                 ClusterStateTaskConfig.build(Priority.HIGH),
-                shardFailedClusterStateTaskExecutor,
-                new ClusterStateTaskListener() {
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error(
-                            () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request),
-                            e
-                        );
-                        try {
-                            channel.sendResponse(e);
-                        } catch (Exception channelException) {
-                            channelException.addSuppressed(e);
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "{} failed to send failure [{}] while failing shard [{}]",
-                                    request.shardId,
-                                    e,
-                                    request
-                                ),
-                                channelException
-                            );
-                        }
-                    }
-
-                    @Override
-                    public void onNoLongerMaster(String source) {
-                        logger.error("{} no longer master while failing shard [{}]", request.shardId, request);
-                        try {
-                            channel.sendResponse(new NotMasterException(source));
-                        } catch (Exception channelException) {
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "{} failed to send no longer master while failing shard [{}]",
-                                    request.shardId,
-                                    request
-                                ),
-                                channelException
-                            );
-                        }
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        try {
-                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                        } catch (Exception channelException) {
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "{} failed to send response while failing shard [{}]",
-                                    request.shardId,
-                                    request
-                                ),
-                                channelException
-                            );
-                        }
-                    }
-                }
+                shardFailedClusterStateTaskExecutor
             );
         }
     }
 
-    public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<FailedShardEntry> {
+    public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<FailedShardUpdateTask> {
         private final AllocationService allocationService;
         private final RerouteService rerouteService;
-        private final Logger logger;
 
-        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService, Logger logger) {
+        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
             this.allocationService = allocationService;
             this.rerouteService = rerouteService;
-            this.logger = logger;
         }
 
         @Override
-        public ClusterTasksResult<FailedShardEntry> execute(ClusterState currentState, List<FailedShardEntry> tasks) throws Exception {
-            ClusterTasksResult.Builder<FailedShardEntry> batchResultBuilder = ClusterTasksResult.builder();
-            List<FailedShardEntry> tasksToBeApplied = new ArrayList<>();
+        public ClusterState execute(
+            ClusterState currentState,
+            List<ClusterStateTaskExecutor.TaskContext<FailedShardUpdateTask>> taskContexts
+        ) throws Exception {
+            List<ClusterStateTaskExecutor.TaskContext<FailedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
             List<FailedShard> failedShardsToBeApplied = new ArrayList<>();
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
 
-            for (FailedShardEntry task : tasks) {
-                IndexMetadata indexMetadata = currentState.metadata().index(task.shardId.getIndex());
+            for (final var taskContext : taskContexts) {
+                final var task = taskContext.getTask();
+                FailedShardEntry entry = task.entry();
+                IndexMetadata indexMetadata = currentState.metadata().index(entry.getShardId().getIndex());
                 if (indexMetadata == null) {
                     // tasks that correspond to non-existent indices are marked as successful
-                    logger.debug("{} ignoring shard failed task [{}] (unknown index {})", task.shardId, task, task.shardId.getIndex());
-                    batchResultBuilder.success(task);
+                    logger.debug(
+                        "{} ignoring shard failed task [{}] (unknown index {})",
+                        entry.getShardId(),
+                        entry,
+                        entry.getShardId().getIndex()
+                    );
+                    taskContext.success(() -> task.listener().onResponse(TransportResponse.Empty.INSTANCE));
                 } else {
                     // The primary term is 0 if the shard failed itself. It is > 0 if a write was done on a primary but was failed to be
                     // replicated to the shard copy with the provided allocation id. In case where the shard failed itself, it's ok to just
@@ -397,29 +346,28 @@ public class ShardStateAction {
                     // We check here that the primary to which the write happened was not already failed in an earlier cluster state update.
                     // This prevents situations where a new primary has already been selected and replication failures from an old stale
                     // primary unnecessarily fail currently active shards.
-                    if (task.primaryTerm > 0) {
-                        long currentPrimaryTerm = indexMetadata.primaryTerm(task.shardId.id());
-                        if (currentPrimaryTerm != task.primaryTerm) {
-                            assert currentPrimaryTerm > task.primaryTerm
+                    if (entry.primaryTerm > 0) {
+                        long currentPrimaryTerm = indexMetadata.primaryTerm(entry.getShardId().id());
+                        if (currentPrimaryTerm != entry.primaryTerm) {
+                            assert currentPrimaryTerm > entry.primaryTerm
                                 : "received a primary term with a higher term than in the "
                                     + "current cluster state (received ["
-                                    + task.primaryTerm
+                                    + entry.primaryTerm
                                     + "] but current is ["
                                     + currentPrimaryTerm
                                     + "])";
                             logger.debug(
                                 "{} failing shard failed task [{}] (primary term {} does not match current term {})",
-                                task.shardId,
-                                task,
-                                task.primaryTerm,
-                                indexMetadata.primaryTerm(task.shardId.id())
+                                entry.getShardId(),
+                                entry,
+                                entry.primaryTerm,
+                                indexMetadata.primaryTerm(entry.getShardId().id())
                             );
-                            batchResultBuilder.failure(
-                                task,
+                            taskContext.onFailure(
                                 new NoLongerPrimaryShardException(
-                                    task.shardId,
+                                    entry.getShardId(),
                                     "primary term ["
-                                        + task.primaryTerm
+                                        + entry.primaryTerm
                                         + "] did not match current primary term ["
                                         + currentPrimaryTerm
                                         + "]"
@@ -429,26 +377,31 @@ public class ShardStateAction {
                         }
                     }
 
-                    ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
+                    ShardRouting matched = currentState.getRoutingTable().getByAllocationId(entry.getShardId(), entry.getAllocationId());
                     if (matched == null) {
-                        Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(task.shardId.id());
+                        Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(entry.getShardId().id());
                         // mark shard copies without routing entries that are in in-sync allocations set only as stale if the reason why
                         // they were failed is because a write made it into the primary but not to this copy (which corresponds to
                         // the check "primaryTerm > 0").
-                        if (task.primaryTerm > 0 && inSyncAllocationIds.contains(task.allocationId)) {
-                            logger.debug("{} marking shard {} as stale (shard failed task: [{}])", task.shardId, task.allocationId, task);
-                            tasksToBeApplied.add(task);
-                            staleShardsToBeApplied.add(new StaleShard(task.shardId, task.allocationId));
+                        if (entry.primaryTerm > 0 && inSyncAllocationIds.contains(entry.getAllocationId())) {
+                            logger.debug(
+                                "{} marking shard {} as stale (shard failed task: [{}])",
+                                entry.getShardId(),
+                                entry.getAllocationId(),
+                                entry
+                            );
+                            tasksToBeApplied.add(taskContext);
+                            staleShardsToBeApplied.add(new StaleShard(entry.getShardId(), entry.getAllocationId()));
                         } else {
                             // tasks that correspond to non-existent shards are marked as successful
-                            logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", task.shardId, task);
-                            batchResultBuilder.success(task);
+                            logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", entry.getShardId(), entry);
+                            taskContext.success(() -> task.listener().onResponse(TransportResponse.Empty.INSTANCE));
                         }
                     } else {
                         // failing a shard also possibly marks it as stale (see IndexMetadataUpdater)
-                        logger.debug("{} failing shard {} (shard failed task: [{}])", task.shardId, matched, task);
-                        tasksToBeApplied.add(task);
-                        failedShardsToBeApplied.add(new FailedShard(matched, task.message, task.failure, task.markAsStale));
+                        logger.debug("{} failing shard {} (shard failed task: [{}])", entry.getShardId(), matched, task);
+                        tasksToBeApplied.add(taskContext);
+                        failedShardsToBeApplied.add(new FailedShard(matched, entry.message, entry.failure, entry.markAsStale));
                     }
                 }
             }
@@ -457,15 +410,19 @@ public class ShardStateAction {
             ClusterState maybeUpdatedState = currentState;
             try {
                 maybeUpdatedState = applyFailedShards(currentState, failedShardsToBeApplied, staleShardsToBeApplied);
-                batchResultBuilder.successes(tasksToBeApplied);
+                for (final var taskContext : tasksToBeApplied) {
+                    taskContext.success(() -> taskContext.getTask().listener().onResponse(TransportResponse.Empty.INSTANCE));
+                }
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to apply failed shards {}", failedShardsToBeApplied), e);
+                logger.warn(() -> format("failed to apply failed shards %s", failedShardsToBeApplied), e);
                 // failures are communicated back to the requester
                 // cluster state will not be updated in this case
-                batchResultBuilder.failures(tasksToBeApplied, e);
+                for (final var taskContext : tasksToBeApplied) {
+                    taskContext.onFailure(e);
+                }
             }
 
-            return batchResultBuilder.build(maybeUpdatedState);
+            return maybeUpdatedState;
         }
 
         // visible for testing
@@ -474,8 +431,8 @@ public class ShardStateAction {
         }
 
         @Override
-        public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
-            int numberOfUnassignedShards = clusterStatePublicationEvent.getNewState().getRoutingNodes().unassigned().size();
+        public void clusterStatePublished(ClusterState newClusterState) {
+            int numberOfUnassignedShards = newClusterState.getRoutingNodes().unassigned().size();
             if (numberOfUnassignedShards > 0) {
                 // The reroute called after failing some shards will not assign any shard back to the node on which it failed. If there were
                 // no other options for a failed shard then it is left unassigned. However, absent other options it's better to try and
@@ -487,7 +444,7 @@ public class ShardStateAction {
                     Priority.NORMAL,
                     ActionListener.wrap(
                         r -> logger.trace("{}, reroute completed", reason),
-                        e -> logger.debug(new ParameterizedMessage("{}, reroute failed", reason), e)
+                        e -> logger.debug(() -> format("%s, reroute failed", reason), e)
                     )
                 );
             }
@@ -580,6 +537,26 @@ public class ShardStateAction {
         }
     }
 
+    public record FailedShardUpdateTask(FailedShardEntry entry, ActionListener<TransportResponse.Empty> listener)
+        implements
+            ClusterStateTaskListener {
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.log(
+                isPublishFailureException(e) ? DEBUG : ERROR,
+                () -> format("%s unexpected failure while failing shard [%s]", entry.shardId, entry),
+                e
+            );
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "should not be called";
+        }
+    }
+
     public void shardStarted(
         final ShardRouting shardRouting,
         final long primaryTerm,
@@ -605,117 +582,117 @@ public class ShardStateAction {
         );
     }
 
+    // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
         private final ClusterService clusterService;
         private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
-        private final Logger logger;
 
         ShardStartedTransportHandler(
             ClusterService clusterService,
-            ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor,
-            Logger logger
+            ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor
         ) {
             this.clusterService = clusterService;
             this.shardStartedClusterStateTaskExecutor = shardStartedClusterStateTaskExecutor;
-            this.logger = logger;
         }
 
         @Override
         public void messageReceived(StartedShardEntry request, TransportChannel channel, Task task) throws Exception {
             logger.debug("{} received shard started for [{}]", request.shardId, request);
+            final ChannelActionListener<TransportResponse.Empty, StartedShardEntry> listener = new ChannelActionListener<>(
+                channel,
+                SHARD_STARTED_ACTION_NAME,
+                request
+            );
+
+            var update = new StartedShardUpdateTask(request, listener);
+
             clusterService.submitStateUpdateTask(
                 "shard-started " + request,
-                request,
+                update,
                 ClusterStateTaskConfig.build(Priority.URGENT),
-                shardStartedClusterStateTaskExecutor,
                 shardStartedClusterStateTaskExecutor
             );
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
-    public static class ShardStartedClusterStateTaskExecutor
-        implements
-            ClusterStateTaskExecutor<StartedShardEntry>,
-            ClusterStateTaskListener {
+    public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<StartedShardUpdateTask> {
         private final AllocationService allocationService;
-        private final Logger logger;
         private final RerouteService rerouteService;
 
-        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService, Logger logger) {
+        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
             this.allocationService = allocationService;
-            this.logger = logger;
             this.rerouteService = rerouteService;
         }
 
         @Override
-        public ClusterTasksResult<StartedShardEntry> execute(ClusterState currentState, List<StartedShardEntry> tasks) throws Exception {
-            ClusterTasksResult.Builder<StartedShardEntry> builder = ClusterTasksResult.builder();
-            List<StartedShardEntry> tasksToBeApplied = new ArrayList<>();
-            List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
+        public ClusterState execute(ClusterState currentState, List<TaskContext<StartedShardUpdateTask>> taskContexts) throws Exception {
+            List<TaskContext<StartedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
+            List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(taskContexts.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
             final Map<Index, IndexLongFieldRange> updatedTimestampRanges = new HashMap<>();
-            for (StartedShardEntry task : tasks) {
-                final ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
+            for (var taskContext : taskContexts) {
+                final var task = taskContext.getTask();
+                StartedShardEntry entry = task.getEntry();
+                final ShardRouting matched = currentState.getRoutingTable().getByAllocationId(entry.shardId, entry.allocationId);
                 if (matched == null) {
                     // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
                     // events on every cluster state publishing that does not contain the shard as started yet. This means that old stale
                     // requests might still be in flight even after the shard has already been started or failed on the master. We just
                     // ignore these requests for now.
-                    logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", task.shardId, task);
-                    builder.success(task);
+                    logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", entry.shardId, entry);
+                    taskContext.success(() -> task.listener().onResponse(TransportResponse.Empty.INSTANCE));
                 } else {
-                    if (matched.primary() && task.primaryTerm > 0) {
-                        final IndexMetadata indexMetadata = currentState.metadata().index(task.shardId.getIndex());
+                    if (matched.primary() && entry.primaryTerm > 0) {
+                        final IndexMetadata indexMetadata = currentState.metadata().index(entry.shardId.getIndex());
                         assert indexMetadata != null;
-                        final long currentPrimaryTerm = indexMetadata.primaryTerm(task.shardId.id());
-                        if (currentPrimaryTerm != task.primaryTerm) {
-                            assert currentPrimaryTerm > task.primaryTerm
+                        final long currentPrimaryTerm = indexMetadata.primaryTerm(entry.shardId.id());
+                        if (currentPrimaryTerm != entry.primaryTerm) {
+                            assert currentPrimaryTerm > entry.primaryTerm
                                 : "received a primary term with a higher term than in the "
                                     + "current cluster state (received ["
-                                    + task.primaryTerm
+                                    + entry.primaryTerm
                                     + "] but current is ["
                                     + currentPrimaryTerm
                                     + "])";
                             logger.debug(
                                 "{} ignoring shard started task [{}] (primary term {} does not match current term {})",
-                                task.shardId,
-                                task,
-                                task.primaryTerm,
+                                entry.shardId,
+                                entry,
+                                entry.primaryTerm,
                                 currentPrimaryTerm
                             );
-                            builder.success(task);
+                            taskContext.success(() -> task.listener().onResponse(TransportResponse.Empty.INSTANCE));
                             continue;
                         }
                     }
                     if (matched.initializing() == false) {
-                        assert matched.active() : "expected active shard routing for task " + task + " but found " + matched;
+                        assert matched.active() : "expected active shard routing for task " + entry + " but found " + matched;
                         // same as above, this might have been a stale in-flight request, so we just ignore.
                         logger.debug(
                             "{} ignoring shard started task [{}] (shard exists but is not initializing: {})",
-                            task.shardId,
-                            task,
+                            entry.shardId,
+                            entry,
                             matched
                         );
-                        builder.success(task);
+                        taskContext.success(() -> task.listener().onResponse(TransportResponse.Empty.INSTANCE));
                     } else {
                         // remove duplicate actions as allocation service expects a clean list without duplicates
                         if (seenShardRoutings.contains(matched)) {
                             logger.trace(
                                 "{} ignoring shard started task [{}] (already scheduled to start {})",
-                                task.shardId,
-                                task,
+                                entry.shardId,
+                                entry,
                                 matched
                             );
-                            tasksToBeApplied.add(task);
+                            tasksToBeApplied.add(taskContext);
                         } else {
-                            logger.debug("{} starting shard {} (shard started task: [{}])", task.shardId, matched, task);
-                            tasksToBeApplied.add(task);
+                            logger.debug("{} starting shard {} (shard started task: [{}])", entry.shardId, matched, entry);
+                            tasksToBeApplied.add(taskContext);
                             shardRoutingsToBeApplied.add(matched);
                             seenShardRoutings.add(matched);
 
                             // expand the timestamp range recorded in the index metadata if needed
-                            final Index index = task.shardId.getIndex();
+                            final Index index = entry.shardId.getIndex();
                             IndexLongFieldRange currentTimestampMillisRange = updatedTimestampRanges.get(index);
                             final IndexMetadata indexMetadata = currentState.metadata().index(index);
                             if (currentTimestampMillisRange == null) {
@@ -723,9 +700,9 @@ public class ShardStateAction {
                             }
                             final IndexLongFieldRange newTimestampMillisRange;
                             newTimestampMillisRange = currentTimestampMillisRange.extendWithShardRange(
-                                task.shardId.id(),
+                                entry.shardId.id(),
                                 indexMetadata.getNumberOfShards(),
-                                task.timestampRange
+                                entry.timestampRange
                             );
                             if (newTimestampMillisRange != currentTimestampMillisRange) {
                                 updatedTimestampRanges.put(index, newTimestampMillisRange);
@@ -753,13 +730,17 @@ public class ShardStateAction {
 
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
 
-                builder.successes(tasksToBeApplied);
+                for (final var taskContext : tasksToBeApplied) {
+                    taskContext.success(() -> taskContext.getTask().listener().onResponse(TransportResponse.Empty.INSTANCE));
+                }
             } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
-                builder.failures(tasksToBeApplied, e);
+                logger.warn(() -> format("failed to apply started shards %s", shardRoutingsToBeApplied), e);
+                for (final var taskContext : tasksToBeApplied) {
+                    taskContext.onFailure(e);
+                }
             }
 
-            return builder.build(maybeUpdatedState);
+            return maybeUpdatedState;
         }
 
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
@@ -777,16 +758,7 @@ public class ShardStateAction {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
-            if (e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException) {
-                logger.debug(() -> new ParameterizedMessage("failure during [{}]", source), e);
-            } else {
-                logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-            }
-        }
-
-        @Override
-        public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+        public void clusterStatePublished(ClusterState newClusterState) {
             rerouteService.reroute(
                 "reroute after starting shards",
                 Priority.NORMAL,
@@ -865,6 +837,37 @@ public class ShardStateAction {
         @Override
         public int hashCode() {
             return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange);
+        }
+    }
+
+    public record StartedShardUpdateTask(StartedShardEntry entry, ActionListener<TransportResponse.Empty> listener)
+        implements
+            ClusterStateTaskListener {
+
+        public StartedShardEntry getEntry() {
+            return entry;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            if (e instanceof NotMasterException) {
+                logger.debug(() -> format("%s no longer master while starting shard [%s]", entry.shardId, entry));
+            } else if (e instanceof FailedToCommitClusterStateException) {
+                logger.debug(() -> format("%s unexpected failure while starting shard [%s]", entry.shardId, entry), e);
+            } else {
+                logger.error(() -> format("%s unexpected failure while starting shard [%s]", entry.shardId, entry), e);
+            }
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "should not be called";
+        }
+
+        @Override
+        public String toString() {
+            return "StartedShardUpdateTask{entry=" + entry + ", listener=" + listener + "}";
         }
     }
 

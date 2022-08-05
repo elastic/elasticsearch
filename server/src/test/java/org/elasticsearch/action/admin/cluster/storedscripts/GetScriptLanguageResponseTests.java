@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptLanguagesInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,7 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<GetScriptLanguageResponse> {
     private static int MAX_VALUES = 4;
@@ -94,7 +94,7 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
     }
 
     private static Set<String> randomStringSet(int numInstances) {
-        Set<String> rand = new HashSet<>(numInstances);
+        Set<String> rand = Sets.newHashSetWithExpectedSize(numInstances);
         for (int i = 0; i < numInstances; i++) {
             rand.add(randomValueOtherThanMany(rand::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)));
         }
@@ -111,7 +111,7 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
             updated.add(randomValueOtherThanMany(updated::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)));
             return updated;
         } else {
-            List<String> sorted = strings.stream().sorted().collect(Collectors.toList());
+            List<String> sorted = strings.stream().sorted().toList();
             int toRemove = randomInt(sorted.size() - 1);
             Set<String> updated = new HashSet<>();
             for (int i = 0; i < sorted.size(); i++) {

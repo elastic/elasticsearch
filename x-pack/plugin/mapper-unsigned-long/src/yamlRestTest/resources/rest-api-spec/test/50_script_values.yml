@@ -146,6 +146,8 @@ setup:
                   script:
                     source: "field('ul').isEmpty() == false"
   - match: { hits.total.value: 5 }
+
+
   - do:
       search:
         index: test1
@@ -185,6 +187,7 @@ setup:
                 source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.total.value: 5 }
+
   - do:
       search:
         index: test1
@@ -196,3 +199,36 @@ setup:
                 source: "Math.abs(doc['ul'].value)"
 
   - match: { hits.total.value: 5 }
+
+---
+"Scripted Metric":
+  - skip:
+      version: " - 8.0.99"
+      reason: "context for scripted metric was added in 8.1"
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            term:
+              ul: 18446744073709551615
+          aggs:
+            sqrt:
+              scripted_metric:
+                init_script: |
+                  state.sqrd = []
+                map_script: |
+                  double v = field('ul').asBigInteger(BigInteger.ZERO).doubleValue();
+                  state.sqrd.add(v * v)
+                combine_script: |
+                  state.sqrd
+                reduce_script: |
+                  def sum = 0.0;
+                  for (s in states) {
+                    for (v in s) {
+                      sum += v;
+                    }
+                  }
+                  return sum
+  - match: { aggregations.sqrt.value: 3.4028236692093846E38 }

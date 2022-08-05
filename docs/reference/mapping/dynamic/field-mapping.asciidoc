@@ -15,19 +15,19 @@ explicitly map all other data types.
 
 [[dynamic-field-mapping-types]]
 // tag::dynamic-field-mapping-types-tag[]
-[cols="3"]
+[cols="3",frame=all]
 |===
+h|                2+^h|{es} data type
 h| JSON data type h| `"dynamic":"true"` h| `"dynamic":"runtime"`
  |`null` 2*| No field added
  |`true` or `false` 2*| `boolean`
  |`double` | `float` | `double`
- |`integer` 2*| `long`
+ |`long` 2*| `long`
  |`object` | `object` | No field added
  |`array` 2*|  Depends on the first non-`null` value in the array
  |`string` that passes <<date-detection,date detection>> 2*| `date`
  |`string` that passes <<numeric-detection,numeric detection>> | `float` or `long` | `double` or `long`
  |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
-3+|
 |===
 // end::dynamic-field-mapping-types-tag[]
 

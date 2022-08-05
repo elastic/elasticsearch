@@ -89,16 +89,11 @@ public class RoundingBenchmark {
             roundingBuilder = Rounding.builder(TimeValue.parseTimeValue(interval, "interval"));
         }
         Rounding rounding = roundingBuilder.timeZone(ZoneId.of(zone)).build();
-        switch (rounder) {
-            case "java time":
-                rounderBuilder = rounding::prepareJavaTime;
-                break;
-            case "es":
-                rounderBuilder = () -> rounding.prepare(min, max);
-                break;
-            default:
-                throw new IllegalArgumentException("Expectd rounder to be [java time] or [es]");
-        }
+        rounderBuilder = switch (rounder) {
+            case "java time" -> rounding::prepareJavaTime;
+            case "es" -> () -> rounding.prepare(min, max);
+            default -> throw new IllegalArgumentException("Expected rounder to be [java time] or [es]");
+        };
     }
 
     @Benchmark

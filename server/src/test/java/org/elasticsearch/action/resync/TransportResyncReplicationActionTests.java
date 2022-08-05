@@ -41,7 +41,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -98,14 +100,15 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
             );
 
             try (
-                MockNioTransport transport = new MockNioTransport(
+                TcpTransport transport = new Netty4Transport(
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
                     new NetworkService(emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
                     new NamedWriteableRegistry(emptyList()),
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    new SharedGroupFactory(Settings.EMPTY)
                 )
             ) {
 

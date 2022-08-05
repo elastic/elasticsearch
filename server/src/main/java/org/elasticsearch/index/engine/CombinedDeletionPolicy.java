@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
@@ -21,6 +19,7 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,7 +37,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
-    private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
+    private final Map<IndexCommit, Integer> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile long maxSeqNoOfNextSafeCommit;
     private volatile IndexCommit lastCommit; // the most recent commit point
@@ -54,7 +53,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.snapshottedCommits = new ObjectIntHashMap<>();
+        this.snapshottedCommits = new HashMap<>();
     }
 
     @Override
@@ -77,38 +76,46 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final IndexCommit safeCommit;
+        assert Thread.holdsLock(this) == false : "should not block concurrent acquire or release";
+        final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
+        final IndexCommit safeCommit = commits.get(keptPosition);
+        int totalDocsOfSafeCommit;
+        try {
+            totalDocsOfSafeCommit = getDocCountOfCommit(safeCommit);
+        } catch (IOException ex) {
+            logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
+            totalDocsOfSafeCommit = safeCommitInfo.docCount;
+        }
         synchronized (this) {
-            final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
-            this.safeCommitInfo = SafeCommitInfo.EMPTY;
+            this.safeCommitInfo = new SafeCommitInfo(
+                Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+                totalDocsOfSafeCommit
+            );
             this.lastCommit = commits.get(commits.size() - 1);
-            this.safeCommit = commits.get(keptPosition);
-            for (int i = 0; i < keptPosition; i++) {
-                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
-                    deleteCommit(commits.get(i));
-                }
-            }
+            this.safeCommit = safeCommit;
             updateRetentionPolicy();
             if (keptPosition == commits.size() - 1) {
                 this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
             } else {
                 this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
             }
-            safeCommit = this.safeCommit;
+            for (int i = 0; i < keptPosition; i++) {
+                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
+                    deleteCommit(commits.get(i));
+                }
+            }
         }
+        assert assertSafeCommitUnchanged(safeCommit);
+    }
 
-        assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
-        safeCommitInfo = new SafeCommitInfo(
-            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
-            getDocCountOfCommit(safeCommit)
-        );
-
+    private boolean assertSafeCommitUnchanged(IndexCommit safeCommit) {
         // This is protected from concurrent calls by a lock on the IndexWriter, but this assertion makes sure that we notice if that ceases
         // to be true in future. It is not disastrous if safeCommitInfo refers to an older safeCommit, it just means that we might retain a
         // bit more history and do a few more ops-based recoveries than we would otherwise.
         final IndexCommit newSafeCommit = this.safeCommit;
         assert safeCommit == newSafeCommit
             : "onCommit called concurrently? " + safeCommit.getGeneration() + " vs " + newSafeCommit.getGeneration();
+        return true;
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {
@@ -146,7 +153,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
-        snapshottedCommits.addTo(snapshotting, 1); // increase refCount
+        snapshottedCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
         return new SnapshotIndexCommit(snapshotting);
     }
 
@@ -164,13 +171,17 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 + "], releasing commit ["
                 + releasingCommit
                 + "]";
-        final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount
-        assert refCount >= 0 : "Number of snapshots can not be negative [" + refCount + "]";
-        if (refCount == 0) {
-            snapshottedCommits.remove(releasingCommit);
-        }
+        // release refCount
+        final Integer refCount = snapshottedCommits.compute(releasingCommit, (key, count) -> {
+            if (count == 1) {
+                return null;
+            }
+            return count - 1;
+        });
+
+        assert refCount == null || refCount > 0 : "Number of snapshots can not be negative [" + refCount + "]";
         // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
-        return refCount == 0 && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
+        return refCount == null && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
     }
 
     /**

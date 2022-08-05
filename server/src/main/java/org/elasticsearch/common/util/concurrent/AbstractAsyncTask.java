@@ -8,7 +8,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -16,6 +15,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A base class for tasks that need to repeat.
@@ -135,10 +136,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
                 // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "failed to run task {} - suppressing re-occurring exceptions unless the exception changes",
-                        toString()
-                    ),
+                    () -> format("failed to run task %s - suppressing re-occurring exceptions unless the exception changes", toString()),
                     ex
                 );
                 lastThrownException = ex;

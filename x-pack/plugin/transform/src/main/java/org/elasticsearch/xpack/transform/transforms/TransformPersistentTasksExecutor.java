@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -59,6 +58,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
@@ -293,12 +293,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
             // fail if a transform is too old, this can only happen on a rolling upgrade
             if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
-                String transformTooOldError = new ParameterizedMessage(
-                    "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
-                        + "Minimum required version is [{}]",
+                String transformTooOldError = format(
+                    "Transform configuration is too old [%s], use the upgrade API to fix your transform. "
+                        + "Minimum required version is [%s]",
                     config.getVersion(),
                     TransformDeprecations.MIN_TRANSFORM_VERSION
-                ).getFormattedMessage();
+                );
                 auditor.error(transformId, transformTooOldError);
                 markAsFailed(buildTask, transformTooOldError);
                 return;
@@ -344,20 +344,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         if (previousState == null) {
             return IndexerState.STOPPED;
         }
-        switch (previousState.getIndexerState()) {
+        return switch (previousState.getIndexerState()) {
             // If it is STARTED or INDEXING we want to make sure we revert to started
             // Otherwise, the internal indexer will never get scheduled and execute
-            case STARTED:
-            case INDEXING:
-                return IndexerState.STARTED;
+            case STARTED, INDEXING -> IndexerState.STARTED;
             // If we are STOPPED, STOPPING, or ABORTING and just started executing on this node,
             // then it is safe to say we should be STOPPED
-            case STOPPED:
-            case STOPPING:
-            case ABORTING:
-            default:
-                return IndexerState.STOPPED;
-        }
+            case STOPPED, STOPPING, ABORTING -> IndexerState.STOPPED;
+        };
     }
 
     private void markAsFailed(TransformTask task, String reason) {
@@ -387,7 +381,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<StartTransformAction.Response> listener
     ) {
         // switch the threadpool to generic, because the caller is on the system_read threadpool
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.generic().execute(() -> {
             buildTask.initializeIndexer(indexerBuilder);
             // TransformTask#start will fail if the task state is FAILED
             buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
@@ -415,7 +409,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             client,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
-            transformServices.getSchedulerEngine(),
+            transformServices.getScheduler(),
             auditor,
             threadPool,
             headers

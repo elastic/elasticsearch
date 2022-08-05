@@ -26,9 +26,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -230,8 +229,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.IGNORE_DEPRECATIONS,
+                XContentParserConfiguration.EMPTY,
                 indexRequest.source().utf8ToString()
             )
         ) {
@@ -241,7 +239,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testPersistProgress_ProgressDocumentCreated() throws IOException {
-        testPersistProgress(SearchHits.empty(), ".ml-state-write");
+        testPersistProgress(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
     }
 
     public void testPersistProgress_ProgressDocumentUpdated() throws IOException {
@@ -285,7 +283,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(SearchHits.empty());
+        when(searchResponse.getHits()).thenReturn(SearchHits.EMPTY_WITH_TOTAL_HITS);
         doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
@@ -326,8 +324,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.IGNORE_DEPRECATIONS,
+                    XContentParserConfiguration.EMPTY,
                     indexRequest.source().utf8ToString()
                 )
             ) {

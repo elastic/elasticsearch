@@ -13,6 +13,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,8 +26,10 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
+import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.TEXT;
 
 public class TextFormatTests extends ESTestCase {
 
@@ -60,17 +63,17 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatWithEmptyData() {
-        String text = CSV.format(req(), emptyData());
+        String text = format(CSV, req(), emptyData());
         assertEquals("name\r\n", text);
     }
 
     public void testTsvFormatWithEmptyData() {
-        String text = TSV.format(req(), emptyData());
+        String text = format(TSV, req(), emptyData());
         assertEquals("name\n", text);
     }
 
     public void testCsvFormatWithRegularData() {
-        String text = CSV.format(req(), regularData());
+        String text = format(CSV, req(), regularData());
         assertEquals("""
             string,number\r
             Along The River Bank,708\r
@@ -79,7 +82,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatNoHeaderWithRegularData() {
-        String text = CSV.format(reqWithParam("header", "absent"), regularData());
+        String text = format(CSV, reqWithParam("header", "absent"), regularData());
         assertEquals("""
             Along The River Bank,708\r
             Mind Train,280\r
@@ -89,7 +92,7 @@ public class TextFormatTests extends ESTestCase {
     public void testCsvFormatWithCustomDelimiterRegularData() {
         Set<Character> forbidden = Set.of('"', '\r', '\n', '\t');
         Character delim = randomValueOtherThanMany(forbidden::contains, () -> randomAlphaOfLength(1).charAt(0));
-        String text = CSV.format(reqWithParam("delimiter", String.valueOf(delim)), regularData());
+        String text = format(CSV, reqWithParam("delimiter", String.valueOf(delim)), regularData());
         List<String> terms = Arrays.asList("string", "number", "Along The River Bank", "708", "Mind Train", "280");
         List<String> expectedTerms = terms.stream()
             .map(x -> x.contains(String.valueOf(delim)) ? '"' + x + '"' : x)
@@ -105,7 +108,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testTsvFormatWithRegularData() {
-        String text = TSV.format(req(), regularData());
+        String text = format(TSV, req(), regularData());
         assertEquals("""
             string\tnumber
             Along The River Bank\t708
@@ -114,7 +117,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatWithEscapedData() {
-        String text = CSV.format(req(), escapedData());
+        String text = format(CSV, req(), escapedData());
         assertEquals("""
             first,""\"special""\"\r
             normal,""\"quo""ted"",
@@ -126,7 +129,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatWithCustomDelimiterEscapedData() {
-        String text = CSV.format(reqWithParam("delimiter", "\\"), escapedData());
+        String text = format(CSV, reqWithParam("delimiter", "\\"), escapedData());
         assertEquals("""
             first\\""\"special""\"\r
             normal\\""\"quo""ted"",
@@ -138,7 +141,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testTsvFormatWithEscapedData() {
-        String text = TSV.format(req(), escapedData());
+        String text = format(TSV, req(), escapedData());
         assertEquals("""
             first\t"special"
             normal\t"quo"ted",\\n
@@ -150,7 +153,7 @@ public class TextFormatTests extends ESTestCase {
         List<String> invalid = Arrays.asList("\"", "\r", "\n", "\t", "", "ab");
 
         for (String c : invalid) {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> CSV.format(reqWithParam("delimiter", c), emptyData()));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> format(CSV, reqWithParam("delimiter", c), emptyData()));
             String msg;
             if (c.length() == 1) {
                 msg = c.equals("\t")
@@ -163,9 +166,27 @@ public class TextFormatTests extends ESTestCase {
         }
     }
 
+    public void testPlainTextEmptyCursorWithColumns() {
+        assertEquals("""
+                 name     \s
+            ---------------
+            """, format(PLAIN_TEXT, req(), emptyData()));
+    }
+
+    public void testPlainTextEmptyCursorWithoutColumns() {
+        assertEquals(
+            StringUtils.EMPTY,
+            PLAIN_TEXT.format(
+                req(),
+                new BasicFormatter(emptyList(), emptyList(), TEXT),
+                new SqlQueryResponse(StringUtils.EMPTY, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, null, emptyList())
+            ).v1()
+        );
+    }
+
     private static SqlQueryResponse emptyData() {
         return new SqlQueryResponse(
-            null,
+            StringUtils.EMPTY,
             Mode.JDBC,
             DATE_NANOS_SUPPORT_VERSION,
             false,
@@ -208,5 +229,9 @@ public class TextFormatTests extends ESTestCase {
 
     private static RestRequest reqWithParam(String paramName, String paramVal) {
         return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(singletonMap(paramName, paramVal)).build();
+    }
+
+    private String format(TextFormat format, RestRequest request, SqlQueryResponse response) {
+        return format.format(request, null, response).v1();
     }
 }

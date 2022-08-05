@@ -22,6 +22,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
@@ -41,11 +43,12 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -53,7 +56,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
@@ -154,7 +156,7 @@ public final class StoreRecovery {
         }
     }
 
-    void addIndices(
+    static void addIndices(
         final RecoveryState.Index indexRecoveryStats,
         final Directory target,
         final Sort indexSort,
@@ -192,7 +194,7 @@ public final class StoreRecovery {
              * document-level semantics.
              */
             writer.setLiveCommitData(() -> {
-                final HashMap<String, String> liveCommitData = new HashMap<>(3);
+                final Map<String, String> liveCommitData = Maps.newMapWithExpectedSize(3);
                 liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
                 liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
                 liveCommitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));
@@ -475,7 +477,7 @@ public final class StoreRecovery {
         assert indexShard.loadRetentionLeases().leases().isEmpty();
     }
 
-    private void addRecoveredFileDetails(SegmentInfos si, Store store, RecoveryState.Index index) throws IOException {
+    private static void addRecoveredFileDetails(SegmentInfos si, Store store, RecoveryState.Index index) throws IOException {
         final Directory directory = store.directory();
         for (String name : Lucene.files(si)) {
             long length = directory.fileLength(name);
@@ -529,29 +531,37 @@ public final class StoreRecovery {
             // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
             if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                 // BwC path, running against an old version master that did not add the IndexId to the recovery source
-                repository.getRepositoryData(indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
+                repository.getRepositoryData(
+                    new ThreadedActionListener<>(
+                        logger,
+                        indexShard.getThreadPool(),
+                        ThreadPool.Names.GENERIC,
+                        indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName())),
+                        false
+                    )
+                );
             } else {
                 indexIdListener.onResponse(indexId);
             }
             assert indexShard.getEngineOrNull() == null;
-            indexIdListener.whenComplete(
-                idx -> repository.restoreShard(
+            indexIdListener.whenComplete(idx -> {
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
+                repository.restoreShard(
                     indexShard.store(),
                     restoreSource.snapshot().getSnapshotId(),
                     idx,
                     snapshotShardId,
                     indexShard.recoveryState(),
                     restoreListener
-                ),
-                restoreListener::onFailure
-            );
+                );
+            }, restoreListener::onFailure);
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }
     }
 
     public static void bootstrap(final IndexShard indexShard, final Store store) throws IOException {
-        if (isSearchableSnapshotStore(indexShard.indexSettings().getSettings()) == false) {
+        if (indexShard.indexSettings.getIndexMetadata().isSearchableSnapshot() == false) {
             // not bootstrapping new history for searchable snapshots (which are read-only) allows sequence-number based peer recoveries
             store.bootstrapNewHistory();
         }

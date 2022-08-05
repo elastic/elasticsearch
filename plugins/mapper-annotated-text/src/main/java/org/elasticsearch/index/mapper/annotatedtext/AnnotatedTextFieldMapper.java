@@ -21,6 +21,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -39,10 +40,8 @@ import java.io.UncheckedIOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -81,24 +80,28 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         final TextParams.Analyzers analyzers;
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
 
-        final Parameter<String> indexOptions = TextParams.indexOptions(m -> builder(m).indexOptions.getValue());
+        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
         final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.getValue());
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers) {
+        private final Version indexCreatedVersion;
+
+        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> builder(m).analyzers.getIndexAnalyzer(),
-                m -> builder(m).analyzers.positionIncrementGap.getValue()
+                m -> builder(m).analyzers.positionIncrementGap.getValue(),
+                indexCreatedVersion
             );
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 store,
                 indexOptions,
                 norms,
@@ -108,8 +111,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 analyzers.searchAnalyzer,
                 analyzers.searchQuoteAnalyzer,
                 analyzers.positionIncrementGap,
-                meta
-            );
+                meta };
         }
 
         private AnnotatedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
@@ -146,16 +148,13 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
 
     /**
      * Parses markdown-like syntax into plain text and AnnotationTokens with offsets for
      * annotations found in texts
      */
-    public static final class AnnotatedText {
-        public final String textPlusMarkup;
-        public final String textMinusMarkup;
-        List<AnnotationToken> annotations;
+    public record AnnotatedText(String textMinusMarkup, String textPlusMarkup, List<AnnotationToken> annotations) {
 
         // Format is markdown-like syntax for URLs eg:
         // "New mayor is [John Smith](type=person&value=John%20Smith) "
@@ -201,23 +200,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             return new AnnotatedText(sb.toString(), textPlusMarkup, annotations);
         }
 
-        protected AnnotatedText(String textMinusMarkup, String textPlusMarkup, List<AnnotationToken> annotations) {
-            this.textMinusMarkup = textMinusMarkup;
-            this.textPlusMarkup = textPlusMarkup;
-            this.annotations = annotations;
-        }
-
-        public static final class AnnotationToken {
-            public final int offset;
-            public final int endOffset;
-
-            public final String value;
-
-            public AnnotationToken(int offset, int endOffset, String value) {
-                this.offset = offset;
-                this.endOffset = endOffset;
-                this.value = value;
-            }
+        public record AnnotationToken(int offset, int endOffset, String value) {
 
             @Override
             public String toString() {
@@ -229,28 +212,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                     || (start <= endOffset && end >= endOffset)
                     || (start >= offset && end <= endOffset);
             }
-
-            @Override
-            public int hashCode() {
-                final int prime = 31;
-                int result = 1;
-                result = prime * result + endOffset;
-                result = prime * result + offset;
-                result = prime * result + Objects.hashCode(value);
-                return result;
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (this == obj) return true;
-                if (obj == null) return false;
-                if (getClass() != obj.getClass()) return false;
-                AnnotationToken other = (AnnotationToken) obj;
-                return Objects.equals(endOffset, other.endOffset)
-                    && Objects.equals(offset, other.offset)
-                    && Objects.equals(value, other.value);
-            }
-
         }
 
         @Override
@@ -523,6 +484,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final Builder builder;
 
+    private final NamedAnalyzer indexAnalyzer;
+
     protected AnnotatedTextFieldMapper(
         String simpleName,
         FieldType fieldType,
@@ -531,10 +494,16 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, wrapAnalyzer(builder.analyzers.getIndexAnalyzer()), multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
         this.fieldType = fieldType;
         this.builder = builder;
+        this.indexAnalyzer = wrapAnalyzer(builder.analyzers.getIndexAnalyzer());
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override
@@ -561,6 +530,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
     }
 }

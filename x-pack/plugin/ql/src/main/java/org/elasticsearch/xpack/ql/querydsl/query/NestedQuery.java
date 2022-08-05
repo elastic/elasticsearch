@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.querydsl.query;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -16,7 +17,6 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.AbstractMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -80,7 +80,7 @@ public class NestedQuery extends Query {
             // I already have the field, no rewriting needed
             return this;
         }
-        Map<String, Map.Entry<Boolean, String>> newFields = new HashMap<>(fields.size() + 1);
+        Map<String, Map.Entry<Boolean, String>> newFields = Maps.newMapWithExpectedSize(fields.size() + 1);
         newFields.putAll(fields);
         newFields.put(field, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format));
         return new NestedQuery(source(), otherPath, unmodifiableMap(newFields), child);

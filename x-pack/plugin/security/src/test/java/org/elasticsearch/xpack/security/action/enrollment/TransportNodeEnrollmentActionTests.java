@@ -149,10 +149,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         assertThat(response.getNodesAddresses(), hasSize(numberOfNodes));
         assertThat(nodesInfoRequests, hasSize(1));
 
-        assertWarnings(
-            "[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version."
-        );
+        assertWarnings("[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception {

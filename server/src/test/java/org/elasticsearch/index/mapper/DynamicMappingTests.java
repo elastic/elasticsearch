@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,6 +20,7 @@ import java.io.IOException;
 import java.time.Instant;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -330,8 +333,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument doc = mapper.parse(source(b -> {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
             {
                 b.startObject("bar").field("baz", "foo").endObject();
@@ -340,6 +343,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         assertThat(Strings.toString(doc.dynamicMappingsUpdate()), containsString("""
             {"foo":{"properties":{"bar":{"properties":{"baz":{"type":"text\""""));
     }
@@ -794,5 +798,150 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                 }
               }
             }"""), Strings.toString(doc.dynamicMappingsUpdate()));
+    }
+
+    // test for https://github.com/elastic/elasticsearch/issues/65333
+    public void testDottedFieldDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping("false", b -> b.startObject("myfield").field("type", "keyword").endObject())
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.field("myfield", "value1");
+            b.array("something.myfield", "value2", "value3");
+        }));
+
+        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(2));
+        for (IndexableField field : doc.rootDoc().getFields("myfield")) {
+            assertThat(field.binaryValue(), equalTo(new BytesRef("value1")));
+        }
+        // dynamic is false, so `something.myfield` should be ignored entirely. It used to be merged with myfield by mistake.
+        assertThat(doc.rootDoc().getFields("something.myfield"), arrayWithSize(0));
+
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testArraysDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping("false", b -> b.startObject("myarray").field("type", "keyword").endObject())
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.array("unmapped", "unknown1", "unknown2");
+            b.array("myarray", "array1", "array2");
+        }));
+
+        assertThat(doc.rootDoc().getFields("myarray"), arrayWithSize(4));
+        assertThat(doc.rootDoc().getFields("unmapped"), arrayWithSize(0));
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testArraysOfObjectsRootDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping(
+                "false",
+                b -> b.startObject("objects")
+                    .startObject("properties")
+                    .startObject("subfield")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.startArray("objects");
+            b.startObject().field("subfield", "sub").field("unmapped", "unmapped").endObject();
+            b.endArray();
+            b.startArray("unmapped");
+            b.startObject().field("subfield", "unmapped").endObject();
+            b.endArray();
+        }));
+
+        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
+        assertThat(doc.rootDoc().getFields("unmapped.subfield"), arrayWithSize(0));
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testArraysOfObjectsDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping(
+                "true",
+                b -> b.startObject("objects")
+                    .field("dynamic", false)
+                    .startObject("properties")
+                    .startObject("subfield")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.startArray("objects");
+            b.startObject().field("subfield", "sub").field("unmapped", "unmapped").endObject();
+            b.endArray();
+            b.field("myfield", 2);
+        }));
+
+        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_doc": {
+                "dynamic":"true",
+                "properties":{
+                  "myfield":{
+                    "type":"long"
+                  }
+                }
+              }
+            }"""), Strings.toString(doc.dynamicMappingsUpdate()));
+    }
+
+    public void testSubobjectsFalseRootDynamicUpdate() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties");
+            b.startObject("host.name").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            {
+              "time" : 10,
+              "time.max" : 500,
+              "time.min" : 1,
+              "host.name" : "localhost",
+              "host.id" : 111
+            }
+            """));
+
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.max"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.min"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("host.id"));
+        assertNull(mappingsUpdate.getRoot().getMapper("host.name"));
+
+        assertNotNull(doc.rootDoc().getFields("time"));
+        assertNotNull(doc.rootDoc().getFields("time.max"));
+        assertNotNull(doc.rootDoc().getFields("time.min"));
+        assertNotNull(doc.rootDoc().getFields("host.name"));
+        assertNotNull(doc.rootDoc().getFields("host.id"));
+
+        merge(mapperService, dynamicMapping(mappingsUpdate));
+
+        assertNotNull(mapperService.fieldType("time"));
+        assertNotNull(mapperService.fieldType("time.max"));
+        assertNotNull(mapperService.fieldType("time.min"));
+        assertNotNull(mapperService.fieldType("host.id"));
+        assertNotNull(mapperService.fieldType("host.name"));
+
+        assertEquals(0, mapperService.mappingLookup().objectMappers().size());
     }
 }

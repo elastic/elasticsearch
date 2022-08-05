@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.ilm.history;
 
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 
 import java.io.IOException;
 

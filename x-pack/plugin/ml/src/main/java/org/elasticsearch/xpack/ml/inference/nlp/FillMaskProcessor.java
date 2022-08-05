@@ -23,15 +23,14 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResu
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
-public class FillMaskProcessor implements NlpTask.Processor {
+public class FillMaskProcessor extends NlpTask.Processor {
 
-    private final NlpTokenizer tokenizer;
-
-    FillMaskProcessor(NlpTokenizer tokenizer, FillMaskConfig config) {
-        this.tokenizer = tokenizer;
+    FillMaskProcessor(NlpTokenizer tokenizer) {
+        super(tokenizer);
     }
 
     @Override
@@ -92,7 +91,7 @@ public class FillMaskProcessor implements NlpTask.Processor {
         int numResults,
         String resultsField
     ) {
-        if (tokenization.getTokenizations().isEmpty() || tokenization.getTokenizations().get(0).getTokenIds().length == 0) {
+        if (tokenization.isEmpty()) {
             throw new ElasticsearchStatusException("tokenization is empty", RestStatus.INTERNAL_SERVER_ERROR);
         }
 
@@ -103,25 +102,20 @@ public class FillMaskProcessor implements NlpTask.Processor {
             );
         }
 
-        int maskTokenIndex = -1;
         int maskTokenId = tokenizer.getMaskTokenId().getAsInt();
-        for (int i = 0; i < tokenization.getTokenizations().get(0).getTokenIds().length; i++) {
-            if (tokenization.getTokenizations().get(0).getTokenIds()[i] == maskTokenId) {
-                maskTokenIndex = i;
-                break;
-            }
-        }
-        if (maskTokenIndex == -1) {
+        OptionalInt maskTokenIndex = tokenization.getTokenization(0).getTokenIndex(maskTokenId);
+        if (maskTokenIndex.isEmpty()) {
             throw new ElasticsearchStatusException(
-                "mask token id [{}] not found in the tokenization {}",
+                "mask token id [{}] not found in the tokenization",
                 RestStatus.INTERNAL_SERVER_ERROR,
-                maskTokenId,
-                List.of(tokenization.getTokenizations().get(0).getTokenIds())
+                maskTokenId
             );
         }
 
         // TODO - process all results in the batch
-        double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][maskTokenIndex]);
+        double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(
+            pyTorchResult.getInferenceResult()[0][maskTokenIndex.getAsInt()]
+        );
 
         NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(
             // We need at least one to record the result
@@ -131,16 +125,14 @@ public class FillMaskProcessor implements NlpTask.Processor {
         List<TopClassEntry> results = new ArrayList<>(scoreAndIndices.length);
         if (numResults != 0) {
             for (NlpHelpers.ScoreAndIndex scoreAndIndex : scoreAndIndices) {
-                String predictedToken = tokenization.getFromVocab(scoreAndIndex.index);
+                String predictedToken = tokenization.decode(tokenization.getFromVocab(scoreAndIndex.index));
                 results.add(new TopClassEntry(predictedToken, scoreAndIndex.score, scoreAndIndex.score));
             }
         }
+        String predictedValue = tokenization.decode(tokenization.getFromVocab(scoreAndIndices[0].index));
         return new FillMaskResults(
-            tokenization.getFromVocab(scoreAndIndices[0].index),
-            tokenization.getTokenizations()
-                .get(0)
-                .getInput()
-                .replace(tokenizer.getMaskToken(), tokenization.getFromVocab(scoreAndIndices[0].index)),
+            predictedValue,
+            tokenization.getTokenization(0).input().get(0).replace(tokenizer.getMaskToken(), predictedValue),
             results,
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
             scoreAndIndices[0].score,

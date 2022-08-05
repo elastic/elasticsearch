@@ -22,8 +22,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.stream.Collectors;
-
 public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAction<
     GetSnapshottableFeaturesRequest,
     GetSnapshottableFeaturesResponse> {
@@ -63,15 +61,9 @@ public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAct
         listener.onResponse(
             new GetSnapshottableFeaturesResponse(
                 systemIndices.getFeatures()
-                    .entrySet()
                     .stream()
-                    .map(
-                        featureEntry -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
-                            featureEntry.getKey(),
-                            featureEntry.getValue().getDescription()
-                        )
-                    )
-                    .collect(Collectors.toList())
+                    .map(feature -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(feature.getName(), feature.getDescription()))
+                    .toList()
             )
         );
     }

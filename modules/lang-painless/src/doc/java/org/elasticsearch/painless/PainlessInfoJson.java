@@ -232,8 +232,8 @@ public class PainlessInfoJson {
                     }
                 }
                 if (parsedMethod != null) {
-                    javadoc = parsedMethod.javadoc;
-                    parameterNames = parsedMethod.parameterNames;
+                    javadoc = parsedMethod.javadoc();
+                    parameterNames = parsedMethod.parameterNames();
                 }
 
                 methods.add(
@@ -317,8 +317,8 @@ public class PainlessInfoJson {
                     parsedMethod = extractor.parseClass(info.getDeclaring()).getConstructor(parameterTypes);
                 }
                 if (parsedMethod != null) {
-                    parameterNames = parsedMethod.parameterNames;
-                    javadoc = parsedMethod.javadoc;
+                    parameterNames = parsedMethod.parameterNames();
+                    javadoc = parsedMethod.javadoc();
                 }
 
                 constructors.add(new Constructor(info.getDeclaring(), parameterTypes, parameterNames, javadoc));

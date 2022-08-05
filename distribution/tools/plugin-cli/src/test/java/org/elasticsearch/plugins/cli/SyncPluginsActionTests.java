@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.plugins.cli;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -42,6 +43,7 @@ public class SyncPluginsActionTests extends ESTestCase {
     private Environment env;
     private SyncPluginsAction action;
     private PluginsConfig config;
+    private MockTerminal terminal;
 
     @Override
     @Before
@@ -55,7 +57,8 @@ public class SyncPluginsActionTests extends ESTestCase {
         Files.createDirectories(env.configFile());
         Files.createDirectories(env.pluginsFile());
 
-        action = new SyncPluginsAction(new MockTerminal(), env);
+        terminal = MockTerminal.create();
+        action = new SyncPluginsAction(terminal, env);
         config = new PluginsConfig();
     }
 
@@ -109,7 +112,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      * calculate that the plugin needs to be installed.
      */
     public void test_getPluginChanges_withPluginToInstall_returnsPluginToInstall() throws Exception {
-        config.setPlugins(List.of(new PluginDescriptor("my-plugin")));
+        config.setPlugins(List.of(new InstallablePlugin("my-plugin")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
 
@@ -127,7 +130,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      */
     public void test_getPluginChanges_withPluginToUpgrade_returnsNoChanges() throws Exception {
         createPlugin("my-plugin", Version.CURRENT.previousMajor());
-        config.setPlugins(List.of(new PluginDescriptor("my-plugin")));
+        config.setPlugins(List.of(new InstallablePlugin("my-plugin")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
 
@@ -140,7 +143,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      */
     public void test_getPluginChanges_withOfficialPluginToUpgrade_returnsPluginToUpgrade() throws Exception {
         createPlugin("analysis-icu", Version.CURRENT.previousMajor());
-        config.setPlugins(List.of(new PluginDescriptor("analysis-icu")));
+        config.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
 
@@ -157,10 +160,10 @@ public class SyncPluginsActionTests extends ESTestCase {
      */
     public void test_getPluginChanges_withCachedConfigAndNoChanges_returnsNoChanges() throws Exception {
         createPlugin("my-plugin");
-        config.setPlugins(List.of(new PluginDescriptor("my-plugin", "file://plugin.zip")));
+        config.setPlugins(List.of(new InstallablePlugin("my-plugin", "file://plugin.zip")));
 
         final PluginsConfig cachedConfig = new PluginsConfig();
-        cachedConfig.setPlugins(List.of(new PluginDescriptor("my-plugin", "file://plugin.zip")));
+        cachedConfig.setPlugins(List.of(new InstallablePlugin("my-plugin", "file://plugin.zip")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.of(cachedConfig));
 
@@ -173,10 +176,10 @@ public class SyncPluginsActionTests extends ESTestCase {
      */
     public void test_getPluginChanges_withCachedConfigAndChangedLocation_returnsPluginToUpgrade() throws Exception {
         createPlugin("my-plugin");
-        config.setPlugins(List.of(new PluginDescriptor("my-plugin", "file:///after.zip")));
+        config.setPlugins(List.of(new InstallablePlugin("my-plugin", "file:///after.zip")));
 
         final PluginsConfig cachedConfig = new PluginsConfig();
-        cachedConfig.setPlugins(List.of(new PluginDescriptor("my-plugin", "file://before.zip")));
+        cachedConfig.setPlugins(List.of(new InstallablePlugin("my-plugin", "file://before.zip")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.of(cachedConfig));
 
@@ -185,6 +188,59 @@ public class SyncPluginsActionTests extends ESTestCase {
         assertThat(pluginChanges.remove, empty());
         assertThat(pluginChanges.upgrade, hasSize(1));
         assertThat(pluginChanges.upgrade.get(0).getId(), equalTo("my-plugin"));
+    }
+
+    /**
+     * Check that the config file can still specify plugins that have been migrated to modules, but
+     * they are ignored.
+     */
+    public void test_getPluginChanges_withModularisedPluginsToInstall_ignoresPlugins() throws Exception {
+        config.setPlugins(
+            List.of(
+                new InstallablePlugin("repository-azure"),
+                new InstallablePlugin("repository-gcs"),
+                new InstallablePlugin("repository-s3")
+            )
+        );
+
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
+
+        assertThat(pluginChanges.isEmpty(), is(true));
+        for (String plugin : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            assertThat(
+                terminal.getErrorOutput(),
+                containsString(
+                    "[" + plugin + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch"
+                )
+            );
+        }
+    }
+
+    /**
+     * Check that if there are plugins already installed that have been migrated to modules, then they are removed,
+     * even if they are specified in the config file.
+     */
+    public void test_getPluginChanges_withModularisedPluginsToRemove_removesPlugins() throws Exception {
+        createPlugin("repository-azure");
+        createPlugin("repository-gcs");
+        createPlugin("repository-s3");
+        config.setPlugins(
+            List.of(
+                new InstallablePlugin("repository-azure"),
+                new InstallablePlugin("repository-gcs"),
+                new InstallablePlugin("repository-s3")
+            )
+        );
+
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
+
+        assertThat(pluginChanges.isEmpty(), is(false));
+        assertThat(pluginChanges.install, empty());
+        assertThat(pluginChanges.remove, hasSize(3));
+        assertThat(pluginChanges.upgrade, empty());
+        assertThat(pluginChanges.remove.get(0).getId(), equalTo("repository-azure"));
+        assertThat(pluginChanges.remove.get(1).getId(), equalTo("repository-gcs"));
+        assertThat(pluginChanges.remove.get(2).getId(), equalTo("repository-s3"));
     }
 
     /**
@@ -208,13 +264,13 @@ public class SyncPluginsActionTests extends ESTestCase {
     public void test_performSync_withPluginsToRemove_callsRemoveAction() throws Exception {
         final InstallPluginAction installAction = mock(InstallPluginAction.class);
         final RemovePluginAction removeAction = mock(RemovePluginAction.class);
-        final List<PluginDescriptor> pluginDescriptors = List.of(new PluginDescriptor("plugin1"), new PluginDescriptor("plugin2"));
+        final List<InstallablePlugin> installablePlugins = List.of(new InstallablePlugin("plugin1"), new InstallablePlugin("plugin2"));
 
-        action.performSync(installAction, removeAction, new PluginChanges(pluginDescriptors, List.of(), List.of()));
+        action.performSync(installAction, removeAction, new PluginChanges(installablePlugins, List.of(), List.of()));
 
         verify(installAction, never()).execute(anyList());
         verify(removeAction).setPurge(true);
-        verify(removeAction).execute(pluginDescriptors);
+        verify(removeAction).execute(installablePlugins);
     }
 
     /**
@@ -223,11 +279,11 @@ public class SyncPluginsActionTests extends ESTestCase {
     public void test_performSync_withPluginsToInstall_callsInstallAction() throws Exception {
         final InstallPluginAction installAction = mock(InstallPluginAction.class);
         final RemovePluginAction removeAction = mock(RemovePluginAction.class);
-        final List<PluginDescriptor> pluginDescriptors = List.of(new PluginDescriptor("plugin1"), new PluginDescriptor("plugin2"));
+        final List<InstallablePlugin> installablePlugins = List.of(new InstallablePlugin("plugin1"), new InstallablePlugin("plugin2"));
 
-        action.performSync(installAction, removeAction, new PluginChanges(List.of(), pluginDescriptors, List.of()));
+        action.performSync(installAction, removeAction, new PluginChanges(List.of(), installablePlugins, List.of()));
 
-        verify(installAction).execute(pluginDescriptors);
+        verify(installAction).execute(installablePlugins);
         verify(removeAction, never()).execute(anyList());
     }
 
@@ -239,13 +295,13 @@ public class SyncPluginsActionTests extends ESTestCase {
         final RemovePluginAction removeAction = mock(RemovePluginAction.class);
         final InOrder inOrder = Mockito.inOrder(removeAction, installAction);
 
-        final List<PluginDescriptor> pluginDescriptors = List.of(new PluginDescriptor("plugin1"), new PluginDescriptor("plugin2"));
+        final List<InstallablePlugin> installablePlugins = List.of(new InstallablePlugin("plugin1"), new InstallablePlugin("plugin2"));
 
-        action.performSync(installAction, removeAction, new PluginChanges(List.of(), List.of(), pluginDescriptors));
+        action.performSync(installAction, removeAction, new PluginChanges(List.of(), List.of(), installablePlugins));
 
         inOrder.verify(removeAction).setPurge(false);
-        inOrder.verify(removeAction).execute(pluginDescriptors);
-        inOrder.verify(installAction).execute(pluginDescriptors);
+        inOrder.verify(removeAction).execute(installablePlugins);
+        inOrder.verify(installAction).execute(installablePlugins);
     }
 
     /**
@@ -256,9 +312,9 @@ public class SyncPluginsActionTests extends ESTestCase {
         final RemovePluginAction removeAction = mock(RemovePluginAction.class);
         final InOrder inOrder = Mockito.inOrder(removeAction, installAction);
 
-        final List<PluginDescriptor> pluginsToRemove = List.of(new PluginDescriptor("plugin1"));
-        final List<PluginDescriptor> pluginsToInstall = List.of(new PluginDescriptor("plugin2"));
-        final List<PluginDescriptor> pluginsToUpgrade = List.of(new PluginDescriptor("plugin3"));
+        final List<InstallablePlugin> pluginsToRemove = List.of(new InstallablePlugin("plugin1"));
+        final List<InstallablePlugin> pluginsToInstall = List.of(new InstallablePlugin("plugin2"));
+        final List<InstallablePlugin> pluginsToUpgrade = List.of(new InstallablePlugin("plugin3"));
 
         action.performSync(installAction, removeAction, new PluginChanges(pluginsToRemove, pluginsToInstall, pluginsToUpgrade));
 

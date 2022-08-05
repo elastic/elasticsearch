@@ -6,6 +6,59 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[[deprecation-system-indices]]
+.Direct access to system indices is deprecated.
+[%collapsible]
+====
+*Details* +
+Directly accessing system indices is deprecated, and may be prevented in a
+future version. If you must access a system index, create a security role with
+an index permission that targets the specific index and set the
+`allow_restricted_indices` permission to `true`. Refer to 
+{ref}/defining-roles.html#roles-indices-priv[indices privileges] for
+information on adding this permission to an index privilege.
+
+*Impact* +
+Accessing system indices directly results in warnings in the header of API
+responses. If available, use {kib} or the associated feature's {es} APIs to
+manage the data that you want to access.
+====
+
+[[deprecate-max-merge-at-once-explicit-setting]]
+.`index.merge.policy.max_merge_at_once_explicit` is deprecated and has no effect.
+[%collapsible]
+====
+*Details* +
+The `index.merge.policy.max_merge_at_once_explicit` index setting is deprecated
+and has no effect.
+
+Previously, you could specify `index.merge.policy.max_merge_at_once_explicit` to
+set the maximum number of segments to merge at the same time during a force
+merge or when expunging deleted documents. In 8.0, this number is unlimited,
+regardless of the setting.
+
+*Impact* +
+Specifying `index.merge.policy.max_merge_at_once_explicit` will have no effect
+but will generate deprecation warnings.
+
+To avoid these deprecation warnings, discontinue use of the setting. Don't
+specify the setting when creating new indices, and remove the setting from
+index and component templates.
+
+To remove the setting from an existing data stream or index, specify the
+setting's value as `null` using the update index settings API.
+
+[source,console]
+----
+PUT my-index-000001/_settings
+{
+  "index.merge.policy.max_merge_at_once_explicit": null
+}
+----
+// TEST[setup:my_index]
+
+====
+
 [[index-max-adjacency-matrix-filters-removed]]
 .The `index.max_adjacency_matrix_filters` index setting has been removed.
 [%collapsible]

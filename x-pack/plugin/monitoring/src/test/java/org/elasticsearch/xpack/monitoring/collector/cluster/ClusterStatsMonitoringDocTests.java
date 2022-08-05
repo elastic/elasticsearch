@@ -47,8 +47,8 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginType;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
@@ -230,7 +230,10 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final int nodeCount = randomIntBetween(0, 5);
         final Map<String, String> emptyMap = emptyMap();
         final DiscoveryNode masterNode = masterNode();
-        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder().masterNodeId(masterNode.getId()).localNodeId(masterNode.getId());
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder()
+            .add(masterNode)
+            .masterNodeId(masterNode.getId())
+            .localNodeId(masterNode.getId());
 
         for (int i = 0; i < nodeCount; ++i) {
             builder.add(
@@ -272,7 +275,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             transportAddress,
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Version.CURRENT,
+            "_external_id"
         );
 
         final ClusterState testClusterState = ClusterState.builder(testClusterName)
@@ -284,7 +288,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             )
             .stateUUID("_state_uuid")
             .version(12L)
-            .nodes(DiscoveryNodes.builder().masterNodeId("_node").localNodeId("_node").add(discoveryNode).build())
+            .nodes(
+                DiscoveryNodes.builder().masterNodeId(discoveryNode.getId()).localNodeId(discoveryNode.getId()).add(discoveryNode).build()
+            )
             .build();
 
         final License testLicense = License.builder()
@@ -319,20 +325,22 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
-        final PluginInfo pluginInfo = new PluginInfo(
+        final PluginDescriptor pluginDescriptor = new PluginDescriptor(
             "_plugin",
             "_plugin_desc",
             "_plugin_version",
             Version.CURRENT,
             "1.8",
             "_plugin_class",
+            null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
+            false,
+            false,
             false
         );
-        when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
+        final PluginRuntimeInfo pluginRuntimeInfo = new PluginRuntimeInfo(pluginDescriptor);
+        when(mockPluginsAndModules.getPluginInfos()).thenReturn(List.of(pluginRuntimeInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);
         when(mockNodeInfo.getInfo(OsInfo.class)).thenReturn(mockOsInfo);
@@ -348,12 +356,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmName()).thenReturn("_jvm_vm_name");
         when(mockJvmInfo.getVmVersion()).thenReturn("_jvm_vm_version");
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
-        when(mockJvmInfo.getBundledJdk()).thenReturn(true);
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
-        final Build mockBuild = mock(Build.class);
-        when(mockBuild.flavor()).thenReturn(Build.Flavor.DEFAULT);
-        when(mockBuild.type()).thenReturn(Build.Type.DOCKER);
+        final Build mockBuild = new Build(Build.Type.DOCKER, "", "", false, "");
         when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
@@ -535,6 +540,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "file_sizes": {}
                   },
                   "mappings": {
+                    "total_field_count" : 0,
+                    "total_deduplicated_field_count" : 0,
+                    "total_deduplicated_mapping_size_in_bytes" : 0,
                     "field_types": [],
                     "runtime_field_types": []
                   },
@@ -645,7 +653,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "extended_plugins": [],
                       "has_native_controller": false,
                       "licensed": false,
-                      "type": "isolated"
+                      "is_official": false
                     }
                   ],
                   "network_types": {
@@ -700,12 +708,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 "cluster_uuid": "_cluster",
                 "version": 12,
                 "state_uuid": "_state_uuid",
-                "master_node": "_node",
+                "master_node": "_node_id",
                 "nodes": {
                   "_node_id": {
                     "name": "_node_name",
                     "ephemeral_id": "_ephemeral_id",
                     "transport_address": "0.0.0.0:9300",
+                    "external_id": "_external_id",
                     "attributes": {
                       "attr": "value"
                     },

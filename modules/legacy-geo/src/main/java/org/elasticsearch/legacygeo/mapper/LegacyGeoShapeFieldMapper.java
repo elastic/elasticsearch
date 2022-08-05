@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.legacygeo.mapper;
 
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -42,6 +44,7 @@ import org.elasticsearch.legacygeo.XShapeCollection;
 import org.elasticsearch.legacygeo.builders.ShapeBuilder;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.query.LegacyGeoShapeQueryProcessor;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Shape;
@@ -112,15 +115,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public static final double DISTANCE_ERROR_PCT = 0.025d;
 
         public static int defaultTreeLevel(String tree) {
-            switch (tree) {
-                case PrefixTrees.GEOHASH:
-                    return GEOHASH_TREE_LEVELS;
-                case PrefixTrees.LEGACY_QUADTREE:
-                case PrefixTrees.QUADTREE:
-                    return QUADTREE_LEVELS;
-                default:
-                    throw new IllegalArgumentException("Unknown prefix type [" + tree + "]");
-            }
+            return switch (tree) {
+                case PrefixTrees.GEOHASH -> GEOHASH_TREE_LEVELS;
+                case PrefixTrees.LEGACY_QUADTREE, PrefixTrees.QUADTREE -> QUADTREE_LEVELS;
+                default -> throw new IllegalArgumentException("Unknown prefix type [" + tree + "]");
+            };
         }
     }
 
@@ -159,7 +158,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             false,
             () -> SpatialStrategy.RECURSIVE,
             (n, c, o) -> SpatialStrategy.fromString(o.toString()),
-            m -> builder(m).strategy.get()
+            m -> builder(m).strategy.get(),
+            (b, f, v) -> b.field(f, v.getStrategyName()),
+            SpatialStrategy::getStrategyName
         ).deprecated();
         Parameter<String> tree = Parameter.stringParam("tree", false, m -> builder(m).tree.get(), Defaults.TREE).deprecated();
         Parameter<Integer> treeLevels = new Parameter<>(
@@ -167,28 +168,54 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeIntegerValue(o),
-            m -> builder(m).treeLevels.get()
+            m -> builder(m).treeLevels.get(),
+            (b, f, v) -> {
+                if (v != null && v != 0) {
+                    b.field(f, v);
+                } else {
+                    b.field(f, Defaults.defaultTreeLevel(tree.get()));
+                }
+            },
+            Objects::toString
         ).deprecated();
         Parameter<DistanceUnit.Distance> precision = new Parameter<>(
             "precision",
             false,
             () -> null,
             (n, c, o) -> o == null ? null : DistanceUnit.Distance.parseDistance(o.toString()),
-            m -> builder(m).precision.get()
+            m -> builder(m).precision.get(),
+            (b, f, v) -> {
+                if (v == null) {
+                    b.field(f, "50.0m");
+                } else {
+                    b.field(f, v.toString());
+                }
+            },
+            Objects::toString
         ).deprecated();
         Parameter<Double> distanceErrorPct = new Parameter<>(
             "distance_error_pct",
             true,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
-            m -> builder(m).distanceErrorPct.get()
+            m -> builder(m).distanceErrorPct.get(),
+            XContentBuilder::field,
+            Objects::toString
         ).deprecated().acceptsNull();
         Parameter<Boolean> pointsOnly = new Parameter<>(
             "points_only",
             false,
             () -> null,
             (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
-            m -> builder(m).pointsOnly.get()
+            m -> builder(m).pointsOnly.get(),
+            (b, f, v) -> {
+                if (v == null) {
+                    b.field(f, strategy.get() == SpatialStrategy.TERM);
+                } else {
+                    b.field(f, v);
+                }
+            },
+            Objects::toString
         ).deprecated().acceptsNull();
 
         Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -219,37 +246,15 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             if (version.onOrAfter(Version.V_7_0_0)) {
                 this.strategy.alwaysSerialize();
             }
-            this.strategy.setSerializer((b, f, v) -> b.field(f, v.getStrategyName()), SpatialStrategy::getStrategyName);
             // serialize treeLevels if treeLevels is configured, OR if defaults are requested and precision is not configured
             treeLevels.setSerializerCheck((id, ic, v) -> ic || (id && precision.get() == null));
-            treeLevels.setSerializer((b, f, v) -> {
-                if (v != null && v != 0) {
-                    b.field(f, v);
-                } else {
-                    b.field(f, Defaults.defaultTreeLevel(tree.get()));
-                }
-            }, Objects::toString);
             // serialize precision if precision is configured, OR if defaults are requested and treeLevels is not configured
             precision.setSerializerCheck((id, ic, v) -> ic || (id && treeLevels.get() == null));
-            precision.setSerializer((b, f, v) -> {
-                if (v == null) {
-                    b.field(f, "50.0m");
-                } else {
-                    b.field(f, v.toString());
-                }
-            }, Objects::toString);
-            pointsOnly.setSerializer((b, f, v) -> {
-                if (v == null) {
-                    b.field(f, strategy.get() == SpatialStrategy.TERM);
-                } else {
-                    b.field(f, v);
-                }
-            }, Objects::toString);
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
                 ignoreMalformed,
                 ignoreZValue,
@@ -261,12 +266,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 precision,
                 distanceErrorPct,
                 pointsOnly,
-                meta
-            );
+                meta };
         }
 
         public Builder coerce(boolean coerce) {
-            this.coerce.setValue(new Explicit<>(coerce, true));
+            this.coerce.setValue(Explicit.explicitBoolean(coerce));
             return this;
         }
 
@@ -443,17 +447,17 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
         }
 
         @Override
         public Query geoShapeQuery(
-            Geometry shape,
+            SearchExecutionContext context,
             String fieldName,
             SpatialStrategy spatialStrategy,
             ShapeRelation relation,
-            SearchExecutionContext context
+            Geometry shape
         ) {
             return queryProcessor.geoShapeQuery(shape, fieldName, spatialStrategy, relation, context);
         }
@@ -556,7 +560,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         super(
             simpleName,
             mappedFieldType,
-            Collections.singletonMap(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER),
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
@@ -567,6 +570,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         );
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.builder = builder;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

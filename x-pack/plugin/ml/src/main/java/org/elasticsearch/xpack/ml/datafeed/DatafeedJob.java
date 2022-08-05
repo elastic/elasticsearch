@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchWrapperException;
@@ -16,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -47,6 +48,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 class DatafeedJob {
@@ -77,6 +79,7 @@ class DatafeedJob {
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
+    private volatile SearchInterval searchInterval;
 
     DatafeedJob(
         String jobId,
@@ -136,6 +139,11 @@ class DatafeedJob {
 
     public void finishReportingTimingStats() {
         timingStatsReporter.finishReporting();
+    }
+
+    @Nullable
+    public SearchInterval getSearchInterval() {
+        return searchInterval;
     }
 
     Long runLookBack(long startTime, Long endTime) throws Exception {
@@ -358,9 +366,11 @@ class DatafeedJob {
 
             Optional<InputStream> extractedData;
             try {
-                extractedData = dataExtractor.next();
+                DataExtractor.Result result = dataExtractor.next();
+                extractedData = result.data();
+                searchInterval = result.searchInterval();
             } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
+                LOGGER.error(() -> "[" + jobId + "] error while extracting data", e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
@@ -388,8 +398,8 @@ class DatafeedJob {
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
                     LOGGER.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] Processed another {} records with latest timestamp [{}]",
+                        () -> format(
+                            "[%s] Processed another %s records with latest timestamp [%s]",
                             jobId,
                             counts.getProcessedRecordCount(),
                             counts.getLatestRecordTimeStamp()
@@ -403,7 +413,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                    LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
+                    LOGGER.error(() -> "[" + jobId + "] error while posting data", e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.

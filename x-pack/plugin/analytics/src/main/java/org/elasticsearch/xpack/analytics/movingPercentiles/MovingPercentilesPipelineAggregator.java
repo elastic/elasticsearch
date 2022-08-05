@@ -53,19 +53,14 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         }
         PercentileConfig config = resolvePercentileConfig(histo, buckets.get(0), bucketsPaths()[0]);
         switch (config.method) {
-            case TDIGEST:
-                reduceTDigest(buckets, histo, newBuckets, factory, config);
-                break;
-            case HDR:
-                reduceHDR(buckets, histo, newBuckets, factory, config);
-                break;
-            default:
-                throw new AggregationExecutionException(
-                    AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                        + " references an unknown percentile aggregation method: ["
-                        + config.method
-                        + "]"
-                );
+            case TDIGEST -> reduceTDigest(buckets, histo, newBuckets, factory, config);
+            case HDR -> reduceHDR(buckets, histo, newBuckets, factory, config);
+            default -> throw new AggregationExecutionException(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                    + " references an unknown percentile aggregation method: ["
+                    + config.method
+                    + "]"
+            );
         }
         return factory.createAggregation(newBuckets);
     }

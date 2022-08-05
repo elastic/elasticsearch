@@ -42,7 +42,7 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 /**
- * Incremental task to validate a set of JSON files against against a schema.
+ * Incremental task to validate a set of JSON files against a schema.
  */
 public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     private File jsonSchema;

@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -60,8 +60,8 @@ import static org.mockito.Mockito.when;
 
 public class NativeRoleMappingStoreTests extends ESTestCase {
     private final String concreteSecurityIndexName = randomFrom(
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
+        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
     );
 
     public void testResolveRoles() throws Exception {
@@ -163,23 +163,21 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
     private String randomiseDn(String dn) {
         // Randomly transform the dn into another valid form that is logically identical,
         // but (potentially) textually different
-        switch (randomIntBetween(0, 3)) {
-            case 0:
+        return switch (randomIntBetween(0, 3)) {
+            case 0 ->
                 // do nothing
-                return dn;
-            case 1:
-                return dn.toUpperCase(Locale.ROOT);
-            case 2:
+                dn;
+            case 1 -> dn.toUpperCase(Locale.ROOT);
+            case 2 ->
                 // Upper case just the attribute name for each RDN
-                return Arrays.stream(dn.split(",")).map(s -> {
+                Arrays.stream(dn.split(",")).map(s -> {
                     final String[] arr = s.split("=");
                     arr[0] = arr[0].toUpperCase(Locale.ROOT);
                     return String.join("=", arr);
                 }).collect(Collectors.joining(","));
-            case 3:
-                return dn.replaceAll(",", ", ");
-        }
-        return dn;
+            case 3 -> dn.replaceAll(",", ", ");
+            default -> dn;
+        };
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {

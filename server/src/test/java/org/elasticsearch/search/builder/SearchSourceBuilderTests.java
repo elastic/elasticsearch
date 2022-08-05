@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.builder;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,6 +31,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -61,7 +60,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testFromXContentInvalid() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}}")) {
-            JsonParseException exc = expectThrows(JsonParseException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            XContentParseException exc = expectThrows(XContentParseException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertThat(exc.getMessage(), containsString("Unexpected close marker"));
         }
 
@@ -501,10 +500,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
 
-        String restContent = "{\"size\" : " + randomSize + "}";
+        // SearchSourceBuilder.fromXContent treats -1 as not-set
+        int boundedRandomSize = randomIntBetween(-100000, -2);
+        String restContent = "{\"size\" : " + boundedRandomSize + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
-            assertThat(ex.getMessage(), containsString(Integer.toString(randomSize)));
+            assertThat(ex.getMessage(), containsString(Integer.toString(boundedRandomSize)));
         }
 
         restContent = "{\"size\" : -1}";

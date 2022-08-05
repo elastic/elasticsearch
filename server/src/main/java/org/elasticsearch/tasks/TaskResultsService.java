@@ -9,7 +9,6 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -79,7 +78,7 @@ public class TaskResultsService {
     }
 
     public void storeResult(TaskResult taskResult, ActionListener<Void> listener) {
-        IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().getTaskId().toString());
+        IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().taskId().toString());
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             taskResult.toXContent(builder, new ToXContent.MapParams(Map.of(INCLUDE_CANCELLED_PARAM, "false")));
             index.setSource(builder);
@@ -102,7 +101,7 @@ public class TaskResultsService {
                     listener.onFailure(e);
                 } else {
                     TimeValue wait = backoff.next();
-                    logger.warn(() -> new ParameterizedMessage("failed to store task result, retrying in [{}]", wait), e);
+                    logger.warn(() -> "failed to store task result, retrying in [" + wait + "]", e);
                     threadPool.schedule(() -> doStoreResult(backoff, index, listener), wait, ThreadPool.Names.SAME);
                 }
             }

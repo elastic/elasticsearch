@@ -26,12 +26,12 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -92,7 +92,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             1,
             1,
@@ -133,7 +133,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             1,
             1,
@@ -188,7 +188,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             1,
             1,
@@ -209,11 +209,7 @@ public class SearchInputTests extends ESTestCase {
                 .endObject()
                 .endObject();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(builder).streamInput()
-                )
+                .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput())
         ) {
 
             parser.nextToken(); // advance past the first starting object

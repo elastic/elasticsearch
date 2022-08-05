@@ -15,6 +15,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +47,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     private final String type;
     private final String id;
 
-    private boolean ignoreUnmapped = false;
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     public ParentIdQueryBuilder(String type, String id) {
         this.type = type;
@@ -102,8 +103,10 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         builder.startObject(NAME);
         builder.field(TYPE_FIELD.getPreferredName(), type);
         builder.field(ID_FIELD.getPreferredName(), id);
-        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
-        printBoostAndQueryName(builder);
+        if (ignoreUnmapped != DEFAULT_IGNORE_UNMAPPED) {
+            builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -186,5 +189,10 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

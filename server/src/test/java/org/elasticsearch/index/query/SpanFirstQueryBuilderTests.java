@@ -70,13 +70,11 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
                 "match" : {
                   "span_term" : {
                     "user" : {
-                      "value" : "kimchy",
-                      "boost" : 1.0
+                      "value" : "kimchy"
                     }
                   }
                 },
-                "end" : 3,
-                "boost" : 1.0
+                "end" : 3
               }
             }""";
 

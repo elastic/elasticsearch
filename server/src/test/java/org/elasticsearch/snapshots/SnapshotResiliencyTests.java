@@ -99,8 +99,6 @@ import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
-import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -852,7 +850,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (partialSnapshot) {
                         // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
-                        client().admin().indices().create(new CreateIndexRequest(index), noopListener());
+                        client().admin().indices().create(new CreateIndexRequest(index), ActionListener.noop());
                     }
                 }
 
@@ -1014,7 +1012,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                     createdSnapshot.set(true);
                                     testClusterNodes.randomDataNodeSafe().client.admin()
                                         .cluster()
-                                        .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
+                                        .deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.noop());
                                 }));
                             scheduleNow(
                                 () -> testClusterNodes.randomMasterNodeSafe().client.admin()
@@ -1028,7 +1026,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                                 true
                                             )
                                         ),
-                                        noopListener()
+                                        ActionListener.noop()
                                     )
                             );
                         } else {
@@ -1160,9 +1158,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         final String repoName = "repo";
-        final List<String> snapshotNames = IntStream.range(1, randomIntBetween(2, 4))
-            .mapToObj(i -> "snapshot-" + i)
-            .collect(Collectors.toList());
+        final List<String> snapshotNames = IntStream.range(1, randomIntBetween(2, 4)).mapToObj(i -> "snapshot-" + i).toList();
         final String index = "test";
         final int shards = randomIntBetween(1, 10);
         final int documents = randomIntBetween(1, 100);
@@ -1329,12 +1325,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final Collection<ClusterState> clusterStates = testClusterNodes.nodes.values()
                 .stream()
                 .map(node -> node.clusterService.state())
-                .collect(Collectors.toList());
+                .toList();
             final Set<String> masterNodeIds = clusterStates.stream()
                 .map(clusterState -> clusterState.nodes().getMasterNodeId())
                 .collect(Collectors.toSet());
             final Set<Long> terms = clusterStates.stream().map(ClusterState::term).collect(Collectors.toSet());
-            final List<Long> versions = clusterStates.stream().map(ClusterState::version).distinct().collect(Collectors.toList());
+            final List<Long> versions = clusterStates.stream().map(ClusterState::version).distinct().toList();
             return versions.size() == 1 && masterNodeIds.size() == 1 && masterNodeIds.contains(null) == false && terms.size() == 1;
         }, TimeUnit.MINUTES.toMillis(1L));
     }
@@ -1376,17 +1372,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
         listener.whenComplete(onResponse, e -> { throw new AssertionError(e); });
     }
 
-    private static <T> ActionListener<T> noopListener() {
-        return ActionListener.wrap(() -> {});
-    }
-
     public NodeClient client() {
         // Select from sorted list of nodes
         final List<TestClusterNodes.TestClusterNode> nodes = testClusterNodes.nodes.values()
             .stream()
             .filter(n -> testClusterNodes.disconnectedNodes.contains(n.node.getName()) == false)
             .sorted(Comparator.comparing(n -> n.node.getName()))
-            .collect(Collectors.toList());
+            .toList();
         if (nodes.isEmpty()) {
             throw new AssertionError("No nodes available");
         }
@@ -1489,7 +1481,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .filter(n -> n.node.isMasterNode())
                 .filter(n -> disconnectedNodes.contains(n.node.getName()) == false)
                 .sorted(Comparator.comparing(n -> n.node.getName()))
-                .collect(Collectors.toList());
+                .toList();
             return masterNodes.isEmpty() ? Optional.empty() : Optional.of(randomFrom(masterNodes));
         }
 
@@ -1516,7 +1508,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     return true;
                 })
                 .sorted(Comparator.comparing(n -> n.node.getName()))
-                .collect(Collectors.toList());
+                .toList();
             return dataNodes.isEmpty() ? Optional.empty() : Optional.ofNullable(randomFrom(dataNodes));
         }
 
@@ -1573,8 +1565,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             private final Logger logger = LogManager.getLogger(TestClusterNode.class);
 
             private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-                Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream())
-                    .collect(Collectors.toList())
+                Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()).toList()
             );
 
             private final TransportService transportService;
@@ -1631,7 +1622,21 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                            return new MockSinglePrioritizingExecutor(node.getName(), node.getId(), deterministicTaskQueue, threadPool);
+                            return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor(command -> new Runnable() {
+                                @Override
+                                public void run() {
+                                    try (
+                                        var ignored = DeterministicTaskQueue.getLogContext('{' + node.getName() + "}{" + node.getId() + '}')
+                                    ) {
+                                        command.run();
+                                    }
+                                }
+
+                                @Override
+                                public String toString() {
+                                    return "TestClusterNode.ClusterApplierService[" + command + "]";
+                                }
+                            });
                         }
 
                         @Override
@@ -1716,7 +1721,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         }
                     ),
                     emptyMap(),
-                    threadPool
+                    threadPool,
+                    List.of()
                 );
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(
@@ -1857,7 +1863,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     clusterService,
                     indicesService,
                     allocationService,
-                    new AliasValidator(),
                     shardLimitValidator,
                     environment,
                     indexScopedSettings,
@@ -1926,7 +1931,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new MetadataDeleteIndexService(settings, clusterService, allocationService),
                     new IndexMetadataVerifier(settings, namedXContentRegistry, mapperRegistry, indexScopedSettings, ScriptCompiler.NONE),
                     shardLimitValidator,
-                    EmptySystemIndices.INSTANCE
+                    EmptySystemIndices.INSTANCE,
+                    indicesService
                 );
                 actions.put(
                     PutMappingAction.INSTANCE,
@@ -2027,7 +2033,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         transportService,
                         clusterService,
                         repositoriesService,
-                        snapshotsService,
                         threadPool,
                         actionFilters,
                         indexNameExpressionResolver
@@ -2161,11 +2166,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     allocationService,
                     masterService,
                     () -> persistedState,
-                    hostsResolver -> nodes.values()
-                        .stream()
-                        .filter(n -> n.node.isMasterNode())
-                        .map(n -> n.node.getAddress())
-                        .collect(Collectors.toList()),
+                    hostsResolver -> nodes.values().stream().filter(n -> n.node.isMasterNode()).map(n -> n.node.getAddress()).toList(),
                     clusterService.getClusterApplierService(),
                     Collections.emptyList(),
                     random(),

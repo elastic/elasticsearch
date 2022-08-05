@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchAction;
@@ -23,6 +24,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
@@ -45,8 +47,9 @@ import java.util.concurrent.TimeUnit;
  */
 class ScrollDataExtractor implements DataExtractor {
 
-    private static final Logger LOGGER = LogManager.getLogger(ScrollDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
+
+    private static final Logger logger = LogManager.getLogger(ScrollDataExtractor.class);
 
     private final Client client;
     private final ScrollDataExtractorContext context;
@@ -78,7 +81,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     @Override
     public void cancel() {
-        LOGGER.trace("[{}] Data extractor received cancel request", context.jobId);
+        logger.trace("[{}] Data extractor received cancel request", context.jobId);
         isCancelled = true;
     }
 
@@ -88,7 +91,7 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
+    public Result next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
@@ -96,7 +99,7 @@ class ScrollDataExtractor implements DataExtractor {
         if (stream.isPresent() == false) {
             hasNext = false;
         }
-        return stream;
+        return new Result(new SearchInterval(context.start, context.end), stream);
     }
 
     private Optional<InputStream> tryNextStream() throws IOException {
@@ -107,22 +110,34 @@ class ScrollDataExtractor implements DataExtractor {
             if (searchHasShardFailure) {
                 throw e;
             }
-            LOGGER.debug("[{}] Resetting scroll search after shard failure", context.jobId);
+            logger.debug("[{}] Resetting scroll search after shard failure", context.jobId);
             markScrollAsErrored();
             return Optional.ofNullable(initScroll(lastTimestamp == null ? context.start : lastTimestamp));
         }
     }
 
     protected InputStream initScroll(long startTimestamp) throws IOException {
-        LOGGER.debug("[{}] Initializing scroll", context.jobId);
+        logger.debug("[{}] Initializing scroll with start time [{}]", context.jobId, startTimestamp);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
-        LOGGER.debug("[{}] Search response was obtained", context.jobId);
+        logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return processSearchResponse(searchResponse);
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            searchRequestBuilder::get
+        );
+        try {
+            checkForSkippedClusters(searchResponse);
+        } catch (ResourceNotFoundException e) {
+            clearScrollLoggingExceptions(searchResponse.getScrollId());
+            throw e;
+        }
+        return searchResponse;
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {
@@ -184,7 +199,7 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private InputStream continueScroll() throws IOException {
-        LOGGER.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
+        logger.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
         SearchResponse searchResponse;
         try {
             searchResponse = executeSearchScrollRequest(scrollId);
@@ -192,11 +207,11 @@ class ScrollDataExtractor implements DataExtractor {
             if (searchHasShardFailure) {
                 throw searchExecutionException;
             }
-            LOGGER.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
+            logger.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
             markScrollAsErrored();
             searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
         }
-        LOGGER.debug("[{}] Search response was obtained", context.jobId);
+        logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return processSearchResponse(searchResponse);
     }
@@ -213,15 +228,37 @@ class ScrollDataExtractor implements DataExtractor {
 
     @SuppressWarnings("HiddenField")
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
-        return ClientHelper.executeWithHeaders(
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
             context.headers,
             ClientHelper.ML_ORIGIN,
             client,
             () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
         );
+        try {
+            checkForSkippedClusters(searchResponse);
+        } catch (ResourceNotFoundException e) {
+            clearScrollLoggingExceptions(searchResponse.getScrollId());
+            throw e;
+        }
+        return searchResponse;
     }
 
     private void clearScroll() {
+        innerClearScroll(scrollId);
+        scrollId = null;
+    }
+
+    private void clearScrollLoggingExceptions(String scrollId) {
+        try {
+            innerClearScroll(scrollId);
+        } catch (Exception e) {
+            // This method is designed to be called from exception handlers, so just logs this exception
+            // in the cleanup process so that the original exception can be propagated
+            logger.error(() -> "[" + context.jobId + "] Failed to clear scroll", e);
+        }
+    }
+
+    private void innerClearScroll(String scrollId) {
         if (scrollId != null) {
             ClearScrollRequest request = new ClearScrollRequest();
             request.addScrollId(scrollId);
@@ -231,7 +268,6 @@ class ScrollDataExtractor implements DataExtractor {
                 client,
                 () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet()
             );
-            scrollId = null;
         }
     }
 }

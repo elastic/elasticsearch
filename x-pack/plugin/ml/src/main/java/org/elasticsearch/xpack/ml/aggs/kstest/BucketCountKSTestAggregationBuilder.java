@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -189,5 +190,10 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), Arrays.hashCode(fractions), alternative, samplingMethod);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_14_0;
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -73,7 +74,8 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer
         ) {
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(
@@ -91,7 +93,8 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier
+                repositoriesServiceSupplier,
+                tracer
             );
         }
 
@@ -168,22 +171,20 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             for (int i = 0; i < 3; i++) {
                 IndexTemplateMetadata templateMetadata = templates.get(i);
                 switch (templateMetadata.getName()) {
-                    case "test_added_template":
+                    case "test_added_template" -> {
                         assertFalse(addedFound);
                         addedFound = true;
-                        break;
-                    case "test_changed_template":
+                    }
+                    case "test_changed_template" -> {
                         assertFalse(changedFound);
                         changedFound = true;
                         assertThat(templateMetadata.getOrder(), equalTo(10));
-                        break;
-                    case "test_dummy_template":
+                    }
+                    case "test_dummy_template" -> {
                         assertFalse(dummyFound);
                         dummyFound = true;
-                        break;
-                    default:
-                        fail("unexpected template " + templateMetadata.getName());
-                        break;
+                    }
+                    default -> fail("unexpected template " + templateMetadata.getName());
                 }
             }
             assertTrue(addedFound);
@@ -221,18 +222,16 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             for (int i = 0; i < 2; i++) {
                 IndexTemplateMetadata templateMetadata = templates.get(i);
                 switch (templateMetadata.getName()) {
-                    case "test_added_template":
+                    case "test_added_template" -> {
                         assertFalse(addedFound);
                         addedFound = true;
-                        break;
-                    case "test_changed_template":
+                    }
+                    case "test_changed_template" -> {
                         assertFalse(changedFound);
                         changedFound = true;
                         assertThat(templateMetadata.getOrder(), equalTo(10));
-                        break;
-                    default:
-                        fail("unexpected template " + templateMetadata.getName());
-                        break;
+                    }
+                    default -> fail("unexpected template " + templateMetadata.getName());
                 }
             }
 

@@ -104,37 +104,36 @@ public final class CreateTokenRequest extends ActionRequest {
         GrantType type = GrantType.fromString(grantType);
         if (type != null) {
             switch (type) {
-                case PASSWORD:
+                case PASSWORD -> {
                     validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
                     validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
                     validationException = validateRequiredField("username", username, validationException);
                     validationException = validateRequiredField("password", password, validationException);
-                    break;
-                case KERBEROS:
+                }
+                case KERBEROS -> {
                     validationException = validateUnsupportedField(type, "username", username, validationException);
                     validationException = validateUnsupportedField(type, "password", password, validationException);
                     validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
                     validationException = validateRequiredField("kerberos_ticket", kerberosTicket, validationException);
-                    break;
-                case REFRESH_TOKEN:
+                }
+                case REFRESH_TOKEN -> {
                     validationException = validateUnsupportedField(type, "username", username, validationException);
                     validationException = validateUnsupportedField(type, "password", password, validationException);
                     validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
                     validationException = validateRequiredField("refresh_token", refreshToken, validationException);
-                    break;
-                case CLIENT_CREDENTIALS:
+                }
+                case CLIENT_CREDENTIALS -> {
                     validationException = validateUnsupportedField(type, "username", username, validationException);
                     validationException = validateUnsupportedField(type, "password", password, validationException);
                     validationException = validateUnsupportedField(type, "kerberos_ticket", kerberosTicket, validationException);
                     validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
-                    break;
-                default:
-                    validationException = addValidationError(
-                        "grant_type only supports the values: ["
-                            + SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", "))
-                            + "]",
-                        validationException
-                    );
+                }
+                default -> validationException = addValidationError(
+                    "grant_type only supports the values: ["
+                        + SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", "))
+                        + "]",
+                    validationException
+                );
             }
         } else {
             validationException = addValidationError(

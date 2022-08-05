@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,7 +42,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry());
+        datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry(), getInstanceFromNode(ClusterService.class));
         waitForMlTemplates();
     }
 
@@ -79,7 +80,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(
-            listener -> datafeedConfigProvider.getDatafeedConfig("farequote-datafeed-with-old-agg", listener),
+            listener -> datafeedConfigProvider.getDatafeedConfig("farequote-datafeed-with-old-agg", null, listener),
             getConfigHolder,
             exceptionHolder
         );

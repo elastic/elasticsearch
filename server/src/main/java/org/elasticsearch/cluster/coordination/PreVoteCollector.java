@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class PreVoteCollector {
@@ -63,7 +63,7 @@ public class PreVoteCollector {
 
         transportService.registerRequestHandler(
             REQUEST_PRE_VOTE_ACTION_NAME,
-            Names.GENERIC,
+            Names.CLUSTER_COORDINATION,
             false,
             false,
             PreVoteRequest::new,
@@ -169,12 +169,12 @@ public class PreVoteCollector {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
+                            logger.debug(() -> format("%s failed", this), exp);
                         }
 
                         @Override
                         public String executor() {
-                            return Names.GENERIC;
+                            return Names.CLUSTER_COORDINATION;
                         }
 
                         @Override

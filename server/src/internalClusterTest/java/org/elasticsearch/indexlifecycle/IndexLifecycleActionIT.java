@@ -20,12 +20,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.internal.Requests.createIndexRequest;
@@ -173,7 +171,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Closing server1");
         // kill the first server
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(server_1));
+        internalCluster().stopNode(server_1);
         // verify health
         logger.info("Running Cluster Health");
         clusterHealth = client().admin()
@@ -239,9 +237,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
     }
 
     private void assertNodesPresent(RoutingNodes routingNodes, String... nodes) {
-        final Set<String> keySet = StreamSupport.stream(routingNodes.spliterator(), false)
-            .map(RoutingNode::nodeId)
-            .collect(Collectors.toSet());
+        final Set<String> keySet = routingNodes.stream().map(RoutingNode::nodeId).collect(Collectors.toSet());
         assertThat(keySet, containsInAnyOrder(nodes));
     }
 }

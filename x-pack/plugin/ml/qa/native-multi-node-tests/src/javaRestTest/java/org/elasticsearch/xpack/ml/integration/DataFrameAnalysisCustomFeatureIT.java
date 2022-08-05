@@ -154,7 +154,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                     null
                 )
             )
-            .setAnalyzedFields(new FetchSourceContext(true, new String[] { TEXT_FIELD, NUMERICAL_FIELD }, new String[] {}))
+            .setAnalyzedFields(FetchSourceContext.of(true, new String[] { TEXT_FIELD, NUMERICAL_FIELD }, new String[] {}))
             .build();
         putAnalytics(config);
 

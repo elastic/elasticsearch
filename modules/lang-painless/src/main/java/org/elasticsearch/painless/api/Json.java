@@ -8,10 +8,9 @@
 
 package org.elasticsearch.painless.api;
 
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -21,26 +20,16 @@ public class Json {
      * Load a string as the Java version of a JSON type, either List (JSON array), Map (JSON object), Number, Boolean or String
      */
     public static Object load(String json) throws IOException {
-        XContentParser parser = JsonXContent.jsonXContent.createParser(
-            NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            json
-        );
+        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json);
 
-        switch (parser.nextToken()) {
-            case START_ARRAY:
-                return parser.list();
-            case START_OBJECT:
-                return parser.map();
-            case VALUE_NUMBER:
-                return parser.numberValue();
-            case VALUE_BOOLEAN:
-                return parser.booleanValue();
-            case VALUE_STRING:
-                return parser.text();
-            default:
-                return null;
-        }
+        return switch (parser.nextToken()) {
+            case START_ARRAY -> parser.list();
+            case START_OBJECT -> parser.map();
+            case VALUE_NUMBER -> parser.numberValue();
+            case VALUE_BOOLEAN -> parser.booleanValue();
+            case VALUE_STRING -> parser.text();
+            default -> null;
+        };
     }
 
     /**

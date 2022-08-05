@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -5,13 +7,17 @@ esplugin {
   name 'spatial'
   description 'A plugin for Basic Spatial features'
   classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
-  extendedPlugins = ['x-pack-core', 'legacy-geo']
+  extendedPlugins = ['x-pack-core', 'legacy-geo', 'lang-painless']
 }
 
 dependencies {
   compileOnly project(path: ':modules:legacy-geo')
+  compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api project(":libs:elasticsearch-h3")
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('vector-tile'))
 }
 
@@ -19,4 +25,14 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
 }

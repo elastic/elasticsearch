@@ -134,7 +134,7 @@ public final class QueryParserHelper {
             }
 
             if (acceptAllTypes == false) {
-                if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+                if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE || fieldType.mayExistInIndex(context) == false) {
                     continue;
                 }
             }

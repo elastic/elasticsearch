@@ -35,19 +35,14 @@ public class AsyncExecutionIdTests extends ESTestCase {
 
     private static AsyncExecutionId mutate(AsyncExecutionId id) {
         int rand = randomIntBetween(0, 1);
-        switch (rand) {
-            case 0:
-                return new AsyncExecutionId(randomAlphaOfLength(id.getDocId().length() + 1), id.getTaskId());
-
-            case 1:
-                return new AsyncExecutionId(
-                    id.getDocId(),
-                    new TaskId(randomAlphaOfLength(id.getTaskId().getNodeId().length()), randomNonNegativeLong())
-                );
-
-            default:
-                throw new AssertionError();
-        }
+        return switch (rand) {
+            case 0 -> new AsyncExecutionId(randomAlphaOfLength(id.getDocId().length() + 1), id.getTaskId());
+            case 1 -> new AsyncExecutionId(
+                id.getDocId(),
+                new TaskId(randomAlphaOfLength(id.getTaskId().getNodeId().length()), randomNonNegativeLong())
+            );
+            default -> throw new AssertionError();
+        };
     }
 
     public void testEqualsAndHashcode() {

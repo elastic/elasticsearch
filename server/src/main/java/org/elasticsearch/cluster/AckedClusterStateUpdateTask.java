@@ -12,14 +12,13 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 /**
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * all the nodes have acknowledged a cluster state update request
  */
-public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
+public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements ClusterStateAckListener {
 
     private final ActionListener<AcknowledgedResponse> listener;
     private final AckedRequest request;
@@ -49,14 +48,14 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
         return true;
     }
 
-    /**
-     * Called once all the nodes have acknowledged the cluster state update request. Must be
-     * very lightweight execution, since it gets executed on the cluster service thread.
-     *
-     * @param e optional error that might have been thrown
-     */
-    public void onAllNodesAcked(@Nullable Exception e) {
-        listener.onResponse(newResponse(e == null));
+    @Override
+    public void onAllNodesAcked() {
+        listener.onResponse(newResponse(true));
+    }
+
+    @Override
+    public void onAckFailure(Exception e) {
+        listener.onResponse(newResponse(false));
     }
 
     protected AcknowledgedResponse newResponse(boolean acknowledged) {
@@ -72,7 +71,7 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void onFailure(Exception e) {
         listener.onFailure(e);
     }
 

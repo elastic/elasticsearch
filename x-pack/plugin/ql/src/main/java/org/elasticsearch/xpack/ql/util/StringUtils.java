@@ -26,6 +26,7 @@ import java.util.StringJoiner;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.isUnsignedLong;
 
 public final class StringUtils {
 
@@ -109,13 +110,9 @@ public final class StringUtils {
                 }
             } else {
                 switch (curr) {
-                    case '%':
-                        regex.append(escaped ? SQL_WILDCARD : ".*");
-                        break;
-                    case '_':
-                        regex.append(escaped ? "_" : ".");
-                        break;
-                    default:
+                    case '%' -> regex.append(escaped ? SQL_WILDCARD : ".*");
+                    case '_' -> regex.append(escaped ? "_" : ".");
+                    default -> {
                         if (escaped) {
                             throw new QlIllegalArgumentException(
                                 "Invalid sequence - escape character is not followed by special wildcard char"
@@ -123,23 +120,10 @@ public final class StringUtils {
                         }
                         // escape special regex characters
                         switch (curr) {
-                            case '\\':
-                            case '^':
-                            case '$':
-                            case '.':
-                            case '*':
-                            case '?':
-                            case '+':
-                            case '|':
-                            case '(':
-                            case ')':
-                            case '[':
-                            case ']':
-                            case '{':
-                            case '}':
-                                regex.append('\\');
+                            case '\\', '^', '$', '.', '*', '?', '+', '|', '(', ')', '[', ']', '{', '}' -> regex.append('\\');
                         }
                         regex.append(curr);
+                    }
                 }
                 escaped = false;
             }
@@ -173,13 +157,9 @@ public final class StringUtils {
                 escaped = true;
             } else {
                 switch (curr) {
-                    case '%':
-                        wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
-                        break;
-                    case '_':
-                        wildcard.append(escaped ? "_" : "?");
-                        break;
-                    default:
+                    case '%' -> wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
+                    case '_' -> wildcard.append(escaped ? "_" : "?");
+                    default -> {
                         if (escaped) {
                             throw new QlIllegalArgumentException(
                                 "Invalid sequence - escape character is not followed by special wildcard char"
@@ -187,12 +167,10 @@ public final class StringUtils {
                         }
                         // escape special regex characters
                         switch (curr) {
-                            case '\\':
-                            case '*':
-                            case '?':
-                                wildcard.append('\\');
+                            case '\\', '*', '?' -> wildcard.append('\\');
                         }
                         wildcard.append(curr);
+                    }
                 }
                 escaped = false;
             }
@@ -220,13 +198,9 @@ public final class StringUtils {
                 escaped = true;
             } else {
                 switch (curr) {
-                    case '%':
-                        wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
-                        break;
-                    case '_':
-                        wildcard.append(escaped ? "_" : "*");
-                        break;
-                    default:
+                    case '%' -> wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
+                    case '_' -> wildcard.append(escaped ? "_" : "*");
+                    default -> {
                         if (escaped) {
                             throw new QlIllegalArgumentException(
                                 "Invalid sequence - escape character is not followed by special wildcard char"
@@ -234,6 +208,7 @@ public final class StringUtils {
                         }
                         // the resolver doesn't support escaping...
                         wildcard.append(curr);
+                    }
                 }
                 escaped = false;
             }
@@ -326,16 +301,32 @@ public final class StringUtils {
         }
     }
 
-    public static String ordinal(int i) {
-        switch (i % 100) {
-            case 11:
-            case 12:
-            case 13:
-                return i + "th";
-            default:
-                return i + INTEGER_ORDINALS[i % 10];
-
+    public static Number parseIntegral(String string) throws QlIllegalArgumentException {
+        BigInteger bi;
+        try {
+            bi = new BigInteger(string);
+        } catch (NumberFormatException ex) {
+            throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
         }
+        if (bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+            if (isUnsignedLong(bi) == false) {
+                throw new QlIllegalArgumentException("Number [{}] is too large", string);
+            }
+            return bi;
+        }
+        // try to downsize to int if possible (since that's the most common type)
+        if (bi.intValue() == bi.longValue()) { // ternary operator would always promote to Long
+            return bi.intValueExact();
+        } else {
+            return bi.longValueExact();
+        }
+    }
+
+    public static String ordinal(int i) {
+        return switch (i % 100) {
+            case 11, 12, 13 -> i + "th";
+            default -> i + INTEGER_ORDINALS[i % 10];
+        };
     }
 
     public static Tuple<String, String> splitQualifiedIndex(String indexName) {

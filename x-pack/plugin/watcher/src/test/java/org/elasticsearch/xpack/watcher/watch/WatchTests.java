@@ -71,7 +71,6 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
-import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput;
@@ -127,7 +126,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -494,77 +492,52 @@ public class WatchTests extends ESTestCase {
             YearlySchedule.TYPE,
             IntervalSchedule.TYPE
         );
-        switch (type) {
-            case CronSchedule.TYPE:
-                return new CronSchedule("0/5 * * * * ? *");
-            case HourlySchedule.TYPE:
-                return HourlySchedule.builder().minutes(30).build();
-            case DailySchedule.TYPE:
-                return DailySchedule.builder().atNoon().build();
-            case WeeklySchedule.TYPE:
-                return WeeklySchedule.builder().time(WeekTimes.builder().on(DayOfWeek.FRIDAY).atMidnight()).build();
-            case MonthlySchedule.TYPE:
-                return MonthlySchedule.builder().time(MonthTimes.builder().on(1).atNoon()).build();
-            case YearlySchedule.TYPE:
-                return YearlySchedule.builder().time(YearTimes.builder().in(Month.JANUARY).on(1).atMidnight()).build();
-            default:
-                return new IntervalSchedule(IntervalSchedule.Interval.seconds(5));
-        }
+        return switch (type) {
+            case CronSchedule.TYPE -> new CronSchedule("0/5 * * * * ? *");
+            case HourlySchedule.TYPE -> HourlySchedule.builder().minutes(30).build();
+            case DailySchedule.TYPE -> DailySchedule.builder().atNoon().build();
+            case WeeklySchedule.TYPE -> WeeklySchedule.builder().time(WeekTimes.builder().on(DayOfWeek.FRIDAY).atMidnight()).build();
+            case MonthlySchedule.TYPE -> MonthlySchedule.builder().time(MonthTimes.builder().on(1).atNoon()).build();
+            case YearlySchedule.TYPE -> YearlySchedule.builder().time(YearTimes.builder().in(Month.JANUARY).on(1).atMidnight()).build();
+            default -> new IntervalSchedule(IntervalSchedule.Interval.seconds(5));
+        };
     }
 
     private static ScheduleRegistry registry(Schedule schedule) {
-        Set<Schedule.Parser<?>> parsers = new HashSet<>();
-        switch (schedule.type()) {
-            case CronSchedule.TYPE:
-                parsers.add(new CronSchedule.Parser());
-                return new ScheduleRegistry(parsers);
-            case HourlySchedule.TYPE:
-                parsers.add(new HourlySchedule.Parser());
-                return new ScheduleRegistry(parsers);
-            case DailySchedule.TYPE:
-                parsers.add(new DailySchedule.Parser());
-                return new ScheduleRegistry(parsers);
-            case WeeklySchedule.TYPE:
-                parsers.add(new WeeklySchedule.Parser());
-                return new ScheduleRegistry(parsers);
-            case MonthlySchedule.TYPE:
-                parsers.add(new MonthlySchedule.Parser());
-                return new ScheduleRegistry(parsers);
-            case YearlySchedule.TYPE:
-                parsers.add(new YearlySchedule.Parser());
-                return new ScheduleRegistry(parsers);
-            case IntervalSchedule.TYPE:
-                parsers.add(new IntervalSchedule.Parser());
-                return new ScheduleRegistry(parsers);
-            default:
-                throw new IllegalArgumentException("unknown schedule [" + schedule + "]");
-        }
+        return new ScheduleRegistry(Set.of(switch (schedule.type()) {
+            case CronSchedule.TYPE -> new CronSchedule.Parser();
+            case HourlySchedule.TYPE -> new HourlySchedule.Parser();
+            case DailySchedule.TYPE -> new DailySchedule.Parser();
+            case WeeklySchedule.TYPE -> new WeeklySchedule.Parser();
+            case MonthlySchedule.TYPE -> new MonthlySchedule.Parser();
+            case YearlySchedule.TYPE -> new YearlySchedule.Parser();
+            case IntervalSchedule.TYPE -> new IntervalSchedule.Parser();
+            default -> throw new IllegalArgumentException("unknown schedule [" + schedule + "]");
+        }));
     }
 
     private ExecutableInput<?, ?> randomInput() {
         String type = randomFrom(SearchInput.TYPE, SimpleInput.TYPE);
-        switch (type) {
-            case SearchInput.TYPE:
-                SearchInput searchInput = searchInput(WatcherTestUtils.templateRequest(searchSource(), "idx")).timeout(
+        return switch (type) {
+            case SearchInput.TYPE -> new ExecutableSearchInput(
+                searchInput(WatcherTestUtils.templateRequest(searchSource(), "idx")).timeout(
                     randomBoolean() ? null : timeValueSeconds(between(1, 10000))
-                ).build();
-                return new ExecutableSearchInput(searchInput, client, searchTemplateService, null);
-            default:
-                SimpleInput simpleInput = InputBuilders.simpleInput(singletonMap("_key", "_val")).build();
-                return new ExecutableSimpleInput(simpleInput);
-        }
+                ).build(),
+                client,
+                searchTemplateService,
+                null
+            );
+            default -> new ExecutableSimpleInput(InputBuilders.simpleInput(singletonMap("_key", "_val")).build());
+        };
     }
 
     private InputRegistry registry(String inputType) {
-        Map<String, InputFactory<?, ?, ?>> parsers = new HashMap<>();
-        switch (inputType) {
-            case SearchInput.TYPE:
-                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry(), scriptService));
-                return new InputRegistry(parsers);
-            default:
-                parsers.put(SimpleInput.TYPE, new SimpleInputFactory());
-                return new InputRegistry(parsers);
-        }
+        return switch (inputType) {
+            case SearchInput.TYPE -> new InputRegistry(
+                Map.of(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry(), scriptService))
+            );
+            default -> new InputRegistry(Map.of(SimpleInput.TYPE, new SimpleInputFactory()));
+        };
     }
 
     private ConditionRegistry conditionRegistry() {
@@ -581,18 +554,22 @@ public class WatchTests extends ESTestCase {
         String type = randomFrom(ScriptTransform.TYPE, SearchTransform.TYPE, ChainTransform.TYPE);
         TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
         ZoneOffset timeZone = randomBoolean() ? ZoneOffset.UTC : null;
-        switch (type) {
-            case ScriptTransform.TYPE:
-                return new ExecutableScriptTransform(new ScriptTransform(mockScript("_script")), logger, scriptService);
-            case SearchTransform.TYPE:
-                SearchTransform transform = new SearchTransform(templateRequest(searchSource()), timeout, timeZone);
-                return new ExecutableSearchTransform(transform, logger, client, searchTemplateService, TimeValue.timeValueMinutes(1));
-            default: // chain
+        return switch (type) {
+            case ScriptTransform.TYPE -> new ExecutableScriptTransform(new ScriptTransform(mockScript("_script")), logger, scriptService);
+            case SearchTransform.TYPE -> new ExecutableSearchTransform(
+                new SearchTransform(templateRequest(searchSource()), timeout, timeZone),
+                logger,
+                client,
+                searchTemplateService,
+                TimeValue.timeValueMinutes(1)
+            );
+            default -> {
+                // chain
                 SearchTransform searchTransform = new SearchTransform(templateRequest(searchSource()), timeout, timeZone);
                 ScriptTransform scriptTransform = new ScriptTransform(mockScript("_script"));
 
                 ChainTransform chainTransform = new ChainTransform(Arrays.asList(searchTransform, scriptTransform));
-                return new ExecutableChainTransform(
+                yield new ExecutableChainTransform(
                     chainTransform,
                     logger,
                     Arrays.asList(
@@ -606,7 +583,8 @@ public class WatchTests extends ESTestCase {
                         new ExecutableScriptTransform(new ScriptTransform(mockScript("_script")), logger, scriptService)
                     )
                 );
-        }
+            }
+        };
     }
 
     private TransformRegistry transformRegistry() {
@@ -693,21 +671,13 @@ public class WatchTests extends ESTestCase {
         Map<String, ActionFactory> parsers = new HashMap<>();
         for (ActionWrapper action : actions) {
             switch (action.action().type()) {
-                case EmailAction.TYPE:
-                    parsers.put(
-                        EmailAction.TYPE,
-                        new EmailActionFactory(settings, emailService, templateEngine, new EmailAttachmentsParser(Collections.emptyMap()))
-                    );
-                    break;
-                case IndexAction.TYPE:
-                    parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
-                    break;
-                case WebhookAction.TYPE:
-                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(httpClient, templateEngine));
-                    break;
-                case LoggingAction.TYPE:
-                    parsers.put(LoggingAction.TYPE, new LoggingActionFactory(new MockTextTemplateEngine()));
-                    break;
+                case EmailAction.TYPE -> parsers.put(
+                    EmailAction.TYPE,
+                    new EmailActionFactory(settings, emailService, templateEngine, new EmailAttachmentsParser(Collections.emptyMap()))
+                );
+                case IndexAction.TYPE -> parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
+                case WebhookAction.TYPE -> parsers.put(WebhookAction.TYPE, new WebhookActionFactory(httpClient, templateEngine));
+                case LoggingAction.TYPE -> parsers.put(LoggingAction.TYPE, new LoggingActionFactory(new MockTextTemplateEngine()));
             }
         }
         return new ActionRegistry(unmodifiableMap(parsers), conditionRegistry, transformRegistry, Clock.systemUTC(), licenseState);

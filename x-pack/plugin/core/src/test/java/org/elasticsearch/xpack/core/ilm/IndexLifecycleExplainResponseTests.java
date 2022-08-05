@@ -37,11 +37,16 @@ import static org.hamcrest.Matchers.startsWith;
 public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
 
     static IndexLifecycleExplainResponse randomIndexExplainResponse() {
+        final IndexLifecycleExplainResponse indexLifecycleExplainResponse;
         if (frequently()) {
-            return randomManagedIndexExplainResponse();
+            indexLifecycleExplainResponse = randomManagedIndexExplainResponse();
         } else {
-            return randomUnmanagedIndexExplainResponse();
+            indexLifecycleExplainResponse = randomUnmanagedIndexExplainResponse();
         }
+        long now = System.currentTimeMillis();
+        // So that now is the same for the duration of the test. See #84352
+        indexLifecycleExplainResponse.nowSupplier = () -> now;
+        return indexLifecycleExplainResponse;
     }
 
     private static IndexLifecycleExplainResponse randomUnmanagedIndexExplainResponse() {
@@ -278,14 +283,11 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 phaseExecutionInfo
             );
         } else {
-            switch (between(0, 1)) {
-                case 0:
-                    return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index + randomAlphaOfLengthBetween(1, 5));
-                case 1:
-                    return randomManagedIndexExplainResponse();
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
-            }
+            return switch (between(0, 1)) {
+                case 0 -> IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index + randomAlphaOfLengthBetween(1, 5));
+                case 1 -> randomManagedIndexExplainResponse();
+                default -> throw new AssertionError("Illegal randomisation branch");
+            };
         }
     }
 

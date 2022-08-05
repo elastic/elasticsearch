@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,6 +29,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public abstract class AbstractPercentilesTestCase<T extends InternalAggregation & Iterable<Percentile>> extends InternalAggregationTestCase<
     T> {
@@ -37,11 +39,14 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
     }
 
     @Override
-    protected List<T> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<T> randomResultsToReduce(String name, int size) {
         boolean keyed = randomBoolean();
         DocValueFormat format = randomNumericDocValueFormat();
         double[] percents = randomPercents(false);
-        return Stream.generate(() -> createTestInstance(name, null, keyed, format, percents)).limit(size).collect(toList());
+        return new BuilderAndToReduce<T>(
+            mock(AggregationBuilder.class),
+            Stream.generate(() -> createTestInstance(name, null, keyed, format, percents)).limit(size).collect(toList())
+        );
     }
 
     private T createTestInstance(String name, Map<String, Object> metadata, boolean keyed, DocValueFormat format, double[] percents) {

@@ -43,32 +43,20 @@ public class HttpResponseTests extends ESTestCase {
         if (randomBoolean() && headers.isEmpty() && body == null) {
             response = new HttpResponse(status);
         } else if (body != null) {
-            switch (randomIntBetween(0, 2)) {
-                case 0:
-                    response = new HttpResponse(status, body, headers);
-                    break;
-                case 1:
-                    response = new HttpResponse(status, body.getBytes(StandardCharsets.UTF_8), headers);
-                    break;
-                default: // 2
-                    response = new HttpResponse(status, new BytesArray(body), headers);
-                    break;
-            }
+            response = switch (randomIntBetween(0, 2)) {
+                case 0 -> new HttpResponse(status, body, headers);
+                case 1 -> new HttpResponse(status, body.getBytes(StandardCharsets.UTF_8), headers);
+                default -> // 2
+                    new HttpResponse(status, new BytesArray(body), headers);
+            };
         } else { // body is null
-            switch (randomIntBetween(0, 3)) {
-                case 0:
-                    response = new HttpResponse(status, (String) null, headers);
-                    break;
-                case 1:
-                    response = new HttpResponse(status, (byte[]) null, headers);
-                    break;
-                case 2:
-                    response = new HttpResponse(status, (BytesReference) null, headers);
-                    break;
-                default: // 3
-                    response = new HttpResponse(status, headers);
-                    break;
-            }
+            response = switch (randomIntBetween(0, 3)) {
+                case 0 -> new HttpResponse(status, (String) null, headers);
+                case 1 -> new HttpResponse(status, (byte[]) null, headers);
+                case 2 -> new HttpResponse(status, (BytesReference) null, headers);
+                default -> // 3
+                    new HttpResponse(status, headers);
+            };
         }
 
         XContentBuilder builder = jsonBuilder().value(response);

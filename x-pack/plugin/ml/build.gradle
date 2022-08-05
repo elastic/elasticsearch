@@ -16,13 +16,13 @@ repositories {
     forRepository {
       ivy {
         name "ml-cpp"
-        url providers.systemProperty('build.ml_cpp.repo').forUseAtConfigurationTime().orElse('https://prelert-artifacts.s3.amazonaws.com').get()
+        url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
         metadataSources {
           // no repository metadata, look directly for the artifact
           artifact()
         }
         patternLayout {
-          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/[module]-[revision](-[classifier]).[ext]"
         }
       }
     }
@@ -34,24 +34,22 @@ repositories {
 
 configurations {
   nativeBundle {
-    resolutionStrategy.dependencySubstitution {
-      if (findProject(':ml-cpp') != null) {
-        substitute module("org.elasticsearch.ml:ml-cpp") with project(":ml-cpp")
-      }
-    }
     resolutionStrategy.cacheChangingModulesFor 2, 'hours'
   }
 }
 
-tasks.named("bundlePlugin").configure {
-  dependsOn configurations.nativeBundle
-  from {
-    project.zipTree(configurations.nativeBundle.singleFile)
-  }
+esplugin.bundleSpec.from {
+  configurations.nativeBundle.files.collect { zipTree(it) }
+}
 
-  // We don't ship the individual nativeBundle licenses - instead
-  // they get combined into the top level NOTICES file we ship
-  exclude 'platform/licenses/**'
+// We don't ship the individual nativeBundle licenses - instead
+// they get combined into the top level NOTICES file we ship
+esplugin.bundleSpec.exclude 'platform/licenses/**'
+
+["bundlePlugin", "explodedBundlePlugin"].each { bundleTaskName ->
+    tasks.named(bundleTaskName).configure {
+        dependsOn configurations.nativeBundle
+    }
 }
 
 dependencies {
@@ -61,7 +59,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('shutdown'))
-  testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(':modules:data-streams')
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(':modules:ingest-common')
   testImplementation project(':modules:reindex')
@@ -72,7 +70,13 @@ dependencies {
   // ml deps
   api project(':libs:elasticsearch-grok')
   api "org.apache.commons:commons-math3:3.6.1"
-  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
+  api "com.ibm.icu:icu4j:${versions.icu4j}"
+  api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
+  implementation 'org.ojalgo:ojalgo:51.2.0'
+  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}:deps@zip") {
+    changing = true
+  }
+  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}:nodeps@zip") {
     changing = true
   }
   testImplementation 'org.ini4j:ini4j:0.5.2'
@@ -87,7 +91,7 @@ tasks.register("extractNativeLicenses", Copy) {
   dependsOn configurations.nativeBundle
   into "${buildDir}/extractedNativeLicenses"
   from {
-    project.zipTree(configurations.nativeBundle.singleFile)
+    configurations.nativeBundle.files.collect { zipTree(it) }
   }
   include 'platform/licenses/**'
 }
@@ -102,4 +106,8 @@ project.afterEvaluate {
   }
 }
 
-addQaCheckDependencies()
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+}
+
+addQaCheckDependencies(project)

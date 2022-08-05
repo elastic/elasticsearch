@@ -9,11 +9,11 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class PostStartTrialResponse extends ActionResponse {
@@ -57,7 +57,7 @@ public class PostStartTrialResponse extends ActionResponse {
         status = in.readEnum(Status.class);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();
-        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
+        Map<String, String[]> acknowledgeMessages = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String feature = in.readString();
             int nMessages = in.readVInt();
@@ -88,14 +88,7 @@ public class PostStartTrialResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
         out.writeOptionalString(acknowledgeMessage);
-        out.writeVInt(acknowledgeMessages.size());
-        for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().length);
-            for (String message : entry.getValue()) {
-                out.writeString(message);
-            }
-        }
+        out.writeMap(acknowledgeMessages, StreamOutput::writeString, StreamOutput::writeStringArray);
     }
 
     Map<String, String[]> getAcknowledgementMessages() {

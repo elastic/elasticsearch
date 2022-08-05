@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.fasterxml.jackson.core.io.JsonEOFException;
-
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -26,6 +24,7 @@ import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -408,7 +407,7 @@ public final class BulkRequestParser {
                         }
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
-                            upsertRequest.setPipeline(defaultPipeline);
+                            upsertRequest.setPipeline(pipeline);
                         }
 
                         updateRequestConsumer.accept(updateRequest);
@@ -420,11 +419,11 @@ public final class BulkRequestParser {
         }
     }
 
-    private void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
+    private static void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
         XContentParser.Token token;
         try {
             token = parser.nextToken();
-        } catch (JsonEOFException ignore) {
+        } catch (XContentEOFException ignore) {
             deprecationLogger.compatibleCritical(
                 STRICT_ACTION_PARSING_WARNING_KEY,
                 "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "

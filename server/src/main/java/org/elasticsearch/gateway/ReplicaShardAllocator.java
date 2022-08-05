@@ -250,25 +250,38 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is
             // unassigned due to a node leaving, so we delay allocation of this replica to see if the
             // node with the shard copy will rejoin so we can re-use the copy it has
-            logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
-            long remainingDelayMillis = 0L;
-            long totalDelayMillis = 0L;
-            if (explain) {
-                UnassignedInfo unassignedInfo = unassignedShard.unassignedInfo();
-                Metadata metadata = allocation.metadata();
-                IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
-                totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
-                long remainingDelayNanos = unassignedInfo.getRemainingDelay(
-                    System.nanoTime(),
-                    indexMetadata.getSettings(),
-                    metadata.nodeShutdowns()
-                );
-                remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
-            }
-            return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);
+            return delayedDecision(unassignedShard, allocation, logger, nodeDecisions);
         }
 
         return AllocateUnassignedDecision.NOT_TAKEN;
+    }
+
+    /**
+     * Return a delayed decision, filling in the right amount of remaining time if decisions are debugged/explained.
+     */
+    public static AllocateUnassignedDecision delayedDecision(
+        ShardRouting unassignedShard,
+        RoutingAllocation allocation,
+        Logger logger,
+        List<NodeAllocationResult> nodeDecisions
+    ) {
+        boolean explain = allocation.debugDecision();
+        logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
+        long remainingDelayMillis = 0L;
+        long totalDelayMillis = 0L;
+        if (explain) {
+            UnassignedInfo unassignedInfo = unassignedShard.unassignedInfo();
+            Metadata metadata = allocation.metadata();
+            IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
+            totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
+            long remainingDelayNanos = unassignedInfo.getRemainingDelay(
+                System.nanoTime(),
+                indexMetadata.getSettings(),
+                metadata.nodeShutdowns()
+            );
+            remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
+        }
+        return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);
     }
 
     /**

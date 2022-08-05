@@ -183,23 +183,12 @@ public class LoggingActionTests extends ESTestCase {
     @SuppressLoggerChecks(reason = "mock usage")
     static void verifyLogger(Logger logger, LoggingLevel level, String text) {
         switch (level) {
-            case ERROR:
-                verify(logger, times(1)).error(text);
-                break;
-            case WARN:
-                verify(logger, times(1)).warn(text);
-                break;
-            case INFO:
-                verify(logger, times(1)).info(text);
-                break;
-            case DEBUG:
-                verify(logger, times(1)).debug(text);
-                break;
-            case TRACE:
-                verify(logger, times(1)).trace(text);
-                break;
-            default:
-                fail("unhandled logging level [" + level.name() + "]");
+            case ERROR -> verify(logger, times(1)).error(text);
+            case WARN -> verify(logger, times(1)).warn(text);
+            case INFO -> verify(logger, times(1)).info(text);
+            case DEBUG -> verify(logger, times(1)).debug(text);
+            case TRACE -> verify(logger, times(1)).trace(text);
+            default -> fail("unhandled logging level [" + level.name() + "]");
         }
     }
 

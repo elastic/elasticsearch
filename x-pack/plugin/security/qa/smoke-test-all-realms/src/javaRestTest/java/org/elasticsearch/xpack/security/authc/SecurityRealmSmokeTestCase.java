@@ -10,22 +10,16 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.ChangePasswordRequest;
-import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.DeleteUserRequest;
-import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
@@ -47,7 +41,7 @@ import static org.hamcrest.Matchers.not;
 public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
 
     private static Path httpCAPath;
-    private RestHighLevelClient highLevelAdminClient;
+    private TestSecurityClient securityClient;
 
     @BeforeClass
     public static void findHttpCertificateAuthority() throws Exception {
@@ -111,41 +105,35 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
     }
 
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security()
-            .putUser(
-                PutUserRequest.withPassword(new User(username, roles), password.getChars(), true, RefreshPolicy.WAIT_UNTIL),
-                RequestOptions.DEFAULT
-            );
+        getSecurityClient().putUser(new User(username, roles.toArray(String[]::new)), password);
     }
 
     protected void changePassword(String username, SecureString password) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security()
-            .changePassword(new ChangePasswordRequest(username, password.getChars(), RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
+        getSecurityClient().changePassword(username, password);
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final Role role = Role.builder().name(name).clusterPrivileges(clusterPrivileges).build();
-        client.security().putRole(new PutRoleRequest(role, RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
+        final RoleDescriptor role = new RoleDescriptor(
+            name,
+            clusterPrivileges.toArray(String[]::new),
+            new RoleDescriptor.IndicesPrivileges[0],
+            new String[0]
+        );
+        getSecurityClient().putRole(role);
     }
 
     protected void deleteUser(String username) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().deleteUser(new DeleteUserRequest(username), RequestOptions.DEFAULT);
+        getSecurityClient().deleteUser(username);
     }
 
     protected void deleteRole(String name) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().deleteRole(new DeleteRoleRequest(name), RequestOptions.DEFAULT);
+        getSecurityClient().deleteRole(name);
     }
 
-    private RestHighLevelClient getHighLevelAdminClient() {
-        if (highLevelAdminClient == null) {
-            highLevelAdminClient = new RestHighLevelClient(adminClient(), ignore -> {}, List.of()) {
-            };
+    protected TestSecurityClient getSecurityClient() {
+        if (securityClient == null) {
+            securityClient = new TestSecurityClient(adminClient());
         }
-        return highLevelAdminClient;
+        return securityClient;
     }
 }

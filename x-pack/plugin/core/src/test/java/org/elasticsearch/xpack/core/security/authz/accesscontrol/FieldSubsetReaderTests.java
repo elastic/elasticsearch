@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -46,8 +45,9 @@ import org.apache.lucene.index.TermsEnum.SeekStatus;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -57,11 +57,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -203,13 +202,13 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(0, vectorValues.nextDoc());
         assertNotNull(vectorValues.binaryValue());
 
-        TopDocs topDocs = leafReader.searchNearestVectors("fieldA", new float[] { 1.0f, 1.0f, 1.0f }, 5, null);
+        TopDocs topDocs = leafReader.searchNearestVectors("fieldA", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE);
         assertNotNull(topDocs);
         assertEquals(1, topDocs.scoreDocs.length);
 
         // Check that we can't see fieldB
         assertNull(leafReader.getVectorValues("fieldB"));
-        assertNull(leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null));
+        assertNull(leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE));
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -1078,7 +1077,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "*inner1" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index" },
                 index -> fieldPermissions::grantsAccessTo,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -1118,7 +1117,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object*" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index" },
                 index -> fieldPermissions::grantsAccessTo,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -1157,7 +1156,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index" },
                 index -> fieldPermissions::grantsAccessTo,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -1186,7 +1185,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "nested.inner2" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index" },
                 index -> fieldPermissions::grantsAccessTo,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP

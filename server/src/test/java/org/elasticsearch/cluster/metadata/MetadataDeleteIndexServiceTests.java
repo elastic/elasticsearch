@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -33,10 +32,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -81,7 +80,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                 Collections.emptyList(),
                 System.currentTimeMillis(),
                 (long) randomIntBetween(0, 1000),
-                ImmutableOpenMap.of(),
+                Map.of(),
                 null,
                 SnapshotInfoTestUtils.randomUserMetadata(),
                 VersionUtils.randomVersion(random())
@@ -143,6 +142,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertNull(after.routingTable().index(index));
         assertNull(after.blocks().indices().get(index));
         assertNull(after.metadata().getIndicesLookup().get(alias));
+        assertThat(after.metadata().aliasedIndices(alias), empty());
     }
 
     public void testDeleteBackingIndexForDataStream() {
@@ -174,7 +174,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         List<Integer> indexNumbersToDelete = randomSubsetOf(
             numBackingIndicesToDelete,
-            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList())
+            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().toList()
         );
 
         Set<Index> indicesToDelete = new HashSet<>();

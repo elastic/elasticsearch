@@ -23,7 +23,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
@@ -48,7 +47,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class);
     }
 
     @Override
@@ -113,7 +112,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
               "parent_id" : {
                 "type" : "child",
                 "id" : "123",
-                "ignore_unmapped" : false,
+                "ignore_unmapped" : true,
                 "boost" : 3.0,
                 "_name" : "name"  }
             }""";
@@ -123,6 +122,25 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         assertThat(queryBuilder.getId(), Matchers.equalTo("123"));
         assertThat(queryBuilder.boost(), Matchers.equalTo(3f));
         assertThat(queryBuilder.queryName(), Matchers.equalTo("name"));
+    }
+
+    public void testDefaultsRemoved() throws IOException {
+        String query = """
+            {
+              "parent_id" : {
+                "type" : "child",
+                "id" : "123",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
+        checkGeneratedJson("""
+              {
+              "parent_id" : {
+                "type" : "child",
+                "id" : "123"
+              }
+            }""", parseQuery(query));
     }
 
     public void testIgnoreUnmapped() throws IOException {

@@ -21,6 +21,8 @@ class TransformContext {
     public interface Listener {
         void shutdown();
 
+        void failureCountChanged();
+
         void fail(String failureMessage, ActionListener<Void> listener);
     }
 
@@ -29,6 +31,8 @@ class TransformContext {
     private final Listener taskListener;
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
     private final AtomicInteger failureCount;
+    // Keeps track of the last failure that occured, used for throttling logs and audit
+    private final AtomicReference<String> lastFailure = new AtomicReference<>();
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
@@ -37,7 +41,7 @@ class TransformContext {
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
 
-    TransformContext(final TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
+    TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
@@ -47,10 +51,6 @@ class TransformContext {
 
     TransformTaskState getTaskState() {
         return taskState.get();
-    }
-
-    void setTaskState(TransformTaskState newState) {
-        taskState.set(newState);
     }
 
     boolean setTaskState(TransformTaskState oldState, TransformTaskState newState) {
@@ -70,6 +70,8 @@ class TransformContext {
     void resetReasonAndFailureCounter() {
         stateReason.set(null);
         failureCount.set(0);
+        lastFailure.set(null);
+        taskListener.failureCountChanged();
     }
 
     String getStateReason() {
@@ -100,8 +102,15 @@ class TransformContext {
         return failureCount.get();
     }
 
-    int getAndIncrementFailureCount() {
-        return failureCount.getAndIncrement();
+    int incrementAndGetFailureCount(String failure) {
+        int newFailureCount = failureCount.incrementAndGet();
+        lastFailure.set(failure);
+        taskListener.failureCountChanged();
+        return newFailureCount;
+    }
+
+    String getLastFailure() {
+        return lastFailure.get();
     }
 
     void setChangesLastDetectedAt(Instant time) {
@@ -138,5 +147,4 @@ class TransformContext {
             failureCount.set(0);
         }, e -> {}));
     }
-
 }

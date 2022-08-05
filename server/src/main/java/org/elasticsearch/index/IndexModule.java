@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -27,8 +29,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -53,7 +56,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,6 +89,8 @@ import java.util.function.Function;
  * </ul>
  */
 public final class IndexModule {
+
+    private static final Logger logger = LogManager.getLogger(IndexModule.class);
 
     public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
 
@@ -154,7 +159,7 @@ public final class IndexModule {
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
-     * via {@link org.elasticsearch.plugins.PluginsService#onIndexModule(IndexModule)}.
+     * via {@link org.elasticsearch.plugins.Plugin#onIndexModule(IndexModule)}.
      *
      * @param indexSettings       the index settings
      * @param analysisRegistry    the analysis registry
@@ -378,7 +383,7 @@ public final class IndexModule {
         private static final Map<String, Type> TYPES;
 
         static {
-            final Map<String, Type> types = new HashMap<>(4);
+            final Map<String, Type> types = Maps.newMapWithExpectedSize(4);
             for (final Type type : values()) {
                 types.put(type.settingsKey, type);
             }
@@ -417,7 +422,7 @@ public final class IndexModule {
     public IndexService newIndexService(
         IndexService.IndexCreationContext indexCreationContext,
         NodeEnvironment environment,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         IndexService.ShardStoreDeleter shardStoreDeleter,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -451,12 +456,13 @@ public final class IndexModule {
             if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
                 BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
                 if (queryCacheProvider == null) {
-                    queryCache = new IndexQueryCache(indexSettings, indicesQueryCache);
+                    queryCache = new IndexQueryCache(indexSettings.getIndex(), indicesQueryCache);
                 } else {
                     queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
                 }
             } else {
-                queryCache = new DisabledQueryCache(indexSettings);
+                logger.debug("Using no query cache for [{}]", indexSettings.getIndex());
+                queryCache = DisabledQueryCache.INSTANCE;
             }
             if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
                 indexAnalyzers = analysisRegistry.build(indexSettings);
@@ -465,7 +471,7 @@ public final class IndexModule {
                 indexSettings,
                 indexCreationContext,
                 environment,
-                xContentRegistry,
+                parserConfiguration,
                 new SimilarityService(indexSettings, scriptService, similarities),
                 shardStoreDeleter,
                 indexAnalyzers,
@@ -569,18 +575,18 @@ public final class IndexModule {
      * doing so will result in an exception.
      */
     public MapperService newIndexMapperService(
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
         ScriptService scriptService
     ) throws IOException {
         return new MapperService(
             indexSettings,
             analysisRegistry.build(indexSettings),
-            xContentRegistry,
+            parserConfiguration,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,
             () -> { throw new UnsupportedOperationException("no index query shard context available"); },
-            IdFieldMapper.NO_FIELD_DATA,
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService
         );
     }

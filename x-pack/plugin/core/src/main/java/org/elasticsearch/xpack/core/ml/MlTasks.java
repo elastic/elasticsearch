@@ -29,13 +29,22 @@ import java.util.stream.Collectors;
 
 public final class MlTasks {
 
-    public static final String TRAINED_MODEL_ALLOCATION_TASK_TYPE = "trained_model_allocation";
-    public static final String TRAINED_MODEL_ALLOCATION_TASK_ACTION = "xpack/ml/trained_model_allocation[n]";
+    public static final String TRAINED_MODEL_ASSIGNMENT_TASK_TYPE = "trained_model_assignment";
+    public static final String TRAINED_MODEL_ASSIGNMENT_TASK_ACTION = "xpack/ml/trained_model_assignment[n]";
 
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
     public static final String DATA_FRAME_ANALYTICS_TASK_NAME = "xpack/ml/data_frame/analytics";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_NAME = "xpack/ml/job/snapshot/upgrade";
+
+    /**
+     * A set of all ML persistent tasks that have an associated native process.
+     */
+    public static final Set<String> ML_PROCESS_TASKS = Set.of(
+        JOB_TASK_NAME,
+        DATA_FRAME_ANALYTICS_TASK_NAME,
+        JOB_SNAPSHOT_UPGRADE_TASK_NAME
+    );
 
     public static final String JOB_TASK_ID_PREFIX = "job-";
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
@@ -99,7 +108,7 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
-    public static String trainedModelAllocationTaskDescription(String modelId) {
+    public static String trainedModelAssignmentTaskDescription(String modelId) {
         return TrainedModelConfig.MODEL_ID.getPreferredName() + "[" + modelId + "]";
     }
 
@@ -166,7 +175,7 @@ public final class MlTasks {
         }
         JobState jobState = jobTaskState.getState();
         if (jobTaskState.isStatusStale(task)) {
-            // the job is re-locating
+            // the job is relocating
             if (jobState == JobState.CLOSING) {
                 // previous executor node failed while the job was closing - it won't
                 // be reopened on another node, so consider it CLOSED for most purposes
@@ -441,15 +450,28 @@ public final class MlTasks {
 
     public static MemoryTrackedTaskState getMemoryTrackedTaskState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         String taskName = task.getTaskName();
-        switch (taskName) {
-            case JOB_TASK_NAME:
-                return getJobStateModifiedForReassignments(task);
-            case JOB_SNAPSHOT_UPGRADE_TASK_NAME:
-                return getSnapshotUpgradeState(task);
-            case DATA_FRAME_ANALYTICS_TASK_NAME:
-                return getDataFrameAnalyticsState(task);
-            default:
-                throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
+        return switch (taskName) {
+            case JOB_TASK_NAME -> getJobStateModifiedForReassignments(task);
+            case JOB_SNAPSHOT_UPGRADE_TASK_NAME -> getSnapshotUpgradeState(task);
+            case DATA_FRAME_ANALYTICS_TASK_NAME -> getDataFrameAnalyticsState(task);
+            default -> throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
+        };
+    }
+
+    public static Set<PersistentTasksCustomMetadata.PersistentTask<?>> findMlProcessTasks(@Nullable PersistentTasksCustomMetadata tasks) {
+        if (tasks == null) {
+            return Set.of();
         }
+        return tasks.tasks().stream().filter(p -> ML_PROCESS_TASKS.contains(p.getTaskName())).collect(Collectors.toSet());
+    }
+
+    public static String prettyPrintTaskName(String taskName) {
+        return switch (taskName) {
+            case JOB_TASK_NAME -> "anomaly detection";
+            case JOB_SNAPSHOT_UPGRADE_TASK_NAME -> "snapshot upgrade (anomaly detection)";
+            case DATA_FRAME_ANALYTICS_TASK_NAME -> "data frame analytics";
+            case DATAFEED_TASK_NAME -> "datafeed";
+            default -> throw new IllegalArgumentException("unexpected task type [" + taskName + "]");
+        };
     }
 }

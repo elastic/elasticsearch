@@ -8,18 +8,25 @@
 
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.smile.SmileXContent;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Date;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
@@ -38,6 +45,62 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(assertToXContentEquivalence())
             .test();
+    }
+
+    /**
+     * Calls {@link ToXContent#toXContent} on many threads and verifies that
+     * they produce the same result. Async search sometimes does this to
+     * aggregation responses and, in general, we think it's reasonable for
+     * everything that can convert itself to json to be able to do so
+     * concurrently.
+     */
+    public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
+        XContentType xContentType = randomValueOtherThanMany(
+            /*
+             * SMILE will sometimes use the unicode marker for ascii strings
+             * if the it's internal buffer doeesn't have enough space for the
+             * whole string. That's fine for SMILE readers, but we're comparing
+             * bytes here so we can't use it.
+             */
+            type -> type.xContent() == SmileXContent.smileXContent,
+            () -> randomFrom(XContentType.values())
+        );
+        T testInstance = createXContextTestInstance(xContentType);
+        ToXContent.Params params = new ToXContent.DelegatingMapParams(
+            singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"),
+            getToXContentParams()
+        );
+        boolean humanReadable = randomBoolean();
+        BytesRef firstTimeBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
+        concurrentTest(() -> {
+            try {
+                for (int r = 0; r < rounds; r++) {
+                    BytesRef thisRoundBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+                    if (firstTimeBytes.bytesEquals(thisRoundBytes)) {
+                        continue;
+                    }
+                    StringBuilder error = new StringBuilder("Failed to round trip over ");
+                    if (humanReadable) {
+                        error.append("human readable ");
+                    }
+                    error.append(xContentType);
+                    error.append("\nCanonical is:\n").append(Strings.toString(testInstance, true, true));
+                    boolean showBytes = xContentType.xContent() == CborXContent.cborXContent;
+                    error.append("\nWanted : ").append(showBytes ? firstTimeBytes : firstTimeBytes.utf8ToString());
+                    error.append("\nBut got: ").append(showBytes ? thisRoundBytes : thisRoundBytes.utf8ToString());
+                    fail(error.toString());
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     /**

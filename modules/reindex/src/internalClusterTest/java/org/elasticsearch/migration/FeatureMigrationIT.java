@@ -9,37 +9,35 @@
 package org.elasticsearch.migration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse;
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction;
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeRequest;
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,16 +45,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
@@ -65,7 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class FeatureMigrationIT extends ESIntegTestCase {
+public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).build();
@@ -90,9 +85,6 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
         createSystemIndexForDescriptor(EXTERNAL_MANAGED);
         createSystemIndexForDescriptor(EXTERNAL_UNMANAGED);
-
-        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        TestPlugin.postMigrationHook.set((state, metadata) -> {});
 
         ensureGreen();
 
@@ -144,7 +136,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
 
         SetOnce<Boolean> preUpgradeHookCalled = new SetOnce<>();
         SetOnce<Boolean> postUpgradeHookCalled = new SetOnce<>();
-        TestPlugin.preMigrationHook.set(clusterState -> {
+        getPlugin(TestPlugin.class).preMigrationHook.set(clusterState -> {
             // Check that the ordering of these calls is correct.
             assertThat(postUpgradeHookCalled.get(), nullValue());
             Map<String, Object> metadata = new HashMap<>();
@@ -161,7 +153,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             return metadata;
         });
 
-        TestPlugin.postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(TestPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
             assertThat(preUpgradeHookCalled.get(), is(true));
 
             assertThat(metadata, hasEntry("stringKey", "stringValue"));
@@ -189,12 +181,17 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         assertThat(migratingFeatures, hasItem(FEATURE_NAME));
 
         GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
+        // The feature upgrade may take longer than ten seconds when tests are running
+        // in parallel, so we give assertBusy a sixty-second timeout.
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
                 .get();
             logger.info(Strings.toString(statusResponse));
             assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 60, TimeUnit.SECONDS);
+
+        // Waiting for shards to stabilize if indices were moved around
+        ensureGreen();
 
         assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());
         assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
@@ -245,12 +242,9 @@ public class FeatureMigrationIT extends ESIntegTestCase {
     public void testMigrateIndexWithWriteBlock() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
 
-        String indexName = Optional.ofNullable(INTERNAL_UNMANAGED.getPrimaryIndex())
-            .orElse(INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old"));
-        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        String indexName = INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old");
 
-        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
-        TestPlugin.postMigrationHook.set((state, metadata) -> {});
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
 
         ensureGreen();
 
@@ -266,210 +260,202 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         });
     }
 
-    public void assertIndexHasCorrectProperties(
-        Metadata metadata,
-        String indexName,
-        int settingsFlagValue,
-        boolean isManaged,
-        boolean isInternal,
-        Collection<String> aliasNames
-    ) {
-        IndexMetadata imd = metadata.index(indexName);
-        assertThat(imd.getSettings().get(FlAG_SETTING_KEY), equalTo(Integer.toString(settingsFlagValue)));
-        final Map<String, Object> mapping = imd.mapping().getSourceAsMap();
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> meta = (Map<String, Object>) mapping.get("_meta");
-        assertThat(meta.get(DESCRIPTOR_MANAGED_META_KEY), is(isManaged));
-        assertThat(meta.get(DESCRIPTOR_INTERNAL_META_KEY), is(isInternal));
+    public void testMigrationWillRunAfterError() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_MANAGED);
 
-        assertThat(imd.isSystem(), is(true));
+        ensureGreen();
 
-        Set<String> actualAliasNames = imd.getAliases().keySet();
-        assertThat(actualAliasNames, containsInAnyOrder(aliasNames.toArray()));
-
-        IndicesStatsResponse indexStats = client().admin().indices().prepareStats(imd.getIndex().getName()).setDocs(true).get();
-        assertThat(indexStats.getIndex(imd.getIndex().getName()).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
-    }
-
-    public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {
-        assertTrue(
-            "the strategy used below to create index names for descriptors without a primary index name only works for simple patterns",
-            descriptor.getIndexPattern().endsWith("*")
-        );
-        String indexName = Optional.ofNullable(descriptor.getPrimaryIndex()).orElse(descriptor.getIndexPattern().replace("*", "old"));
-        CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
-        createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
-            // unmanaged
-            createRequest.setSettings(
-                createSimpleSettings(
-                    NEEDS_UPGRADE_VERSION,
-                    descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
-                )
-            );
-        } else {
-            // managed
-            createRequest.setSettings(
-                Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                    .build()
-            );
-        }
-        if (descriptor.getMappings() == null) {
-            createRequest.setMapping(createSimpleMapping(false, descriptor.isInternal()));
-        }
-        CreateIndexResponse response = createRequest.get();
-        assertTrue(response.isShardsAcknowledged());
-
-        List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
-        for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
-        }
-        indexRandom(true, docs);
-        IndicesStatsResponse indexStats = client().admin().indices().prepareStats(indexName).setDocs(true).get();
-        assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
-    }
-
-    static final String VERSION_META_KEY = "version";
-    static final Version META_VERSION = Version.CURRENT;
-    static final String DESCRIPTOR_MANAGED_META_KEY = "desciptor_managed";
-    static final String DESCRIPTOR_INTERNAL_META_KEY = "descriptor_internal";
-    static final String FEATURE_NAME = "A-test-feature"; // Sorts alphabetically before the feature from MultiFeatureMigrationIT
-    static final String ORIGIN = FeatureMigrationIT.class.getSimpleName();
-    static final String FlAG_SETTING_KEY = IndexMetadata.INDEX_PRIORITY_SETTING.getKey();
-    static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
-    public static final Version NEEDS_UPGRADE_VERSION = Version.V_7_0_0;
-
-    static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
-    static final int INTERNAL_UNMANAGED_FLAG_VALUE = 2;
-    static final int EXTERNAL_MANAGED_FLAG_VALUE = 3;
-    static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
-    static final SystemIndexDescriptor INTERNAL_MANAGED = SystemIndexDescriptor.builder()
-        .setIndexPattern(".int-man-*")
-        .setAliasName(".internal-managed-alias")
-        .setPrimaryIndex(".int-man-old")
-        .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
-        .setMappings(createSimpleMapping(true, true))
-        .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
-        .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
-        .setPriorSystemIndexDescriptors(Collections.emptyList())
-        .build();
-    static final SystemIndexDescriptor INTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
-        .setIndexPattern(".int-unman-*")
-        .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
-        .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
-        .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
-        .setPriorSystemIndexDescriptors(Collections.emptyList())
-        .build();
-    static final SystemIndexDescriptor EXTERNAL_MANAGED = SystemIndexDescriptor.builder()
-        .setIndexPattern(".ext-man-*")
-        .setAliasName(".external-managed-alias")
-        .setPrimaryIndex(".ext-man-old")
-        .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
-        .setMappings(createSimpleMapping(true, false))
-        .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
-        .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
-        .setPriorSystemIndexDescriptors(Collections.emptyList())
-        .build();
-    static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
-        .setIndexPattern(".ext-unman-*")
-        .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
-        .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
-        .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
-        .setPriorSystemIndexDescriptors(Collections.emptyList())
-        .build();
-    static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
-
-    static Settings createSimpleSettings(Version creationVersion, int flagSettingValue) {
-        return Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .put(FlAG_SETTING_KEY, flagSettingValue)
-            .put("index.version.created", creationVersion)
-            .build();
-    }
-
-    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal) {
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
-            {
-                builder.startObject("_meta");
-                builder.field(VERSION_META_KEY, META_VERSION);
-                builder.field(DESCRIPTOR_MANAGED_META_KEY, descriptorManaged);
-                builder.field(DESCRIPTOR_INTERNAL_META_KEY, descriptorInternal);
-                builder.endObject();
-
-                builder.field("dynamic", "strict");
-                builder.startObject("properties");
-                {
-                    builder.startObject("some_field");
-                    builder.field("type", "keyword");
-                    builder.endObject();
+        SetOnce<Exception> failure = new SetOnce<>();
+        CountDownLatch clusterStateUpdated = new CountDownLatch(1);
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .submitUnbatchedStateUpdateTask(this.getTestName(), new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    FeatureMigrationResults newResults = new FeatureMigrationResults(
+                        Collections.singletonMap(
+                            FEATURE_NAME,
+                            SingleFeatureMigrationResult.failure(INTERNAL_MANAGED_INDEX_NAME, new RuntimeException("it failed :("))
+                        )
+                    );
+                    Metadata newMetadata = Metadata.builder(currentState.metadata())
+                        .putCustom(FeatureMigrationResults.TYPE, newResults)
+                        .build();
+                    return ClusterState.builder(currentState).metadata(newMetadata).build();
                 }
-                builder.endObject();
-            }
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            // Just rethrow, it should be impossible for this to throw here
-            throw new AssertionError(e);
+
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    clusterStateUpdated.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failure.set(e);
+                    clusterStateUpdated.countDown();
+                }
+            });
+
+        clusterStateUpdated.await(10, TimeUnit.SECONDS); // Should be basically instantaneous
+        if (failure.get() != null) {
+            logger.error("cluster state update to inject migration failure state did not succeed", failure.get());
+            fail("cluster state update failed, see log for details");
         }
+
+        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
+        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
+        // Make sure we actually started the migration
+        assertTrue(
+            "could not find [" + FEATURE_NAME + "] in response: " + Strings.toString(migrationResponse),
+            migrationResponse.getFeatures().stream().anyMatch(feature -> feature.getFeatureName().equals(FEATURE_NAME))
+        );
+
+        // Now wait for the migration to finish (otherwise the test infra explodes)
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
     }
 
-    public static class TestPlugin extends Plugin implements SystemIndexPlugin {
-        public static final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
-        public static final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
+    private String featureUpgradeErrorResponse(GetFeatureUpgradeStatusResponse statusResp) {
+        return statusResp.getFeatureUpgradeStatuses()
+            .stream()
+            .map(f -> f.getIndexVersions())
+            .flatMap(List::stream)
+            .map(i -> (i.getException() == null) ? "" : i.getException().getMessage())
+            .collect(Collectors.joining(" "));
+    }
 
-        public TestPlugin() {
-
+    private void migrateWithTemplatesV1(String templatePrefix, SystemIndexDescriptor... descriptors) throws Exception {
+        for (SystemIndexDescriptor descriptor : descriptors) {
+            createSystemIndexForDescriptor(descriptor);
         }
 
-        @Override
-        public String getFeatureName() {
-            return FEATURE_NAME;
+        client().admin()
+            .indices()
+            .preparePutTemplate("bad_template")
+            .setPatterns(Collections.singletonList(templatePrefix + "*"))
+            .addAlias(new Alias(templatePrefix + "-legacy-alias"))
+            .get();
+
+        ensureGreen();
+
+        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest())
+            .get();
+
+        assertTrue(migrationResponse.isAccepted());
+    }
+
+    public void testBailOnMigrateWithTemplatesV1() throws Exception {
+        migrateWithTemplatesV1(".int", INTERNAL_UNMANAGED);
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR));
+            assertTrue(featureUpgradeErrorResponse(statusResp).contains(" because it would match legacy templates "));
+        });
+    }
+
+    public void testMigrateWithTemplatesV1() throws Exception {
+        // this should pass for both, kibana allows templates, the unmanaged doesn't match the template
+        migrateWithTemplatesV1(".kibana", KIBANA_MOCK_INDEX_DESCRIPTOR, INTERNAL_UNMANAGED);
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
+    }
+
+    private void migrateWithTemplatesV2(String prefix, SystemIndexDescriptor... descriptors) throws Exception {
+        for (SystemIndexDescriptor descriptor : descriptors) {
+            createSystemIndexForDescriptor(descriptor);
         }
 
-        @Override
-        public String getFeatureDescription() {
-            return "a plugin for testing system index migration";
-        }
+        ComponentTemplate ct = new ComponentTemplate(
+            new Template(
+                null,
+                new CompressedXContent(
+                    "{\n"
+                        + "      \"dynamic\": false,\n"
+                        + "      \"properties\": {\n"
+                        + "        \"field1\": {\n"
+                        + "          \"type\": \"text\"\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    }"
+                ),
+                null
+            ),
+            3L,
+            Collections.singletonMap("foo", "bar")
+        );
+        client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("a-ct").componentTemplate(ct)).get();
 
-        @Override
-        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED);
-        }
+        ComposableIndexTemplate cit = new ComposableIndexTemplate(
+            Collections.singletonList(prefix + "*"),
+            new Template(
+                null,
+                new CompressedXContent(
+                    "{\n"
+                        + "      \"dynamic\": false,\n"
+                        + "      \"properties\": {\n"
+                        + "        \"field2\": {\n"
+                        + "          \"type\": \"keyword\"\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    }"
+                ),
+                null
+            ),
+            Collections.singletonList("a-ct"),
+            4L,
+            5L,
+            Collections.singletonMap("baz", "thud")
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, new PutComposableIndexTemplateAction.Request("a-it").indexTemplate(cit))
+            .get();
 
-        @Override
-        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+        ensureGreen();
 
-            return Collections.singletonList(new AssociatedIndexDescriptor(ASSOCIATED_INDEX_NAME, TestPlugin.class.getCanonicalName()));
-        }
+        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest())
+            .get();
+        assertTrue(migrationResponse.isAccepted());
+    }
 
-        @Override
-        public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-            listener.onResponse(preMigrationHook.get().apply(clusterService.state()));
-        }
+    public void testBailOnMigrateWithTemplatesV2() throws Exception {
+        migrateWithTemplatesV2(".int", INTERNAL_UNMANAGED);
 
-        @Override
-        public void indicesMigrationComplete(
-            Map<String, Object> preUpgradeMetadata,
-            ClusterService clusterService,
-            Client client,
-            ActionListener<Boolean> listener
-        ) {
-            postMigrationHook.get().accept(clusterService.state(), preUpgradeMetadata);
-            listener.onResponse(true);
-        }
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR));
+            assertTrue(featureUpgradeErrorResponse(statusResp).contains(" it would match composable template [a-it]"));
+        });
+    }
+
+    public void testMigrateWithTemplatesV2() throws Exception {
+        // this should pass for both, kibana allows templates, the unmanaged doesn't match the template
+        migrateWithTemplatesV2(".kibana", KIBANA_MOCK_INDEX_DESCRIPTOR, INTERNAL_UNMANAGED);
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
     }
 }

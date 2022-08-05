@@ -25,6 +25,7 @@ public class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
 
     public DummyUsernamePasswordRealm(RealmConfig config) {
         super(config);
+        initRealmRef(null);
         this.users = new HashMap<>();
     }
 

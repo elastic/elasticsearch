@@ -9,6 +9,8 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -23,15 +25,18 @@ import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -205,9 +210,9 @@ public abstract class AggregationContext implements Releasable {
     public abstract Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException;
 
     /**
-     * Find an {@link ObjectMapper}.
+     * Get the {@link NestedLookup} of this index
      */
-    public abstract ObjectMapper getObjectMapper(String path);
+    public abstract NestedLookup nestedLookup();
 
     /**
      * Access the nested scope. Stay away from this unless you are dealing with nested.
@@ -283,6 +288,36 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean enableRewriteToFilterByFilter();
 
     /**
+     * Return true if any of the aggregations in this context is a time-series aggregation that requires an in-sort order execution.
+     *
+     * A side-effect of such execution is that all leaves are walked simultaneously and therefore we can no longer rely on
+     * {@link BucketCollector#getLeafCollector(AggregationExecutionContext)} to be called only after the
+     * previous leaf was fully collected.
+     */
+    public abstract boolean isInSortOrderExecutionRequired();
+
+    public abstract Set<String> sourcePath(String fullName);
+
+    /**
+     * Does this index have a {@code _doc_count} field in any segment?
+     */
+    public final boolean hasDocCountField() throws IOException {
+        /*
+         * When we add the second filter we check if there are any _doc_count
+         * fields and bail out of filter-by filter mode if there are. _doc_count
+         * fields are expensive to decode and the overhead of iterating per
+         * filter causes us to decode doc counts over and over again.
+         */
+        Term term = new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME);
+        for (LeafReaderContext c : searcher().getLeafContexts()) {
+            if (c.reader().docFreq(term) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
@@ -303,6 +338,7 @@ public abstract class AggregationContext implements Releasable {
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
         private final boolean enableRewriteToFilterByFilter;
+        private final boolean inSortOrderExecutionRequired;
         private final AnalysisRegistry analysisRegistry;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
@@ -321,7 +357,8 @@ public abstract class AggregationContext implements Releasable {
             LongSupplier relativeTimeInMillis,
             Supplier<Boolean> isCancelled,
             Function<Query, Query> filterQuery,
-            boolean enableRewriteToFilterByFilter
+            boolean enableRewriteToFilterByFilter,
+            boolean inSortOrderExecutionRequired
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
@@ -354,6 +391,7 @@ public abstract class AggregationContext implements Releasable {
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
             this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
+            this.inSortOrderExecutionRequired = inSortOrderExecutionRequired;
         }
 
         @Override
@@ -397,7 +435,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-            return context.getForField(ft);
+            return context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
         }
 
         @Override
@@ -461,8 +499,8 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public ObjectMapper getObjectMapper(String path) {
-            return context.getObjectMapper(path);
+        public NestedLookup nestedLookup() {
+            return context.nestedLookup();
         }
 
         @Override
@@ -529,6 +567,16 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean enableRewriteToFilterByFilter() {
             return enableRewriteToFilterByFilter;
+        }
+
+        @Override
+        public boolean isInSortOrderExecutionRequired() {
+            return inSortOrderExecutionRequired;
+        }
+
+        @Override
+        public Set<String> sourcePath(String fullName) {
+            return context.sourcePath(fullName);
         }
 
         @Override

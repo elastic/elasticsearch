@@ -491,6 +491,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         configurationFrozen.set(true);
     }
 
+    private static String throwableToString(Throwable t) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        t.printStackTrace(pw);
+        return sw.toString();
+    }
+
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
@@ -517,18 +524,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             setupNodeDistribution(getExtractedDistributionDir());
             createWorkingDir();
         } catch (IOException e) {
-            String msg = "Failed (x) to create working directory for " + this;
+            String msg = "Failed to create working directory for " + this + ", with: " + e + throwableToString(e);
             logToProcessStdout(msg);
             throw new UncheckedIOException(msg, e);
-        } catch (UncheckedIOException e) {
-            logToProcessStdout("Failed (y) to create working directory for " + this);
+        } catch (org.gradle.api.UncheckedIOException e) {
+            String msg = "Failed to create working directory for " + this + ", with: " + e + throwableToString(e);
+            logToProcessStdout(msg);
             throw e;
-        } catch (Throwable t) {
-            StringWriter sw = new StringWriter();
-            PrintWriter pw = new PrintWriter(sw);
-            t.printStackTrace(pw);
-            logToProcessStdout("Failed (z) to create working directory for " + this + ", with throwable: " + t + sw.toString());
-            throw t;
         }
 
         copyExtraJars();
@@ -1257,29 +1259,16 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             } catch (NoSuchFileException ignore) {
                 // already deleted, ignore
                 break;
-            } catch (UncheckedIOException | IOException x) {
-                IOException unwrappedIOE;
-                if (x instanceof UncheckedIOException ue) {
-                    unwrappedIOE = ue.getCause();
-                    if (unwrappedIOE instanceof NoSuchFileException) {
-                        break; // already deleted, ignore
-                    }
-                } else if (x instanceof IOException ioException) {
-                    unwrappedIOE = ioException;
-                } else {
-                    throw new AssertionError("should not reach here" + x);
+            } catch (org.gradle.api.UncheckedIOException | IOException x) {
+                if (x.getCause() instanceof NoSuchFileException) {
+                    // already deleted, ignore
+                    break;
                 }
                 // Backoff/retry in case another process is accessing the file
                 times++;
-                if (ioe == null) {
-                    ioe = unwrappedIOE;
-                } else {
-                    ioe.addSuppressed(unwrappedIOE);
-                }
-
-                if (times > MAX_RETRY_DELETE_TIMES) {
-                    throw ioe;
-                }
+                if (ioe == null) ioe = new IOException();
+                ioe.addSuppressed(x);
+                if (times > MAX_RETRY_DELETE_TIMES) throw ioe;
                 Thread.sleep(RETRY_DELETE_MILLIS);
             }
         }

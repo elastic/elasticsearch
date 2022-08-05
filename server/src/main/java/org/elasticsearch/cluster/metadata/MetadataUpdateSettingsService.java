@@ -76,7 +76,7 @@ public class MetadataUpdateSettingsService {
                 try {
                     final var task = taskContext.getTask();
                     state = task.execute(state);
-                    taskContext.success(task);
+                    taskContext.success(task.getAckListener());
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
@@ -89,7 +89,7 @@ public class MetadataUpdateSettingsService {
         };
     }
 
-    private final class UpdateSettingsTask implements ClusterStateAckListener, ClusterStateTaskListener {
+    private final class UpdateSettingsTask implements ClusterStateTaskListener {
         private final UpdateSettingsClusterStateUpdateRequest request;
         private final ActionListener<AcknowledgedResponse> listener;
 
@@ -98,29 +98,33 @@ public class MetadataUpdateSettingsService {
             this.listener = listener;
         }
 
-        @Override
-        public boolean mustAck(DiscoveryNode discoveryNode) {
-            return true;
-        }
+        private ClusterStateAckListener getAckListener() {
+            return new ClusterStateAckListener() {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
 
-        @Override
-        public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.of(true));
-        }
+                @Override
+                public void onAllNodesAcked() {
+                    listener.onResponse(AcknowledgedResponse.of(true));
+                }
 
-        @Override
-        public void onAckFailure(Exception e) {
-            listener.onFailure(e);
-        }
+                @Override
+                public void onAckFailure(Exception e) {
+                    listener.onFailure(e);
+                }
 
-        @Override
-        public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.of(false));
-        }
+                @Override
+                public void onAckTimeout() {
+                    listener.onResponse(AcknowledgedResponse.of(false));
+                }
 
-        @Override
-        public TimeValue ackTimeout() {
-            return request.ackTimeout();
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            };
         }
 
         @Override

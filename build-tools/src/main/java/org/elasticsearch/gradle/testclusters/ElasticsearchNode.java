@@ -524,7 +524,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
             t.printStackTrace(pw);
-            logToProcessStdout("Failed (z) to create working directory for " + this + ", with throwable: " + t + sw);
+            logToProcessStdout("Failed (3) to create working directory for " + this + ", with throwable: " + t + sw);
             throw t;
         }
 

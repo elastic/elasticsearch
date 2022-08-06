@@ -7,7 +7,7 @@
 Mapping is the process of defining how a document, and the fields it contains,
 are stored and indexed.
 
-Each document is a collection of fields, which each have their own
+Each document is a collection of fields, which each having their own
 <<mapping-types,data type>>. When mapping your data, you create a mapping
 definition, which contains a list of fields that are pertinent to the document.
 A mapping definition also includes <<mapping-fields,metadata fields>>, like the

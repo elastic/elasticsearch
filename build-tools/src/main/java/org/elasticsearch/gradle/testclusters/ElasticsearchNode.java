@@ -1212,15 +1212,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * Deletes a path, retrying if necessary.
      *
      * @param path  the path to delete
-     *
-     * @throws NoSuchFileException
-     *         if the file does not exist
      * @throws IOException
      *         if an I/O error occurs
      */
     void deleteWithRetry(Path path) throws IOException {
         try {
-            deleteFileWithRetry0(path);
+            deleteWithRetry0(path);
         } catch (InterruptedException x) {
             throw new IOException("Interrupted while deleting.", x);
         }
@@ -1229,7 +1226,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     /** Unchecked variant of deleteWithRetry. */
     void uncheckedDeleteWithRetry(Path path) {
         try {
-            deleteFileWithRetry0(path);
+            deleteWithRetry0(path);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (InterruptedException x) {
@@ -1238,7 +1235,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     // The exception handling here is loathsome, but necessary!
-    private void deleteFileWithRetry0(Path path) throws IOException, InterruptedException {
+    private void deleteWithRetry0(Path path) throws IOException, InterruptedException {
         int times = 0;
         IOException ioe = null;
         while (true) {

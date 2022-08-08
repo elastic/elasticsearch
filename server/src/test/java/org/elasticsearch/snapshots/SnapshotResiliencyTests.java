@@ -1932,7 +1932,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new IndexMetadataVerifier(settings, namedXContentRegistry, mapperRegistry, indexScopedSettings, ScriptCompiler.NONE),
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,
-                    indicesService
+                    indicesService,
+                    threadPool
                 );
                 actions.put(
                     PutMappingAction.INSTANCE,

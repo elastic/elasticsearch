@@ -32,11 +32,6 @@ public class AllocationActionListener<T> {
         return ActionListener.noop();
     }
 
-    // TODO replace with 2 arg call
-    public AllocationActionListener(ActionListener<T> delegate) {
-        this.delegate = delegate;
-    }
-
     public AllocationActionListener(ActionListener<T> delegate, ThreadContext context) {
         this.delegate = wrapPreservingContext(delegate, context);
     }

@@ -13,6 +13,11 @@ import org.elasticsearch.cli.Command;
 import java.io.IOException;
 
 public class WindowsServiceManagerCommandTests extends WindowsServiceCliTestCase {
+
+    public WindowsServiceManagerCommandTests(boolean spaceInPath) {
+        super(spaceInPath);
+    }
+
     @Override
     protected Command newCommand() {
         return new WindowsServiceManagerCommand() {
@@ -25,7 +30,7 @@ public class WindowsServiceManagerCommandTests extends WindowsServiceCliTestCase
 
     @Override
     protected String getExe() {
-        return mgrExe.toString();
+        return quote(mgrExe.toString());
     }
 
     @Override

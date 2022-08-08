@@ -92,8 +92,7 @@ public class AllocationActionListenerTests extends ESTestCase {
         });
 
         queue.runAllTasks();
-
-        assertBusy(() -> assertThat(completed.get(), equalTo("root")));
+        assertThat(completed.get(), equalTo("root"));
     }
 
     private ThreadContext createEmptyThreadContext() {

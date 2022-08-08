@@ -30,7 +30,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -113,7 +112,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (out.getVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
             out.writeBoolean(quiet);
         }
-        writeSettingsToStream(indexSettings, out);
+        indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
     }

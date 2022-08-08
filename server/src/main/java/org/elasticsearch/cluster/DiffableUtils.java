@@ -153,7 +153,7 @@ public final class DiffableUtils {
                 inserts++;
             } else if (entry.getValue().equals(previousValue) == false) {
                 if (valueSerializer.supportsDiffableValues()) {
-                    diffs.add(Map.entry(entry.getKey(), valueSerializer.diff(entry.getValue(), previousValue)));
+                    diffs.add(mapEntry(entry.getKey(), valueSerializer.diff(entry.getValue(), previousValue)));
                 } else {
                     upserts.add(entry);
                 }
@@ -307,14 +307,14 @@ public final class DiffableUtils {
             for (int i = 0; i < diffsCount; i++) {
                 K key = keySerializer.readKey(in);
                 Diff<T> diff = valueSerializer.readDiff(in, key);
-                diffs.add(Map.entry(key, diff));
+                diffs.add(mapEntry(key, diff));
             }
             int upsertsCount = in.readVInt();
             upserts = upsertsCount == 0 ? List.of() : new ArrayList<>(upsertsCount);
             for (int i = 0; i < upsertsCount; i++) {
                 K key = keySerializer.readKey(in);
                 T newValue = valueSerializer.read(in, key);
-                upserts.add(Map.entry(key, newValue));
+                upserts.add(mapEntry(key, newValue));
             }
             this.builderCtor = builderCtor;
         }
@@ -400,6 +400,25 @@ public final class DiffableUtils {
                 }
             }
         }
+    }
+
+    private static <K, T> Map.Entry<K, T> mapEntry(K key, T newValue) {
+        return new Map.Entry<>() {
+            @Override
+            public K getKey() {
+                return key;
+            }
+
+            @Override
+            public T getValue() {
+                return newValue;
+            }
+
+            @Override
+            public T setValue(T value) {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     /**

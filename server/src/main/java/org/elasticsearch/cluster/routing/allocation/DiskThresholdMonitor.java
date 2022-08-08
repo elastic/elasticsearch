@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,6 +69,9 @@ public class DiskThresholdMonitor {
     private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
+    // Keeps track of whether the cleanup of existing index blocks (upon disabling
+    // the Disk Threshold Monitor) was successfully done or not.
+    private final AtomicBoolean cleanupUponDisableCalled = new AtomicBoolean();
 
     /**
      * The IDs of the nodes that were over the low threshold in the last check (and maybe over another threshold too). Tracked so that we
@@ -124,6 +126,14 @@ public class DiskThresholdMonitor {
         if (checkInProgress.compareAndSet(false, true) == false) {
             logger.info("skipping monitor as a check is already in progress");
             return;
+        }
+
+        if (diskThresholdSettings.isEnabled() == false) {
+            removeExistingIndexBlocks();
+            return;
+        } else {
+            // reset this for the next disable call.
+            cleanupUponDisableCalled.set(false);
         }
 
         final Map<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
@@ -373,9 +383,12 @@ public class DiskThresholdMonitor {
             .collect(Collectors.toSet());
 
         // Generate a set of all the indices that exist on either the target or source of a node replacement
-        final Set<String> indicesOnReplaceSourceOrTarget = nodesIdsPartOfReplacement.stream()
-            .flatMap(nodeId -> state.getRoutingNodes().node(nodeId).copyShards().stream().map(ShardRouting::index).map(Index::getName))
-            .collect(Collectors.toSet());
+        final Set<String> indicesOnReplaceSourceOrTarget = new HashSet<>();
+        for (String nodeId : nodesIdsPartOfReplacement) {
+            for (ShardRouting shardRouting : state.getRoutingNodes().node(nodeId)) {
+                indicesOnReplaceSourceOrTarget.add(shardRouting.index().getName());
+            }
+        }
 
         final Set<String> indicesToAutoRelease = state.routingTable()
             .indicesRouting()
@@ -456,6 +469,38 @@ public class DiskThresholdMonitor {
             .setSettings(readOnlySettings)
             .origin("disk-threshold-monitor")
             .execute(wrappedListener.map(r -> null));
+    }
+
+    private void removeExistingIndexBlocks() {
+        if (cleanupUponDisableCalled.get()) {
+            checkFinished();
+            return;
+        }
+        ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
+            cleanupUponDisableCalled.set(true);
+            checkFinished();
+        }, e -> {
+            logger.debug("removing read-only blocks from indices failed", e);
+            checkFinished();
+        });
+        final ClusterState state = clusterStateSupplier.get();
+        final Set<String> indicesToRelease = state.getBlocks()
+            .indices()
+            .keySet()
+            .stream()
+            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .collect(Collectors.toUnmodifiableSet());
+        logger.trace("removing read-only block from indices [{}]", indicesToRelease);
+        if (indicesToRelease.isEmpty() == false) {
+            client.admin()
+                .indices()
+                .prepareUpdateSettings(indicesToRelease.toArray(Strings.EMPTY_ARRAY))
+                .setSettings(NOT_READ_ONLY_ALLOW_DELETE_SETTINGS)
+                .origin("disk-threshold-monitor")
+                .execute(wrappedListener.map(r -> null));
+        } else {
+            wrappedListener.onResponse(null);
+        }
     }
 
     private static void cleanUpRemovedNodes(Set<String> nodesToKeep, Set<String> nodesToCleanUp) {

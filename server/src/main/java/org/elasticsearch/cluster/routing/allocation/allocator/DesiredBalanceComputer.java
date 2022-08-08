@@ -44,7 +44,6 @@ public class DesiredBalanceComputer {
     public DesiredBalance compute(
         DesiredBalance previousDesiredBalance,
         DesiredBalanceInput desiredBalanceInput,
-        List<PendingAllocationCommand> pendingAllocationCommands,
         Predicate<DesiredBalanceInput> isFresh
     ) {
 
@@ -168,9 +167,7 @@ public class DesiredBalanceComputer {
             }
         }
 
-        for (var pendingAllocationCommand : pendingAllocationCommands) {
-            pendingAllocationCommand.execute(routingAllocation);
-        }
+        PendingAllocationCommandsService.INSTANCE.applyPendingCommandsOnBalanceComputation(routingAllocation);
 
         // TODO must also bypass ResizeAllocationDecider
         // TODO must also bypass RestoreInProgressAllocationDecider

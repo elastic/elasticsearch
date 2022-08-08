@@ -27,7 +27,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -65,7 +64,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
-    private final List<PendingAllocationCommand> pendingAllocationCommands = new ArrayList<>();
 
     public static DesiredBalanceShardsAllocator create(
         ShardsAllocator delegateAllocator,
@@ -92,20 +90,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                 logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
 
-                var localPendingAllocationCommands = new ArrayList<PendingAllocationCommand>();
-                synchronized (pendingAllocationCommands) {
-                    localPendingAllocationCommands.addAll(pendingAllocationCommands);
-                    pendingAllocationCommands.clear();
-                }
-
-                setCurrentDesiredBalance(
-                    desiredBalanceComputer.compute(
-                        currentDesiredBalance,
-                        desiredBalanceInput,
-                        localPendingAllocationCommands,
-                        this::isFresh
-                    )
-                );
+                setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, this::isFresh));
                 var isFresh = isFresh(desiredBalanceInput);
 
                 if (isFresh) {
@@ -136,9 +121,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         boolean retryFailed,
         ActionListener<RoutingExplanations> listener
     ) {
-        synchronized (pendingAllocationCommands) {
-            pendingAllocationCommands.add(new PendingAllocationCommand(commands, explain, retryFailed, listener));
-        }
+        PendingAllocationCommandsService.INSTANCE.addCommands(commands, explain, retryFailed, listener);
     }
 
     @Override
@@ -190,6 +173,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         } else {
             reset();
             queue.completeAllAsNotMaster();
+            PendingAllocationCommandsService.INSTANCE.onNoLongerMaster();
         }
     }
 

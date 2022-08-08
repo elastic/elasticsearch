@@ -17,7 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.enterprisesearch.search.XSearchQueryBuilder;
+import org.elasticsearch.xpack.enterprisesearch.search.EntSearchQueryBuilder;
 
 public class TransportEntSearchAction extends HandledTransportAction<EntSearchRequest, EntSearchResponse> {
 
@@ -30,7 +30,7 @@ public class TransportEntSearchAction extends HandledTransportAction<EntSearchRe
     }
 
     private static void performQuery(EntSearchRequest request, NodeClient client, EntSearchResponse entSearchResponse, ActionListener<EntSearchResponse> listener) {
-        final QueryBuilder queryBuilder = XSearchQueryBuilder.getQueryBuilder(request);
+        final QueryBuilder queryBuilder = EntSearchQueryBuilder.getQueryBuilder(request);
 
         SearchRequest searchRequest = client.prepareSearch(request.getIndex())
             .setQuery(queryBuilder)

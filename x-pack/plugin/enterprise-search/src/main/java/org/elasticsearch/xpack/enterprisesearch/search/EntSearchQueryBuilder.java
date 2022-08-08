@@ -16,28 +16,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.enterprisesearch.action.EntSearchRequest;
 
 // It would be interesting if this implemented AbstractQueryBuilder here
-public final class XSearchQueryBuilder {
+public final class EntSearchQueryBuilder {
 
-    private XSearchQueryBuilder() {
+    private static final Logger logger = LogManager.getLogger(EntSearchQueryBuilder.class);
+
+    private EntSearchQueryBuilder() {
         throw new AssertionError("Class not meant for instantiation");
-    }
-
-    private static final Logger logger = LogManager.getLogger(XSearchQueryBuilder.class);
-
-    public static QueryBuilder getQueryBuilder(XSearchQueryOptions queryOptions) {
-        MultiMatchQueryBuilder multiMatchQueryBuilder = QueryBuilders.multiMatchQuery(queryOptions.getQuery());
-        for (String searchField : queryOptions.getSearchFields()) {
-            multiMatchQueryBuilder.field(searchField, queryOptions.getBoostForField(searchField));
-        }
-        multiMatchQueryBuilder
-            .minimumShouldMatch(queryOptions.getMinimumShouldMatch())
-            .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS);
-
-        final BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery().should(multiMatchQueryBuilder);
-
-        logger.info(queryBuilder.toString());
-
-        return queryBuilder;
     }
 
     public static QueryBuilder getQueryBuilder(EntSearchRequest entSearchRequest) {

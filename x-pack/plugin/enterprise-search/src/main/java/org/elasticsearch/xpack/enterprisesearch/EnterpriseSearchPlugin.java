@@ -23,9 +23,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.enterprisesearch.action.EntSearchAction;
 import org.elasticsearch.xpack.enterprisesearch.action.RestEntSearchAction;
 import org.elasticsearch.xpack.enterprisesearch.action.TransportEntSearchAction;
-import org.elasticsearch.xpack.enterprisesearch.action.XSearchAction;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -42,8 +40,7 @@ public class EnterpriseSearchPlugin extends Plugin implements ActionPlugin {
                                              final IndexNameExpressionResolver indexNameExpressionResolver,
                                              final Supplier<DiscoveryNodes> nodesInCluster) {
 
-        return Arrays.asList(
-            new XSearchAction(),
+        return singletonList(
             new RestEntSearchAction()
         );
     }

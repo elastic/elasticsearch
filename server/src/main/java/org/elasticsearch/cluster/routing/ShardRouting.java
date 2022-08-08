@@ -671,7 +671,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     /** returns true if the current routing is identical to the other routing in all but meta fields, i.e., unassigned info */
     public boolean equalsIgnoringMetadata(ShardRouting other) {
         return primary == other.primary
-            && Objects.equals(shardId, other.shardId)
+            && shardId.equals(other.shardId)
             && Objects.equals(currentNodeId, other.currentNodeId)
             && Objects.equals(relocatingNodeId, other.relocatingNodeId)
             && Objects.equals(allocationId, other.allocationId)

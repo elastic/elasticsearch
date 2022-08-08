@@ -8,9 +8,9 @@
 
 package org.elasticsearch.health.node.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,8 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -36,7 +34,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -119,7 +116,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    public static class Request extends HealthNodeRequest<Request> {
+    public static class Request extends ActionRequest {
 
         Request() {}
 
@@ -228,6 +225,23 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         }
     }
 
+    class HealthOperationWithExceptionAction extends Action {
+
+        HealthOperationWithExceptionAction(
+            String actionName,
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool
+        ) {
+            super(actionName, transportService, clusterService, threadPool);
+        }
+
+        @Override
+        protected void healthOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+            throw new RuntimeException("Simulated");
+        }
+    }
+
     public void testLocalHealthNode() throws ExecutionException, InterruptedException {
         final boolean healthOperationFailure = randomBoolean();
 
@@ -264,7 +278,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
     }
 
     public void testHealthNodeNotAvailable() throws InterruptedException {
-        Request request = new Request().healthNodeTimeout(TimeValue.timeValueSeconds(0));
+        Request request = new Request();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
@@ -275,17 +289,6 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         } catch (ExecutionException ex) {
             assertThat(ex.getCause(), instanceOf(HealthNodeNotDiscoveredException.class));
         }
-    }
-
-    public void testHealthNodeBecomesAvailable() throws ExecutionException, InterruptedException {
-        Request request = new Request();
-        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
-        assertFalse(listener.isDone());
-        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
-        assertTrue(listener.isDone());
-        listener.get();
     }
 
     public void testDelegateToHealthNode() throws ExecutionException, InterruptedException {
@@ -307,92 +310,23 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         assertThat(listener.get(), equalTo(response));
     }
 
-    public void testDelegateToFailingHealthNode() throws ExecutionException, InterruptedException {
-        boolean failsWithConnectTransportException = randomBoolean();
-        boolean selectSameHealthNode = failsWithConnectTransportException && randomBoolean();
-        Request request = new Request().healthNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
-        ClusterState clusterState = ClusterStateCreationUtils.state(localNode, localNode, remoteNode, allNodes);
-        setState(clusterService, clusterState);
-
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
-
-        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        assertThat(capturedRequests.length, equalTo(1));
-        CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
-        assertThat(capturedRequest.node(), equalTo(remoteNode));
-        assertThat(capturedRequest.request(), equalTo(request));
-        assertThat(capturedRequest.action(), equalTo("internal:testAction"));
-
-        if (selectSameHealthNode) {
-            transport.handleRemoteError(
-                capturedRequest.requestId(),
-                randomBoolean() ? new ConnectTransportException(remoteNode, "Fake error") : new NodeClosedException(remoteNode)
-            );
-            assertFalse(listener.isDone());
-            // simulate health node deselection
-            setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
-
-            // reassign the health node task to the same health node and bump the version of the cluster state
-            setState(clusterService, ClusterState.builder(clusterState).version(clusterState.getVersion() + 1));
-            assertFalse(listener.isDone());
-            capturedRequests = transport.getCapturedRequestsAndClear();
-            assertThat(capturedRequests.length, equalTo(1));
-            capturedRequest = capturedRequests[0];
-            assertThat(capturedRequest.node(), equalTo(remoteNode));
-            assertThat(capturedRequest.request(), equalTo(request));
-            assertThat(capturedRequest.action(), equalTo("internal:testAction"));
-        } else if (failsWithConnectTransportException) {
-            transport.handleRemoteError(capturedRequest.requestId(), new ConnectTransportException(remoteNode, "Fake error"));
-            assertFalse(listener.isDone());
-            setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
-            assertTrue(listener.isDone());
-            listener.get();
-        } else {
-            ElasticsearchException t = new ElasticsearchException("test");
-            t.addHeader("header", "is here");
-            transport.handleRemoteError(capturedRequest.requestId(), t);
-            assertTrue(listener.isDone());
-            try {
-                listener.get();
-                fail("Expected exception but returned proper result");
-            } catch (ExecutionException ex) {
-                final Throwable cause = ex.getCause().getCause();
-                assertThat(cause, instanceOf(ElasticsearchException.class));
-                final ElasticsearchException es = (ElasticsearchException) cause;
-                assertThat(es.getMessage(), equalTo(t.getMessage()));
-                assertThat(es.getHeader("header"), equalTo(t.getHeader("header")));
-            }
-        }
-    }
-
-    public void testHealthNodeFailoverAfterDeselection() throws ExecutionException, InterruptedException {
-        Request request = new Request().healthNodeTimeout(TimeValue.timeValueHours(1));
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
-
-        final Response response = new Response();
-
+    public void testHealthNodeOperationWithException() throws InterruptedException {
+        Request request = new Request();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
-
-        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool) {
-            @Override
-            protected void healthOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-                // The other node has become the health node, simulate failures of this node while publishing cluster state through
-                // ZenDiscovery
-                listener.onFailure(new NotHealthNodeException("Simulate failure"));
-                setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, remoteNode, allNodes));
-            }
-        }, null, request, listener);
-
-        assertThat(transport.capturedRequests().length, equalTo(1));
-        CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertThat(capturedRequest.node(), equalTo(remoteNode));
-        assertThat(capturedRequest.request(), equalTo(request));
-        assertThat(capturedRequest.action(), equalTo("internal:testAction"));
-
-        transport.handleResponse(capturedRequest.requestId(), response);
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ActionTestUtils.execute(
+            new HealthOperationWithExceptionAction("internal:testAction", transportService, clusterService, threadPool),
+            null,
+            request,
+            listener
+        );
         assertTrue(listener.isDone());
-        assertThat(listener.get(), equalTo(response));
+        try {
+            listener.get();
+            fail("A simulated RuntimeException should be thrown");
+        } catch (ExecutionException ex) {
+            assertThat(ex.getCause().getMessage(), equalTo("Simulated"));
+        }
     }
 
     public void testTaskCancellation() {
@@ -420,37 +354,5 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         countDownLatch.countDown();
 
         expectThrows(TaskCancelledException.class, listener::actionGet);
-    }
-
-    public void testNewHealthNodePredicate() {
-        {
-            // No change in cluster state
-            ClusterState initialState = ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes);
-            assertThat(TransportHealthNodeAction.createNewHealthNodePredicate(initialState).test(initialState), equalTo(false));
-        }
-        {
-            // No health node selected
-            ClusterState initialState = ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes);
-            ClusterState newState = ClusterStateCreationUtils.state(localNode, localNode, allNodes);
-            assertThat(TransportHealthNodeAction.createNewHealthNodePredicate(initialState).test(newState), equalTo(false));
-        }
-        {
-            // Same health node reselected
-            ClusterState initialState = ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes);
-            ClusterState newState = ClusterState.builder(initialState).version(initialState.getVersion() + 1).build();
-            assertThat(TransportHealthNodeAction.createNewHealthNodePredicate(initialState).test(newState), equalTo(true));
-        }
-        {
-            // New health node selected
-            ClusterState initialState = ClusterStateCreationUtils.state(localNode, localNode, allNodes);
-            ClusterState newState = ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes);
-            assertThat(TransportHealthNodeAction.createNewHealthNodePredicate(initialState).test(newState), equalTo(true));
-        }
-        {
-            // Health node changed
-            ClusterState initialState = ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes);
-            ClusterState newState = ClusterStateCreationUtils.state(localNode, localNode, remoteNode, allNodes);
-            assertThat(TransportHealthNodeAction.createNewHealthNodePredicate(initialState).test(newState), equalTo(true));
-        }
     }
 }

@@ -1671,8 +1671,7 @@ public class ApiKeyService {
             (String) versionedApiKeyDoc.doc.creator.get("principal"),
             (String) versionedApiKeyDoc.doc.creator.get("realm"),
             metadata,
-            roleDescriptors,
-            null
+            roleDescriptors
         );
     }
 

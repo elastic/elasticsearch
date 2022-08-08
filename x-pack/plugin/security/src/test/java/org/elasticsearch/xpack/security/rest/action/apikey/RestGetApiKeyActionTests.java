@@ -90,21 +90,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         final List<RoleDescriptor> roleDescriptors = randomUniquelyNamedRoleDescriptor(0, 3);
-        final List<RoleDescriptor> limitedByRoleDescriptors = randomUniquelyNamedRoleDescriptor(0, 3);
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
             Collections.singletonList(
-                new ApiKey(
-                    "api-key-name-1",
-                    "api-key-id-1",
-                    creation,
-                    expiration,
-                    false,
-                    "user-x",
-                    "realm-1",
-                    metadata,
-                    roleDescriptors,
-                    limitedByRoleDescriptors
-                )
+                new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata, roleDescriptors)
             )
         );
 
@@ -164,8 +152,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                             "user-x",
                             "realm-1",
                             metadata,
-                            roleDescriptors,
-                            limitedByRoleDescriptors
+                            roleDescriptors
                         )
                     )
                 );
@@ -204,7 +191,6 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "user-x",
             "realm-1",
             ApiKeyTests.randomMetadata(),
-            randomUniquelyNamedRoleDescriptor(0, 3),
             randomUniquelyNamedRoleDescriptor(0, 3)
         );
         final ApiKey apiKey2 = new ApiKey(
@@ -216,7 +202,6 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "user-y",
             "realm-1",
             ApiKeyTests.randomMetadata(),
-            randomUniquelyNamedRoleDescriptor(0, 3),
             randomUniquelyNamedRoleDescriptor(0, 3)
         );
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));

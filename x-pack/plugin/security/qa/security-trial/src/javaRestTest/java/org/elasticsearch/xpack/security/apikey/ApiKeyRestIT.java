@@ -81,6 +81,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
     }
 
+    @SuppressWarnings("unchecked")
     public void testGetApiKeyRoleDescriptors() throws IOException {
         // First key without assigned role descriptors
         final Request createApiKeyRequest1 = new Request("POST", "_security/api_key");
@@ -132,11 +133,19 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""");
         assertOK(adminClient().performRequest(createApiKeyRequest3));
 
-        final Request getApiKeyRequest = new Request("GET", "_security/api_key");
-        final Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
-        assertOK(getApiKeyResponse);
-        @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> apiKeyMaps = (List<Map<String, Object>>) responseAsMap(getApiKeyResponse).get("api_keys");
+        // Role descriptors are returned by both get and query api key calls
+        final List<Map<String, Object>> apiKeyMaps;
+        if (randomBoolean()) {
+            final Request getApiKeyRequest = new Request("GET", "_security/api_key");
+            final Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
+            assertOK(getApiKeyResponse);
+            apiKeyMaps = (List<Map<String, Object>>) responseAsMap(getApiKeyResponse).get("api_keys");
+        } else {
+            final Request queryApiKeyRequest = new Request("POST", "_security/_query/api_key");
+            final Response queryApiKeyResponse = adminClient().performRequest(queryApiKeyRequest);
+            assertOK(queryApiKeyResponse);
+            apiKeyMaps = (List<Map<String, Object>>) responseAsMap(queryApiKeyResponse).get("api_keys");
+        }
         assertThat(apiKeyMaps.size(), equalTo(3));
 
         for (Map<String, Object> apiKeyMap : apiKeyMaps) {

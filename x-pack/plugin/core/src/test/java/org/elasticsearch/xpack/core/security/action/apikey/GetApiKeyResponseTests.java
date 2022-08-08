@@ -45,7 +45,6 @@ public class GetApiKeyResponseTests extends ESTestCase {
             randomAlphaOfLength(4),
             randomAlphaOfLength(5),
             randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
-            randomBoolean() ? null : randomUniquelyNamedRoleDescriptor(0, 3),
             randomBoolean() ? null : randomUniquelyNamedRoleDescriptor(0, 3)
         );
         GetApiKeyResponse response = new GetApiKeyResponse(Collections.singletonList(apiKeyInfo));
@@ -94,7 +93,6 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "user-a",
             "realm-x",
             null,
-            null,
             null
         );
         ApiKey apiKeyInfo2 = createApiKeyInfo(
@@ -106,8 +104,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "user-b",
             "realm-y",
             Map.of(),
-            List.of(),
-            roleDescriptors
+            List.of()
         );
         ApiKey apiKeyInfo3 = createApiKeyInfo(
             null,
@@ -118,8 +115,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "user-c",
             "realm-z",
             Map.of("foo", "bar"),
-            roleDescriptors,
-            null
+            roleDescriptors
         );
         GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3));
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -146,35 +142,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "username": "user-b",
                   "realm": "realm-y",
                   "metadata": {},
-                  "role_descriptors": {},
-                  "limited_by": [
-                    {
-                      "rd_42": {
-                        "cluster": [
-                          "monitor"
-                        ],
-                        "indices": [
-                          {
-                            "names": [
-                              "index"
-                            ],
-                            "privileges": [
-                              "read"
-                            ],
-                            "allow_restricted_indices": false
-                          }
-                        ],
-                        "applications": [],
-                        "run_as": [
-                          "foo"
-                        ],
-                        "metadata": {},
-                        "transient_metadata": {
-                          "enabled": true
-                        }
-                      }
-                    }
-                  ]
+                  "role_descriptors": {}
                 },
                 {
                   "id": "id-3",
@@ -226,20 +194,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
         String username,
         String realm,
         Map<String, Object> metadata,
-        List<RoleDescriptor> roleDescriptors,
-        List<RoleDescriptor> limitedByRoleDescriptors
+        List<RoleDescriptor> roleDescriptors
     ) {
-        return new ApiKey(
-            name,
-            id,
-            creation,
-            expiration,
-            invalidated,
-            username,
-            realm,
-            metadata,
-            roleDescriptors,
-            limitedByRoleDescriptors
-        );
+        return new ApiKey(name, id, creation, expiration, invalidated, username, realm, metadata, roleDescriptors);
     }
 }

@@ -74,8 +74,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
         final Instant expiration = randomBoolean() ? Instant.ofEpochMilli(randomMillisUpToYear9999()) : null;
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         final List<RoleDescriptor> roleDescriptors = randomFrom(randomUniquelyNamedRoleDescriptor(0, 3), null);
-        final List<RoleDescriptor> limitedByRoleDescriptors = randomFrom(randomUniquelyNamedRoleDescriptor(0, 3), null);
-        return new ApiKey(name, id, creation, expiration, false, username, realm_name, metadata, roleDescriptors, limitedByRoleDescriptors);
+        return new ApiKey(name, id, creation, expiration, false, username, realm_name, metadata, roleDescriptors);
     }
 
     private Object[] randomSortValues() {

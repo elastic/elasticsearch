@@ -2296,6 +2296,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         LIMITED_BY_ROLE_DESCRIPTORS
     }
 
+    // Check attributes with both the raw document and the get api key response whenever possible
     @SuppressWarnings("unchecked")
     private void expectAttributesForApiKey(String apiKeyId, Map<ApiKeyAttribute, Object> attributes) throws IOException {
         final Map<String, Object> apiKeyDocMap = getApiKeyDocument(apiKeyId);
@@ -2305,7 +2306,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
         final ApiKey apiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
 
-        // Verify with both the raw document and the get api key response
         for (Map.Entry<ApiKeyAttribute, Object> entry : attributes.entrySet()) {
             switch (entry.getKey()) {
                 case CREATOR -> {

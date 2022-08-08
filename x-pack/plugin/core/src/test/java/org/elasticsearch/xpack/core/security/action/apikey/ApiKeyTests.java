@@ -44,20 +44,8 @@ public class ApiKeyTests extends ESTestCase {
         final String realmName = randomAlphaOfLengthBetween(3, 8);
         final Map<String, Object> metadata = randomMetadata();
         final List<RoleDescriptor> roleDescriptors = randomBoolean() ? null : randomUniquelyNamedRoleDescriptor(0, 3);
-        final List<RoleDescriptor> limitedByRoleDescriptors = randomBoolean() ? null : randomUniquelyNamedRoleDescriptor(0, 3);
 
-        final ApiKey apiKey = new ApiKey(
-            name,
-            id,
-            creation,
-            expiration,
-            invalidated,
-            username,
-            realmName,
-            metadata,
-            roleDescriptors,
-            limitedByRoleDescriptors
-        );
+        final ApiKey apiKey = new ApiKey(name, id, creation, expiration, invalidated, username, realmName, metadata, roleDescriptors);
         // The metadata will never be null because the constructor convert it to empty map if a null is passed in
         assertThat(apiKey.getMetadata(), notNullValue());
 
@@ -84,19 +72,6 @@ public class ApiKeyTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final Map<String, Object> rdMap = (Map<String, Object>) map.get("role_descriptors");
             for (var roleDescriptor : roleDescriptors) {
-                assertThat(rdMap, hasKey(roleDescriptor.getName()));
-                assertThat(XContentTestUtils.convertToMap(roleDescriptor), equalTo(rdMap.get(roleDescriptor.getName())));
-            }
-        }
-
-        if (limitedByRoleDescriptors == null) {
-            assertThat(map, not(hasKey("limited_by")));
-        } else {
-            @SuppressWarnings("unchecked")
-            final List<Map<String, Object>> rdList = (List<Map<String, Object>>) map.get("limited_by");
-            assertThat(rdList.size(), equalTo(1));
-            final Map<String, Object> rdMap = rdList.get(0);
-            for (var roleDescriptor : limitedByRoleDescriptors) {
                 assertThat(rdMap, hasKey(roleDescriptor.getName()));
                 assertThat(XContentTestUtils.convertToMap(roleDescriptor), equalTo(rdMap.get(roleDescriptor.getName())));
             }

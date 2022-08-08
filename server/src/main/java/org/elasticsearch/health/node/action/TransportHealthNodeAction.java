@@ -100,11 +100,12 @@ public abstract class TransportHealthNodeAction<Request extends ActionRequest, R
                     listener.onFailure(new HealthNodeNotDiscoveredException("Health node was null"));
                 } else if (localNode.getId().equals(healthNode.getId())) {
                     threadPool.executor(executor).execute(() -> {
-                        if ((task instanceof CancellableTask t) && t.isCancelled()) {
-                            listener.onFailure(new TaskCancelledException("Task was cancelled"));
-                        }
                         try {
-                            healthOperation(task, request, clusterState, listener);
+                            if (isTaskCancelled()) {
+                                listener.onFailure(new TaskCancelledException("Task was cancelled"));
+                            } else {
+                                healthOperation(task, request, clusterState, listener);
+                            }
                         } catch (Exception e) {
                             listener.onFailure(e);
                         }

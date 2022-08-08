@@ -9,11 +9,14 @@
 package org.elasticsearch.plugins.scanners;
 
 
+import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugins.PluginBundle;
+import org.objectweb.asm.AnnotationVisitor;
+import org.objectweb.asm.Opcodes;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
@@ -22,13 +25,11 @@ public class StablePluginsRegistry {
 
     private Map<String /*Extensible */, NamedPlugins> namedComponents = new HashMap<>();
 
-    private final ExtensibleScanner extensibleScanner = new ExtensibleScanner();
-    private final NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
-
     public Map<String /*Extensible */, NamedPlugins> scanBundleForStablePlugins(PluginBundle bundle, ClassLoader pluginClassLoader) {
-        Map<String,String> extensibleInterfaces = extensibleScanner.getExtensibles();// todo do this in build time, read from file, possibly static?
 
-        return namedComponentScanner.findNamedComponents(bundle, pluginClassLoader, extensibleInterfaces);
+        NamedComponentScanner namedComponentsScanner = new NamedComponentScanner();
+
+        return namedComponentsScanner.findNamedComponents2(bundle, pluginClassLoader);
     }
 
 

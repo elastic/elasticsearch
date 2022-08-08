@@ -468,7 +468,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             privilegedSetContextClassLoader(pluginClassLoader);
             stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
             Map<String, NamedPlugins> namedComponents = stablePluginsRegistry.getNamedComponents();
-            System.out.println(namedComponents);
+            System.out.println(bundle.pluginDescriptor().getName() + " " +namedComponents);
 
             if(bundle.pluginDescriptor().isStable() == false) {
                 Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);

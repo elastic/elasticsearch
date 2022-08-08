@@ -9,12 +9,20 @@
 package org.elasticsearch.plugins.scanners;
 
 import java.util.AbstractMap;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class NamedPlugins extends AbstractMap<String, NamedPluginInfo> {
 
+     Map<String, NamedPluginInfo> namedPluginInfoMap = new HashMap<>();
     @Override
     public Set<Entry<String, NamedPluginInfo>> entrySet() {
-        return null;
+        return namedPluginInfoMap.entrySet();
+    }
+
+    @Override
+    public NamedPluginInfo put(String key, NamedPluginInfo value) {
+        return namedPluginInfoMap.put(key, value);
     }
 }

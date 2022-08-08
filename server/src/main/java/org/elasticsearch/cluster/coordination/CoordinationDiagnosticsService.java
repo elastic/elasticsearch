@@ -925,6 +925,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     void beginPollingRemoteMasterStabilityDiagnostic() {
+        /*
+         * Note: in order to remain threadsafe, this method should only be called from the cluster update thread or from this class's
+         * constructor (before it is registered as a cluster state listener).
+         */
         AtomicReference<Scheduler.Cancellable> cancellableReference = new AtomicReference<>();
         AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
         remoteCoordinationDiagnosisTask = cancellableReference;

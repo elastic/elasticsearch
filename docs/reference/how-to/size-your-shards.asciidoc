@@ -76,8 +76,8 @@ Moreover every segment requires a small amount of heap memory for each mapped
 field. This per-segment-per-field heap overhead includes a copy of the field
 name, encoded using ISO-8859-1 if applicable or UTF-16 otherwise. Usually this
 is not noticeable, but you may need to account for this overhead if your shards
-have high segment counts and the corresponding mappings contain very long field
-names or high field counts.
+have high segment counts and the corresponding mappings contain high field
+counts and/or very long field names.
 
 [discrete]
 [[shard-auto-balance]]

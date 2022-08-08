@@ -805,6 +805,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)
         );
         assertEquals("true", indexSettingsResp.getSetting(rollupIndex, "index.blocks.write"));
+
+        boolean isSourceHidden = indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_HIDDEN) == "true";
+        assertEquals(
+            String.valueOf(isSourceHidden),
+            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_INDEX_HIDDEN)
+        );
     }
 
     private AggregationBuilder buildAggregations(

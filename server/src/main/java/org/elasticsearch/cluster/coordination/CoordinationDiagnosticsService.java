@@ -1081,16 +1081,22 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 logger.trace("Opened connection to {}, making transport request", masterEligibleNode);
                 // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                 final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
-                transportService.sendRequest(
-                    masterEligibleNode,
-                    transportActionType.name(),
-                    transportActionRequest,
-                    TransportRequestOptions.timeout(transportTimeout),
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
-                        transportActionType.getResponseReader()
-                    )
-                );
+                try {
+                    transportService.sendRequest(
+                        masterEligibleNode,
+                        transportActionType.name(),
+                        transportActionRequest,
+                        TransportRequestOptions.timeout(transportTimeout),
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
+                            transportActionType.getResponseReader()
+                        )
+                    );
+                } catch (Exception e) {
+                    responseConsumer.accept(responseTransformationFunction.apply(null, e));
+                } catch (Error e) {
+                    responseConsumer.accept(responseTransformationFunction.apply(null, new RuntimeException(e)));
+                }
             }
         }, e -> {
             logger.warn("Exception connecting to master masterEligibleNode", e);

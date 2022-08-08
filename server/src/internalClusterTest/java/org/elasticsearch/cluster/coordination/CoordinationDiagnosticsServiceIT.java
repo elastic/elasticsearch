@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -57,7 +58,10 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
     @Before
     private void setBootstrapMasterNodeIndex() {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        // Putting this back to the default:
+    }
+
+    @Before
+    private void restoreDefaultInitialDelay() {
         CoordinationDiagnosticsService.remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
     }
 

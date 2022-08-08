@@ -1,5 +1,5 @@
 pr: 88209
-summary: Parallelize unchanged shard snapshots and limit number of parallel file snapshots
+summary: Prioritize shard snapshot tasks over file snapshot tasks and limit the number of the concurrently running snapshot tasks
 area: Snapshot/Restore
 type: enhancement
 issues:

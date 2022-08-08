@@ -28,6 +28,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.plugins.scanners.NamedPlugins;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
@@ -64,6 +66,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService implements ReportingService<PluginsAndModules> {
+
+
 
     /**
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
@@ -103,6 +107,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
+
 
     private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
 
@@ -461,7 +466,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
-            findStablePlugins(bundle, pluginClassLoader);
+            stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
+            Map<String, NamedPlugins> namedComponents = stablePluginsRegistry.getNamedComponents();
+            System.out.println(namedComponents);
 
             if(bundle.pluginDescriptor().isStable() == false) {
                 Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
@@ -483,14 +490,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         } finally {
             privilegedSetContextClassLoader(cl);
         }
-    }
-
-    private void findStablePlugins(PluginBundle bundle, ClassLoader pluginClassLoader) {
-        AnnotationScanner annotationScanner = new AnnotationScanner(bundle, pluginClassLoader);
-
-
-//        ClassTraversal ct = new ClassTraversal(annotationScanner.getClassNameToAnnotatedName(), interfaceScanner.getClassHierarchy());
-//        analysisInterfaceToNameComponentClassnameMap .putAll(ct.getResult(pluginClassLoader));
     }
 
     static LayerAndLoader createSPI(PluginBundle bundle, ClassLoader parentLoader, List<LoadedPlugin> extendedPlugins) {
@@ -770,7 +769,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return urls.stream().map(PluginsService::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
     }
 
-    static final URI uncheckedToURI(URL url) {
+    public static final URI uncheckedToURI(URL url) {
         try {
             return url.toURI();
         } catch (URISyntaxException e) {

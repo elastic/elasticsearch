@@ -20,7 +20,7 @@ import java.util.Set;
 /**
  * A "bundle" is a group of jars that will be loaded in their own classloader
  */
-class PluginBundle {
+public class PluginBundle {
     public final PluginDescriptor plugin;
     public final Set<URL> urls;
     public final Set<URL> spiUrls;

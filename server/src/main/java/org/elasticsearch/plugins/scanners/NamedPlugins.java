@@ -8,8 +8,13 @@
 
 package org.elasticsearch.plugins.scanners;
 
-public class InterfaceScanner {
-    public InterfaceScanner(ClassLoader pluginClassLoader) {
+import java.util.AbstractMap;
+import java.util.Set;
 
+public class NamedPlugins extends AbstractMap<String, NamedPluginInfo> {
+
+    @Override
+    public Set<Entry<String, NamedPluginInfo>> entrySet() {
+        return null;
     }
 }

@@ -6,17 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.analysis.plugin.api;
+package org.elasticsearch.plugin.api;
 
-import org.apache.lucene.analysis.Tokenizer;
-import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugin.api.Nameable;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+import static java.lang.annotation.ElementType.TYPE;
 
 /**
- * An analysis component used to create tokenizers
+ * Marker for things that can be loaded by component loader.
  */
-@Extensible
-public interface TokenizerFactory extends Nameable {
-
-    Tokenizer create();
+@Retention(RetentionPolicy.RUNTIME)
+@Target(value={TYPE})
+public @interface Extensible {
 }

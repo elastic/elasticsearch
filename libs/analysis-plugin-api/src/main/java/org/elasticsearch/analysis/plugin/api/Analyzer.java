@@ -8,11 +8,13 @@
 
 package org.elasticsearch.analysis.plugin.api;
 
+import org.elasticsearch.plugin.api.Extensible;
 import org.elasticsearch.plugin.api.Nameable;
 
 /**
  * An analysis component used to create Analyzers
  */
+@Extensible
 public interface Analyzer<T extends org.apache.lucene.analysis.Analyzer> extends Nameable {
     /**
      * Returns a lucene org.apache.lucene.analysis.Analyzer instance

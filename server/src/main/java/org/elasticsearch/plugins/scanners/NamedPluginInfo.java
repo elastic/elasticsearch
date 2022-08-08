@@ -8,5 +8,6 @@
 
 package org.elasticsearch.plugins.scanners;
 
-public class ClassTraversal {
+record NamedPluginInfo(String name, String className, ClassLoader loader) {
+
 }

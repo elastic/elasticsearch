@@ -1,0 +1,60 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.plugins.scanners;
+
+import org.objectweb.asm.AnnotationVisitor;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
+/**
+ * A class visitor that captures the class hierarchy, as well as finds a specific annotation.
+ */
+public class AnnotatedHierarchyVisitor extends ClassVisitor {
+    private String currentName;
+    private final String targetAnnotationDescriptor;
+    // a function taking the current class name the target annotation appeared on, and returning an AnnotationVisitor
+    // that can be used to capture annotation specific args
+    private final Function<String, AnnotationVisitor> visitor;
+    private final Map<String, Set<String>> classToSubclasses = new HashMap<>();
+
+    AnnotatedHierarchyVisitor(Class<?> targetAnnotation, Function<String, AnnotationVisitor> visitor) {
+        super(Opcodes.ASM9);
+        this.targetAnnotationDescriptor = Type.getDescriptor(targetAnnotation);
+        this.visitor = visitor;
+    }
+
+    @Override
+    public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+        currentName = name;
+        classToSubclasses.computeIfAbsent(superName, k -> new HashSet<>()).add(name);
+        for (String iface : interfaces) {
+            classToSubclasses.computeIfAbsent(iface, k -> new HashSet<>()).add(name);
+        }
+    }
+
+    @Override
+    public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+        if (descriptor.equals(targetAnnotationDescriptor)) {
+            return visitor.apply(currentName);
+        }
+        return null;
+    }
+
+    /** Returns a mapping of class name to subclasses of that class */
+    public Map<String, Set<String>> getClassHierarchy() {
+        return classToSubclasses;
+    }
+}

@@ -142,6 +142,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Test index options", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("sql/sql/Paging through results", "scrolling through search hit queries no longer produces empty last page in 8.2")
+  task.skipTest("sql/translate/Translate SQL", "query folding changed in v 8.5, added track_total_hits: -1")
   task.skipTest("service_accounts/10_basic/Test get service accounts", "new service accounts are added")
   task.skipTest("spatial/70_script_doc_values/diagonal length", "precision changed in 8.4.0")
 

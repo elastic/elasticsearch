@@ -130,9 +130,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         this.queue = new PendingListenersQueue(threadPool);
     }
 
-    public void executeCommands(AllocationCommands commands, boolean explain, ActionListener<RoutingExplanations> listener) {
+    public void executeCommands(
+        AllocationCommands commands,
+        boolean explain,
+        boolean retryFailed,
+        ActionListener<RoutingExplanations> listener
+    ) {
         synchronized (pendingAllocationCommands) {
-            pendingAllocationCommands.add(new PendingAllocationCommand(commands, explain, listener));
+            pendingAllocationCommands.add(new PendingAllocationCommand(commands, explain, retryFailed, listener));
         }
     }
 

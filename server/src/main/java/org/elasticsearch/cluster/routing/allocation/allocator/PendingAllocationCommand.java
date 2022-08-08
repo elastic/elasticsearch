@@ -13,13 +13,26 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 
-public record PendingAllocationCommand(AllocationCommands commands, boolean explain, ActionListener<RoutingExplanations> listener) {
+public record PendingAllocationCommand(
+    AllocationCommands commands,
+    boolean explain,
+    boolean retryFailed,
+    ActionListener<RoutingExplanations> listener
+) {
 
     public void execute(RoutingAllocation allocation) {
         try {
+            allocation.debugDecision(true);
+            allocation.ignoreDisable(true);
+            if (retryFailed) {
+                allocation.resetFailedAllocationCounter();
+            }
             listener.onResponse(commands.execute(allocation, explain));
         } catch (RuntimeException e) {
             listener.onFailure(e);
+        } finally {
+            allocation.ignoreDisable(false);
+            allocation.debugDecision(false);
         }
     }
 }

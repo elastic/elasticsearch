@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
@@ -371,6 +372,30 @@ public class RoutingAllocation {
             currentNanoTime,
             true
         );
+    }
+
+    public void resetFailedAllocationCounter() {
+        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes().unassigned().iterator();
+        while (unassignedIterator.hasNext()) {
+            ShardRouting shardRouting = unassignedIterator.next();
+            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+            unassignedIterator.updateUnassigned(
+                new UnassignedInfo(
+                    unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
+                    unassignedInfo.getMessage(),
+                    unassignedInfo.getFailure(),
+                    0,
+                    unassignedInfo.getUnassignedTimeInNanos(),
+                    unassignedInfo.getUnassignedTimeInMillis(),
+                    unassignedInfo.isDelayed(),
+                    unassignedInfo.getLastAllocationStatus(),
+                    Collections.emptySet(),
+                    unassignedInfo.getLastAllocatedNodeId()
+                ),
+                shardRouting.recoverySource(),
+                changes()
+            );
+        }
     }
 
     public enum DebugMode {

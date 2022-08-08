@@ -168,7 +168,6 @@ public class DesiredBalanceComputer {
             }
         }
 
-        // TODO set flags on allocation
         for (var pendingAllocationCommand : pendingAllocationCommands) {
             pendingAllocationCommand.execute(routingAllocation);
         }

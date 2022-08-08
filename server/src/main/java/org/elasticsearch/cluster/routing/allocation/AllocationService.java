@@ -355,33 +355,6 @@ public class AllocationService {
     }
 
     /**
-     * Reset failed allocation counter for unassigned shards
-     */
-    private void resetFailedAllocationCounter(RoutingAllocation allocation) {
-        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-        while (unassignedIterator.hasNext()) {
-            ShardRouting shardRouting = unassignedIterator.next();
-            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            unassignedIterator.updateUnassigned(
-                new UnassignedInfo(
-                    unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
-                    unassignedInfo.getMessage(),
-                    unassignedInfo.getFailure(),
-                    0,
-                    unassignedInfo.getUnassignedTimeInNanos(),
-                    unassignedInfo.getUnassignedTimeInMillis(),
-                    unassignedInfo.isDelayed(),
-                    unassignedInfo.getLastAllocationStatus(),
-                    Collections.emptySet(),
-                    unassignedInfo.getLastAllocatedNodeId()
-                ),
-                shardRouting.recoverySource(),
-                allocation.changes()
-            );
-        }
-    }
-
-    /**
      * Internal helper to cap the number of elements in a potentially long list for logging.
      *
      * @param elements  The elements to log. May be any non-null list. Must not be null.
@@ -414,27 +387,30 @@ public class AllocationService {
         ActionListener<Void> rerouteListener
     ) {
         RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
-        // don't short circuit deciders, we want a full explanation
-        allocation.debugDecision(true);
-        // we ignore disable allocation, because commands are explicit
-        allocation.ignoreDisable(true);
-
-        if (retryFailed) {
-            resetFailedAllocationCounter(allocation);
-        }
 
         if (shardsAllocator instanceof DesiredBalanceShardsAllocator desiredBalanceShardsAllocator) {
-            desiredBalanceShardsAllocator.executeCommands(commands, explain, explanationsListener);
+            desiredBalanceShardsAllocator.executeCommands(commands, explain, retryFailed, explanationsListener);
         } else {
+            // don't short circuit deciders, we want a full explanation
+            allocation.debugDecision(true);
+            // we ignore disable allocation, because commands are explicit
+            allocation.ignoreDisable(true);
+
+            if (retryFailed) {
+                allocation.resetFailedAllocationCounter();
+            }
+
             try {
                 explanationsListener.onResponse(commands.execute(allocation, explain));
             } catch (RuntimeException e) {
                 explanationsListener.onFailure(e);
+                throw e;
             }
+
+            // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
+            allocation.ignoreDisable(false);
         }
 
-        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
-        allocation.ignoreDisable(false);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
         reroute(allocation, rerouteListener);
@@ -453,7 +429,7 @@ public class AllocationService {
         allocation.ignoreDisable(true);
 
         if (retryFailed) {
-            resetFailedAllocationCounter(allocation);
+            allocation.resetFailedAllocationCounter();
         }
 
         RoutingExplanations explanations = commands.execute(allocation, explain);

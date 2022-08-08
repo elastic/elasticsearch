@@ -136,9 +136,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         ranges.add(b -> b.addRange(500, 1000));
         ranges.add(b -> b.addUnboundedFrom(1000));
         // add ranges in any order
-        Collections.shuffle(ranges);
-        GeoDistanceAggregationBuilder builder =
-            geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+        Collections.shuffle(ranges, random());
+        GeoDistanceAggregationBuilder builder = geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
             .unit(DistanceUnit.KILOMETERS);
         for (Consumer<GeoDistanceAggregationBuilder> range : ranges) {
             range.accept(builder);

@@ -936,9 +936,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                             .entry(
                                                 "filters",
                                                 matchesList().item(
-                                                    matchesMap().entry("query", "*:*")
-                                                        .entry("specialized_for", "match_all")
-                                                        .entry("segments_counted_in_constant_time", 0)
+                                                    matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0)
                                                 )
                                             )
                                     )
@@ -1040,7 +1038,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
                 assertThat(agg, matcher);
                 agg.preCollection();
-                context.searcher().search(context.query(), agg);
+                context.searcher().search(context.query(), agg.asCollector());
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
                 result = (InternalDateHistogram) result.reduce(
                     List.of(result),

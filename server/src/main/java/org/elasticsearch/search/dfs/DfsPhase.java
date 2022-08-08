@@ -14,8 +14,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -23,8 +29,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Dfs phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
- * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf)
+ * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
+ * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf).
+ *
+ * When a kNN search is provided alongside the query, the DFS phase is also used to gather the top k candidates from each shard. Then the
+ * global top k hits are passed on to the query phase.
  */
 public class DfsPhase {
 
@@ -75,6 +84,20 @@ public class DfsPhase {
                 .termsStatistics(terms, termStatistics)
                 .fieldStatistics(fieldStatistics)
                 .maxDoc(context.searcher().getIndexReader().maxDoc());
+
+            // If kNN search is requested, perform kNN query and gather top docs
+            SearchSourceBuilder source = context.request().source();
+            if (source != null && source.knnSearch() != null) {
+                SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
+                KnnSearchBuilder knnSearch = source.knnSearch();
+
+                QueryBuilder queryBuilder = knnSearch.toQueryBuilder();
+                ParsedQuery query = searchExecutionContext.toQuery(queryBuilder);
+
+                TopDocs topDocs = searcher.search(query.query(), knnSearch.k());
+                DfsKnnResults knnResults = new DfsKnnResults(topDocs.scoreDocs);
+                context.dfsResult().knnResults(knnResults);
+            }
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }

@@ -191,6 +191,7 @@ The API returns transformed documents:
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
           "my-keyword-field": "foo"
         },
@@ -203,6 +204,7 @@ The API returns transformed documents:
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
           "my-keyword-field": "bar"
         },

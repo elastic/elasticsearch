@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.util.SloppyMath;
+import org.elasticsearch.core.ESSloppyMath;
 import org.elasticsearch.geometry.Rectangle;
 
 /**
@@ -17,8 +19,8 @@ public class SphericalMercatorUtils {
 
     public static final double MERCATOR_BOUNDS = 20037508.34;
     private static final double MERCATOR_FACTOR = MERCATOR_BOUNDS / 180.0;
-    // latitude lower limit. Below this limit the transformation might result in -Infinity
-    private static final double LAT_LOWER_LIMIT = Math.nextUp(-90.0);
+    // tangent lower limit. Below this limit the transformation result is -Infinity
+    private static final double TAN_LOWER_LIMIT = Math.tan(Math.nextUp(0.0));
 
     /**
      * Transforms WGS84 longitude to a Spherical mercator longitude
@@ -31,7 +33,9 @@ public class SphericalMercatorUtils {
      * Transforms WGS84 latitude to a Spherical mercator latitude
      */
     public static double latToSphericalMercator(double lat) {
-        double y = Math.log(Math.tan((90 + Math.max(lat, LAT_LOWER_LIMIT)) * Math.PI / 360)) / (Math.PI / 180);
+        final double cos = SloppyMath.cos((90 + lat) * Math.PI / 360);
+        final double tan = Math.max(TAN_LOWER_LIMIT, Math.sqrt(1 - cos * cos) / cos);
+        final double y = ESSloppyMath.log(tan) / (Math.PI / 180);
         return y * MERCATOR_FACTOR;
     }
 

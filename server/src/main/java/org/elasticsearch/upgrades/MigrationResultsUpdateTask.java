@@ -10,7 +10,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -96,11 +95,11 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
             );
         } else {
             logger.error(
-                new ParameterizedMessage(
-                    "failed to update cluster state after failed migration of feature [{}] on index [{}]",
+                () -> format(
+                    "failed to update cluster state after failed migration of feature [%s] on index [%s]",
                     featureName,
                     status.getFailedIndexName()
-                ).getFormattedMessage(),
+                ),
                 clusterStateUpdateException
             );
         }

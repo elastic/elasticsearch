@@ -30,6 +30,7 @@ final class ElasticServiceAccounts {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
+                        "search-*",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
                         "metricbeat-ent-search-*",
@@ -43,8 +44,7 @@ final class ElasticServiceAccounts {
                         "logs-workplace_search.content_events-default"
                     )
                     .privileges("manage", "read", "write")
-                    .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("search-*").privileges("read", "view_index_metadata").build() },
+                    .build() },
             null,
             null,
             null,

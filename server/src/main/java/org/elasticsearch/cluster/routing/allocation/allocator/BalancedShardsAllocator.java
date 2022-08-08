@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 
@@ -43,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +119,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        assert allocation.ignoreDisable() == false;
+
         if (allocation.routingNodes().size() == 0) {
             failAllocationOfNewPrimaries(allocation);
             return;
@@ -536,7 +538,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             }
                             if (logger.isTraceEnabled()) {
                                 logger.trace(
-                                    "Stop balancing index [{}]  min_node [{}] weight: [{}]" + "  max_node [{}] weight: [{}]  delta: [{}]",
+                                    "Stop balancing index [{}]  min_node [{}] weight: [{}] max_node [{}] weight: [{}] delta: [{}]",
                                     index,
                                     maxNode.getNodeId(),
                                     weights[highIdx],
@@ -549,7 +551,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
                         if (logger.isTraceEnabled()) {
                             logger.trace(
-                                "Balancing from node [{}] weight: [{}] to node [{}] weight: [{}]  delta: [{}]",
+                                "Balancing from node [{}] weight: [{}] to node [{}] weight: [{}] delta: [{}]",
                                 maxNode.getNodeId(),
                                 weights[highIdx],
                                 minNode.getNodeId(),
@@ -1073,18 +1075,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     maxNode.removeShard(shard);
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                    if (decision.type() == Type.YES) {
-                        /* only allocate on the cluster if we are not throttled */
-                        logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                        minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
-                        return true;
-                    } else {
-                        /* allocate on the model even if throttled */
-                        logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                        assert decision.type() == Type.THROTTLE;
-                        minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
-                        return false;
-                    }
+                    assert decision.type() == Type.YES || decision.type() == Type.THROTTLE : decision.type();
+                    logger.debug(
+                        "decision [{}]: relocate [{}] from [{}] to [{}]",
+                        decision.type(),
+                        shard,
+                        maxNode.getNodeId(),
+                        minNode.getNodeId()
+                    );
+                    minNode.addShard(
+                        decision.type() == Type.YES
+                            /* only allocate on the cluster if we are not throttled */
+                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1()
+                            : shard.relocate(minNode.getNodeId(), shardSize)
+                    );
+                    return true;
                 }
             }
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
@@ -1167,7 +1172,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     static final class ModelIndex implements Iterable<ShardRouting> {
-        private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
+        private final Set<ShardRouting> shards = Sets.newHashSetWithExpectedSize(4); // expect few shards of same index to be allocated on
+                                                                                     // same node
         private int highestPrimary = -1;
 
         ModelIndex() {}

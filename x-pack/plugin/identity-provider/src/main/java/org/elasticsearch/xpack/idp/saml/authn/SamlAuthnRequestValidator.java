@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -156,8 +155,8 @@ public class SamlAuthnRequestValidator {
             if (Strings.hasText(parsedQueryString.signature)) {
                 if (Strings.hasText(parsedQueryString.sigAlg) == false) {
                     logAndRespond(
-                        new ParameterizedMessage(
-                            "Query string [{}] contains a Signature but SigAlg parameter is missing",
+                        org.elasticsearch.core.Strings.format(
+                            "Query string [%s] contains a Signature but SigAlg parameter is missing",
                             parsedQueryString.queryString
                         ),
                         listener
@@ -167,9 +166,9 @@ public class SamlAuthnRequestValidator {
                 final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
                 if (spSigningCredentials == null || spSigningCredentials.isEmpty()) {
                     logAndRespond(
-                        new ParameterizedMessage(
+                        org.elasticsearch.core.Strings.format(
                             "Unable to validate signature of authentication request, "
-                                + "Service Provider [{}] hasn't registered signing credentials",
+                                + "Service Provider [%s] hasn't registered signing credentials",
                             sp.getEntityId()
                         ),
                         listener
@@ -178,8 +177,8 @@ public class SamlAuthnRequestValidator {
                 }
                 if (validateSignature(parsedQueryString, spSigningCredentials) == false) {
                     logAndRespond(
-                        new ParameterizedMessage(
-                            "Unable to validate signature of authentication request [{}] using credentials [{}]",
+                        org.elasticsearch.core.Strings.format(
+                            "Unable to validate signature of authentication request [%s] using credentials [%s]",
                             parsedQueryString.queryString,
                             samlFactory.describeCredentials(spSigningCredentials)
                         ),
@@ -189,8 +188,8 @@ public class SamlAuthnRequestValidator {
                 }
             } else if (Strings.hasText(parsedQueryString.sigAlg)) {
                 logAndRespond(
-                    new ParameterizedMessage(
-                        "Query string [{}] contains a SigAlg parameter but Signature is missing",
+                    org.elasticsearch.core.Strings.format(
+                        "Query string [%s] contains a SigAlg parameter but Signature is missing",
                         parsedQueryString.queryString
                     ),
                     listener
@@ -198,8 +197,8 @@ public class SamlAuthnRequestValidator {
                 return;
             } else {
                 logAndRespond(
-                    new ParameterizedMessage(
-                        "The Service Provider [{}] must sign authentication requests but no signature was found",
+                    org.elasticsearch.core.Strings.format(
+                        "The Service Provider [%s] must sign authentication requests but no signature was found",
                         sp.getEntityId()
                     ),
                     listener
@@ -369,10 +368,6 @@ public class SamlAuthnRequestValidator {
     private void logAndRespond(String message, ActionListener<SamlValidateAuthnRequestResponse> listener) {
         logger.debug(message);
         listener.onFailure(new ElasticsearchSecurityException(message));
-    }
-
-    private void logAndRespond(ParameterizedMessage message, ActionListener<SamlValidateAuthnRequestResponse> listener) {
-        logAndRespond(message.getFormattedMessage(), listener);
     }
 
     private void logAndRespond(String message, Throwable e, ActionListener<SamlValidateAuthnRequestResponse> listener) {

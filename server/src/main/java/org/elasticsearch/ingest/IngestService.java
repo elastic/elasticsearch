@@ -883,10 +883,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         String index = indexRequest.index();
         String id = indexRequest.id();
         String routing = indexRequest.routing();
-        Long version = indexRequest.version();
+        long version = indexRequest.version();
         VersionType versionType = indexRequest.versionType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
+        IngestDocument ingestDocument = new IngestDocument(index, id, version, routing, versionType, sourceAsMap);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
             totalMetrics.postIngest(ingestTimeInNanos);
@@ -897,27 +897,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
+                org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
 
-                String newIndex = (String) metadataMap.get(IngestDocument.Metadata.INDEX);
                 // it's fine to set all metadata fields all the time, as ingest document holds their starting values
                 // before ingestion, which might also get modified during ingestion.
-                indexRequest.index(newIndex);
-                indexRequest.id((String) metadataMap.get(IngestDocument.Metadata.ID));
-                indexRequest.routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
-                indexRequest.version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
-                if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
-                    indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
+                indexRequest.index(metadata.getIndex());
+                indexRequest.id(metadata.getId());
+                indexRequest.routing(metadata.getRouting());
+                indexRequest.version(metadata.getVersion());
+                if (metadata.getVersionType() != null) {
+                    indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
                 }
-                if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
-                    indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
+                Number number;
+                if ((number = metadata.getIfSeqNo()) != null) {
+                    indexRequest.setIfSeqNo(number.longValue());
                 }
-                if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
-                    indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
+                if ((number = metadata.getIfPrimaryTerm()) != null) {
+                    indexRequest.setIfPrimaryTerm(number.longValue());
                 }
                 try {
                     boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
-                    indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType(), ensureNoSelfReferences);
+                    indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest
                     // processor creates a source map that is self-referencing.
@@ -932,10 +932,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     );
                     return;
                 }
-                if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
+                Map<String, String> map;
+                if ((map = metadata.getDynamicTemplates()) != null) {
                     Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    @SuppressWarnings("unchecked")
-                    Map<String, String> map = (Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES);
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }

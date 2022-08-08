@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Request;
@@ -115,33 +114,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
         tokenService.decodeToken(token.accessToken(), userTokenFuture);
         assertNotNull(userTokenFuture.actionGet());
-    }
-
-    public void testTokenServiceCanRotateKeys() throws Exception {
-        OAuth2Token response = createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-        String masterName = internalCluster().getMasterName();
-        TokenService masterTokenService = internalCluster().getInstance(TokenService.class, masterName);
-        String activeKeyHash = masterTokenService.getActiveKeyHash();
-        for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
-            PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
-            tokenService.decodeToken(response.accessToken(), userTokenFuture);
-            assertNotNull(userTokenFuture.actionGet());
-            assertEquals(activeKeyHash, tokenService.getActiveKeyHash());
-        }
-        client().admin().cluster().prepareHealth().execute().get();
-        PlainActionFuture<AcknowledgedResponse> rotateActionFuture = new PlainActionFuture<>();
-        logger.info("rotate on master: {}", masterName);
-        masterTokenService.rotateKeysOnMaster(rotateActionFuture);
-        assertTrue(rotateActionFuture.actionGet().isAcknowledged());
-        assertNotEquals(activeKeyHash, masterTokenService.getActiveKeyHash());
-
-        for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
-            PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
-            tokenService.decodeToken(response.accessToken(), userTokenFuture);
-            assertNotNull(userTokenFuture.actionGet());
-            assertNotEquals(activeKeyHash, tokenService.getActiveKeyHash());
-        }
-        assertEquals(TEST_USER_NAME, response.principal());
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {

@@ -47,7 +47,10 @@ public class FrozenStorageDeciderService implements AutoscalingDeciderService {
             .sum();
 
         long storageSize = (long) (PERCENTAGE.get(configuration) * dataSetSize) / 100;
-        return new AutoscalingDeciderResult(AutoscalingCapacity.builder().total(storageSize, null).build(), new FrozenReason(dataSetSize));
+        return new AutoscalingDeciderResult(
+            AutoscalingCapacity.builder().total(storageSize, null, null).build(),
+            new FrozenReason(dataSetSize)
+        );
     }
 
     static long estimateSize(IndexMetadata imd, ClusterInfo info) {

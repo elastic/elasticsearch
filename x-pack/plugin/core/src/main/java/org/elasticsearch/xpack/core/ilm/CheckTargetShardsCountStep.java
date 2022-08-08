@@ -77,7 +77,7 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
             return withTargetNumberOfShards.getNumberOfShards();
         } else {
             throw new IllegalStateException(
-                "The action [" + getKey().getName() + "] this step is part of should be able to provide a target shard count"
+                "The action [" + getKey().getName() + "] should be able to provide a target shard count to step " + getKey().getName() + "."
             );
         }
     }

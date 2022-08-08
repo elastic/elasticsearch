@@ -99,7 +99,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     // Helper method that starts the monitoring without a delay.
     private void maybeScheduleNow() {
-        maybeScheduleNextRun(TimeValue.timeValueMillis(1));
+        maybeScheduleNextRun(TimeValue.ZERO);
     }
 
     @Override

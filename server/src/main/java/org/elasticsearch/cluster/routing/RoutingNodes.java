@@ -200,7 +200,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         if (routing.recoverySource().getType() == RecoverySource.Type.PEER) {
             // add/remove corresponding outgoing recovery on node with primary shard
             if (primary == null) {
-                throw new IllegalStateException("shard is peer recovering but primary is unassigned");
+                throw new IllegalStateException("shard [" + routing + "] is peer recovering but primary is unassigned");
             }
             Recoveries.getOrAdd(recoveriesPerNode, primary.currentNodeId()).addOutgoing(howMany);
 

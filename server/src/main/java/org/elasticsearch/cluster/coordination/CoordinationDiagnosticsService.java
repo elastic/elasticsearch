@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -177,7 +178,11 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
          * tell at this point whether this node is master-eligible or not, so we kick this off regardless. On master-eligible nodes the
          * results will always be harmlessly ignored.
          */
-        beginPollingRemoteMasterStabilityDiagnostic();
+        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            beginPollingRemoteMasterStabilityDiagnostic();
+        }
         clusterService.addListener(this);
     }
 

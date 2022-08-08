@@ -10,8 +10,11 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 
 public class AllocationActionListener<T> {
 
@@ -29,8 +32,13 @@ public class AllocationActionListener<T> {
         return ActionListener.noop();
     }
 
+    // TODO replace with 2 arg call
     public AllocationActionListener(ActionListener<T> delegate) {
         this.delegate = delegate;
+    }
+
+    public AllocationActionListener(ActionListener<T> delegate, ThreadContext context) {
+        this.delegate = wrapPreservingContext(delegate, context);
     }
 
     private void notifyListenerExecuted() {

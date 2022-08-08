@@ -130,6 +130,7 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final ThreadPool threadPool;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -157,6 +158,7 @@ public class MetadataCreateIndexService {
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.threadPool = threadPool;
     }
 
     /**
@@ -287,7 +289,7 @@ public class MetadataCreateIndexService {
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         normalizeRequestSetting(request);
 
-        var delegate = new AllocationActionListener<>(listener);
+        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
             new AckedClusterStateUpdateTask(Priority.URGENT, request, delegate.clusterStateUpdate()) {

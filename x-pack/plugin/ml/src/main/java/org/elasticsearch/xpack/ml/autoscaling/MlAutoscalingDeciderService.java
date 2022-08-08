@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -409,6 +410,19 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             .filter(e -> e.getValue().getAssignmentState().equals(AssignmentState.STARTING) && e.getValue().getNodeRoutingTable().isEmpty())
             .map(Map.Entry::getKey)
             .toList();
+        // TODO for autoscaling by memory, we only care about if the model is allocated to at least one node (see above)
+        // We should do this check in our autoscaling by processor count service, which will be a separate decider for readability's sake
+        final List<String> notFullyAllocatedModels = modelAssignments.entrySet()
+            .stream()
+            .filter(
+                e -> e.getValue()
+                    .calculateAllocationStatus()
+                    .map(AllocationStatus::calculateState)
+                    .orElse(AllocationStatus.State.FULLY_ALLOCATED)
+                    .equals(AllocationStatus.State.FULLY_ALLOCATED) == false
+            )
+            .map(Map.Entry::getKey)
+            .toList();
 
         final int numAnalyticsJobsInQueue = NUM_ANALYTICS_JOBS_IN_QUEUE.get(configuration);
         final int numAnomalyJobsInQueue = NUM_ANOMALY_JOBS_IN_QUEUE.get(configuration);
@@ -543,7 +557,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         if (waitingAnalyticsJobs.isEmpty() == false
             || waitingSnapshotUpgrades.isEmpty() == false
-            || waitingAnomalyJobs.isEmpty() == false) {
+            || waitingAnomalyJobs.isEmpty() == false
+            || notFullyAllocatedModels.isEmpty() == false) {
             // We don't want to continue to consider a scale down if there are now waiting jobs
             resetScaleDownCoolDown();
             return new AutoscalingDeciderResult(
@@ -553,54 +568,23 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         Locale.ROOT,
                         "Passing currently perceived capacity as there are [%d] model snapshot upgrades, "
                             + "[%d] analytics and [%d] anomaly detection jobs in the queue, "
+                            + "[%d] trained models not fully-allocated, "
                             + "but the number in the queue is less than the configured maximum allowed "
                             + "or the queued jobs will eventually be assignable at the current size.",
                         waitingSnapshotUpgrades.size(),
                         waitingAnalyticsJobs.size(),
-                        waitingAnomalyJobs.size()
+                        waitingAnomalyJobs.size(),
+                        notFullyAllocatedModels.size()
                     )
                 ).build()
             );
         }
 
-        long largestJobOrModel = Math.max(
-            anomalyDetectionTasks.stream()
-                .filter(PersistentTask::isAssigned)
-                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                .mapToLong(t -> {
-                    Long mem = this.getAnomalyMemoryRequirement(t);
-                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
-                })
-                .max()
-                .orElse(0L),
-            snapshotUpgradeTasks.stream()
-                .filter(PersistentTask::isAssigned)
-                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                .mapToLong(t -> {
-                    Long mem = this.getAnomalyMemoryRequirement(t);
-                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
-                })
-                .max()
-                .orElse(0L)
-        );
-        largestJobOrModel = Math.max(
-            largestJobOrModel,
-            dataframeAnalyticsTasks.stream()
-                .filter(PersistentTask::isAssigned)
-                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                .mapToLong(t -> {
-                    Long mem = this.getAnalyticsMemoryRequirement(t);
-                    assert mem != null : "unexpected null for analytics memory requirement after recent stale check";
-                    return mem;
-                })
-                .max()
-                .orElse(0L)
-        );
-        largestJobOrModel = Math.max(
-            largestJobOrModel,
-            modelAssignments.values().stream().mapToLong(t -> t.getTaskParams().estimateMemoryUsageBytes()).max().orElse(0L)
+        long maxTaskMemoryBytes = maxMemoryBytes(
+            anomalyDetectionTasks,
+            snapshotUpgradeTasks,
+            dataframeAnalyticsTasks,
+            modelAssignments.values()
         );
 
         // This state is invalid, but may occur due to complex bugs that have slipped through testing.
@@ -609,7 +593,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         // assignment explanation, for example because some other explanation overrides it. (This second situation
         // arises because, for example, anomalyDetectionTasks contains a task that is waiting but waitingAnomalyJobs
         // doesn't because its assignment explanation didn't match AWAITING_LAZY_ASSIGNMENT.)
-        if (largestJobOrModel == 0L) {
+        if (maxTaskMemoryBytes == 0L) {
             // We shouldn't need to check this condition because it's the exact opposite of the condition that
             // would have sent us down the scale down to zero branch higher up this method.
             assert anomalyDetectionTasks.isEmpty() == false
@@ -642,7 +626,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         final Optional<AutoscalingDeciderResult> maybeScaleDown = checkForScaleDown(
             nodeLoads,
-            largestJobOrModel,
+            maxTaskMemoryBytes,
             currentScale,
             reasonBuilder
         )
@@ -652,6 +636,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             .map(result -> {
                 AutoscalingCapacity capacity = ensureScaleDown(result.requiredCapacity(), context.currentCapacity());
                 if (capacity == null) {
+                    return null;
+                }
+                // TODO we should remove this when we can auto-scale (down and up) via a new CPU auto-scaling decider
+                if (modelAssignmentsRequireMoreThanHalfCpu(modelAssignments.values(), mlNodes)) {
+                    logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
                     return null;
                 }
                 return new AutoscalingDeciderResult(capacity, result.reason());
@@ -717,6 +706,54 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         );
     }
 
+    private long maxMemoryBytes(
+        Collection<PersistentTask<?>> anomalyDetectionTasks,
+        Collection<PersistentTask<?>> snapshotUpgradeTasks,
+        Collection<PersistentTask<?>> dataframeAnalyticsTasks,
+        Collection<TrainedModelAssignment> modelAssignments
+    ) {
+        long maxMemoryBytes = Math.max(
+            anomalyDetectionTasks.stream()
+                .filter(PersistentTask::isAssigned)
+                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                .mapToLong(t -> {
+                    Long mem = this.getAnomalyMemoryRequirement(t);
+                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
+                    return mem;
+                })
+                .max()
+                .orElse(0L),
+            snapshotUpgradeTasks.stream()
+                .filter(PersistentTask::isAssigned)
+                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                .mapToLong(t -> {
+                    Long mem = this.getAnomalyMemoryRequirement(t);
+                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
+                    return mem;
+                })
+                .max()
+                .orElse(0L)
+        );
+        maxMemoryBytes = Math.max(
+            maxMemoryBytes,
+            dataframeAnalyticsTasks.stream()
+                .filter(PersistentTask::isAssigned)
+                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                .mapToLong(t -> {
+                    Long mem = this.getAnalyticsMemoryRequirement(t);
+                    assert mem != null : "unexpected null for analytics memory requirement after recent stale check";
+                    return mem;
+                })
+                .max()
+                .orElse(0L)
+        );
+        maxMemoryBytes = Math.max(
+            maxMemoryBytes,
+            modelAssignments.stream().mapToLong(t -> t.getTaskParams().estimateMemoryUsageBytes()).max().orElse(0L)
+        );
+        return maxMemoryBytes;
+    }
+
     static AutoscalingCapacity ensureScaleDown(AutoscalingCapacity scaleDownResult, AutoscalingCapacity currentCapacity) {
         if (scaleDownResult == null || currentCapacity == null) {
             return null;
@@ -742,6 +779,26 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             );
         }
         return newCapacity;
+    }
+
+    static boolean modelAssignmentsRequireMoreThanHalfCpu(Collection<TrainedModelAssignment> assignments, List<DiscoveryNode> mlNodes) {
+        int totalRequiredProcessors = assignments.stream()
+            .mapToInt(t -> t.getTaskParams().getNumberOfAllocations() * t.getTaskParams().getThreadsPerAllocation())
+            .sum();
+        int totalMlProcessors = mlNodes.stream().mapToInt(node -> {
+            String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
+            try {
+                return Integer.parseInt(allocatedProcessorsString);
+            } catch (NumberFormatException e) {
+                assert e == null
+                    : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
+                        + " should parse because we set it internally: invalid value was ["
+                        + allocatedProcessorsString
+                        + "]";
+                return 0;
+            }
+        }).sum();
+        return totalRequiredProcessors * 2 > totalMlProcessors;
     }
 
     // This doesn't allow any jobs to wait in the queue, this is because in a "normal" scaling event, we also verify if a job

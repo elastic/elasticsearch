@@ -14,12 +14,14 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -60,6 +62,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -97,19 +100,22 @@ public class DeploymentManager {
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
         return Optional.ofNullable(processContextByAllocation.get(task.getId())).map(processContext -> {
             var stats = processContext.getResultProcessor().getResultStats();
+            var recentStats = stats.recentStats();
             return new ModelStats(
                 processContext.startTime,
                 stats.timingStats(),
                 stats.lastUsed(),
                 processContext.executorService.queueSize() + stats.numberOfPendingResults(),
                 stats.errorCount(),
+                stats.cacheHitCount(),
                 processContext.rejectedExecutionCount.intValue(),
                 processContext.timeoutCount.intValue(),
                 processContext.numThreadsPerAllocation,
                 processContext.numAllocations,
                 stats.peakThroughput(),
-                stats.recentStats().requestsProcessed(),
-                stats.recentStats().avgInferenceTime()
+                recentStats.requestsProcessed(),
+                recentStats.avgInferenceTime(),
+                recentStats.cacheHitCount()
             );
         });
     }
@@ -145,34 +151,46 @@ public class DeploymentManager {
             TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
             processContext.modelInput.set(modelConfig.getInput());
 
-            assert modelConfig.getInferenceConfig() instanceof NlpConfig;
-            NlpConfig nlpConfig = (NlpConfig) modelConfig.getInferenceConfig();
-            task.init(nlpConfig);
+            if (modelConfig.getInferenceConfig()instanceof NlpConfig nlpConfig) {
+                task.init(nlpConfig);
 
-            SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
-            executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchVocabResponse -> {
-                if (searchVocabResponse.getHits().getHits().length == 0) {
-                    listener.onFailure(
-                        new ResourceNotFoundException(
-                            Messages.getMessage(
-                                Messages.VOCABULARY_NOT_FOUND,
-                                task.getModelId(),
-                                VocabularyConfig.docId(modelConfig.getModelId())
+                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
+                executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchVocabResponse -> {
+                    if (searchVocabResponse.getHits().getHits().length == 0) {
+                        listener.onFailure(
+                            new ResourceNotFoundException(
+                                Messages.getMessage(
+                                    Messages.VOCABULARY_NOT_FOUND,
+                                    task.getModelId(),
+                                    VocabularyConfig.docId(modelConfig.getModelId())
+                                )
                             )
-                        )
-                    );
-                    return;
-                }
+                        );
+                        return;
+                    }
 
-                Vocabulary vocabulary = parseVocabularyDocLeniently(searchVocabResponse.getHits().getAt(0));
-                NlpTask nlpTask = new NlpTask(nlpConfig, vocabulary);
-                NlpTask.Processor processor = nlpTask.createProcessor();
-                processContext.nlpTaskProcessor.set(processor);
-                // here, we are being called back on the searching thread, which MAY be a network thread
-                // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
-                // executor.
-                executorServiceForDeployment.execute(() -> startAndLoad(processContext, modelConfig.getLocation(), modelLoadedListener));
-            }, listener::onFailure));
+                    Vocabulary vocabulary = parseVocabularyDocLeniently(searchVocabResponse.getHits().getAt(0));
+                    NlpTask nlpTask = new NlpTask(nlpConfig, vocabulary);
+                    NlpTask.Processor processor = nlpTask.createProcessor();
+                    processContext.nlpTaskProcessor.set(processor);
+                    // here, we are being called back on the searching thread, which MAY be a network thread
+                    // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
+                    // executor.
+                    executorServiceForDeployment.execute(
+                        () -> startAndLoad(processContext, modelConfig.getLocation(), modelLoadedListener)
+                    );
+                }, listener::onFailure));
+            } else {
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        format(
+                            "[%s] must be a pytorch model; found inference config of kind [%s]",
+                            modelConfig.getModelId(),
+                            modelConfig.getInferenceConfig().getWriteableName()
+                        )
+                    )
+                );
+            }
         }, listener::onFailure);
 
         executeAsyncWithOrigin(
@@ -202,7 +220,7 @@ public class DeploymentManager {
                     stream
                 )
         ) {
-            return Vocabulary.createParser(true).apply(parser, null);
+            return Vocabulary.PARSER.apply(parser, null);
         } catch (IOException e) {
             logger.error(() -> "failed to parse trained model vocabulary [" + hit.getId() + "]", e);
             throw e;
@@ -237,6 +255,7 @@ public class DeploymentManager {
         Map<String, Object> doc,
         boolean skipQueue,
         TimeValue timeout,
+        Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         var processContext = getProcessContext(task, listener::onFailure);
@@ -254,6 +273,7 @@ public class DeploymentManager {
             config,
             doc,
             threadPool,
+            parentActionTask,
             listener
         );
 
@@ -277,7 +297,7 @@ public class DeploymentManager {
         }
 
         final long requestId = requestIdCounter.getAndIncrement();
-        ControlMessagePyTorchAction controlMessageAction = new ControlMessagePyTorchAction(
+        ThreadSettingsControlMessagePytorchAction controlMessageAction = new ThreadSettingsControlMessagePytorchAction(
             task.getModelId(),
             requestId,
             numAllocationThreads,
@@ -285,6 +305,26 @@ public class DeploymentManager {
             processContext,
             threadPool,
             listener
+        );
+
+        executePyTorchAction(processContext, PriorityProcessWorkerExecutorService.RequestPriority.HIGHEST, controlMessageAction);
+    }
+
+    public void clearCache(TrainedModelDeploymentTask task, TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
+        var processContext = getProcessContext(task, listener::onFailure);
+        if (processContext == null) {
+            // error reporting handled in the call to getProcessContext
+            return;
+        }
+
+        final long requestId = requestIdCounter.getAndIncrement();
+        ClearCacheControlMessagePytorchAction controlMessageAction = new ClearCacheControlMessagePytorchAction(
+            task.getModelId(),
+            requestId,
+            timeout,
+            processContext,
+            threadPool,
+            ActionListener.wrap(b -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
         );
 
         executePyTorchAction(processContext, PriorityProcessWorkerExecutorService.RequestPriority.HIGHEST, controlMessageAction);
@@ -398,10 +438,12 @@ public class DeploymentManager {
         }
 
         void loadModel(TrainedModelLocation modelLocation, ActionListener<Boolean> listener) {
-            if (modelLocation instanceof IndexLocation) {
-                process.get().loadModel(task.getModelId(), ((IndexLocation) modelLocation).getIndexName(), stateStreamer, listener);
+            if (modelLocation instanceof IndexLocation indexLocation) {
+                process.get().loadModel(task.getModelId(), indexLocation.getIndexName(), stateStreamer, listener);
             } else {
-                throw new IllegalStateException("unsupported trained model location [" + modelLocation.getClass().getSimpleName() + "]");
+                listener.onFailure(
+                    new IllegalStateException("unsupported trained model location [" + modelLocation.getClass().getSimpleName() + "]")
+                );
             }
         }
 

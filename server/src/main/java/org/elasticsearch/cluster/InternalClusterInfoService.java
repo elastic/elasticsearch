@@ -35,11 +35,9 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -58,8 +56,10 @@ import static org.elasticsearch.core.Strings.format;
  * Listens for changes in the number of data nodes and immediately submits a
  * ClusterInfoUpdateJob if a node has been added.
  *
- * Every time the timer runs, gathers information about the disk usage and
- * shard sizes across the cluster.
+ * Every time the timer runs, if <code>cluster.routing.allocation.disk.threshold_enabled</code>
+ * is enabled, gathers information about the disk usage and shard sizes across the cluster,
+ * computes a new cluster info and notifies the registered listeners. If disk threshold
+ * monitoring is disabled, listeners are called with an empty cluster info.
  */
 public class InternalClusterInfoService implements ClusterInfoService, ClusterStateListener {
 
@@ -164,46 +164,28 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         void execute() {
-            assert countDown.isCountedDown() == false;
+            if (enabled == false) {
+                logger.trace("skipping collecting info from cluster, notifying listeners with empty cluster info");
+                leastAvailableSpaceUsages = Map.of();
+                mostAvailableSpaceUsages = Map.of();
+                indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                callListeners();
+                return;
+            }
 
+            assert countDown.isCountedDown() == false;
             logger.trace("starting async refresh");
 
-            final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
-            nodesStatsRequest.clear();
-            nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
-            nodesStatsRequest.timeout(fetchTimeout);
-            client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
-                @Override
-                public void onResponse(NodesStatsResponse nodesStatsResponse) {
-                    logger.trace("received node stats response");
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                fetchNodeStats();
+            }
 
-                    for (final FailedNodeException failure : nodesStatsResponse.failures()) {
-                        logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
-                    }
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                fetchIndicesStats();
+            }
+        }
 
-                    Map<String, DiskUsage> leastAvailableUsagesBuilder = new HashMap<>();
-                    Map<String, DiskUsage> mostAvailableUsagesBuilder = new HashMap<>();
-                    fillDiskUsagePerNode(
-                        adjustNodesStats(nodesStatsResponse.getNodes()),
-                        leastAvailableUsagesBuilder,
-                        mostAvailableUsagesBuilder
-                    );
-                    leastAvailableSpaceUsages = Collections.unmodifiableMap(leastAvailableUsagesBuilder);
-                    mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ClusterBlockException) {
-                        logger.trace("failed to retrieve node stats", e);
-                    } else {
-                        logger.warn("failed to retrieve node stats", e);
-                    }
-                    leastAvailableSpaceUsages = Map.of();
-                    mostAvailableSpaceUsages = Map.of();
-                }
-            }, this::onStatsProcessed));
-
+        private void fetchIndicesStats() {
             final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear();
             indicesStatsRequest.store(true);
@@ -262,10 +244,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
 
                     indicesStatsSummary = new IndicesStatsSummary(
-                        Collections.unmodifiableMap(shardSizeByIdentifierBuilder),
-                        Collections.unmodifiableMap(shardDataSetSizeBuilder),
-                        Collections.unmodifiableMap(dataPathByShardRoutingBuilder),
-                        Collections.unmodifiableMap(rsrvdSpace)
+                        Map.copyOf(shardSizeByIdentifierBuilder),
+                        Map.copyOf(shardDataSetSizeBuilder),
+                        Map.copyOf(dataPathByShardRoutingBuilder),
+                        Map.copyOf(rsrvdSpace)
                     );
                 }
 
@@ -281,29 +263,71 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }, this::onStatsProcessed));
         }
 
+        private void fetchNodeStats() {
+            final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
+            nodesStatsRequest.clear();
+            nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
+            nodesStatsRequest.timeout(fetchTimeout);
+            client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(NodesStatsResponse nodesStatsResponse) {
+                    logger.trace("received node stats response");
+
+                    for (final FailedNodeException failure : nodesStatsResponse.failures()) {
+                        logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
+                    }
+
+                    Map<String, DiskUsage> leastAvailableUsagesBuilder = new HashMap<>();
+                    Map<String, DiskUsage> mostAvailableUsagesBuilder = new HashMap<>();
+                    fillDiskUsagePerNode(
+                        adjustNodesStats(nodesStatsResponse.getNodes()),
+                        leastAvailableUsagesBuilder,
+                        mostAvailableUsagesBuilder
+                    );
+                    leastAvailableSpaceUsages = Map.copyOf(leastAvailableUsagesBuilder);
+                    mostAvailableSpaceUsages = Map.copyOf(mostAvailableUsagesBuilder);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ClusterBlockException) {
+                        logger.trace("failed to retrieve node stats", e);
+                    } else {
+                        logger.warn("failed to retrieve node stats", e);
+                    }
+                    leastAvailableSpaceUsages = Map.of();
+                    mostAvailableSpaceUsages = Map.of();
+                }
+            }, this::onStatsProcessed));
+        }
+
         private void onStatsProcessed() {
             if (countDown.countDown()) {
                 logger.trace("stats all received, computing cluster info and notifying listeners");
-                try {
-                    final ClusterInfo clusterInfo = getClusterInfo();
-                    boolean anyListeners = false;
-                    for (final Consumer<ClusterInfo> listener : listeners) {
-                        anyListeners = true;
-                        try {
-                            logger.trace("notifying [{}] of new cluster info", listener);
-                            listener.accept(clusterInfo);
-                        } catch (Exception e) {
-                            logger.info(() -> "failed to notify [" + listener + "] of new cluster info", e);
-                        }
-                    }
-                    assert anyListeners : "expected to notify at least one listener";
+                callListeners();
+            }
+        }
 
-                    for (final ActionListener<ClusterInfo> listener : thisRefreshListeners) {
-                        listener.onResponse(clusterInfo);
+        private void callListeners() {
+            try {
+                final ClusterInfo clusterInfo = getClusterInfo();
+                boolean anyListeners = false;
+                for (final Consumer<ClusterInfo> listener : listeners) {
+                    anyListeners = true;
+                    try {
+                        logger.trace("notifying [{}] of new cluster info", listener);
+                        listener.accept(clusterInfo);
+                    } catch (Exception e) {
+                        logger.info(() -> "failed to notify [" + listener + "] of new cluster info", e);
                     }
-                } finally {
-                    onRefreshComplete(this);
                 }
+                assert anyListeners : "expected to notify at least one listener";
+
+                for (final ActionListener<ClusterInfo> listener : thisRefreshListeners) {
+                    listener.onResponse(clusterInfo);
+                }
+            } finally {
+                onRefreshComplete(this);
             }
         }
     }
@@ -336,17 +360,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         final ArrayList<ActionListener<ClusterInfo>> thisRefreshListeners = new ArrayList<>(nextRefreshListeners);
         nextRefreshListeners.clear();
 
-        if (enabled) {
-            currentRefresh = new AsyncRefresh(thisRefreshListeners);
-            return currentRefresh::execute;
-        } else {
-            return () -> {
-                leastAvailableSpaceUsages = Map.of();
-                mostAvailableSpaceUsages = Map.of();
-                indicesStatsSummary = IndicesStatsSummary.EMPTY;
-                thisRefreshListeners.forEach(l -> l.onResponse(ClusterInfo.EMPTY));
-            };
-        }
+        currentRefresh = new AsyncRefresh(thisRefreshListeners);
+        return currentRefresh::execute;
     }
 
     private boolean assertRefreshInvariant() {
@@ -445,90 +460,20 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
-    static void fillDiskUsagePerNode(
+    private static void fillDiskUsagePerNode(
         List<NodeStats> nodeStatsArray,
         Map<String, DiskUsage> newLeastAvailableUsages,
         Map<String, DiskUsage> newMostAvailableUsages
     ) {
         for (NodeStats nodeStats : nodeStatsArray) {
-            if (nodeStats.getFs() == null) {
-                logger.warn("node [{}/{}] did not return any filesystem stats", nodeStats.getNode().getName(), nodeStats.getNode().getId());
-                continue;
+            DiskUsage leastAvailableUsage = DiskUsage.findLeastAvailablePath(nodeStats);
+            if (leastAvailableUsage != null) {
+                newLeastAvailableUsages.put(nodeStats.getNode().getId(), leastAvailableUsage);
             }
-
-            FsInfo.Path leastAvailablePath = null;
-            FsInfo.Path mostAvailablePath = null;
-            for (FsInfo.Path info : nodeStats.getFs()) {
-                if (leastAvailablePath == null) {
-                    // noinspection ConstantConditions this assertion is for the benefit of readers, it's always true
-                    assert mostAvailablePath == null;
-                    mostAvailablePath = leastAvailablePath = info;
-                } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()) {
-                    leastAvailablePath = info;
-                } else if (mostAvailablePath.getAvailable().getBytes() < info.getAvailable().getBytes()) {
-                    mostAvailablePath = info;
-                }
+            DiskUsage mostAvailableUsage = DiskUsage.findMostAvailable(nodeStats);
+            if (mostAvailableUsage != null) {
+                newMostAvailableUsages.put(nodeStats.getNode().getId(), mostAvailableUsage);
             }
-            if (leastAvailablePath == null) {
-                // noinspection ConstantConditions this assertion is for the benefit of readers, it's always true
-                assert mostAvailablePath == null;
-                logger.warn("node [{}/{}] did not return any filesystem stats", nodeStats.getNode().getName(), nodeStats.getNode().getId());
-                continue;
-            }
-
-            final String nodeId = nodeStats.getNode().getId();
-            final String nodeName = nodeStats.getNode().getName();
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "node [{}]: most available: total: {}, available: {} / least available: total: {}, available: {}",
-                    nodeId,
-                    mostAvailablePath.getTotal(),
-                    mostAvailablePath.getAvailable(),
-                    leastAvailablePath.getTotal(),
-                    leastAvailablePath.getAvailable()
-                );
-            }
-            if (leastAvailablePath.getTotal().getBytes() < 0) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "node: [{}] least available path has less than 0 total bytes of disk [{}], skipping",
-                        nodeId,
-                        leastAvailablePath.getTotal().getBytes()
-                    );
-                }
-            } else {
-                newLeastAvailableUsages.put(
-                    nodeId,
-                    new DiskUsage(
-                        nodeId,
-                        nodeName,
-                        leastAvailablePath.getPath(),
-                        leastAvailablePath.getTotal().getBytes(),
-                        leastAvailablePath.getAvailable().getBytes()
-                    )
-                );
-            }
-            if (mostAvailablePath.getTotal().getBytes() < 0) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "node: [{}] most available path has less than 0 total bytes of disk [{}], skipping",
-                        nodeId,
-                        mostAvailablePath.getTotal().getBytes()
-                    );
-                }
-            } else {
-                newMostAvailableUsages.put(
-                    nodeId,
-                    new DiskUsage(
-                        nodeId,
-                        nodeName,
-                        mostAvailablePath.getPath(),
-                        mostAvailablePath.getTotal().getBytes(),
-                        mostAvailablePath.getAvailable().getBytes()
-                    )
-                );
-            }
-
         }
     }
 

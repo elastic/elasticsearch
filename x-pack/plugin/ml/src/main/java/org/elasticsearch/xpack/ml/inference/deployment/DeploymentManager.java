@@ -14,6 +14,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -296,7 +297,7 @@ public class DeploymentManager {
         }
 
         final long requestId = requestIdCounter.getAndIncrement();
-        ControlMessagePyTorchAction controlMessageAction = new ControlMessagePyTorchAction(
+        ThreadSettingsControlMessagePytorchAction controlMessageAction = new ThreadSettingsControlMessagePytorchAction(
             task.getModelId(),
             requestId,
             numAllocationThreads,
@@ -304,6 +305,26 @@ public class DeploymentManager {
             processContext,
             threadPool,
             listener
+        );
+
+        executePyTorchAction(processContext, PriorityProcessWorkerExecutorService.RequestPriority.HIGHEST, controlMessageAction);
+    }
+
+    public void clearCache(TrainedModelDeploymentTask task, TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
+        var processContext = getProcessContext(task, listener::onFailure);
+        if (processContext == null) {
+            // error reporting handled in the call to getProcessContext
+            return;
+        }
+
+        final long requestId = requestIdCounter.getAndIncrement();
+        ClearCacheControlMessagePytorchAction controlMessageAction = new ClearCacheControlMessagePytorchAction(
+            task.getModelId(),
+            requestId,
+            timeout,
+            processContext,
+            threadPool,
+            ActionListener.wrap(b -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
         );
 
         executePyTorchAction(processContext, PriorityProcessWorkerExecutorService.RequestPriority.HIGHEST, controlMessageAction);

@@ -66,7 +66,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     private static final String NODE_NO_LONGER_REFERENCED = "node no longer referenced in model routing table";
     private static final String ASSIGNMENT_NO_LONGER_EXISTS = "model assignment no longer exists";
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
-    private static final TimeValue UPDATE_NUMBER_OF_ALLOCATIONS_TIMEOUT = TimeValue.timeValueSeconds(60);
+    private static final TimeValue CONTROL_MESSAGE_TIMEOUT = TimeValue.timeValueSeconds(60);
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentNodeService.class);
     private final TrainedModelAssignmentService trainedModelAssignmentService;
     private final DeploymentManager deploymentManager;
@@ -286,6 +286,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         return deploymentManager.getStats(task);
     }
 
+    public void clearCache(TrainedModelDeploymentTask task, ActionListener<AcknowledgedResponse> listener) {
+        deploymentManager.clearCache(task, CONTROL_MESSAGE_TIMEOUT, listener);
+    }
+
     private TaskAwareRequest taskAwareRequest(StartTrainedModelDeploymentAction.TaskParams params) {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = this;
         return new TaskAwareRequest() {
@@ -419,7 +423,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             deploymentManager.updateNumAllocations(
                 task,
                 assignment.getNodeRoutingTable().get(nodeId).getTargetAllocations(),
-                UPDATE_NUMBER_OF_ALLOCATIONS_TIMEOUT,
+                CONTROL_MESSAGE_TIMEOUT,
                 ActionListener.wrap(threadSettings -> {
                     logger.debug("[{}] Updated number of allocations to [{}]", assignment.getModelId(), threadSettings.numAllocations());
                     task.updateNumberOfAllocations(threadSettings.numAllocations());

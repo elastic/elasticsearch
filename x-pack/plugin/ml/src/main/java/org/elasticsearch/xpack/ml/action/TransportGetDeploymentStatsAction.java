@@ -269,7 +269,17 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
 
-                updatedAssignmentStats.add(new AssignmentStats(modelId, null, null, null, null, assignment.getStartTime(), nodeStats));
+                updatedAssignmentStats.add(
+                    new AssignmentStats(
+                        modelId,
+                        assignment.getTaskParams().getThreadsPerAllocation(),
+                        assignment.getTaskParams().getNumberOfAllocations(),
+                        assignment.getTaskParams().getQueueCapacity(),
+                        assignment.getTaskParams().getCacheSize().orElse(null),
+                        assignment.getStartTime(),
+                        nodeStats
+                    )
+                );
             }
         }
 

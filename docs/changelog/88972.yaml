@@ -1,0 +1,6 @@
+pr: 88972
+summary: In the field capabilities API, re-add support for fields in the request body
+area: Search
+type: enhancement
+issues:
+  - 86875

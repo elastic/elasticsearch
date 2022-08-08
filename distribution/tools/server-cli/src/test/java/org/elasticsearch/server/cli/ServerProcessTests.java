@@ -92,7 +92,7 @@ public class ServerProcessTests extends ESTestCase {
         envVars.clear();
         esHomeDir = createTempDir();
         nodeSettings = Settings.builder();
-        optionsBuilder = (configDir, pluginsDir, tmpDir, envOptions) -> new ArrayList<>();
+        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> new ArrayList<>();
         processValidator = null;
         mainCallback = null;
     }
@@ -201,7 +201,7 @@ public class ServerProcessTests extends ESTestCase {
             process = new MockElasticsearchProcess();
             return process;
         };
-        return ServerProcess.start(terminal, pinfo, args, esHomeDir.resolve("plugins"), optionsBuilder, starter);
+        return ServerProcess.start(terminal, pinfo, args, null, optionsBuilder, starter);
     }
 
     public void testProcessBuilder() throws Exception {
@@ -253,7 +253,7 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     public void testOptionsBuildingInterrupted() throws Exception {
-        optionsBuilder = (configDir, pluginsDir, tmpDir, envOptions) -> {
+        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
             throw new InterruptedException("interrupted while get jvm options");
         };
         var e = expectThrows(RuntimeException.class, () -> runForeground());
@@ -279,7 +279,7 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     public void testTempDir() throws Exception {
-        optionsBuilder = (configDir, pluginsDir, tmpDir, envOptions) -> {
+        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
             assertThat(tmpDir.toString(), Files.exists(tmpDir), is(true));
             assertThat(tmpDir.getFileName().toString(), startsWith("elasticsearch-"));
             return new ArrayList<>();
@@ -291,7 +291,7 @@ public class ServerProcessTests extends ESTestCase {
         Path baseTmpDir = createTempDir();
         sysprops.put("os.name", "Windows 10");
         sysprops.put("java.io.tmpdir", baseTmpDir.toString());
-        optionsBuilder = (configDir, pluginsDir, tmpDir, envOptions) -> {
+        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
             assertThat(tmpDir.toString(), Files.exists(tmpDir), is(true));
             assertThat(tmpDir.getFileName().toString(), equalTo("elasticsearch"));
             assertThat(tmpDir.getParent().toString(), equalTo(baseTmpDir.toString()));
@@ -303,7 +303,7 @@ public class ServerProcessTests extends ESTestCase {
     public void testTempDirOverride() throws Exception {
         Path customTmpDir = createTempDir();
         envVars.put("ES_TMPDIR", customTmpDir.toString());
-        optionsBuilder = (configDir, pluginsDir, tmpDir, envOptions) -> {
+        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
             assertThat(tmpDir.toString(), equalTo(customTmpDir.toString()));
             return new ArrayList<>();
         };
@@ -329,7 +329,7 @@ public class ServerProcessTests extends ESTestCase {
 
     public void testCustomJvmOptions() throws Exception {
         envVars.put("ES_JAVA_OPTS", "-Dmyoption=foo");
-        optionsBuilder = (configDir, pluginsDir, tmpDir, envOptions) -> {
+        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
             assertThat(envOptions, equalTo("-Dmyoption=foo"));
             return new ArrayList<>();
         };
@@ -338,7 +338,7 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     public void testCommandLineSysprops() throws Exception {
-        optionsBuilder = (configDir, pluginsDir, tmpDir, envOptions) -> List.of("-Dfoo1=bar", "-Dfoo2=baz");
+        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> List.of("-Dfoo1=bar", "-Dfoo2=baz");
         processValidator = pb -> {
             assertThat(pb.command(), contains("-Dfoo1=bar"));
             assertThat(pb.command(), contains("-Dfoo2=bar"));

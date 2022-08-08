@@ -580,44 +580,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             );
         }
 
-        long largestJobOrModel = Math.max(
-            anomalyDetectionTasks.stream()
-                .filter(PersistentTask::isAssigned)
-                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                .mapToLong(t -> {
-                    Long mem = this.getAnomalyMemoryRequirement(t);
-                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
-                })
-                .max()
-                .orElse(0L),
-            snapshotUpgradeTasks.stream()
-                .filter(PersistentTask::isAssigned)
-                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                .mapToLong(t -> {
-                    Long mem = this.getAnomalyMemoryRequirement(t);
-                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
-                })
-                .max()
-                .orElse(0L)
-        );
-        largestJobOrModel = Math.max(
-            largestJobOrModel,
-            dataframeAnalyticsTasks.stream()
-                .filter(PersistentTask::isAssigned)
-                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                .mapToLong(t -> {
-                    Long mem = this.getAnalyticsMemoryRequirement(t);
-                    assert mem != null : "unexpected null for analytics memory requirement after recent stale check";
-                    return mem;
-                })
-                .max()
-                .orElse(0L)
-        );
-        largestJobOrModel = Math.max(
-            largestJobOrModel,
-            modelAssignments.values().stream().mapToLong(t -> t.getTaskParams().estimateMemoryUsageBytes()).max().orElse(0L)
+        long maxTaskMemoryBytes = maxMemoryBytes(
+            anomalyDetectionTasks,
+            snapshotUpgradeTasks,
+            dataframeAnalyticsTasks,
+            modelAssignments.values()
         );
 
         // This state is invalid, but may occur due to complex bugs that have slipped through testing.
@@ -626,7 +593,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         // assignment explanation, for example because some other explanation overrides it. (This second situation
         // arises because, for example, anomalyDetectionTasks contains a task that is waiting but waitingAnomalyJobs
         // doesn't because its assignment explanation didn't match AWAITING_LAZY_ASSIGNMENT.)
-        if (largestJobOrModel == 0L) {
+        if (maxTaskMemoryBytes == 0L) {
             // We shouldn't need to check this condition because it's the exact opposite of the condition that
             // would have sent us down the scale down to zero branch higher up this method.
             assert anomalyDetectionTasks.isEmpty() == false
@@ -659,7 +626,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         final Optional<AutoscalingDeciderResult> maybeScaleDown = checkForScaleDown(
             nodeLoads,
-            largestJobOrModel,
+            maxTaskMemoryBytes,
             currentScale,
             reasonBuilder
         )
@@ -737,6 +704,54 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             context.currentCapacity(),
             reasonBuilder.setSimpleReason("Passing currently perceived capacity as no scaling changes are necessary").build()
         );
+    }
+
+    private long maxMemoryBytes(
+        Collection<PersistentTask<?>> anomalyDetectionTasks,
+        Collection<PersistentTask<?>> snapshotUpgradeTasks,
+        Collection<PersistentTask<?>> dataframeAnalyticsTasks,
+        Collection<TrainedModelAssignment> modelAssignments
+    ) {
+        long maxMemoryBytes = Math.max(
+            anomalyDetectionTasks.stream()
+                .filter(PersistentTask::isAssigned)
+                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                .mapToLong(t -> {
+                    Long mem = this.getAnomalyMemoryRequirement(t);
+                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
+                    return mem;
+                })
+                .max()
+                .orElse(0L),
+            snapshotUpgradeTasks.stream()
+                .filter(PersistentTask::isAssigned)
+                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                .mapToLong(t -> {
+                    Long mem = this.getAnomalyMemoryRequirement(t);
+                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
+                    return mem;
+                })
+                .max()
+                .orElse(0L)
+        );
+        maxMemoryBytes = Math.max(
+            maxMemoryBytes,
+            dataframeAnalyticsTasks.stream()
+                .filter(PersistentTask::isAssigned)
+                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                .mapToLong(t -> {
+                    Long mem = this.getAnalyticsMemoryRequirement(t);
+                    assert mem != null : "unexpected null for analytics memory requirement after recent stale check";
+                    return mem;
+                })
+                .max()
+                .orElse(0L)
+        );
+        maxMemoryBytes = Math.max(
+            maxMemoryBytes,
+            modelAssignments.stream().mapToLong(t -> t.getTaskParams().estimateMemoryUsageBytes()).max().orElse(0L)
+        );
+        return maxMemoryBytes;
     }
 
     static AutoscalingCapacity ensureScaleDown(AutoscalingCapacity scaleDownResult, AutoscalingCapacity currentCapacity) {

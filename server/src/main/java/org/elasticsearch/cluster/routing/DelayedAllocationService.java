@@ -29,6 +29,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
+
 /**
  * The {@link DelayedAllocationService} listens to cluster state changes and checks
  * if there are unassigned shards with delayed allocation (unassigned shards that have
@@ -100,7 +102,8 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
             removeIfSameTask(this);
-            return allocationService.reroute(currentState, "assign delayed unassigned shards");
+            // rerouteCompletionIsNotRequired() as this update is scheduled and is not triggered by user request
+            return allocationService.reroute(currentState, "assign delayed unassigned shards", rerouteCompletionIsNotRequired());
         }
 
         @Override

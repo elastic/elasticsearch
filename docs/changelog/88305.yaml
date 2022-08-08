@@ -1,0 +1,5 @@
+pr: 88305
+summary: Support "dry run" mode for updating Desired Nodes
+area: Distributed
+type: enhancement
+issues: []

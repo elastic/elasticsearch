@@ -1267,6 +1267,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return tempList.subList(0, size);
     }
 
+    public static <T> List<T> shuffledList(List<T> list) {
+        return randomSubsetOf(list.size(), list);
+    }
+
     /**
      * Builds a set of unique items. Usually you'll get the requested count but you might get less than that number if the supplier returns
      * lots of repeats. Make sure that the items properly implement equals and hashcode.
@@ -1411,12 +1415,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         }
         return targetMap;
-    }
-
-    public static <T> List<T> shuffleList(List<T> list) {
-        var copy = new ArrayList<>(list);
-        Collections.shuffle(copy, random());
-        return copy;
     }
 
     /**

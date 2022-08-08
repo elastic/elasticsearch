@@ -137,6 +137,8 @@ include::types/binary.asciidoc[]
 
 include::types/boolean.asciidoc[]
 
+include::types/completion.asciidoc[]
+
 include::types/date.asciidoc[]
 
 include::types/date_nanos.asciidoc[]

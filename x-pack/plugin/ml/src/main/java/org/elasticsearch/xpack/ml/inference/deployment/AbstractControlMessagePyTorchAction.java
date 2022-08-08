@@ -17,34 +17,36 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
-import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 
 import java.io.IOException;
 
 import static org.elasticsearch.core.Strings.format;
 
-class ControlMessagePyTorchAction extends AbstractPyTorchAction<ThreadSettings> {
+abstract class AbstractControlMessagePyTorchAction<T> extends AbstractPyTorchAction<T> {
 
     private static final Logger logger = LogManager.getLogger(InferencePyTorchAction.class);
 
-    private final int numAllocationThreads;
-
-    private enum ControlMessageTypes {
-        AllocationThreads
+    enum ControlMessageTypes {
+        AllocationThreads,
+        ClearCache
     };
 
-    ControlMessagePyTorchAction(
+    AbstractControlMessagePyTorchAction(
         String modelId,
         long requestId,
-        int numAllocationThreads,
         TimeValue timeout,
         DeploymentManager.ProcessContext processContext,
         ThreadPool threadPool,
-        ActionListener<ThreadSettings> listener
+        ActionListener<T> listener
     ) {
         super(modelId, requestId, timeout, processContext, threadPool, listener);
-        this.numAllocationThreads = numAllocationThreads;
     }
+
+    abstract int controlOrdinal();
+
+    abstract void writeMessage(XContentBuilder builder) throws IOException;
+
+    abstract T getResult(PyTorchResult result);
 
     @Override
     protected void doRun() throws Exception {
@@ -56,7 +58,7 @@ class ControlMessagePyTorchAction extends AbstractPyTorchAction<ThreadSettings> 
 
         final String requestIdStr = String.valueOf(getRequestId());
         try {
-            var message = buildControlMessage(requestIdStr, numAllocationThreads);
+            var message = buildControlMessage(requestIdStr);
 
             getProcessContext().getResultProcessor()
                 .registerRequest(requestIdStr, ActionListener.wrap(this::processResponse, this::onFailure));
@@ -70,24 +72,23 @@ class ControlMessagePyTorchAction extends AbstractPyTorchAction<ThreadSettings> 
         }
     }
 
-    public static BytesReference buildControlMessage(String requestId, int numAllocationThreads) throws IOException {
+    final BytesReference buildControlMessage(String requestId) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("request_id", requestId);
-        builder.field("control", ControlMessageTypes.AllocationThreads.ordinal());
-        builder.field("num_allocations", numAllocationThreads);
+        builder.field("control", controlOrdinal());
+        writeMessage(builder);
         builder.endObject();
-
         // BytesReference.bytes closes the builder
         return BytesReference.bytes(builder);
     }
 
-    public void processResponse(PyTorchResult result) {
+    private void processResponse(PyTorchResult result) {
         if (result.isError()) {
             onFailure(result.errorResult().error());
             return;
         }
-        onSuccess(result.threadSettings());
+        onSuccess(getResult(result));
     }
 
     @Override

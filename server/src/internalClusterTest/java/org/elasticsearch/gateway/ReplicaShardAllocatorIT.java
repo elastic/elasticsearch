@@ -430,7 +430,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         transportService.clearAllRules();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testPeerRecoveryForClosedIndices() throws Exception {
         String indexName = "peer_recovery_closed_indices";
         internalCluster().ensureAtLeastNumDataNodes(1);
@@ -465,7 +464,12 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+                        .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+                        .build()
+                )
         );
         internalCluster().fullRestart();
         ensureYellow(indexName);
@@ -477,7 +481,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
+                .setPersistentSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()).build())
         );
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);

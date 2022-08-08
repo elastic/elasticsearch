@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
+import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -191,6 +192,7 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskS
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
+import org.elasticsearch.xpack.ml.action.TransportClearDeploymentCacheAction;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
@@ -395,6 +397,7 @@ import org.elasticsearch.xpack.ml.rest.filter.RestDeleteFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestClearDeploymentCacheAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
@@ -1289,6 +1292,7 @@ public class MachineLearning extends Plugin
             new RestPutTrainedModelDefinitionPartAction(),
             new RestPutTrainedModelVocabularyAction(),
             new RestInferTrainedModelAction(),
+            new RestClearDeploymentCacheAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1393,6 +1397,7 @@ public class MachineLearning extends Plugin
                 UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE,
                 TransportUpdateTrainedModelAssignmentStateAction.class
             ),
+            new ActionHandler<>(ClearDeploymentCacheAction.INSTANCE, TransportClearDeploymentCacheAction.class),
             usageAction,
             infoAction
         );

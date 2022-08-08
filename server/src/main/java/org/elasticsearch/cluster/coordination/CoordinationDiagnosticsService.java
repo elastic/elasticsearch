@@ -385,7 +385,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     CoordinationDiagnosticsStatus.RED,
                     String.format(
                         Locale.ROOT,
-                        "No master node observed in the last %s, and an exception occurred while reaching out " + "to %s for diagnosis",
+                        "No master node observed in the last %s, and an exception occurred while reaching out to %s for diagnosis",
                         nodeHasMasterLookupTimeframe,
                         entry.getKey().getName()
                     ),
@@ -517,7 +517,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 .map(
                     entry -> String.format(
                         Locale.ROOT,
-                        "%s reports that a quorum " + "cannot be formed: [%s]",
+                        "%s reports that a quorum cannot be formed: [%s]",
                         entry.getKey().getName(),
                         entry.getValue()
                     )

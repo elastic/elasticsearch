@@ -46,6 +46,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -516,6 +517,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         if (argClass == Source.class) {
             // Location is final and can't be mocked but we have a handy method to generate ones.
             return SourceTests.randomSource();
+        }
+        if (argClass == ZoneId.class) {
+            // ZoneId is a sealed class (cannot be mocked) starting with Java 19
+            return randomZone();
         }
         try {
             return mock(argClass);

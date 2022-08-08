@@ -12,12 +12,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedReader;
@@ -52,10 +51,7 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         return builder -> {
             try (InputStream stream = AbstractFilteringTestCase.class.getResourceAsStream(file)) {
                 assertThat("Couldn't find [" + file + "]", stream, notNullValue());
-                try (
-                    XContentParser parser = XContentType.JSON.xContent()
-                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
-                ) {
+                try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, stream)) {
                     // copyCurrentStructure does not property handle filters when it is passed a json parser. So we hide it.
                     return builder.copyCurrentStructure(new FilterXContentParserWrapper(parser) {
                     });

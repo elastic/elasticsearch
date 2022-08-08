@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -384,9 +383,12 @@ public class DiskThresholdMonitor {
             .collect(Collectors.toSet());
 
         // Generate a set of all the indices that exist on either the target or source of a node replacement
-        final Set<String> indicesOnReplaceSourceOrTarget = nodesIdsPartOfReplacement.stream()
-            .flatMap(nodeId -> state.getRoutingNodes().node(nodeId).copyShards().stream().map(ShardRouting::index).map(Index::getName))
-            .collect(Collectors.toSet());
+        final Set<String> indicesOnReplaceSourceOrTarget = new HashSet<>();
+        for (String nodeId : nodesIdsPartOfReplacement) {
+            for (ShardRouting shardRouting : state.getRoutingNodes().node(nodeId)) {
+                indicesOnReplaceSourceOrTarget.add(shardRouting.index().getName());
+            }
+        }
 
         final Set<String> indicesToAutoRelease = state.routingTable()
             .indicesRouting()

@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -28,11 +29,16 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestKnnSearchAction extends BaseRestHandler {
 
+    static final String DEPRECATION_MESSAGE = "The kNN search API has been replaced by the `knn` option in the search API.";
+
     public RestKnnSearchAction() {}
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "{index}/_knn_search"), new Route(POST, "{index}/_knn_search"));
+        return List.of(
+            Route.builder(GET, "{index}/_knn_search").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_8).build(),
+            Route.builder(POST, "{index}/_knn_search").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_8).build()
+        );
     }
 
     @Override

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.analysis.plugin.api;
+package org.elasticsearch.plugin.analysis.api;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.plugin.api.Nameable;

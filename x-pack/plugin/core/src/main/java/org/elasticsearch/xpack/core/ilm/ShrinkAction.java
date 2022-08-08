@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_
 /**
  * A {@link LifecycleAction} which shrinks the index.
  */
-public class ShrinkAction implements LifecycleAction {
+public class ShrinkAction implements LifecycleAction, WithTargetNumberOfShards {
     private static final Logger logger = LogManager.getLogger(ShrinkAction.class);
 
     public static final String NAME = "shrink";
@@ -201,8 +201,7 @@ public class ShrinkAction implements LifecycleAction {
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client);
         CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(
             checkTargetShardsCountKey,
-            cleanupShrinkIndexKey,
-            numberOfShards
+            cleanupShrinkIndexKey
         );
         // We generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
         // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and we haven't generated a

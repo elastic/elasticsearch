@@ -22,22 +22,15 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
 
     public static final String NAME = "check-target-shards-count";
 
-    private final Integer numberOfShards;
-
     private static final Logger logger = LogManager.getLogger(CheckTargetShardsCountStep.class);
 
-    CheckTargetShardsCountStep(StepKey key, StepKey nextStepKey, Integer numberOfShards) {
+    CheckTargetShardsCountStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
-        this.numberOfShards = numberOfShards;
     }
 
     @Override
     public boolean isRetryable() {
         return true;
-    }
-
-    public Integer getNumberOfShards() {
-        return numberOfShards;
     }
 
     @Override
@@ -49,10 +42,11 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
             return new Result(false, null);
         }
         String indexName = indexMetadata.getIndex().getName();
+        String policyName = indexMetadata.getLifecyclePolicyName();
+        Integer numberOfShards = getTargetNumberOfShards(policyName, clusterState);
         if (numberOfShards != null) {
             int sourceNumberOfShards = indexMetadata.getNumberOfShards();
             if (sourceNumberOfShards % numberOfShards != 0) {
-                String policyName = indexMetadata.getLifecyclePolicyName();
                 String errorMessage = String.format(
                     Locale.ROOT,
                     "lifecycle action of policy [%s] for index [%s] cannot make progress "
@@ -68,5 +62,23 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
         }
 
         return new Result(true, null);
+    }
+
+    private Integer getTargetNumberOfShards(String policyName, ClusterState clusterState) {
+        IndexLifecycleMetadata indexLifecycleMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        LifecycleAction lifecycleAction = indexLifecycleMetadata.getPolicyMetadatas()
+            .get(policyName)
+            .getPolicy()
+            .getPhases()
+            .get(this.getKey().getPhase())
+            .getActions()
+            .get(this.getKey().getAction());
+        if (lifecycleAction instanceof WithTargetNumberOfShards withTargetNumberOfShards) {
+            return withTargetNumberOfShards.getNumberOfShards();
+        } else {
+            throw new IllegalStateException(
+                "The action [" + getKey().getName() + "] this step is part of should be able to provide a target shard count"
+            );
+        }
     }
 }

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.core.classloader;
+package org.elasticsearch.plugins;
 
 import java.net.URL;
 import java.security.SecureClassLoader;
@@ -45,7 +45,7 @@ import java.util.Enumeration;
  *   * ModularizingClassLoader
  *   * NamedModuleClassLoader, because it will always load into a named module (via module info, or via synthetic module)
  */
-public class StablePluginClassloader extends SecureClassLoader {
+public class StablePluginClassLoader extends SecureClassLoader {
 
     /**
      * Constructor
@@ -60,7 +60,7 @@ public class StablePluginClassloader extends SecureClassLoader {
      * Second cut: main jar plus dependencies (can we have modularized main jar with unmodularized dependencies?)
      * Third cut: link it up with the "crate" descriptor
      */
-    public StablePluginClassloader() {
+    public StablePluginClassLoader() {
 
     }
 

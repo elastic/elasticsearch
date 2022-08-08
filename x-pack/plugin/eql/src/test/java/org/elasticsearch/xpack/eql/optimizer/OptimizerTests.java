@@ -709,14 +709,13 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, projects.size());
         for (LogicalPlan sub : projects) {
             Project proj = (Project) sub;
-            // ensure that only @timestamp and join keys are explicitly projected (ie. all the other fields are excluded)
-            assertEquals(3, proj.projections().size());
+            // ensure that only join keys are explicitly projected (ie. all the other fields are excluded)
+            assertEquals(2, proj.projections().size());
             List<String> projections = proj.projections()
                 .stream()
                 .map(FieldAttribute.class::cast)
                 .map(FieldAttribute::name)
                 .collect(toList());
-            assertTrue(projections.contains("@timestamp"));
             assertTrue(projections.contains("user_name"));
             assertTrue(projections.contains("bool"));
         }

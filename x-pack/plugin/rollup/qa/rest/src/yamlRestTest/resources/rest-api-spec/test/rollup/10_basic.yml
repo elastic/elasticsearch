@@ -23,6 +23,9 @@ setup:
               metricset:
                 type: keyword
                 time_series_dimension: true
+              count:
+                type: integer
+                time_series_metric: counter
               k8s:
                 properties:
                   pod:

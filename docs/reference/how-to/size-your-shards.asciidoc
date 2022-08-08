@@ -175,7 +175,7 @@ index                                 prirep shard store
 
 [discrete]
 [[shard-count-recommendation]]
-==== Aim for fewer than 3000 indices per GB of heap memory on each master node
+==== Master-eligible nodes should have at least 1GB of heap per 3000 indices
 
 The number of indices a master node can manage is proportional to its heap
 size. The exact amount of heap memory needed for each index depends on various
@@ -215,7 +215,7 @@ GET _cat/shards?v=true
 
 [discrete]
 [[field-count-recommendation]]
-==== Allow 1kB of heap per field per index on data nodes, plus overheads
+==== Data nodes should have at least 1kB of heap per field per index, plus overheads
 
 The exact resource usage of each mapped field depends on its type, but a rule
 of thumb is to allow for approximately 1kB of heap overhead per mapped field

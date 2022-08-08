@@ -121,7 +121,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     public void setPollInterval(TimeValue pollInterval) {
         this.pollInterval = pollInterval;
         if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRun(new TimeValue(1));
+            scheduleNextRun(TimeValue.ZERO);
         }
     }
 

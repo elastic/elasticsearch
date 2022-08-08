@@ -34,9 +34,6 @@ public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
                 runtimeClasspath.fileCollection(dependency -> dependency instanceof ProjectDependency == false).minus(compileOnly)
             );
         });
-
-        // we also create the updateShas helper task that is associated with dependencyLicenses
-        project.getTasks().register("updateShas", UpdateShasTask.class, t -> t.setParentTask(dependencyLicenses));
         return dependencyLicenses;
     }
 }

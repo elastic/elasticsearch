@@ -11,6 +11,8 @@ package org.elasticsearch.action.admin.cluster.node.remove;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 
+import java.util.List;
+
 public class PrevalidateNodeRemovalRequest extends ActionRequest {
     private final String[] nodeIds;
 
@@ -21,5 +23,9 @@ public class PrevalidateNodeRemovalRequest extends ActionRequest {
 
     public PrevalidateNodeRemovalRequest(String... nodesIds) {
         this.nodeIds = nodesIds;
+    }
+
+    public List<String> getNodeIds() {
+        return List.of(nodeIds);
     }
 }

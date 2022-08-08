@@ -66,6 +66,10 @@ setup:
                         scaled_float:
                             type: scaled_float
                             scaling_factor: 100
+                        scaled_float_no_doc_values:
+                            type: scaled_float
+                            scaling_factor: 100
+                            doc_values: false
                         token_count:
                             type: token_count
                             analyzer: standard
@@ -105,6 +109,7 @@ setup:
                 half_float: 3.140625
                 half_float_no_doc_values: 3.140625
                 scaled_float: 3.14
+                scaled_float_no_doc_values: 3.14
                 token_count: count all these words please
 
     - do:
@@ -144,6 +149,7 @@ setup:
               half_float: [1.123, 2.234]
               half_float_no_doc_values: [2.234, 1.123]
               scaled_float: [-3.5, 2.5]
+              scaled_float_no_doc_values: [2.5, -3.5]
 
 
     - do:
@@ -2604,6 +2610,58 @@ setup:
                         script:
                             source: "doc['scaled_float'].value"
     - match: { hits.hits.0.fields.field.0: 3.14 }
+
+---
+"scaled_float_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['scaled_float_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['scaled_float_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('scaled_float_no_doc_values', 0.0)"
+  - match: { hits.hits.0.fields.field.0: 3.14 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - match: { hits.hits.2.fields.field.0: -3.5 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('scaled_float_no_doc_values').get(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - match: { hits.hits.2.fields.field.0: 2.5 }
 
 ---
 "token_count":

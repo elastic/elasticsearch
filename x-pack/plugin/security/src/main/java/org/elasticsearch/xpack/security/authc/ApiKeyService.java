@@ -840,7 +840,7 @@ public class ApiKeyService {
             if (apiKeyAuthCache != null) {
                 apiKeyAuthCache.invalidate(docId);
             }
-            listener.onResponse(AuthenticationResult.unsuccessful("api key has been invalidated", null));
+            listener.onResponse(AuthenticationResult.unsuccessful("api key [" + credentials.getId() + "] has been invalidated", null));
         } else {
             if (apiKeyDoc.hash == null) {
                 throw new IllegalStateException("api key hash is missing");
@@ -1212,7 +1212,7 @@ public class ApiKeyService {
                 apiKeyIds,
                 true,
                 false,
-                ApiKeyService::convertSearchHitToApiKeyInfo,
+                this::convertSearchHitToApiKeyInfo,
                 ActionListener.wrap(apiKeys -> {
                     if (apiKeys.isEmpty()) {
                         logger.debug(
@@ -1593,7 +1593,7 @@ public class ApiKeyService {
             apiKeyIds,
             false,
             false,
-            ApiKeyService::convertSearchHitToApiKeyInfo,
+            this::convertSearchHitToApiKeyInfo,
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
@@ -1636,7 +1636,7 @@ public class ApiKeyService {
                             return;
                         }
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
-                            .map(ApiKeyService::convertSearchHitToQueryItem)
+                            .map(this::convertSearchHitToQueryItem)
                             .toList();
                         listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
                     }, listener::onFailure)
@@ -1645,33 +1645,34 @@ public class ApiKeyService {
         }
     }
 
-    private static QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit) {
+    private QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit) {
         return new QueryApiKeyResponse.Item(convertSearchHitToApiKeyInfo(hit), hit.getSortValues());
     }
 
-    private static ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {
-        Map<String, Object> source = hit.getSourceAsMap();
-        String name = (String) source.get("name");
-        String id = hit.getId();
-        Long creation = (Long) source.get("creation_time");
-        Long expiration = (Long) source.get("expiration_time");
-        Boolean invalidated = (Boolean) source.get("api_key_invalidated");
-        @SuppressWarnings("unchecked")
-        String username = (String) ((Map<String, Object>) source.get("creator")).get("principal");
-        @SuppressWarnings("unchecked")
-        String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> metadata = (Map<String, Object>) source.get("metadata_flattened");
+    private ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {
+        VersionedApiKeyDoc versionedApiKeyDoc = convertSearchHitToVersionedApiKeyDoc(hit);
+        String apiKeyId = hit.getId();
+        final Map<String, Object> metadata = versionedApiKeyDoc.doc.metadataFlattened != null
+            ? XContentHelper.convertToMap(versionedApiKeyDoc.doc.metadataFlattened, false, XContentType.JSON).v2()
+            : Map.of();
+
+        final List<RoleDescriptor> roleDescriptors = parseRoleDescriptorsBytes(
+            apiKeyId,
+            versionedApiKeyDoc.doc.roleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.ASSIGNED
+        );
 
         return new ApiKey(
-            name,
-            id,
-            Instant.ofEpochMilli(creation),
-            (expiration != null) ? Instant.ofEpochMilli(expiration) : null,
-            invalidated,
-            username,
-            realm,
-            metadata
+            versionedApiKeyDoc.doc.name,
+            apiKeyId,
+            Instant.ofEpochMilli(versionedApiKeyDoc.doc.creationTime),
+            versionedApiKeyDoc.doc.expirationTime != -1 ? Instant.ofEpochMilli(versionedApiKeyDoc.doc.expirationTime) : null,
+            versionedApiKeyDoc.doc.invalidated,
+            (String) versionedApiKeyDoc.doc.creator.get("principal"),
+            (String) versionedApiKeyDoc.doc.creator.get("realm"),
+            metadata,
+            roleDescriptors,
+            null
         );
     }
 

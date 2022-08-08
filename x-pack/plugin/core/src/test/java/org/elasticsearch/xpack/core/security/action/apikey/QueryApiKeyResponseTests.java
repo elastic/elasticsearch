@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -17,6 +18,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptor;
 
 public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<QueryApiKeyResponse> {
 
@@ -70,7 +73,9 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
         final Instant creation = Instant.ofEpochMilli(randomMillisUpToYear9999());
         final Instant expiration = randomBoolean() ? Instant.ofEpochMilli(randomMillisUpToYear9999()) : null;
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        return new ApiKey(name, id, creation, expiration, false, username, realm_name, metadata);
+        final List<RoleDescriptor> roleDescriptors = randomFrom(randomUniquelyNamedRoleDescriptor(0, 3), null);
+        final List<RoleDescriptor> limitedByRoleDescriptors = randomFrom(randomUniquelyNamedRoleDescriptor(0, 3), null);
+        return new ApiKey(name, id, creation, expiration, false, username, realm_name, metadata, roleDescriptors, limitedByRoleDescriptors);
     }
 
     private Object[] randomSortValues() {

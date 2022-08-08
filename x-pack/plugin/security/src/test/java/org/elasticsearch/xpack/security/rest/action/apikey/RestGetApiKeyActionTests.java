@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -40,6 +41,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptor;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -87,9 +89,22 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
+        final List<RoleDescriptor> roleDescriptors = randomUniquelyNamedRoleDescriptor(0, 3);
+        final List<RoleDescriptor> limitedByRoleDescriptors = randomUniquelyNamedRoleDescriptor(0, 3);
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
             Collections.singletonList(
-                new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)
+                new ApiKey(
+                    "api-key-name-1",
+                    "api-key-id-1",
+                    creation,
+                    expiration,
+                    false,
+                    "user-x",
+                    "realm-1",
+                    metadata,
+                    roleDescriptors,
+                    limitedByRoleDescriptors
+                )
             )
         );
 
@@ -140,7 +155,18 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 assertThat(
                     actual.getApiKeyInfos(),
                     arrayContaining(
-                        new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)
+                        new ApiKey(
+                            "api-key-name-1",
+                            "api-key-id-1",
+                            creation,
+                            expiration,
+                            false,
+                            "user-x",
+                            "realm-1",
+                            metadata,
+                            roleDescriptors,
+                            limitedByRoleDescriptors
+                        )
                     )
                 );
             }
@@ -177,7 +203,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             false,
             "user-x",
             "realm-1",
-            ApiKeyTests.randomMetadata()
+            ApiKeyTests.randomMetadata(),
+            randomUniquelyNamedRoleDescriptor(0, 3),
+            randomUniquelyNamedRoleDescriptor(0, 3)
         );
         final ApiKey apiKey2 = new ApiKey(
             "api-key-name-2",
@@ -187,7 +215,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             false,
             "user-y",
             "realm-1",
-            ApiKeyTests.randomMetadata()
+            ApiKeyTests.randomMetadata(),
+            randomUniquelyNamedRoleDescriptor(0, 3),
+            randomUniquelyNamedRoleDescriptor(0, 3)
         );
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));

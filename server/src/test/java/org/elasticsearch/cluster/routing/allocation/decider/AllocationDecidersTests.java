@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -27,6 +28,8 @@ import org.hamcrest.Matchers;
 
 import java.util.Collection;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class AllocationDecidersTests extends ESTestCase {
 
@@ -97,13 +100,7 @@ public class AllocationDecidersTests extends ESTestCase {
         final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState, null, null, 0L);
 
         allocation.setDebugMode(mode);
-        final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(
-            new ShardId(testIdx.getIndex(), 0),
-            true,
-            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            unassignedInfo
-        );
+        final ShardRouting shardRouting = createShardRouting(testIdx.getIndex());
 
         RoutingNode routingNode = RoutingNodesHelper.routingNode("testNode", null);
         verify(deciders.canAllocate(shardRouting, routingNode, allocation), matcher);
@@ -122,7 +119,7 @@ public class AllocationDecidersTests extends ESTestCase {
     }
 
     private void verify(Decision decision, Matcher<Collection<? extends Decision>> matcher) {
-        assertThat(decision.type(), Matchers.equalTo(Decision.Type.YES));
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision, Matchers.instanceOf(Decision.Multi.class));
         Decision.Multi multi = (Decision.Multi) decision;
         assertThat(multi.getDecisions(), matcher);
@@ -238,12 +235,7 @@ public class AllocationDecidersTests extends ESTestCase {
             .build();
 
         // no debug should just short-circuit to no, no matter what kind of no type return the first decider returns
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(
-            new ShardId(testIdx.getIndex(), 0),
-            true,
-            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message")
-        );
+        final ShardRouting shardRouting = createShardRouting(testIdx.getIndex());
         final RoutingNode routingNode = RoutingNodesHelper.routingNode("testNode", null);
         final IndexMetadata indexMetadata = IndexMetadata.builder("idx")
             .settings(settings(Version.CURRENT))
@@ -275,5 +267,14 @@ public class AllocationDecidersTests extends ESTestCase {
         assertEquals(expectedDebugDecision, allocationDeciders.shouldAutoExpandToNode(indexMetadata, null, allocation));
         assertEquals(expectedDebugDecision, allocationDeciders.canRebalance(allocation));
         assertEquals(expectedDebugDecision, allocationDeciders.canForceAllocatePrimary(shardRouting, routingNode, allocation));
+    }
+
+    private static ShardRouting createShardRouting(Index index) {
+        return ShardRouting.newUnassigned(
+            new ShardId(index, 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message")
+        );
     }
 }

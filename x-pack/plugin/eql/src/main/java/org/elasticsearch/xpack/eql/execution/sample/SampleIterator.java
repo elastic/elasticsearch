@@ -57,8 +57,6 @@ public class SampleIterator implements Executable {
     final List<Sample> samples;
     private final int fetchSize;
     private final Limit limit;
-    private int samplesDiscarded = 0;
-
     private long startTime;
 
     // ---------- CIRCUIT BREAKER -----------
@@ -218,12 +216,10 @@ public class SampleIterator implements Executable {
                 if (docGroupsCounter == maxCriteria) {
                     List<SearchHit> match = matchSample(sample, maxCriteria);
                     if (match != null) {
-                        if (samplesDiscarded < limit.offset()) {
-                            samplesDiscarded++;
-                        } else if (samples.size() < limit.limit()) {
+                        if (samples.size() < limit.limit()) {
                             samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
                         }
-                        if (samples.size() >= limit.limit()) {
+                        if (samples.size() == limit.limit()) {
                             payload(listener);
                             return;
                         }

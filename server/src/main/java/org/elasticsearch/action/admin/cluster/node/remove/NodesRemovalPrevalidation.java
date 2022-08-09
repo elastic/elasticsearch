@@ -25,6 +25,14 @@ public class NodesRemovalPrevalidation implements ToXContentFragment {
         this.perNodeResult = perNodeResult;
     }
 
+    public Result getOverallResult() {
+        return overallResult;
+    }
+
+    public Map<String, Result> getPerNodeResult() {
+        return perNodeResult;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("overall_result");
@@ -41,7 +49,6 @@ public class NodesRemovalPrevalidation implements ToXContentFragment {
     }
 
     // TODO: implement writable but throw exception?
-
     public record Result(IsSafe isSafe, String reason) implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

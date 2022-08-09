@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 
-public class PrevalidateNodeRemovalResponseTest extends ESTestCase {
+public class PrevalidateNodeRemovalResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         PrevalidateNodeRemovalResponse simpleResp = new PrevalidateNodeRemovalResponse(

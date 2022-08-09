@@ -67,7 +67,6 @@ When specified, this fully replaces metadata previously associated with the API 
 ==== {api-response-body-title}
 
 A successful request returns a JSON structure that contains the IDs of all updated API keys, the IDs of API keys that already had the requested changes and did not require an update, and <<security-api-bulk-update-api-keys-examples-errors, error details>> for any failed update.
-The API responds with a `200` status code, even in the presence of errors.
 
 [[security-api-bulk-update-api-keys-example]]
 ==== {api-examples-title}

@@ -186,3 +186,39 @@ The API key's effective permissions after the update will be the intersection of
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+If any API keys failed to update, error details are included in the `errors` field:
+
+[source,js]
+--------------------------------------------------
+{
+  "updated": ["VuaCfGcBCdbkQm-e5aOx"],
+  "noops": [],
+  "errors": { <1>
+    "count": 3,
+    "details": {
+       "g_PqP4IBcBaEQdwM5-WI": { <2>
+         "type": "resource_not_found_exception",
+         "reason": "no API key owned by requesting user found for ID [g_PqP4IBcBaEQdwM5-WI]"
+       },
+       "OM4cg4IBGgpHBfLerY4B": {
+         "type": "illegal_argument_exception",
+         "reason": "cannot update invalidated API key [OM4cg4IBGgpHBfLerY4B]"
+       },
+       "Os4gg4IBGgpHBfLe2I7j": {
+         "type": "exception",
+         "reason": "error occurred while updating API key",
+         "caused_by": { <3>
+           "type": "illegal_argument_exception",
+           "reason": "index failure"
+         }
+       }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> Details about any errors encountered. This field is not present in the response when `count` is 0.
+<2> The ID of the API key for which the error occurred.
+<3> The error details may also include a `caused_by` field.

@@ -39,6 +39,8 @@ public class StablePluginClassLoaderTests extends ESTestCase {
     // Test loading a modularized jar...
     // We should be able to pass a URI for the jar and load a class from it.
     public void testLoadFromModularizedJar() throws Exception {
+
+        // TODO: extract some part of jar creation for common use
         Map<String, CharSequence> sources = new HashMap<>();
         sources.put("p.Modular", """
             package p;
@@ -63,6 +65,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Path outerJar = topLevelDir.resolve("test.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
 
+        // TODO: Extract URL loader section and use it to verify jars
         // loading it with a URL classloader (just checking the jar, remove
         // this block)
         URL[] urls = new URL[] { outerJar.toUri().toURL() };

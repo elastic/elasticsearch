@@ -41,7 +41,7 @@ import java.util.Enumeration;
  *   * {@link java.security.SecureClassLoader} - user-facing classloaders inherit from this
  *   * {@link java.net.URLClassLoader} - loads classes from classpath jars
  *   * {/@link jdk.internal.loader.Loader} - loads classes from modules
- *   * {@link org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader} - one of our custom classloaders
+ *   * {/@link org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader} - one of our custom classloaders
  *   * {@link java.lang.module.ModuleDescriptor} - how you build a module (for an ubermodule)
  *   * <a href="https://github.com/elastic/elasticsearch/pull/88216/files">WIP PR for ubermodule classloader</a>
  *
@@ -57,6 +57,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
     private ResolvedModule module;
 
     static StablePluginClassLoader getInstance(ClassLoader parent, ResolvedModule module) {
+        // TODO: how does the access controller work and when does it go away?
         PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(module);
         return AccessController.doPrivileged(pa);
     }
@@ -71,9 +72,10 @@ public class StablePluginClassLoader extends SecureClassLoader {
      *
      * First cut: single jar only, modularized or not
      * Second cut: main jar plus dependencies (can we have modularized main jar with unmodularized dependencies?)
-     * Third cut: link it up with the "crate" descriptor
+     * Third cut: link it up with the "crate/bundle" descriptor
      */
     public StablePluginClassLoader(ResolvedModule module) {
+        // TODO: here, we need to figure out if our jar/jars are modules are not
         this.module = module;
     }
 
@@ -156,6 +158,8 @@ public class StablePluginClassLoader extends SecureClassLoader {
         //
         // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
         // searching the current module, then other modules, and checking access levels
+
+        // TODO: find resource, but check module name?
         return null;
     }
 
@@ -170,6 +174,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
         // searching the current module, then other modules, and checking access levels
 
+        // TODO: what if we can't find the resource?
         try (ModuleReader reader = module.reference().open()) {
             return reader.find(name).orElseThrow().toURL();
         } catch (IOException e) {
@@ -183,6 +188,8 @@ public class StablePluginClassLoader extends SecureClassLoader {
         //
         // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
         // searching the current module, then other modules, and checking access levels
+
+        // TODO - how do we do this?
         return null;
     }
 }

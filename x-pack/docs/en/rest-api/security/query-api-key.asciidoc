@@ -46,7 +46,7 @@ The query supports a subset of query types, including
 <<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>, <<query-dsl-exists-query,`exists`>>,
 and <<query-dsl-range-query,`range`>>.
 +
-You can query most public information associated with an API key, including the
+You can query the following public values associated with an API key.
 following values.
 +
 .Valid values for `query`

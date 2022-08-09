@@ -33,12 +33,11 @@ record ReservedStateErrorTaskExecutor() implements ClusterStateTaskExecutor<Rese
         Supplier<Releasable> dropHeadersContextSupplier
     ) {
         for (final var taskContext : taskContexts) {
+            final var task = taskContext.getTask();
             try (var ignored = taskContext.captureResponseHeaders()) {
-                currentState = taskContext.getTask().execute(currentState);
+                currentState = task.execute(currentState);
             }
-            taskContext.success(
-                () -> taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
-            );
+            taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
         }
         return currentState;
     }

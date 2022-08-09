@@ -128,6 +128,7 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.I
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -2343,7 +2344,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(actualRawApiKeyDoc);
         @SuppressWarnings("unchecked")
         final var actualMetadata = (Map<String, Object>) actualRawApiKeyDoc.get("metadata_flattened");
-        assertThat("for api key doc " + actualRawApiKeyDoc, actualMetadata, equalTo(expectedMetadata));
+        // Internally, metadata may be stored as `null`. However, it is always exposed as an empty map through the API. We define
+        // `expectedMetadata` as the expected value according to the API, so we need to account for this discrepancy here
+        if (expectedMetadata.isEmpty()) {
+            assertThat("for api key doc " + actualRawApiKeyDoc, actualMetadata, anyOf(nullValue(), anEmptyMap()));
+        } else {
+            assertThat("for api key doc " + actualRawApiKeyDoc, actualMetadata, equalTo(expectedMetadata));
+        }
     }
 
     private void expectCreatorForApiKey(final Map<String, Object> expectedCreator, final Map<String, Object> actualRawApiKeyDoc) {

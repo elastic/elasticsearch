@@ -50,7 +50,6 @@ import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase
 import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.ClusterFormationStateOrException;
 import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.CoordinationDiagnosticsStatus;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.endsWith;
@@ -499,6 +498,14 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testRedForNoMasterQueryingNonMaster() {
+        /*
+         * This test simulates a cluster with 3 master-eligible nodes and two data nodes. It disconnects all master-eligible nodes
+         * except one random one, and then asserts that we get the expected response from calling diagnoseMasterStability() on each of
+         * the data nodes. It then sets various values for
+         * remoteCoordinationDiagnosisResult on each of the non-master-eligible nodes (simulating different
+         * responses from a master-eligible node that it has polled), and then asserts that the correct result comes back from
+         * diagnoseMasterStability().
+         */
         try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             createAndAddNonMasterNode(cluster);
             createAndAddNonMasterNode(cluster);
@@ -511,8 +518,6 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 }
             }
             cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
-            int noMasterResultCount = 0;
-            int noResultYetCount = 0;
             for (Cluster.ClusterNode node : cluster.clusterNodes.stream()
                 .filter(node -> node.getLocalNode().isMasterNode() == false)
                 .toList()) {
@@ -522,12 +527,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 String summary = healthIndicatorResult.summary();
                 assertThat(
                     summary,
-                    anyOf(
-                        // This one happens if we happen to be polling the still-reachable master-eligible node:
-                        containsString("No master has been observed recently"),
-                        // And this one happens if we poll one of the disconnected master-eligible nodes:
-                        containsString("No master node observed in the last 30s, and the master eligible nodes are unable to form a quorum")
-                    )
+                    containsString("No master node observed in the last 30s, and the master eligible nodes are unable to form a quorum")
                 );
                 CoordinationDiagnosticsStatus artificialRemoteStatus = randomValueOtherThan(
                     CoordinationDiagnosticsStatus.GREEN,

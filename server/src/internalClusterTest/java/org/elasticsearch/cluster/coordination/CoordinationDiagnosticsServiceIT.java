@@ -272,10 +272,13 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
 
     public void testNoQuorum() throws Exception {
         /*
-         * In this test we have three master-eligible nodes. We make it so that the two non-active ones cannot communicate, and then we
+         * In this test we have three master-eligible nodes and two data-only nodes. We make it so that the two non-active
+         * master-eligible nodes cannot communicate with each other but can each communicate with one data-only node, and then we
          * stop the active master node. Now there is no quorum so a new master cannot be elected. We set the master lookup threshold very
          * low on the data nodes, so when we run the master stability check on each of the master nodes, it will see that there has been no
-         * master recently and because there is no quorum, so it returns a RED status.
+         * master recently and because there is no quorum, so it returns a RED status. We also check that each of the data-only nodes
+         * reports a RED status because there is no quorum (having polled that result from the master-eligible node it can communicate
+         * with).
          */
         CoordinationDiagnosticsService.remoteRequestInitialDelay = TimeValue.ZERO;
         var settings = Settings.builder()

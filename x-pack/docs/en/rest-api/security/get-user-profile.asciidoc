@@ -153,7 +153,7 @@ If there has been any errors when retrieving the user profiles, they are returne
   "errors": {
     "count": 1,
     "details": {
-       "this_id_does_not_exist": {
+       "u_FmxQt3gr1BBH5wpnz9HkouPj3Q710XkOgg1PWkwLPBW_5": {
          "type": "resource_not_found_exception",
          "reason": "profile document not found"
        }

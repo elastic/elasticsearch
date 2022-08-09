@@ -12,10 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -119,45 +121,48 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
 
     public void testShouldExecuteWithCorrectContext() {
 
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        var listener = new AllocationActionMultiListener<Integer>(threadContext);
+        var context = new ThreadContext(Settings.EMPTY);
+        var listener = new AllocationActionMultiListener<Integer>(context);
 
-        threadContext.putHeader("header", "root");
+        context.putHeader("header", "root");
         var r1 = new AtomicReference<String>();
         var r2 = new AtomicReference<String>();
         var l1 = listener.delay(
             ActionListener.wrap(
-                response -> r1.set(threadContext.getHeader("header")),
+                response -> r1.set(context.getHeader("header")),
                 exception -> { throw new AssertionError("Should not fail in test"); }
             )
         );
         var l2 = listener.delay(
             ActionListener.wrap(
-                response -> r2.set(threadContext.getHeader("header")),
+                response -> r2.set(context.getHeader("header")),
                 exception -> { throw new AssertionError("Should not fail in test"); }
             )
         );
 
-        try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader("header", "clusterStateUpdate1");
-            l1.onResponse(1);
-        }
-
-        try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader("header", "clusterStateUpdate2");
-            l2.onResponse(1);
-        }
-
-        try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader("header", "reroute");
-            listener.reroute().onResponse(null);
-        }
+        executeInRandomOrder(
+            context,
+            List.of(
+                new Tuple<>("clusterStateUpdate1", () -> l1.onResponse(1)),
+                new Tuple<>("clusterStateUpdate2", () -> l2.onResponse(2)),
+                new Tuple<>("reroute", () -> listener.reroute().onResponse(null))
+            )
+        );
 
         assertThat(r1.get(), equalTo("root"));
         assertThat(r2.get(), equalTo("root"));
     }
 
-    private ThreadContext createEmptyThreadContext() {
+    private static void executeInRandomOrder(ThreadContext context, List<Tuple<String, Runnable>> actions) {
+        for (var action : shuffledList(actions)) {
+            try (var ignored = context.stashContext()) {
+                context.putHeader("header", action.v1());
+                action.v2().run();
+            }
+        }
+    }
+
+    private static ThreadContext createEmptyThreadContext() {
         return new ThreadContext(Settings.EMPTY);
     }
 }

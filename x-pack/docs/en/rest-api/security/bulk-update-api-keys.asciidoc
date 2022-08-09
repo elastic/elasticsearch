@@ -44,7 +44,7 @@ This change can occur if the owner user's permissions have changed since the API
 
 You can specify the following parameters in the request body.
 
-`ids`:: (Required, list) A list of API key IDs.
+`ids`:: (Required, list) The IDs of the API keys to update.
 
 [[security-api-bulk-update-api-keys-api-key-role-descriptors]]
 `role_descriptors`::
@@ -65,10 +65,10 @@ When specified, this fully replaces metadata previously associated with the API 
 [[security-api-bulk-update-api-keys-response-body]]
 ==== {api-response-body-title}
 
-A successful request returns a JSON structure that contains the IDs of all successfully updated API keys, the IDs of API keys that did not require an update, and error information for any failed update.
+A successful request returns a JSON structure that contains the IDs of all updated API keys, the IDs of API keys that already had the requested changes and did not require an update, and <<security-api-bulk-update-api-keys-examples-errors, error details>> for any failed update.
 The API responds with a `200` status code, even in the presence of errors.
 
-[[security-api-update-api-key-example]]
+[[security-api-bulk-update-api-keys-example]]
 ==== {api-examples-title}
 
 If you create an API key as follows:
@@ -118,7 +118,7 @@ For example:
 
 For the examples below, assume that the owner user's permissions are:
 
-[[security-api-update-api-key-examples-user-permissions]]
+[[security-api-bulk-update-api-keys-examples-user-permissions]]
 [source,js]
 --------------------------------------------------
 {
@@ -172,7 +172,7 @@ A successful call returns a JSON structure indicating that the API key was updat
 }
 ----
 
-The API key's effective permissions after the update will be the intersection of the supplied role descriptors and the <<security-api-update-api-key-examples-user-permissions, owner user's permissions>>:
+The API key's effective permissions after the update will be the intersection of the supplied role descriptors and the <<security-api-bulk-update-api-keys-examples-user-permissions, owner user's permissions>>:
 
 [source,js]
 --------------------------------------------------
@@ -189,6 +189,7 @@ The API key's effective permissions after the update will be the intersection of
 
 If any API keys failed to update, error details are included in the `errors` field:
 
+[[security-api-bulk-update-api-keys-examples-errors]]
 [source,js]
 --------------------------------------------------
 {
@@ -210,7 +211,7 @@ If any API keys failed to update, error details are included in the `errors` fie
          "reason": "error occurred while updating API key",
          "caused_by": { <3>
            "type": "illegal_argument_exception",
-           "reason": "index failure"
+           "reason": "security index failure"
          }
        }
     }
@@ -219,6 +220,7 @@ If any API keys failed to update, error details are included in the `errors` fie
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> Details about any errors encountered. This field is not present in the response when `count` is 0.
+<1> Details about any errors encountered.
+This field is not present in the response when `count` is 0.
 <2> The ID of the API key for which the error occurred.
 <3> The error details may also include a `caused_by` field.

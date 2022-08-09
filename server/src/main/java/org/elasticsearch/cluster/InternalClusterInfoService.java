@@ -211,8 +211,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
                                 if (indicesStatsResponse.getShardFailures().length > 0) {
                                     final Set<String> failedNodeIds = new HashSet<>();
-                                    for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse
-                                        .getShardFailures()) {
+                                    for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
                                         if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
                                             if (failedNodeIds.add(failedNodeException.nodeId())) {
                                                 logger.warn(

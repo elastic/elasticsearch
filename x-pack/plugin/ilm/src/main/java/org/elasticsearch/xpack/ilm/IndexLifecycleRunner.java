@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -44,6 +45,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
@@ -64,13 +66,15 @@ class IndexLifecycleRunner {
             public ClusterState execute(
                 ClusterState currentState,
                 List<TaskContext<IndexLifecycleClusterStateUpdateTask>> taskContexts,
-                SomeType dropHeadersContextSupplier
+                Supplier<Releasable> dropHeadersContextSupplier
             ) {
                 ClusterState state = currentState;
                 for (final var taskContext : taskContexts) {
                     try {
                         final var task = taskContext.getTask();
-                        state = task.execute(state);
+                        try (var ignored = taskContext.captureResponseHeaders()) {
+                            state = task.execute(state);
+                        }
                         taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
                     } catch (Exception e) {
                         taskContext.onFailure(e);

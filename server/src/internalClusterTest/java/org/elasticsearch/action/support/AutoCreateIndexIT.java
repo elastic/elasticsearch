@@ -35,7 +35,7 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
             (currentState, taskContexts, dropHeadersContextSupplier) -> {
                 barrier.await(10, TimeUnit.SECONDS);
                 barrier.await(10, TimeUnit.SECONDS);
-                taskContexts.forEach(c -> c.success(ActionListener.noop()));
+                taskContexts.forEach(c -> c.success(() -> {}));
                 return currentState;
             }
         );

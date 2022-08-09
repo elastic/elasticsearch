@@ -93,12 +93,15 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      */
     private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = (
         currentState,
-        taskContexts) -> {
+        taskContexts,
+        dropHeadersContextSupplier) -> {
         ClusterState state = currentState;
         for (final var taskContext : taskContexts) {
             try {
                 final var task = taskContext.getTask();
-                state = task.execute(state);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    state = task.execute(state);
+                }
                 taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);

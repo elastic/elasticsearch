@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptor;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetApiKeyResponseTests extends ESTestCase {
@@ -45,7 +45,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             randomAlphaOfLength(4),
             randomAlphaOfLength(5),
             randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
-            randomBoolean() ? null : randomUniquelyNamedRoleDescriptor(0, 3)
+            randomBoolean() ? null : randomUniquelyNamedRoleDescriptors(0, 3)
         );
         GetApiKeyResponse response = new GetApiKeyResponse(Collections.singletonList(apiKeyInfo));
 

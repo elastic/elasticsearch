@@ -83,12 +83,22 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetApiKeyRoleDescriptors() throws IOException {
-        // First key without assigned role descriptors
+        // First key without assigned role descriptors, i.e. it inherits owner user's permission
+        // This can be achieved by either omitting the role_descriptors field in the request or
+        // explicitly set it to an empty object
         final Request createApiKeyRequest1 = new Request("POST", "_security/api_key");
-        createApiKeyRequest1.setJsonEntity("""
-            {
-              "name": "k1"
-            }""");
+        if (randomBoolean()) {
+            createApiKeyRequest1.setJsonEntity("""
+                {
+                  "name": "k1"
+                }""");
+        } else {
+            createApiKeyRequest1.setJsonEntity("""
+                {
+                  "name": "k1",
+                  "role_descriptors": { }
+                }""");
+        }
         assertOK(adminClient().performRequest(createApiKeyRequest1));
 
         // Second key with a single assigned role descriptor

@@ -625,7 +625,7 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
-    public static List<RoleDescriptor> randomUniquelyNamedRoleDescriptor(int minSize, int maxSize) {
+    public static List<RoleDescriptor> randomUniquelyNamedRoleDescriptors(int minSize, int maxSize) {
         return randomValueOtherThanMany(
             roleDescriptors -> roleDescriptors.stream().map(RoleDescriptor::getName).distinct().count() != roleDescriptors.size(),
             () -> randomList(minSize, maxSize, () -> randomRoleDescriptor(false))

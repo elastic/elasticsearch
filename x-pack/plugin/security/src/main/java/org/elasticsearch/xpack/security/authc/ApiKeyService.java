@@ -1650,8 +1650,8 @@ public class ApiKeyService {
     }
 
     private ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {
-        VersionedApiKeyDoc versionedApiKeyDoc = convertSearchHitToVersionedApiKeyDoc(hit);
-        String apiKeyId = hit.getId();
+        final VersionedApiKeyDoc versionedApiKeyDoc = convertSearchHitToVersionedApiKeyDoc(hit);
+        final String apiKeyId = hit.getId();
         final Map<String, Object> metadata = versionedApiKeyDoc.doc.metadataFlattened != null
             ? XContentHelper.convertToMap(versionedApiKeyDoc.doc.metadataFlattened, false, XContentType.JSON).v2()
             : Map.of();

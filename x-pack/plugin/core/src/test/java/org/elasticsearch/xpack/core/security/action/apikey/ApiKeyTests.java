@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptor;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -43,7 +43,7 @@ public class ApiKeyTests extends ESTestCase {
         final String username = randomAlphaOfLengthBetween(4, 10);
         final String realmName = randomAlphaOfLengthBetween(3, 8);
         final Map<String, Object> metadata = randomMetadata();
-        final List<RoleDescriptor> roleDescriptors = randomBoolean() ? null : randomUniquelyNamedRoleDescriptor(0, 3);
+        final List<RoleDescriptor> roleDescriptors = randomBoolean() ? null : randomUniquelyNamedRoleDescriptors(0, 3);
 
         final ApiKey apiKey = new ApiKey(name, id, creation, expiration, invalidated, username, realmName, metadata, roleDescriptors);
         // The metadata will never be null because the constructor convert it to empty map if a null is passed in
@@ -71,6 +71,7 @@ public class ApiKeyTests extends ESTestCase {
         } else {
             @SuppressWarnings("unchecked")
             final Map<String, Object> rdMap = (Map<String, Object>) map.get("role_descriptors");
+            assertThat(rdMap.size(), equalTo(roleDescriptors.size()));
             for (var roleDescriptor : roleDescriptors) {
                 assertThat(rdMap, hasKey(roleDescriptor.getName()));
                 assertThat(XContentTestUtils.convertToMap(roleDescriptor), equalTo(rdMap.get(roleDescriptor.getName())));

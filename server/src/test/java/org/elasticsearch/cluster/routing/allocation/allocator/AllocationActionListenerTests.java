@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -77,9 +76,7 @@ public class AllocationActionListenerTests extends ESTestCase {
         listener = new AllocationActionListener<>(
             ActionListener.wrap(
                 ignore -> completed.set(threadContext.getHeader("header")),
-                exception -> {
-                    throw new AssertionError("Should not fail in test");
-                }
+                exception -> { throw new AssertionError("Should not fail in test"); }
             ),
             threadContext
         );

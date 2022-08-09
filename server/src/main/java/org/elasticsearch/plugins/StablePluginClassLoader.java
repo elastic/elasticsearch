@@ -8,7 +8,14 @@
 
 package org.elasticsearch.plugins;
 
+import java.io.IOException;
+import java.lang.module.ModuleReader;
+import java.lang.module.ResolvedModule;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.security.AccessController;
+import java.security.CodeSource;
+import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.util.Enumeration;
 
@@ -47,6 +54,12 @@ import java.util.Enumeration;
  */
 public class StablePluginClassLoader extends SecureClassLoader {
 
+    private ResolvedModule module;
+
+    static StablePluginClassLoader getInstance(ClassLoader parent, ResolvedModule module) {
+        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(module);
+        return AccessController.doPrivileged(pa);
+    }
     /**
      * Constructor
      *
@@ -60,8 +73,8 @@ public class StablePluginClassLoader extends SecureClassLoader {
      * Second cut: main jar plus dependencies (can we have modularized main jar with unmodularized dependencies?)
      * Third cut: link it up with the "crate" descriptor
      */
-    public StablePluginClassLoader() {
-
+    public StablePluginClassLoader(ResolvedModule module) {
+        this.module = module;
     }
 
     /**
@@ -107,7 +120,25 @@ public class StablePluginClassLoader extends SecureClassLoader {
         //
         // jdk.internal.loader.Loader can pull a class out of a loaded module pretty easily;
         // ModuleReference does a lot of the work
-        return null;
+
+        // from jdk.internal.loader.Loader#defineClass
+        try (ModuleReader reader = module.reference().open()) {
+
+            String rn = name.replace('.', '/').concat(".class");
+            ByteBuffer bb = reader.read(rn).orElse(null);
+            if (bb == null) {
+                // class not found
+                return null;
+            }
+
+            try {
+                return defineClass(name, bb, (CodeSource) null);
+            } finally {
+                reader.release(bb);
+            }
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     /**
@@ -138,7 +169,12 @@ public class StablePluginClassLoader extends SecureClassLoader {
         //
         // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
         // searching the current module, then other modules, and checking access levels
-        return null;
+
+        try (ModuleReader reader = module.reference().open()) {
+            return reader.find(name).orElseThrow().toURL();
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     @Override

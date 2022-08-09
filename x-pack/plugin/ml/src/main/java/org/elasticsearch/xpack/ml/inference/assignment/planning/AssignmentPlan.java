@@ -32,11 +32,16 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         long memoryBytes,
         int allocations,
         int threadsPerAllocation,
-        Map<String, Integer> currentAllocationsByNodeId
+        Map<String, Integer> currentAllocationsByNodeId,
+        int maxAssignedAllocations
     ) {
 
-        int getPreviouslyAssignedAllocations() {
+        int getCurrentAssignedAllocations() {
             return currentAllocationsByNodeId.values().stream().mapToInt(Integer::intValue).sum();
+        }
+
+        boolean hasEverBeenAllocated() {
+            return maxAssignedAllocations > 0;
         }
 
         @Override
@@ -50,6 +55,8 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 + threadsPerAllocation
                 + ") (current_allocations = "
                 + currentAllocationsByNodeId
+                + ") (max_assigned_allocations = "
+                + maxAssignedAllocations
                 + ")";
         }
     };
@@ -108,17 +115,17 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         return Comparator.comparing(AssignmentPlan::computeQuality).compare(this, o);
     }
 
-    public boolean satisfiesPreviousAssignments() {
-        return models().stream().allMatch(this::isSatisfyingPreviousAssignmentsForModel);
+    public boolean satisfiesCurrentAssignments() {
+        return models().stream().allMatch(this::isSatisfyingCurrentAssignmentsForModel);
     }
 
-    private boolean isSatisfyingPreviousAssignmentsForModel(Model m) {
+    private boolean isSatisfyingCurrentAssignmentsForModel(Model m) {
         if (m.currentAllocationsByNodeId().isEmpty()) {
             return true;
         }
         Map<Node, Integer> nodeAssignments = assignments.get(m);
         int currentAllocations = nodeAssignments.values().stream().mapToInt(Integer::intValue).sum();
-        return currentAllocations >= m.getPreviouslyAssignedAllocations();
+        return currentAllocations >= m.getCurrentAssignedAllocations();
     }
 
     public boolean satisfiesAllocations(Model m) {
@@ -129,12 +136,34 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         return models().stream().allMatch(this::satisfiesAllocations);
     }
 
+    public boolean arePreviouslyAssignedModelsAssigned() {
+        return models().stream()
+            .filter(Model::hasEverBeenAllocated)
+            .map(this::totalAllocations)
+            .allMatch(totalAllocations -> totalAllocations > 0);
+    }
+
+    public long countPreviouslyAssignedModelsThatAreStillAssigned() {
+        return models().stream()
+            .filter(Model::hasEverBeenAllocated)
+            .map(this::totalAllocations)
+            .filter(totalAllocations -> totalAllocations > 0)
+            .count();
+    }
+
     public int getRemainingNodeCores(String nodeId) {
         return remainingNodeCores.getOrDefault(nodeId, 0);
     }
 
     public long getRemainingNodeMemory(String nodeId) {
         return remainingNodeMemory.getOrDefault(nodeId, 0L);
+    }
+
+    public int totalAllocations(Model m) {
+        if (assignments.containsKey(m) == false) {
+            return 0;
+        }
+        return assignments.get(m).values().stream().mapToInt(Integer::intValue).sum();
     }
 
     private Quality computeQuality() {
@@ -144,7 +173,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         for (Map.Entry<Model, Map<Node, Integer>> entry : assignments.entrySet()) {
             Model m = entry.getKey();
-            isSatisfyingPreviousAssignments = isSatisfyingPreviousAssignments && isSatisfyingPreviousAssignmentsForModel(m);
+            isSatisfyingPreviousAssignments = isSatisfyingPreviousAssignments && isSatisfyingCurrentAssignmentsForModel(m);
             Map<Node, Integer> modelAssignments = entry.getValue();
             if (modelAssignments != null) {
                 for (Map.Entry<Node, Integer> nodeAllocations : modelAssignments.entrySet()) {

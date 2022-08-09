@@ -109,6 +109,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
             values = new TreeSet<>();
 
             for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+                assert value instanceof Number;
                 values.add(((Number) value).longValue());
             }
 

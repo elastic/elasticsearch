@@ -1,0 +1,6 @@
+pr: 88443
+summary: Provide tracing implementation using OpenTelemetry and APM Java agent
+area: Infra/Core
+type: feature
+issues: 
+  - 84369

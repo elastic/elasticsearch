@@ -198,7 +198,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             }
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
-            if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
                 this.dataStreamName = in.readOptionalString();
             }
         }
@@ -214,7 +214,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             }
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
                 out.writeOptionalString(this.dataStreamName);
             }
         }

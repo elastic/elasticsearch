@@ -17,9 +17,11 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,6 +41,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
     private final String username;
     private final String realm;
     private final Map<String, Object> metadata;
+    @Nullable
+    private final List<RoleDescriptor> roleDescriptors;
 
     public ApiKey(
         String name,
@@ -48,7 +52,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
         boolean invalidated,
         String username,
         String realm,
-        @Nullable Map<String, Object> metadata
+        @Nullable Map<String, Object> metadata,
+        @Nullable List<RoleDescriptor> roleDescriptors
     ) {
         this.name = name;
         this.id = id;
@@ -61,6 +66,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.username = username;
         this.realm = realm;
         this.metadata = metadata == null ? Map.of() : metadata;
+        this.roleDescriptors = roleDescriptors;
     }
 
     public ApiKey(StreamInput in) throws IOException {
@@ -79,6 +85,12 @@ public final class ApiKey implements ToXContentObject, Writeable {
             this.metadata = in.readMap();
         } else {
             this.metadata = Map.of();
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            final List<RoleDescriptor> roleDescriptors = in.readOptionalList(RoleDescriptor::new);
+            this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
+        } else {
+            this.roleDescriptors = null;
         }
     }
 
@@ -114,6 +126,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return metadata;
     }
 
+    public List<RoleDescriptor> getRoleDescriptors() {
+        return roleDescriptors;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -130,6 +146,13 @@ public final class ApiKey implements ToXContentObject, Writeable {
             .field("username", username)
             .field("realm", realm)
             .field("metadata", (metadata == null ? Map.of() : metadata));
+        if (roleDescriptors != null) {
+            builder.startObject("role_descriptors");
+            for (var roleDescriptor : roleDescriptors) {
+                builder.field(roleDescriptor.getName(), roleDescriptor);
+            }
+            builder.endObject();
+        }
         return builder;
     }
 
@@ -149,11 +172,14 @@ public final class ApiKey implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeGenericMap(metadata);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeOptionalCollection(roleDescriptors);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata);
+        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata, roleDescriptors);
     }
 
     @Override
@@ -175,7 +201,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
             && Objects.equals(invalidated, other.invalidated)
             && Objects.equals(username, other.username)
             && Objects.equals(realm, other.realm)
-            && Objects.equals(metadata, other.metadata);
+            && Objects.equals(metadata, other.metadata)
+            && Objects.equals(roleDescriptors, other.roleDescriptors);
     }
 
     @SuppressWarnings("unchecked")
@@ -188,7 +215,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
             (Boolean) args[4],
             (String) args[5],
             (String) args[6],
-            (args[7] == null) ? null : (Map<String, Object>) args[7]
+            (args[7] == null) ? null : (Map<String, Object>) args[7],
+            (List<RoleDescriptor>) args[8]
         );
     });
     static {
@@ -200,6 +228,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
+            p.nextToken();
+            return RoleDescriptor.parse(n, p, false);
+        }, new ParseField("role_descriptors"));
     }
 
     public static ApiKey fromXContent(XContentParser parser) throws IOException {
@@ -224,6 +256,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
             + realm
             + ", metadata="
             + metadata
+            + ", role_descriptors="
+            + roleDescriptors
             + "]";
     }
 

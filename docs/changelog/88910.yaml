@@ -1,0 +1,6 @@
+pr: 88910
+summary: Improve error handling in state persistence
+area: Transform
+type: bug
+issues:
+ - 88905

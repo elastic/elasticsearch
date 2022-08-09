@@ -10,15 +10,14 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
-import java.util.Collections;
 import java.util.List;
 
 public class ChangePointAggregationBuilderTests extends BasePipelineAggregationTestCase<ChangePointAggregationBuilder> {
     @Override
     protected List<SearchPlugin> plugins() {
-        return Collections.singletonList(new MachineLearning(Settings.EMPTY));
+        return List.of(MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY));
     }
 
     @Override

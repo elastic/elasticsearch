@@ -48,7 +48,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.ClusterFormationStateOrException;
+import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.CoordinationDiagnosticsStatus;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.endsWith;
@@ -488,6 +490,83 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             assertThat(greenMasterCount, lessThanOrEqualTo(1));
             // The other master nodes only see themselves and cannot form a quorum (and sometimes the original master already sees this):
             assertThat(redMasterCount, greaterThanOrEqualTo(masterNodeCount - 1));
+
+            while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            }
+        }
+    }
+
+    public void testRedForNoMasterQueryingNonMaster() {
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            createAndAddNonMasterNode(cluster);
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
+            cluster.stabilise();
+            DiscoveryNode nonKilledMasterNode = cluster.getAnyLeader().getLocalNode();
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode() && node.getLocalNode().equals(nonKilledMasterNode) == false) {
+                    node.disconnect();
+                }
+            }
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            int noMasterResultCount = 0;
+            int noResultYetCount = 0;
+            for (Cluster.ClusterNode node : cluster.clusterNodes.stream()
+                .filter(node -> node.getLocalNode().isMasterNode() == false)
+                .toList()) {
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
+                    .diagnoseMasterStability(true);
+                assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsStatus.RED));
+                String summary = healthIndicatorResult.summary();
+                assertThat(
+                    summary,
+                    anyOf(
+                        // This one happens if we happen to be polling the still-reachable master-eligible node:
+                        containsString("No master has been observed recently"),
+                        // And this one happens if we poll one of the disconnected master-eligible nodes:
+                        containsString("No master node observed in the last 30s, and the master eligible nodes are unable to form a quorum")
+                    )
+                );
+                CoordinationDiagnosticsStatus artificialRemoteStatus = randomValueOtherThan(
+                    CoordinationDiagnosticsStatus.GREEN,
+                    () -> randomFrom(CoordinationDiagnosticsStatus.values())
+                );
+                String artificialRemoteStatusSummary = "Artificial failure";
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult artificialRemoteResult =
+                    new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                        artificialRemoteStatus,
+                        artificialRemoteStatusSummary,
+                        null
+                    );
+                node.coordinationDiagnosticsService.remoteCoordinationDiagnosisResult = new AtomicReference<>(
+                    new CoordinationDiagnosticsService.RemoteMasterHealthResult(nonKilledMasterNode, artificialRemoteResult, null)
+                );
+                healthIndicatorResult = node.coordinationDiagnosticsService.diagnoseMasterStability(true);
+                assertThat(healthIndicatorResult.status(), equalTo(artificialRemoteStatus));
+                assertThat(healthIndicatorResult.summary(), containsString(artificialRemoteStatusSummary));
+
+                artificialRemoteResult = new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                    CoordinationDiagnosticsStatus.GREEN,
+                    artificialRemoteStatusSummary,
+                    null
+                );
+                node.coordinationDiagnosticsService.remoteCoordinationDiagnosisResult = new AtomicReference<>(
+                    new CoordinationDiagnosticsService.RemoteMasterHealthResult(nonKilledMasterNode, artificialRemoteResult, null)
+                );
+                healthIndicatorResult = node.coordinationDiagnosticsService.diagnoseMasterStability(true);
+                assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+                assertThat(healthIndicatorResult.summary(), containsString("reports that the status is GREEN"));
+
+                Exception artificialRemoteResultException = new RuntimeException(artificialRemoteStatusSummary);
+                node.coordinationDiagnosticsService.remoteCoordinationDiagnosisResult = new AtomicReference<>(
+                    new CoordinationDiagnosticsService.RemoteMasterHealthResult(nonKilledMasterNode, null, artificialRemoteResultException)
+                );
+                healthIndicatorResult = node.coordinationDiagnosticsService.diagnoseMasterStability(true);
+                assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsStatus.RED));
+                assertThat(healthIndicatorResult.summary(), containsString("received an exception"));
+            }
 
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
                 logger.debug("--> stabilising again after delivering blackholed requests");

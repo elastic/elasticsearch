@@ -122,7 +122,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * user-configurable, but is non-final so that integration tests don't have to waste 10 seconds.
      */
     // Non-private for testing
-    TimeValue remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
+    static TimeValue remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
@@ -347,11 +347,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
             result = getResultOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
         } else if (isLocalNodeMasterEligible == false) { // none is elected master and we aren't master eligible
-            // NOTE: The logic in this block will be implemented in a future PR
-            result = new CoordinationDiagnosticsResult(
-                CoordinationDiagnosticsStatus.RED,
-                "No master has been observed recently",
-                CoordinationDiagnosticsDetails.EMPTY
+            result = diagnoseOnHaveNotSeenMasterRecentlyAndWeAreNotMasterEligible(
+                localMasterHistory,
+                coordinator,
+                nodeHasMasterLookupTimeframe,
+                remoteCoordinationDiagnosisResult,
+                explain
             );
         } else { // none is elected master and we are master eligible
             result = diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
@@ -364,6 +365,97 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             );
         }
         return result;
+    }
+
+    /**
+     * This method handles the case when we have not had an elected master node recently, and we are on a node that is not
+     * master-eligible. In this case we reach out to some master-eligible node in order to see what it knows about master stability.
+     * @param localMasterHistory The master history, as seen from this node
+     * @param coordinator The Coordinator for this node
+     * @param nodeHasMasterLookupTimeframe The value of health.master_history.has_master_lookup_timeframe
+     * @param remoteCoordinationDiagnosisResult A reference to the result of polling a master-eligible node for diagnostic information
+     * @param explain If true, details are returned
+     * @return A CoordinationDiagnosticsResult that will be determined by the CoordinationDiagnosticsResult returned by the remote
+     * master-eligible node
+     */
+    static CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecentlyAndWeAreNotMasterEligible(
+        MasterHistory localMasterHistory,
+        Coordinator coordinator,
+        TimeValue nodeHasMasterLookupTimeframe,
+        AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult,
+        boolean explain
+    ) {
+        RemoteMasterHealthResult remoteResultOrException = remoteCoordinationDiagnosisResult == null
+            ? null
+            : remoteCoordinationDiagnosisResult.get();
+        final CoordinationDiagnosticsStatus status;
+        final String summary;
+        final CoordinationDiagnosticsDetails details;
+        if (remoteResultOrException == null) {
+            status = CoordinationDiagnosticsStatus.RED;
+            summary = String.format(
+                Locale.ROOT,
+                "No master node observed in the last %s, and this node is not master eligible. Reaching out to a master-eligible node"
+                    + " for more information, but no result yet.",
+                nodeHasMasterLookupTimeframe
+            );
+            if (explain) {
+                details = CoordinationDiagnosticsDetails.EMPTY;
+            } else {
+                details = CoordinationDiagnosticsDetails.EMPTY;
+            }
+        } else {
+            DiscoveryNode remoteNode = remoteResultOrException.node;
+            CoordinationDiagnosticsResult remoteResult = remoteResultOrException.result;
+            Exception exception = remoteResultOrException.remoteException;
+            if (remoteResult != null) {
+                if (remoteResult.status().equals(CoordinationDiagnosticsStatus.GREEN) == false) {
+                    status = remoteResult.status();
+                    summary = remoteResult.summary();
+                } else {
+                    status = CoordinationDiagnosticsStatus.RED;
+                    summary = String.format(
+                        Locale.ROOT,
+                        "No master node observed in the last %s from this node, but %s reports that the status is GREEN. This "
+                            + "indicates that there is a discovery problem on %s",
+                        nodeHasMasterLookupTimeframe,
+                        remoteNode.getName(),
+                        coordinator.getLocalNode().getName()
+                    );
+                }
+                if (explain) {
+                    details = remoteResult.details();
+                } else {
+                    details = CoordinationDiagnosticsDetails.EMPTY;
+                }
+            } else if (exception != null) {
+                status = CoordinationDiagnosticsStatus.RED;
+                summary = String.format(
+                    Locale.ROOT,
+                    "No master node observed in the last %s from this node, and received an exception while reaching out to %s for "
+                        + "diagnosis",
+                    nodeHasMasterLookupTimeframe,
+                    remoteNode.getName()
+                );
+                if (explain) {
+                    details = getDetails(true, localMasterHistory, exception, null);
+                } else {
+                    details = CoordinationDiagnosticsDetails.EMPTY;
+                }
+            } else {
+                // It should not be possible to get here
+                status = CoordinationDiagnosticsStatus.RED;
+                summary = String.format(
+                    Locale.ROOT,
+                    "No master node observed in the last %s from this node, and received an unexpected response from %s when "
+                        + "reaching out for diagnosis",
+                    nodeHasMasterLookupTimeframe,
+                    remoteNode.getName()
+                );
+                details = CoordinationDiagnosticsDetails.EMPTY;
+            }
+        }
+        return new CoordinationDiagnosticsResult(status, summary, details);
     }
 
     /**

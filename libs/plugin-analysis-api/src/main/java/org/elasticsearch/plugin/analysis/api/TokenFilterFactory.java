@@ -17,15 +17,15 @@ import org.elasticsearch.plugin.api.Nameable;
 public interface TokenFilterFactory extends Nameable {
 
     /**
-     * Transform the specified input TokenStream
+     * Transform the specified input TokenStream.
      * @param tokenStream a token stream to be transformed
      * @return transformed token stream
      */
     TokenStream create(TokenStream tokenStream);
 
     /**
-     * Normalize a tokenStream for use in multi-term queries
-     * The default implementation is a no-op
+     * Normalize a tokenStream for use in multi-term queries.
+     * The default implementation returns a given token stream.
      */
     default TokenStream normalize(TokenStream tokenStream) {
         return tokenStream;

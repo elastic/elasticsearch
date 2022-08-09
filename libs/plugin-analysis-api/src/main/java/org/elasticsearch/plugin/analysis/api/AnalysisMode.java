@@ -16,7 +16,7 @@ package org.elasticsearch.plugin.analysis.api;
 public enum AnalysisMode {
 
     /**
-     * AnalysisMode representing analysis components that can be used only at index time
+     * AnalysisMode representing analysis components that can be used only at index time.
      */
     INDEX_TIME("index time") {
         @Override
@@ -28,7 +28,7 @@ public enum AnalysisMode {
         }
     },
     /**
-     * AnalysisMode representing analysis components that can be used only at search time
+     * AnalysisMode representing analysis components that can be used only at search time.
      */
     SEARCH_TIME("search time") {
         @Override
@@ -40,7 +40,7 @@ public enum AnalysisMode {
         }
     },
     /**
-     * AnalysisMode representing analysis components that can be used both at index and search time
+     * AnalysisMode representing analysis components that can be used both at index and search time.
      */
     ALL("all") {
         @Override
@@ -49,15 +49,15 @@ public enum AnalysisMode {
         }
     };
 
-    private String readableName;
+    private final String readableName;
 
     AnalysisMode(String name) {
         this.readableName = name;
     }
 
     /**
-     * Returns a readable name of the analysis mode
-     * @return a name
+     * Returns a readable name of the analysis mode.
+     * @return a name of the analysis mode.
      */
     public String getReadableName() {
         return this.readableName;
@@ -70,6 +70,8 @@ public enum AnalysisMode {
      * <li>ALL.merge(SEARCH_TIME) == SEARCH_TIME</li>
      * <li>INDEX_TIME.merge(SEARCH_TIME) throws an {@link IllegalStateException}</li>
      * </ul>
+     * @return merged AnalysisMode
+     * @throws IllegalStateException when  {@link #INDEX_TIME} is merged with {@link #SEARCH_TIME} (and vice versa)
      */
     public abstract AnalysisMode merge(AnalysisMode other);
 }

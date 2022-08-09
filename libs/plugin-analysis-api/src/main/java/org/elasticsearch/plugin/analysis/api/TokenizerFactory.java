@@ -12,12 +12,12 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.plugin.api.Nameable;
 
 /**
- * An analysis component used to create tokenizers
+ * An analysis component used to create tokenizers.
  */
 public interface TokenizerFactory extends Nameable {
 
     /**
-     * Creates a Tokenizer instance
+     * Creates a Tokenizer instance.
      * @return a tokenizer
      */
     Tokenizer create();

@@ -25,8 +25,8 @@ public interface CharFilterFactory extends Nameable {
     Reader create(Reader reader);
 
     /**
-     * Normalize a tokenStream for use in multi-term queries
-     * The default implementation is a no-op
+     * Normalize a tokenStream for use in multi-term queries.
+     * The default implementation returns the given reader.
      */
     default Reader normalize(Reader reader) {
         return reader;

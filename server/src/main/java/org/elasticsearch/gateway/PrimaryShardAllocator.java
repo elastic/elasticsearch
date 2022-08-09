@@ -242,19 +242,18 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         Collection<NodeGatewayStartedShards> ineligibleShards;
         if (nodesToAllocate != null) {
             final Set<DiscoveryNode> discoNodes = new HashSet<>();
-            nodeResults.addAll(
-                Stream.of(nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards)
-                    .flatMap(Collection::stream)
-                    .map(dnode -> {
-                        discoNodes.add(dnode.nodeShardState.getNode());
-                        return new NodeAllocationResult(
+            Stream.of(nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards)
+                .flatMap(Collection::stream)
+                .forEach(dnode -> {
+                    discoNodes.add(dnode.nodeShardState.getNode());
+                    nodeResults.add(
+                        new NodeAllocationResult(
                             dnode.nodeShardState.getNode(),
                             shardStoreInfo(dnode.nodeShardState, inSyncAllocationIds),
                             dnode.decision
-                        );
-                    })
-                    .toList()
-            );
+                        )
+                    );
+                });
             ineligibleShards = fetchedShardData.getData()
                 .values()
                 .stream()

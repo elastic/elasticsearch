@@ -22,8 +22,6 @@ import spock.lang.Unroll
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
     def setup() {
-        // used LoggedExec task is not configuration cache compatible and
-        configurationCacheCompatible = false
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'

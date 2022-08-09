@@ -613,14 +613,6 @@ public class DiskThresholdDecider extends AllocationDecider {
             return diskUsage.getPath();
         }
 
-        String getNodeId() {
-            return diskUsage.getNodeId();
-        }
-
-        String getNodeName() {
-            return diskUsage.getNodeName();
-        }
-
         long getTotalBytes() {
             return diskUsage.getTotalBytes();
         }

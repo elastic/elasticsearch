@@ -121,7 +121,6 @@ setup:
 
 ---
 "Get simple field caps":
-
   - do:
       field_caps:
         index: 'test1,test2,test3'
@@ -162,6 +161,21 @@ setup:
   - match: {fields.geo.keyword.indices:                 ["test3"]}
   - is_false: fields.geo.keyword.non_searchable_indices
   - is_false: fields.geo.keyword.on_aggregatable_indices
+
+---
+"Get field caps with fields in body":
+  - skip:
+      version: " - 8.4.99"
+      reason: re-added support for fields in the request body in 8.5
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        body:
+          fields: [text]
+
+  - match: {fields.text.text.searchable:                true}
+  - match: {fields.text.text.aggregatable:              false}
+  - is_false: fields.keyword
 ---
 "Get date_nanos field caps":
 

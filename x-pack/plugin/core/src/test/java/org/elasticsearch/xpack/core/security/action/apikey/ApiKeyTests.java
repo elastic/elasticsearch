@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -20,8 +22,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyTests extends ESTestCase {
@@ -38,8 +43,9 @@ public class ApiKeyTests extends ESTestCase {
         final String username = randomAlphaOfLengthBetween(4, 10);
         final String realmName = randomAlphaOfLengthBetween(3, 8);
         final Map<String, Object> metadata = randomMetadata();
+        final List<RoleDescriptor> roleDescriptors = randomBoolean() ? null : randomUniquelyNamedRoleDescriptors(0, 3);
 
-        final ApiKey apiKey = new ApiKey(name, id, creation, expiration, invalidated, username, realmName, metadata);
+        final ApiKey apiKey = new ApiKey(name, id, creation, expiration, invalidated, username, realmName, metadata, roleDescriptors);
         // The metadata will never be null because the constructor convert it to empty map if a null is passed in
         assertThat(apiKey.getMetadata(), notNullValue());
 
@@ -59,6 +65,18 @@ public class ApiKeyTests extends ESTestCase {
         assertThat(map.get("username"), equalTo(username));
         assertThat(map.get("realm"), equalTo(realmName));
         assertThat(map.get("metadata"), equalTo(Objects.requireNonNullElseGet(metadata, Map::of)));
+
+        if (roleDescriptors == null) {
+            assertThat(map, not(hasKey("role_descriptors")));
+        } else {
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> rdMap = (Map<String, Object>) map.get("role_descriptors");
+            assertThat(rdMap.size(), equalTo(roleDescriptors.size()));
+            for (var roleDescriptor : roleDescriptors) {
+                assertThat(rdMap, hasKey(roleDescriptor.getName()));
+                assertThat(XContentTestUtils.convertToMap(roleDescriptor), equalTo(rdMap.get(roleDescriptor.getName())));
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

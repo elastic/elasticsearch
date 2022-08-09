@@ -26,7 +26,7 @@ To update API keys, the owner user's credentials are required.
 ==== {api-description-title}
 
 This API is similar to the <<security-api-update-api-key,update single API Key>> API but allows you to apply the same update to multiple API keys in one API call.
-This can greatly increase throughput compared to making individual updates.
+This can greatly increase throughput over making individual updates.
 
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
 

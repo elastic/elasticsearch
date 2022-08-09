@@ -110,7 +110,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
             this.executor = (currentState, taskContexts) -> {
-                var listener = new AllocationActionMultiListener<CreateIndexResponse>();
+                var listener = new AllocationActionMultiListener<CreateIndexResponse>(threadPool.getThreadContext());
                 ClusterState state = currentState;
                 final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
                 for (final var taskContext : taskContexts) {

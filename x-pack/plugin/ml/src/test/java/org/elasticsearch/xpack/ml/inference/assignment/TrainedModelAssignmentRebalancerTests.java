@@ -418,7 +418,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
             assertThat(assignment.getNodeRoutingTable(), hasKey("node-1"));
             assertThat(assignment.getNodeRoutingTable().get("node-1").getCurrentAllocations(), equalTo(2));
-            assertThat(assignment.getNodeRoutingTable().get("node-1").getTargetAllocations(), equalTo(2));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getTargetAllocations(), equalTo(1));
             assertThat(assignment.getNodeRoutingTable().get("node-1").getState(), equalTo(RoutingState.STARTED));
             assertThat(assignment.getReason().isPresent(), is(true));
             assertThat(
@@ -433,7 +433,11 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             TrainedModelAssignment assignment = result.getModelAssignment(previousModel2Id);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
-            assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
+            assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+            assertThat(assignment.getNodeRoutingTable(), hasKey("node-1"));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getCurrentAllocations(), equalTo(2));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getTargetAllocations(), equalTo(2));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getState(), equalTo(RoutingState.STARTING));
             assertThat(assignment.getReason().isPresent(), is(true));
             assertThat(
                 assignment.getReason().get(),

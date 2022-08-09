@@ -110,18 +110,23 @@ class FieldCapabilitiesFetcher {
         boolean includeParentObjects = checkIncludeParents(filters);
 
         Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
+        boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = context.getFieldType(field);
             if (filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
-                    ft.familyTypeName(),
+                    // This is a nasty hack so that we expose aggregate_metric_double field,
+                    // when the index is a time series index and the field is marked as metric.
+                    // This code should be reverted once PR https://github.com/elastic/elasticsearch/pull/87849
+                    // is merged.
+                    isTimeSeriesIndex && ft.getMetricType() != null ? ft.typeName() : ft.familyTypeName(),
                     context.isMetadataField(field),
                     ft.isSearchable(),
                     ft.isAggregatable(),
-                    ft.isDimension(),
-                    ft.getMetricType(),
+                    isTimeSeriesIndex ? ft.isDimension() : false,
+                    isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta()
                 );
                 responseMap.put(field, fieldCap);

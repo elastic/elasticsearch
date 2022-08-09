@@ -240,7 +240,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     }
 
     public Boolean getUnattended() {
-        return unattended != null ? (unattended == DEFAULT_UNATTENDED) ? null : (unattended > 0) :  null;
+        return unattended != null ? (unattended == DEFAULT_UNATTENDED) ? null : (unattended > 0) : null;
     }
 
     public Integer getUnattendedForUpdate() {
@@ -390,6 +390,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         private Integer deduceMappings;
         private Integer numFailureRetries;
         private Integer unattended;
+
         /**
          * Default builder
          */
@@ -558,9 +559,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     : update.getNumFailureRetriesForUpdate();
             }
             if (update.getUnattendedForUpdate() != null) {
-                this.unattended = update.getUnattendedForUpdate().equals(DEFAULT_UNATTENDED)
-                    ? null
-                    : update.getUnattendedForUpdate();
+                this.unattended = update.getUnattendedForUpdate().equals(DEFAULT_UNATTENDED) ? null : update.getUnattendedForUpdate();
             }
 
             return this;

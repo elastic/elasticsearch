@@ -10,11 +10,13 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledField;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -169,6 +171,11 @@ public class ValuesSourceRegistry {
             @SuppressWarnings("unchecked")
             T supplier = (T) aggregatorRegistry.get(registryKey).get(valuesSourceConfig.valueSourceType());
             if (supplier == null) {
+                if ("aggregate_metric_double".equals(valuesSourceConfig.fieldType().typeName().toLowerCase(Locale.ROOT))) {
+                    throw new UnsupportedAggregationOnDownsampledField(
+                        valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
+                    );
+                }
                 throw new IllegalArgumentException(
                     valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
                 );

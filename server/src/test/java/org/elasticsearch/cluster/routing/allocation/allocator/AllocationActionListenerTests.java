@@ -67,31 +67,33 @@ public class AllocationActionListenerTests extends ESTestCase {
         assertThat(completed.get(), equalTo(true));
     }
 
-    public void testShouldExecuteWithCorrectContext() throws Exception {
+    public void testShouldExecuteWithCorrectContext() {
 
-        var queue = new DeterministicTaskQueue();
-        var pool = queue.getThreadPool();
-        pool.getThreadContext().addResponseHeader("header", "root");
-
+        var threadContext = new ThreadContext(Settings.EMPTY);
         var completed = new AtomicReference<String>();
-        var listener = new AllocationActionListener<AcknowledgedResponse>(
+        AllocationActionListener<AcknowledgedResponse> listener;
+
+        threadContext.putHeader("header", "root");
+        listener = new AllocationActionListener<>(
             ActionListener.wrap(
-                ignore -> completed.set(pool.getThreadContext().getResponseHeaders().get("header").get(0)),
-                exception -> { throw new AssertionError("Should not fail in test"); }
+                ignore -> completed.set(threadContext.getHeader("header")),
+                exception -> {
+                    throw new AssertionError("Should not fail in test");
+                }
             ),
-            pool.getThreadContext()
+            threadContext
         );
 
-        pool.generic().execute(() -> {
-            pool.getThreadContext().addResponseHeader("header", "clusterStateUpdate");
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.putHeader("header", "clusterStateUpdate");
             listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
-        });
-        pool.generic().execute(() -> {
-            pool.getThreadContext().addResponseHeader("header", "reroute");
-            listener.reroute().onResponse(null);
-        });
+        }
 
-        queue.runAllTasks();
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.putHeader("header", "reroute");
+            listener.reroute().onResponse(null);
+        }
+
         assertThat(completed.get(), equalTo("root"));
     }
 

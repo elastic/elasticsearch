@@ -227,8 +227,13 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
             );
         }
         final Map<String, Object> geoJSON = new HashMap<>();
-        geoJSON.put("type", "LineString");
-        geoJSON.put("coordinates", coordinates.toArray());
+        if (coordinates.size() == 1) {
+            geoJSON.put("type", "Point");
+            geoJSON.put("coordinates", coordinates.get(0));
+        } else {
+            geoJSON.put("type", "LineString");
+            geoJSON.put("coordinates", coordinates.toArray());
+        }
         return geoJSON;
     }
 }

@@ -205,6 +205,9 @@ public class IndexMetadataVerifier {
     /**
      * Identify invalid or unknown index settings and archive them. This leniency allows Elasticsearch to load
      * indices even if they contain old settings that are no longer valid.
+     *
+     * When we find an invalid setting on a system index, we simply remove it instead of archiving. System indices
+     * are managed by Elasticsearch and manual modification of settings is limited and sometimes impossible.
      */
     IndexMetadata archiveOrDeleteBrokenIndexSettings(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();

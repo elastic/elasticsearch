@@ -979,10 +979,12 @@ public abstract class AbstractScopedSettings {
             try {
                 Setting<?> setting = get(key);
                 if (setting != null) {
+                    // will throw IllegalArgumentException on invalid setting
                     setting.get(settings);
                     builder.copy(key, settings);
                 } else {
                     if (isPrivateSetting(key)) {
+                        // will throw IllegalArgumentException on invalid setting
                         builder.copy(key, settings);
                     } else {
                         changed = true;

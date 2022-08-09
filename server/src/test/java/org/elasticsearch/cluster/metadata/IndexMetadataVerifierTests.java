@@ -49,7 +49,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         assertSame(indexMetadata, src);
     }
 
-    public void testArchiveBrokenSystemIndexSettings() {
+    public void testDeleteBrokenSystemIndexSettings() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newSystemIndexMeta("foo", Settings.EMPTY);
         IndexMetadata indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);

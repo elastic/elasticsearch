@@ -1573,6 +1573,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             165,
             Version.V_8_2_0
         ),
+
         HEALTH_NODE_NOT_DISCOVERED_EXCEPTION(
             HealthNodeNotDiscoveredException.class,
             HealthNodeNotDiscoveredException::new,

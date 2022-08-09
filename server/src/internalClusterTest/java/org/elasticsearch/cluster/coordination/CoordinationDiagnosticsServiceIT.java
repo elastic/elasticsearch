@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;

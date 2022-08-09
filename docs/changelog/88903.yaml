@@ -2,4 +2,4 @@ pr: 88903
 summary: Delete invalid settings for system indices
 area: Infra/Core
 type: bug
-issues: []
+issues: [88324]

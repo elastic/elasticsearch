@@ -12,8 +12,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -69,32 +71,38 @@ public class AllocationActionListenerTests extends ESTestCase {
     public void testShouldExecuteWithCorrectContext() {
 
         var threadContext = new ThreadContext(Settings.EMPTY);
-        var completed = new AtomicReference<String>();
-        AllocationActionListener<AcknowledgedResponse> listener;
-
         threadContext.putHeader("header", "root");
-        listener = new AllocationActionListener<>(
+
+        var result = new AtomicReference<String>();
+        var listener = new AllocationActionListener<>(
             ActionListener.wrap(
-                ignore -> completed.set(threadContext.getHeader("header")),
+                ignore -> result.set(threadContext.getHeader("header")),
                 exception -> { throw new AssertionError("Should not fail in test"); }
             ),
             threadContext
         );
 
-        try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader("header", "clusterStateUpdate");
-            listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
-        }
+        executeInRandomOrder(
+            threadContext,
+            List.of(
+                new Tuple<>("clusterStateUpdate", () -> listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE)),
+                new Tuple<>("reroute", () -> listener.reroute().onResponse(null))
+            )
+        );
 
-        try (var ignored = threadContext.stashContext()) {
-            threadContext.putHeader("header", "reroute");
-            listener.reroute().onResponse(null);
-        }
-
-        assertThat(completed.get(), equalTo("root"));
+        assertThat(result.get(), equalTo("root"));
     }
 
-    private ThreadContext createEmptyThreadContext() {
+    private static void executeInRandomOrder(ThreadContext context, List<Tuple<String, Runnable>> actions) {
+        for (var action : shuffledList(actions)) {
+            try (var ignored = context.stashContext()) {
+                context.putHeader("header", action.v1());
+                action.v2().run();
+            }
+        }
+    }
+
+    private static ThreadContext createEmptyThreadContext() {
         return new ThreadContext(Settings.EMPTY);
     }
 }

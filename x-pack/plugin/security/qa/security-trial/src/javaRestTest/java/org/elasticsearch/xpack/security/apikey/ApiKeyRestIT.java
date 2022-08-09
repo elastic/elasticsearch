@@ -91,7 +91,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""");
         assertOK(adminClient().performRequest(createApiKeyRequest1));
 
-        // Second key with a single assigned role descriptors
+        // Second key with a single assigned role descriptor
         final Request createApiKeyRequest2 = new Request("POST", "_security/api_key");
         createApiKeyRequest2.setJsonEntity("""
             {

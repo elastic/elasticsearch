@@ -2328,7 +2328,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     final var expectedRoleDescriptors = (Collection<RoleDescriptor>) entry.getValue();
                     expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedRoleDescriptors, apiKeyDocMap);
                 }
-                default -> throw new IllegalStateException("unexpected case no");
+                default -> throw new IllegalStateException("unexpected attribute name");
             }
         }
     }

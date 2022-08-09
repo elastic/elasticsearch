@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -44,7 +43,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     private final RecoverySource recoverySource;
     private final UnassignedInfo unassignedInfo;
     private final AllocationId allocationId;
-    private final transient List<ShardRouting> asList;
     private final long expectedShardSize;
     @Nullable
     private final ShardRouting targetRelocatingShard;
@@ -74,7 +72,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.allocationId = allocationId;
         this.expectedShardSize = expectedShardSize;
         this.targetRelocatingShard = initializeTargetRelocatingShard();
-        this.asList = Collections.singletonList(this);
         assert expectedShardSize == UNAVAILABLE_EXPECTED_SHARD_SIZE
             || state == ShardRoutingState.INITIALIZING
             || state == ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;
@@ -271,7 +268,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * A shard iterator with just this shard in it.
      */
     public ShardIterator shardsIt() {
-        return new PlainShardIterator(shardId, asList);
+        return new PlainShardIterator(shardId, List.of(this));
     }
 
     public ShardRouting(ShardId shardId, StreamInput in) throws IOException {
@@ -294,7 +291,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             shardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         }
         expectedShardSize = shardSize;
-        asList = Collections.singletonList(this);
         targetRelocatingShard = initializeTargetRelocatingShard();
     }
 
@@ -675,7 +671,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     /** returns true if the current routing is identical to the other routing in all but meta fields, i.e., unassigned info */
     public boolean equalsIgnoringMetadata(ShardRouting other) {
         return primary == other.primary
-            && Objects.equals(shardId, other.shardId)
+            && shardId.equals(other.shardId)
             && Objects.equals(currentNodeId, other.currentNodeId)
             && Objects.equals(relocatingNodeId, other.relocatingNodeId)
             && Objects.equals(allocationId, other.allocationId)

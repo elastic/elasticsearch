@@ -6,10 +6,11 @@
  * Side Public License, v 1.
  */
 
+
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.testclusters.TestDistribution
 import org.elasticsearch.gradle.testclusters.TestClustersAware
+import org.elasticsearch.gradle.testclusters.TestDistribution
 
 // Common config when running with a FIPS-140 runtime JVM
 if (BuildParams.inFipsJvm) {
@@ -31,7 +32,13 @@ if (BuildParams.inFipsJvm) {
         copy 'fips_java.policy'
         copy 'cacerts.bcfks'
       }
-      def extraFipsJarsConfiguration = configurations.detachedConfiguration(bcFips, bcTlsFips)
+
+      def extraFipsJarsConfiguration = configurations.create("fipsImplementation") {
+        withDependencies {
+          add(bcFips)
+          add(bcTlsFips)
+        }
+      }
 
       project.afterEvaluate {
         // ensure that bouncycastle is on classpath for the all of test types, must happen in evaluateAfter since the rest tests explicitly

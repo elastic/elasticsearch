@@ -456,6 +456,18 @@ public final class IndexSettings {
     );
 
     /**
+     * This index setting is intentionally undocumented and should be used as an escape hatch to disable BloomFilter of the
+     * _id field of non-data-stream indices, which is enabled by default. This setting doesn't affect data-stream indices.
+     */
+    public static final Setting<Boolean> BLOOM_FILTER_ID_FIELD_ENABLED_SETTING = Setting.boolSetting(
+        "index.bloom_filter_for_id_field.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope,
+        Property.DeprecatedWarning
+    );
+
+    /**
      * Is the {@code index.mode} enabled? It should only be enbaled if you
      * pass a jvm parameter or are running a snapshot build.
      */

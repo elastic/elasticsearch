@@ -25,17 +25,12 @@ public class AllocationActionMultiListener<T> {
     private final List<DelayedListener<T>> delayed = new ArrayList<>();
     private final ThreadContext context;
 
-    // TODO replace with another constructor
-    public AllocationActionMultiListener() {
-        this.context = null;
-    }
-
     public AllocationActionMultiListener(ThreadContext context) {
         this.context = context;
     }
 
     public ActionListener<T> delay(ActionListener<T> delegate) {
-        final var wrappedDelegate = context != null ? wrapPreservingContext(delegate, context) : delegate;
+        final var wrappedDelegate = wrapPreservingContext(delegate, context);
         return new ActionListener<T>() {
             @Override
             public void onResponse(T response) {

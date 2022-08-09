@@ -97,7 +97,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
         }
 
         public int getStatePersistenceFailures() {
-            return statePersistenceFailures.get();
+            return context.getStatePersistenceFailureCount();
         }
     }
 

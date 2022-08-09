@@ -452,7 +452,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 RandomNumbers.randomIntBetween(random, 1, 15) + "ms"
             );
         }
-
+        if (randomBoolean()) {
+            builder.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), randomBoolean());
+        }
         return builder;
     }
 
@@ -1475,6 +1477,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return admin().cluster();
     }
 
+    public void indexRandom(boolean forceRefresh, String index, int numDocs) throws InterruptedException {
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(index).setSource("field", "value");
+        }
+        indexRandom(forceRefresh, Arrays.asList(builders));
+    }
+
     /**
      * Convenience method that forwards to {@link #indexRandom(boolean, List)}.
      */
@@ -2041,11 +2051,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
-    /** Returns {@code true} iff this test cluster should use a dummy geo_shape field mapper */
-    protected boolean addMockGeoShapeFieldMapper() {
-        return true;
-    }
-
     /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
@@ -2087,9 +2092,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
-        if (addMockGeoShapeFieldMapper()) {
-            mocks.add(TestGeoShapeFieldMapperPlugin.class);
-        }
         return Collections.unmodifiableList(mocks);
     }
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import static org.junit.Assert.assertFalse;
@@ -114,18 +114,35 @@ public class ClusterStateTaskExecutorUtils {
         }
 
         @Override
-        public void success(ActionListener<ClusterState> publishListener, ClusterStateAckListener clusterStateAckListener) {
+        public void success(Runnable onPublishSuccess, ClusterStateAckListener clusterStateAckListener) {
             assert incomplete();
-            assert publishListener != null;
+            assert onPublishSuccess != null;
             assert clusterStateAckListener != null;
             assert task == clusterStateAckListener || (task instanceof ClusterStateAckListener == false);
             this.succeeded = true;
         }
 
         @Override
-        public void success(ActionListener<ClusterState> publishListener) {
+        public void success(Runnable onPublishSuccess) {
             assert incomplete();
-            assert publishListener != null;
+            assert onPublishSuccess != null;
+            assert task instanceof ClusterStateAckListener == false;
+            this.succeeded = true;
+        }
+
+        @Override
+        public void success(Consumer<ClusterState> publishedStateListener, ClusterStateAckListener clusterStateAckListener) {
+            assert incomplete();
+            assert publishedStateListener != null;
+            assert clusterStateAckListener != null;
+            assert task == clusterStateAckListener || (task instanceof ClusterStateAckListener == false);
+            this.succeeded = true;
+        }
+
+        @Override
+        public void success(Consumer<ClusterState> publishedStateListener) {
+            assert incomplete();
+            assert publishedStateListener != null;
             assert task instanceof ClusterStateAckListener == false;
             this.succeeded = true;
         }

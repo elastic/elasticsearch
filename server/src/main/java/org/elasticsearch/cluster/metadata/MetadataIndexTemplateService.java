@@ -84,7 +84,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
-    private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING;
+    public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING;
 
     private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
 
@@ -136,7 +136,7 @@ public class MetadataIndexTemplateService {
                 try (var ignored = taskContext.captureResponseHeaders()) {
                     state = task.execute(state);
                 }
-                taskContext.success(task.listener.map(ignored -> AcknowledgedResponse.TRUE));
+                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }

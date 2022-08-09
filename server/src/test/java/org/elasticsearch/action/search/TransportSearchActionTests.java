@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -40,6 +42,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -67,6 +70,9 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -617,8 +623,8 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             int numDisconnectedClusters = randomIntBetween(1, numClusters);
-            Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
-            Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
+            Set<DiscoveryNode> disconnectedNodes = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
+            Set<Integer> disconnectedNodesIndices = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
             while (disconnectedNodes.size() < numDisconnectedClusters) {
                 int i = randomIntBetween(0, numClusters - 1);
                 if (disconnectedNodes.add(nodes[i])) {
@@ -838,8 +844,8 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             int numDisconnectedClusters = randomIntBetween(1, numClusters);
-            Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
-            Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
+            Set<DiscoveryNode> disconnectedNodes = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
+            Set<Integer> disconnectedNodesIndices = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
             while (disconnectedNodes.size() < numDisconnectedClusters) {
                 int i = randomIntBetween(0, numClusters - 1);
                 if (disconnectedNodes.add(nodes[i])) {
@@ -1048,6 +1054,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
                 source.pointInTimeBuilder(null);
+                source.knnSearch(null);
                 CollapseBuilder collapse = source.collapse();
                 if (collapse != null) {
                     collapse.setInnerHits(Collections.emptyList());
@@ -1057,6 +1064,48 @@ public class TransportSearchActionTests extends ESTestCase {
             assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
             searchRequest.setCcsMinimizeRoundtrips(false);
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.knnSearch(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50));
+            searchRequest.source(source);
+
+            searchRequest.setCcsMinimizeRoundtrips(true);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+            searchRequest.setCcsMinimizeRoundtrips(false);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+    }
+
+    public void testAdjustSearchType() {
+        {
+            // If the search includes kNN, we should always use DFS_QUERY_THEN_FETCH
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.knnSearch(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50));
+            searchRequest.source(source);
+
+            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
+            assertEquals(SearchType.DFS_QUERY_THEN_FETCH, searchRequest.searchType());
+        }
+        {
+            // Suggest-only searches should always use QUERY_THEN_FETCH
+            SearchRequest searchRequest = new SearchRequest().searchType(RandomPicks.randomFrom(random(), SearchType.values()));
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.suggest(new SuggestBuilder().addSuggestion("field", new TermSuggestionBuilder("value")));
+            searchRequest.source(source);
+
+            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
+            assertFalse(searchRequest.requestCache());
+            assertEquals(SearchType.QUERY_THEN_FETCH, searchRequest.searchType());
+        }
+        {
+            // Single-shard searches should always use QUERY_THEN_FETCH in absence of kNN search
+            SearchRequest searchRequest = new SearchRequest().searchType(RandomPicks.randomFrom(random(), SearchType.values()));
+
+            TransportSearchAction.adjustSearchType(searchRequest, true);
+            assertEquals(SearchType.QUERY_THEN_FETCH, searchRequest.searchType());
         }
     }
 
@@ -1395,7 +1444,8 @@ public class TransportSearchActionTests extends ESTestCase {
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                null
             );
             TransportSearchAction action = new TransportSearchAction(
                 threadPool,

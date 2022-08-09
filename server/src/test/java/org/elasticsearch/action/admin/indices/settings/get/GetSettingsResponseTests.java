@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -48,9 +47,6 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             builder.put("index.refresh_interval", "1s");
             indexToSettings.put(indexName, builder.build());
         }
-        ImmutableOpenMap<String, Settings> immutableIndexToSettings = ImmutableOpenMap.<String, Settings>builder()
-            .putAllFromMap(indexToSettings)
-            .build();
 
         if (randomBoolean()) {
             for (String indexName : indexToSettings.keySet()) {
@@ -59,11 +55,7 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             }
         }
 
-        ImmutableOpenMap<String, Settings> immutableIndexToDefaultSettings = ImmutableOpenMap.<String, Settings>builder()
-            .putAllFromMap(indexToDefaultSettings)
-            .build();
-
-        return new GetSettingsResponse(immutableIndexToSettings, immutableIndexToDefaultSettings);
+        return new GetSettingsResponse(indexToSettings, indexToDefaultSettings);
     }
 
     @Override

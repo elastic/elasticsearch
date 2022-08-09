@@ -1,8 +1,3 @@
-setup:
-  - skip:
-      version: " - 7.9.99"
-      reason: "the 'fields' parameter was added in 7.10"
-
 ---
 "Test basic field retrieval":
   - do:
@@ -95,6 +90,10 @@ setup:
 
 ---
 "Test disable source":
+  - skip:
+      version: " - 8.3.99"
+      reason: "behaviour of fields when source is disabled changed in 8.4.0"
+
   - do:
       indices.create:
         index:  test
@@ -107,6 +106,8 @@ setup:
             properties:
               keyword:
                 type: keyword
+              location:
+                type: geo_point
 
   - do:
       index:
@@ -114,20 +115,20 @@ setup:
         id:     "1"
         body:
           keyword: [ "a" ]
+          location: [12, 12]
 
   - do:
       indices.refresh:
         index: [ test ]
 
   - do:
-      catch: bad_request
       search:
         index: test
         body:
-          fields: [keyword]
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Unable to retrieve the requested [fields] since _source is disabled
-        in the mappings for index [test]" }
+          fields: [_id,keyword,location]
+
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields._id.0: "1" }
 
 ---
 "Test ignore malformed":
@@ -1064,3 +1065,58 @@ test fetching metadata fields:
   - match: { hits.hits.0.fields._id.0: "1" }
   - match: { hits.hits.0.fields._index.0: "test" }
   - match: { hits.hits.0.fields._version.0: 1 }
+
+---
+fetch geo_point:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              field:
+                type: geo_point
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          field:
+            lat: 41.12
+            lon: -71.34
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "*" ]
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.field.0.type: Point }
+  - match: { hits.hits.0.fields.field.0.coordinates.0: -71.34 }
+  - match: { hits.hits.0.fields.field.0.coordinates.1:  41.12 }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: field
+              format: geojson
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.field.0.type: Point }
+  - match: { hits.hits.0.fields.field.0.coordinates.0: -71.34 }
+  - match: { hits.hits.0.fields.field.0.coordinates.1:  41.12 }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: field
+              format: wkt
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.field.0: "POINT (-71.34 41.12)" }

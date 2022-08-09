@@ -8,9 +8,8 @@
 
 package org.elasticsearch.common.blobstore.url.http;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.rest.RestStatus;
@@ -26,9 +25,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.blobstore.url.http.URLHttpClient.MAX_ERROR_MESSAGE_BODY_SIZE;
+import static org.elasticsearch.core.Strings.format;
 
 class RetryingHttpInputStream extends InputStream {
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
@@ -149,8 +148,8 @@ class RetryingHttpInputStream extends InputStream {
     private void maybeThrow(IOException e) throws IOException {
         if (retryCount >= maxRetries || e instanceof NoSuchFileException) {
             logger.debug(
-                new ParameterizedMessage(
-                    "failed reading [{}] at offset [{}], retry [{}] of [{}], giving up",
+                () -> format(
+                    "failed reading [%s] at offset [%s], retry [%s] of [%s], giving up",
                     blobURI,
                     start + totalBytesRead,
                     retryCount,
@@ -162,8 +161,8 @@ class RetryingHttpInputStream extends InputStream {
         }
 
         logger.debug(
-            new ParameterizedMessage(
-                "failed reading [{}] at offset [{}], retry [{}] of [{}], retrying",
+            () -> format(
+                "failed reading [%s] at offset [%s], retry [%s] of [%s], retrying",
                 blobURI,
                 start + totalBytesRead,
                 retryCount,
@@ -293,7 +292,7 @@ class RetryingHttpInputStream extends InputStream {
             return contentLength == null ? 0 : Long.parseLong(contentLength);
 
         } catch (Exception e) {
-            logger.debug((Supplier<?>) () -> "Unable to parse response headers while reading [" + blobURI + "]", e);
+            logger.debug(() -> "Unable to parse response headers while reading [" + blobURI + "]", e);
             return MAX_RANGE_VAL;
         }
     }

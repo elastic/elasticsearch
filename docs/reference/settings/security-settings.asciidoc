@@ -39,10 +39,10 @@ Defaults to `true`, which enables
 <<configuring-stack-security,security auto configuration>>.
 +
 --
-If set to `false`, security auto configuration is disabled, which is not 
-recommended. When disabled, security is not configured automatically when 
+If set to `false`, security auto configuration is disabled, which is not
+recommended. When disabled, security is not configured automatically when
 starting {es} for the first time, which means that you must
-<<manually-configure-security,manually configure security>>. 
+<<manually-configure-security,manually configure security>>.
 --
 
 `xpack.security.hide_settings`::
@@ -207,7 +207,6 @@ The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
 
-ifeval::["{release-state}"!="released"]
 [discrete]
 [[security-domain-settings]]
 ==== Security domain settings
@@ -229,7 +228,6 @@ xpack:
 <1> Specifies the name of the security domain
 <2> Specifies the realms that belong to the domain
 // end::security-domain-settings-description-tag[]
-endif::[]
 
 [discrete]
 [[realm-settings]]
@@ -1694,7 +1692,10 @@ or one of `id_token`, `id_token token` for the implicit flow.
 (<<static-cluster-setting,Static>>)
 The signature algorithm that will be used by {es} in order to verify the
 signature of the id tokens it will receive from the OpenID Connect Provider.
-Defaults to `RSA256`.
+Allowed values are `HS256`, `HS384`, `HS512`, `ES256`, `ES384`, `ES512`,
+`RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`.
+Defaults to `RS256`.
+
 // end::rp-signature-algorithm-tag[]
 
 // tag::rp-requested-scopes-tag[]
@@ -1856,6 +1857,28 @@ the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed per endpoint.
 Defaults to `200`.
 // end::oidc-http-max-endpoint-connections-tag[]
+
+// tag::oidc-http-tcp-keepalive-tag[]
+`http.tcp.keep_alive` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Whether to enable TCP keepalives on HTTP connections used for back-channel communication
+to the OpenID Connect Provider endpoints. Defaults to `true`.
+// end::oidc-http-tcp-keepalive-tag[]
+
+// tag::oidc-http-connection-pool-ttl-tag[]
+`http.connection_pool_ttl` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the time-to-live of connections
+in the connection pool (default to 3 minutes). A connection is closed if it is
+idle for more than the specified timeout.
+
+The server can also set the `Keep-Alive` HTTP response header. The effective
+time-to-live value is the smaller value between this setting and the `Keep-Alive`
+reponse header. Configure this setting to `-1` to let the server dictate the value.
+If the header is not set by the server and the setting has value of `-1`,
+the time-to-live is infinite and connections never expire.
+// end::oidc-http-connection-pool-ttl-tag[]
 
 [discrete]
 [[ref-oidc-ssl-settings]]
@@ -2180,9 +2203,11 @@ for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
 // tag::jwt-pkc-jwkset-path-tag[]
 `pkc_jwkset_path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The file path or URL to a JSON Web Key Set with the public key material that
+The file path or URL to a JSON Web Key Set (JWKS) with the public key material that
 the JWT Realm uses for verifying token signatures. If a path is provided,
-then it is resolved relative to the {es} configuration directory.
+then it is resolved relative to the {es} configuration directory. In {ecloud},
+use an absolute path starting with `/app/config/`.
++
 If a URL is provided, then it must be either a `file` URL or an `https` URL.
 {es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
 requests, but will attempt to refresh the JWK upon signature verification

@@ -45,6 +45,10 @@ public class ClientYamlTestCandidate {
         return restTestSuite.getSetupSection();
     }
 
+    public ClientYamlTestSuite getRestTestSuite() {
+        return restTestSuite;
+    }
+
     public TeardownSection getTeardownSection() {
         return restTestSuite.getTeardownSection();
     }

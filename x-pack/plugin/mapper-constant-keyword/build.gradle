@@ -18,6 +18,10 @@ dependencies {
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.index.mapper.MapperTestCase'
+}
+
 if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("internalClusterTest").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'

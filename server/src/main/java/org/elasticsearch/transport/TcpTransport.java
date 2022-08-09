@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -700,8 +699,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     logger.log(
                         closeConnectionExceptionLevel,
-                        new ParameterizedMessage(
-                            "close connection exception caught on transport layer [{}], disconnecting from relevant node",
+                        () -> format(
+                            "close connection exception caught on transport layer [%s], disconnecting from relevant node",
                             channel
                         ),
                         e
@@ -713,10 +712,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 logger.debug(() -> "bind exception caught on transport layer [" + channel + "]", e);
             } else if (e instanceof CancelledKeyException) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "cancelled key exception caught on transport layer [{}], disconnecting from relevant node",
-                        channel
-                    ),
+                    () -> format("cancelled key exception caught on transport layer [%s], disconnecting from relevant node", channel),
                     e
                 );
             } else if (e instanceof HttpRequestOnTransportException) {
@@ -1162,7 +1158,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // Connection failures are generally logged elsewhere, but go via the ChannelsConnectedListener which only captures the first
             // exception for each bundle of channels. If the ChannelOpenTraceLogger is installed then trace-logging is enabled so we can log
             // every failure.
-            logger.trace(new ParameterizedMessage("failed to open transport channel: {}", channel), e);
+            logger.trace(() -> format("failed to open transport channel: %s", channel), e);
         }
     }
 

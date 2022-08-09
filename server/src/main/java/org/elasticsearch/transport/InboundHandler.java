@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -26,6 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Handles inbound messages by first deserializing a {@link TransportMessage} from an {@link InboundMessage} and then passing
@@ -215,8 +216,8 @@ public class InboundHandler {
                     sendErrorResponse(action, transportChannel, e);
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "could not send error response to handshake received on [{}] using wire format version [{}], closing channel",
+                        () -> format(
+                            "could not send error response to handshake received on [%s] using wire format version [%s], closing channel",
                             channel,
                             header.getVersion()
                         ),
@@ -272,36 +273,39 @@ public class InboundHandler {
                         }
                         final String executor = reg.getExecutor();
                         if (ThreadPool.Names.SAME.equals(executor)) {
-                            try {
-                                reg.processMessageReceived(request, transportChannel);
-                            } catch (Exception e) {
-                                sendErrorResponse(reg.getAction(), transportChannel, e);
+                            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                                try {
+                                    reg.processMessageReceived(request, transportChannel);
+                                } catch (Exception e) {
+                                    sendErrorResponse(reg.getAction(), transportChannel, e);
+                                }
                             }
                         } else {
                             boolean success = false;
                             request.incRef();
                             try {
-                                threadPool.executor(executor).execute(new AbstractRunnable() {
-                                    @Override
-                                    protected void doRun() throws Exception {
-                                        reg.processMessageReceived(request, transportChannel);
-                                    }
+                                threadPool.executor(executor)
+                                    .execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+                                        @Override
+                                        protected void doRun() throws Exception {
+                                            reg.processMessageReceived(request, transportChannel);
+                                        }
 
-                                    @Override
-                                    public boolean isForceExecution() {
-                                        return reg.isForceExecution();
-                                    }
+                                        @Override
+                                        public boolean isForceExecution() {
+                                            return reg.isForceExecution();
+                                        }
 
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        sendErrorResponse(reg.getAction(), transportChannel, e);
-                                    }
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            sendErrorResponse(reg.getAction(), transportChannel, e);
+                                        }
 
-                                    @Override
-                                    public void onAfter() {
-                                        request.decRef();
-                                    }
-                                });
+                                        @Override
+                                        public void onAfter() {
+                                            request.decRef();
+                                        }
+                                    }));
                                 success = true;
                             } finally {
                                 if (success == false) {

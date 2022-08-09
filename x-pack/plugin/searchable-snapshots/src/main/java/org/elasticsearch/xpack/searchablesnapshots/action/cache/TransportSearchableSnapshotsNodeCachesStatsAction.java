@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,6 +35,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheServi
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -101,7 +101,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     @Override
     protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
-        final ImmutableOpenMap<String, DiscoveryNode> dataNodes = clusterState.getNodes().getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = clusterState.getNodes().getDataNodes();
 
         final DiscoveryNode[] resolvedNodes;
         if (request.nodesIds() == null || request.nodesIds().length == 0) {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -323,8 +322,8 @@ public class ResultsPersisterService {
                         if (itemResponse.isFailed() && isIrrecoverable(itemResponse.getFailure().getCause())) {
                             Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
                             LOGGER.warn(
-                                new ParameterizedMessage(
-                                    "[{}] experienced failure that cannot be automatically retried. Bulk failure message [{}]",
+                                () -> format(
+                                    "[%s] experienced failure that cannot be automatically retried. Bulk failure message [%s]",
                                     jobId,
                                     bulkResponse.buildFailureMessage()
                                 ),
@@ -454,16 +453,13 @@ public class ResultsPersisterService {
 
             // If the outside conditions have changed and retries are no longer needed, do not retry.
             if (shouldRetry.get() == false) {
-                LOGGER.info(
-                    () -> new ParameterizedMessage("[{}] should not retry {} after [{}] attempts", jobId, getName(), currentAttempt),
-                    e
-                );
+                LOGGER.info(() -> format("[%s] should not retry %s after [%s] attempts", jobId, getName(), currentAttempt), e);
                 return false;
             }
 
             // If the configured maximum number of retries has been reached, do not retry.
             if (currentAttempt > maxFailureRetries) {
-                LOGGER.warn(() -> new ParameterizedMessage("[{}] failed to {} after [{}] attempts.", jobId, getName(), currentAttempt), e);
+                LOGGER.warn(() -> format("[%s] failed to %s after [%s] attempts.", jobId, getName(), currentAttempt), e);
                 return false;
             }
             return true;
@@ -474,8 +470,7 @@ public class ResultsPersisterService {
             // Exponential backoff calculation taken from: https://en.wikipedia.org/wiki/Exponential_backoff
             int uncappedBackoff = ((1 << Math.min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) * (50);
             currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
-            String msg = new ParameterizedMessage("failed to {} after [{}] attempts. Will attempt again.", getName(), currentAttempt)
-                .getFormattedMessage();
+            String msg = format("failed to %s after [%s] attempts. Will attempt again.", getName(), currentAttempt);
             LOGGER.warn(() -> format("[%s] %s", jobId, msg));
             msgHandler.accept(msg);
             // RetryableAction randomizes in the interval [currentMax/2 ; currentMax].
@@ -487,7 +482,7 @@ public class ResultsPersisterService {
         @Override
         public void cancel(Exception e) {
             super.cancel(e);
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] retrying cancelled for action [{}]", jobId, getName()), e);
+            LOGGER.debug(() -> format("[%s] retrying cancelled for action [%s]", jobId, getName()), e);
         }
     }
 

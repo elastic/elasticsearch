@@ -12,6 +12,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
@@ -108,12 +109,18 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public ResourcePrivilegesMap checkIndicesPrivileges(
+    public boolean checkIndicesPrivileges(
         Set<String> checkForIndexPatterns,
         boolean allowRestrictedIndices,
-        Set<String> checkForPrivileges
+        Set<String> checkForPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        return indices.checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
+        return indices.checkResourcePrivileges(
+            checkForIndexPatterns,
+            allowRestrictedIndices,
+            checkForPrivileges,
+            resourcePrivilegesMapBuilder
+        );
     }
 
     @Override
@@ -127,13 +134,20 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public ResourcePrivilegesMap checkApplicationResourcePrivileges(
+    public boolean checkApplicationResourcePrivileges(
         final String applicationName,
         Set<String> checkForResources,
         Set<String> checkForPrivilegeNames,
-        Collection<ApplicationPrivilegeDescriptor> storedPrivileges
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        return application.checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
+        return application.checkResourcePrivileges(
+            applicationName,
+            checkForResources,
+            checkForPrivilegeNames,
+            storedPrivileges,
+            resourcePrivilegesMapBuilder
+        );
     }
 
     @Override

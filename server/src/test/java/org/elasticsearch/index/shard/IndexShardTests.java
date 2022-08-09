@@ -55,6 +55,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -76,6 +77,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -2006,6 +2008,18 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testRecoveringShardFailsIfStartedTooSoon() throws IOException {
+        final IndexShard shard = newShard(false);
+        final ShardRouting originalRouting = shard.routingEntry();
+        final ShardRouting startedRouting = ShardRoutingHelper.moveToStarted(originalRouting);
+        assertThat(
+            expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, startedRouting))
+                .getMessage(),
+            containsString("stale shard-started event")
+        );
+        closeShards(shard);
+    }
+
     public void testShardCanNotBeMarkedAsRelocatedIfRelocationCancelled() throws IOException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
@@ -2653,11 +2667,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indicesFieldDataCache,
             new NoneCircuitBreakerService()
         );
-        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
-            foo,
-            "test",
-            () -> { throw new UnsupportedOperationException("search lookup not available"); }
-        );
+        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(foo, FieldDataContext.noRuntimeFields("test"));
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
@@ -4391,7 +4401,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null),
+                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
                 config.getEventListener(),
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),

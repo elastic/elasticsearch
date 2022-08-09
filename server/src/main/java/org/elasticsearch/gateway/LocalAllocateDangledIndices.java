@@ -10,7 +10,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -44,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
+import static org.elasticsearch.core.Strings.format;
 
 public class LocalAllocateDangledIndices {
 
@@ -178,8 +178,8 @@ public class LocalAllocateDangledIndices {
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "found dangled index [{}] on node [{}]. This index cannot be "
+                                () -> format(
+                                    "found dangled index [%s] on node [%s]. This index cannot be "
                                         + "upgraded to the latest version, adding as closed",
                                     indexMetadata.getIndex(),
                                     request.fromNode

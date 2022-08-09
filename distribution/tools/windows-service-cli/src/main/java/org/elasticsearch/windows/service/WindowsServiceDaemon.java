@@ -20,9 +20,9 @@ import org.elasticsearch.server.cli.ServerProcess;
 
 /**
  * Starts an Elasticsearch process, but does not wait for it to exit.
- *
- * This class is expected to be run via Apache Procrun in a long lived JVM that will call close
- * when the server should shutdown.
+ * <p>
+ * This class is expected to be run via Apache Procrun in a long-lived JVM that will call close
+ * when the server should shut down.
  */
 class WindowsServiceDaemon extends EnvironmentAwareCommand {
 
@@ -35,7 +35,7 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         var args = new ServerArgs(false, true, null, new SecureString(""), env.settings(), env.configFile());
-        this.server = ServerProcess.start(terminal, processInfo, args, env.pluginsFile());
+        this.server = ServerProcess.start(terminal, processInfo, args, null);
         // start does not return until the server is ready, and we do not wait for the process
     }
 

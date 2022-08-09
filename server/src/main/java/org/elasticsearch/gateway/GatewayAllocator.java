@@ -10,7 +10,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -234,7 +233,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                 Priority.HIGH,
                 ActionListener.wrap(
                     r -> logger.trace("{} scheduled reroute completed for {}", shardId, reason),
-                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", shardId, reason), e)
+                    e -> logger.debug(() -> format("%s scheduled reroute failed for %s", shardId, reason), e)
                 )
             );
         }

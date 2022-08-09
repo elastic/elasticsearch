@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportException;
@@ -285,6 +285,7 @@ public class PublicationTransportHandler {
         private final DiscoveryNodes discoveryNodes;
         private final ClusterState newState;
         private final ClusterState previousState;
+        private final Task task;
         private final boolean sendFullVersion;
 
         // All the values of these maps have one ref for the context (while it's open) and one for each in-flight message.
@@ -295,6 +296,7 @@ public class PublicationTransportHandler {
             discoveryNodes = clusterStatePublicationEvent.getNewState().nodes();
             newState = clusterStatePublicationEvent.getNewState();
             previousState = clusterStatePublicationEvent.getOldState();
+            task = clusterStatePublicationEvent.getTask();
             sendFullVersion = previousState.getBlocks().disableStatePersistence();
         }
 
@@ -371,10 +373,7 @@ public class PublicationTransportHandler {
                         v -> serializeFullClusterState(newState, destination)
                     );
                 } catch (Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("failed to serialize cluster state before publishing it to node {}", destination),
-                        e
-                    );
+                    logger.warn(() -> format("failed to serialize cluster state before publishing it to node %s", destination), e);
                     listener.onFailure(e);
                     return;
                 }
@@ -408,7 +407,7 @@ public class PublicationTransportHandler {
                     }
                 }
 
-                logger.debug(new ParameterizedMessage("failed to send cluster state to {}", destination), e);
+                logger.debug(() -> format("failed to send cluster state to %s", destination), e);
                 delegate.onFailure(e);
             }), this::decRef));
         }
@@ -425,10 +424,11 @@ public class PublicationTransportHandler {
                 return;
             }
             try {
-                transportService.sendRequest(
+                transportService.sendChildRequest(
                     destination,
                     PUBLISH_STATE_ACTION_NAME,
                     new BytesTransportRequest(bytes, destination.getVersion()),
+                    task,
                     STATE_REQUEST_OPTIONS,
                     new ActionListenerResponseHandler<>(
                         ActionListener.runAfter(listener, bytes::decRef),
@@ -438,7 +438,7 @@ public class PublicationTransportHandler {
                 );
             } catch (Exception e) {
                 assert false : e;
-                logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", destination), e);
+                logger.warn(() -> format("error sending cluster state to %s", destination), e);
                 listener.onFailure(e);
             }
         }

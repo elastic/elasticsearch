@@ -189,7 +189,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             client(),
             policy,
             "hot",
-            new RolloverAction(null, null, TimeValue.timeValueHours(1), null, null),
+            new RolloverAction(null, null, TimeValue.timeValueHours(1), null, null, null, null, null, null, null),
             TimeValue.ZERO
         );
 
@@ -211,7 +211,13 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             TimeUnit.SECONDS
         );
 
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null), TimeValue.ZERO);
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            "hot",
+            new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
+            TimeValue.ZERO
+        );
 
         // Move to the same step, which should re-read the policy
         Request moveToStepRequest = new Request("POST", "_ilm/move/test-1");

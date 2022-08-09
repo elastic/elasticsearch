@@ -25,10 +25,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class EvilLoggerConfigurationTests extends ESTestCase {
@@ -127,14 +125,6 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
 
         assertThat(LogManager.getLogger("x").getLevel(), equalTo(level));
         assertThat(LogManager.getLogger("x.y").getLevel(), equalTo(level));
-    }
-
-    public void testMissingConfigFile() {
-        final Path configDir = getDataPath("does_not_exist");
-        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        final Environment environment = new Environment(settings, configDir);
-        UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment, true));
-        assertThat(e, hasToString(containsString("no log4j2.properties found; tried")));
     }
 
     public void testLoggingLevelsFromSettings() throws IOException, UserException {

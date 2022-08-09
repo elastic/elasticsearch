@@ -1,5 +1,0 @@
-pr: 85442
-summary: Support 'GeoJSON' in CartesianPoint for 'point'
-area: Geo
-type: enhancement
-issues: []

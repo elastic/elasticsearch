@@ -1,4 +1,4 @@
-[[modules-discovery-hosts-providers]]
+[[discovery-hosts-providers]]
 === Discovery
 
 Discovery is the process by which the cluster formation module finds other
@@ -33,51 +33,8 @@ it is deliberately stopped. It may also stop acting as the master if
 faulty. When a node stops being the elected master, it begins the discovery
 process again.
 
-[[modules-discovery-troubleshooting]]
-==== Troubleshooting discovery
-
-In most cases, the discovery process completes quickly, and the master node
-remains elected for a long period of time. If the cluster has no master for
-more than a few seconds or the master is unstable, the logs for each node will
-contain information explaining why:
-
-* All nodes repeatedly log messages indicating that a master cannot be
-discovered or elected using a logger called
-`org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper`. By
-default, this happens every 10 seconds.
-
-* If a node wins the election, it logs a message containing
-`elected-as-master`. If this happens repeatedly, the master node is unstable.
-
-* When a node discovers the master or believes the master to have failed, it
-logs a message containing `master node changed`.
-
-* If a node is unable to discover or elect a master for several minutes, it
-starts to report additional details about the failures in its logs. Be sure to
-capture log messages covering at least five minutes of discovery problems.
-
-If your cluster doesn't have a stable master, many of its features won't work
-correctly. The cluster may report many kinds of error to clients and in its
-logs. You must fix the master node's instability before addressing these other
-issues. It will not be possible to solve any other issues while the master node
-is unstable.
-
-The logs from the `ClusterFormationFailureHelper` may indicate that a master
-election requires a certain set of nodes and that it has not discovered enough
-nodes to form a quorum. If so, you must address the reason preventing {es} from
-discovering the missing nodes. The missing nodes are needed to reconstruct the
-cluster metadata. Without the cluster metadata, the data in your cluster is
-meaningless. The cluster metadata is stored on a subset of the master-eligible
-nodes in the cluster. If a quorum cannot be discovered then the missing nodes
-were the ones holding the cluster metadata. If you cannot bring the missing
-nodes back into the cluster, start a new cluster and restore data from a recent
-snapshot. Refer to <<modules-discovery-quorums>> for more information.
-
-The logs from the `ClusterFormationFailureHelper` may also indicate that it has
-discovered a possible quorum of master-eligible nodes. If so, the usual reason
-that the cluster cannot elect a master is that one of the other nodes cannot
-discover a quorum. Inspect the logs on the other master-eligible nodes and
-ensure that every node has discovered a quorum.
+Refer to <<discovery-troubleshooting,Troubleshooting discovery>> for 
+troubleshooting issues with discovery.
 
 [[built-in-hosts-providers]]
 ==== Seed hosts providers

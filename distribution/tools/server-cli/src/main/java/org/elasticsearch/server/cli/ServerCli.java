@@ -13,8 +13,6 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.CliToolProvider;
@@ -29,7 +27,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -39,8 +36,6 @@ import java.util.Locale;
  * The main CLI for running Elasticsearch.
  */
 class ServerCli extends EnvironmentAwareCommand {
-
-    private static final Logger logger = LogManager.getLogger(ServerCli.class);
 
     private final OptionSpecBuilder versionOption;
     private final OptionSpecBuilder daemonizeOption;
@@ -52,7 +47,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
     // visible for testing
     ServerCli() {
-        super("Starts Elasticsearch"); // we configure logging later so we override the base class from configuring logging
+        super("Starts Elasticsearch"); // we configure logging later, so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints Elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts Elasticsearch in the background")
             .availableUnless(versionOption);
@@ -78,16 +73,23 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
-        if (options.valuesOf(enrollmentTokenOption).size() > 1) {
-            throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
+        validateConfig(options, env);
+
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile())) {
+            // setup security
+            final SecureString keystorePassword = getKeystorePassword(keystore, terminal);
+            env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
+
+            if (keystore != null) {
+                keystore.decrypt(keystorePassword.getChars());
+            }
+
+            // install/remove plugins from elasticsearch-plugins.yml
+            syncPlugins(terminal, env, processInfo);
+
+            ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
+            this.server = startServer(terminal, processInfo, args, keystore);
         }
-
-        // setup security
-        final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
-        env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
-
-        ServerArgs args = createArgs(options, env, keystorePassword);
-        this.server = startServer(terminal, processInfo, args, env.pluginsFile());
 
         if (options.has(daemonizeOption)) {
             server.detach();
@@ -95,7 +97,10 @@ class ServerCli extends EnvironmentAwareCommand {
         }
 
         // we are running in the foreground, so wait for the server to exit
-        server.waitFor();
+        int exitCode = server.waitFor();
+        if (exitCode != ExitCodes.OK) {
+            throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
+        }
     }
 
     private void printVersion(Terminal terminal) {
@@ -111,13 +116,22 @@ class ServerCli extends EnvironmentAwareCommand {
         terminal.println(versionOutput);
     }
 
-    private static SecureString getKeystorePassword(Path configDir, Terminal terminal) throws IOException {
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir)) {
-            if (keystore != null && keystore.hasPassword()) {
-                return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
-            } else {
-                return new SecureString(new char[0]);
-            }
+    private void validateConfig(OptionSet options, Environment env) throws UserException {
+        if (options.valuesOf(enrollmentTokenOption).size() > 1) {
+            throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
+        }
+
+        Path log4jConfig = env.configFile().resolve("log4j2.properties");
+        if (Files.exists(log4jConfig) == false) {
+            throw new UserException(ExitCodes.CONFIG, "Missing logging config file at " + log4jConfig);
+        }
+    }
+
+    private static SecureString getKeystorePassword(KeyStoreWrapper keystore, Terminal terminal) {
+        if (keystore != null && keystore.hasPassword()) {
+            return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
+        } else {
+            return new SecureString(new char[0]);
         }
     }
 
@@ -147,7 +161,7 @@ class ServerCli extends EnvironmentAwareCommand {
         } catch (UserException e) {
             boolean okCode = switch (e.exitCode) {
                 // these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
-                // eg the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
+                // e.g. the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
                 case ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP -> true;
                 default -> false;
             };
@@ -168,6 +182,15 @@ class ServerCli extends EnvironmentAwareCommand {
         return env;
     }
 
+    private void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+        String pluginCliLibs = "lib/tools/plugin-cli";
+        Command cmd = loadTool("sync-plugins", pluginCliLibs);
+        assert cmd instanceof EnvironmentAwareCommand;
+        @SuppressWarnings("raw")
+        var syncPlugins = (EnvironmentAwareCommand) cmd;
+        syncPlugins.execute(terminal, syncPlugins.parseOptions(new String[0]), env, processInfo);
+    }
+
     private void validatePidFile(Path pidFile) throws UserException {
         Path parent = pidFile.getParent();
         if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
@@ -178,12 +201,16 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) throws UserException {
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword, ProcessInfo processInfo)
+        throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
         Path pidFile = null;
         if (options.has(pidfileOption)) {
             pidFile = options.valueOf(pidfileOption);
+            if (pidFile.isAbsolute() == false) {
+                pidFile = processInfo.workingDir().resolve(pidFile.toString()).toAbsolutePath();
+            }
             validatePidFile(pidFile);
         }
         return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
@@ -202,7 +229,8 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
-        return ServerProcess.start(terminal, processInfo, args, pluginsDir);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, KeyStoreWrapper keystore)
+        throws UserException {
+        return ServerProcess.start(terminal, processInfo, args, keystore);
     }
 }

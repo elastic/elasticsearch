@@ -171,7 +171,9 @@ public class ValuesSourceRegistry {
             @SuppressWarnings("unchecked")
             T supplier = (T) aggregatorRegistry.get(registryKey).get(valuesSourceConfig.valueSourceType());
             if (supplier == null) {
-                if ("aggregate_metric_double".equals(valuesSourceConfig.fieldType().typeName().toLowerCase(Locale.ROOT))) {
+                if (valuesSourceConfig.fieldType() == null
+                    || valuesSourceConfig.fieldType().typeName() == null
+                    || "aggregate_metric_double".equals(valuesSourceConfig.fieldType().typeName().toLowerCase(Locale.ROOT))) {
                     throw new UnsupportedAggregationOnDownsampledField(
                         valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
                     );

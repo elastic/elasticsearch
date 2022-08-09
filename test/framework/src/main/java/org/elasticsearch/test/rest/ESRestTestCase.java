@@ -1034,6 +1034,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
             if (preserveReposUponCompletion() == false && inProgressSnapshots.containsKey(repoName) == false) {
+                // You can't delete repository with searchable snapshots indices. They do get deleted before we start
+                // removing snapshots, but we could have a race condition, if an index gets rolled over while we
+                // delete snapshots, so we have check and delete searchable snapshot indices one more time
+                wipeSearchableSnapshotsIndices();
                 deleteRepository(repoName);
             }
         }

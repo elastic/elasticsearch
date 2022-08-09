@@ -11,13 +11,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.sql.action.compute.data.ConstantIntBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.IntBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
@@ -25,6 +25,10 @@ import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Source operator that incrementally runs Lucene searches
@@ -33,19 +37,22 @@ public class LuceneSourceOperator implements Operator {
 
     private static final int PAGE_SIZE = 4096;
 
-    private final IndexReader reader;
+    @Nullable
+    private final IndexReader indexReader;
+    @Nullable
     private final Query query;
+    private final List<PartialLeafReaderContext> leaves;
     private final int maxPageSize;
     private final int minPageSize;
 
     private Weight weight;
 
     private int currentLeaf = 0;
-    private LeafReaderContext currentLeafReaderContext = null;
+    private PartialLeafReaderContext currentLeafReaderContext = null;
     private BulkScorer currentScorer = null;
 
     private int currentPagePos;
-    private int[] currentPage;
+    private final int[] currentPage;
 
     private int currentScorerPos;
 
@@ -54,10 +61,22 @@ public class LuceneSourceOperator implements Operator {
     }
 
     public LuceneSourceOperator(IndexReader reader, Query query, int maxPageSize) {
-        this.reader = reader;
+        this.indexReader = reader;
+        this.leaves = reader.leaves().stream().map(PartialLeafReaderContext::new).collect(Collectors.toList());
         this.query = query;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
+        currentPage = new int[maxPageSize];
+    }
+
+    private LuceneSourceOperator(Weight weight, List<PartialLeafReaderContext> leaves, int maxPageSize) {
+        this.indexReader = null;
+        this.leaves = leaves;
+        this.query = null;
+        this.weight = weight;
+        this.maxPageSize = maxPageSize;
+        this.minPageSize = maxPageSize / 2;
+        currentPage = new int[maxPageSize];
     }
 
     @Override
@@ -77,8 +96,78 @@ public class LuceneSourceOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return currentLeaf >= reader.leaves().size();
+        return currentLeaf >= leaves.size();
     }
+
+    /**
+     * Split this source operator into a given number of slices
+     */
+    public List<LuceneSourceOperator> slice(int numSlices) {
+        if (weight != null) {
+            throw new IllegalStateException("can only call slice method once");
+        }
+        initializeWeightIfNecessary();
+        final int totalDocCount = indexReader.maxDoc();
+        final int maxDocsPerSlice = (totalDocCount / numSlices) + 1;
+
+        final List<List<PartialLeafReaderContext>> slices = new ArrayList<>();
+        int docsAllocatedInCurrentSlice = 0;
+        List<PartialLeafReaderContext> currentSlice = null;
+        for (LeafReaderContext ctx : indexReader.leaves()) {
+            int minDoc = 0;
+            int numDocsInLeaf = ctx.reader().maxDoc();
+            while (minDoc < numDocsInLeaf) {
+                int numDocsToUse = Math.min(maxDocsPerSlice - docsAllocatedInCurrentSlice, numDocsInLeaf);
+                if (numDocsToUse <= 0) {
+                    break;
+                }
+                if (currentSlice == null) {
+                    currentSlice = new ArrayList<>();
+                }
+                currentSlice.add(new PartialLeafReaderContext(ctx, minDoc, minDoc + numDocsToUse));
+                minDoc += numDocsToUse;
+                docsAllocatedInCurrentSlice += numDocsToUse;
+                if (docsAllocatedInCurrentSlice >= maxDocsPerSlice) {
+                    slices.add(currentSlice);
+                    currentSlice = null;
+                    docsAllocatedInCurrentSlice = 0;
+                }
+            }
+        }
+        if (currentSlice != null) {
+            slices.add(currentSlice);
+        }
+
+        List<LuceneSourceOperator> operators = new ArrayList<>();
+        for (List<PartialLeafReaderContext> slice : slices) {
+            operators.add(new LuceneSourceOperator(weight, slice, maxPageSize));
+        }
+        return operators;
+    }
+
+    /**
+     * Uses Lucene's own slicing method, which creates per-segment level slices
+     */
+    public List<LuceneSourceOperator> segmentSlice() {
+        if (weight != null) {
+            throw new IllegalStateException("can only call slice method once");
+        }
+        initializeWeightIfNecessary();
+        List<LuceneSourceOperator> operators = new ArrayList<>();
+        for (IndexSearcher.LeafSlice leafSlice : IndexSearcher.slices(indexReader.leaves(), MAX_DOCS_PER_SLICE, MAX_SEGMENTS_PER_SLICE)) {
+            operators.add(
+                new LuceneSourceOperator(
+                    weight,
+                    Arrays.asList(leafSlice.leaves).stream().map(PartialLeafReaderContext::new).collect(Collectors.toList()),
+                    maxPageSize
+                )
+            );
+        }
+        return operators;
+    }
+
+    private static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
+    private static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
 
     @Override
     public Page getOutput() {
@@ -87,26 +176,19 @@ public class LuceneSourceOperator implements Operator {
         }
 
         // initialize weight if not done yet
-        if (weight == null) {
-            IndexSearcher indexSearcher = new IndexSearcher(reader);
-            try {
-                weight = indexSearcher.createWeight(indexSearcher.rewrite(new ConstantScoreQuery(query)), ScoreMode.COMPLETE_NO_SCORES, 1);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
+        initializeWeightIfNecessary();
 
         Page page = null;
 
         // initializes currentLeafReaderContext, currentScorer, and currentScorerPos when we switch to a new leaf reader
         if (currentLeafReaderContext == null) {
-            currentLeafReaderContext = reader.leaves().get(currentLeaf);
+            currentLeafReaderContext = leaves.get(currentLeaf);
             try {
-                currentScorer = weight.bulkScorer(currentLeafReaderContext);
+                currentScorer = weight.bulkScorer(currentLeafReaderContext.leafReaderContext);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            currentScorerPos = 0;
+            currentScorerPos = currentLeafReaderContext.minDoc;
         }
 
         try {
@@ -118,26 +200,25 @@ public class LuceneSourceOperator implements Operator {
 
                 @Override
                 public void collect(int doc) {
-                    if (currentPage == null) {
-                        currentPage = new int[maxPageSize];
-                        currentPagePos = 0;
-                    }
                     currentPage[currentPagePos] = doc;
                     currentPagePos++;
                 }
-            }, currentLeafReaderContext.reader().getLiveDocs(), currentScorerPos, currentScorerPos + maxPageSize - currentPagePos);
+            },
+                currentLeafReaderContext.leafReaderContext.reader().getLiveDocs(),
+                currentScorerPos,
+                Math.min(currentLeafReaderContext.maxDoc, currentScorerPos + maxPageSize - currentPagePos)
+            );
 
-            if (currentPagePos >= minPageSize || currentScorerPos == DocIdSetIterator.NO_MORE_DOCS) {
+            if (currentPagePos >= minPageSize || currentScorerPos >= currentLeafReaderContext.maxDoc) {
                 page = new Page(
                     currentPagePos,
-                    new IntBlock(currentPage, currentPagePos),
-                    new ConstantIntBlock(currentPagePos, currentLeafReaderContext.ord)
+                    new IntBlock(Arrays.copyOf(currentPage, currentPagePos), currentPagePos),
+                    new ConstantIntBlock(currentPagePos, currentLeafReaderContext.leafReaderContext.ord)
                 );
-                currentPage = null;
                 currentPagePos = 0;
             }
 
-            if (currentScorerPos == DocIdSetIterator.NO_MORE_DOCS) {
+            if (currentScorerPos >= currentLeafReaderContext.maxDoc) {
                 currentLeaf++;
                 currentLeafReaderContext = null;
                 currentScorer = null;
@@ -148,6 +229,35 @@ public class LuceneSourceOperator implements Operator {
         }
 
         return page;
+    }
+
+    private void initializeWeightIfNecessary() {
+        if (weight == null) {
+            try {
+                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+                weight = indexSearcher.createWeight(indexSearcher.rewrite(new ConstantScoreQuery(query)), ScoreMode.COMPLETE_NO_SCORES, 1);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    static class PartialLeafReaderContext {
+
+        final LeafReaderContext leafReaderContext;
+        final int minDoc; // incl
+        final int maxDoc; // excl
+
+        PartialLeafReaderContext(LeafReaderContext leafReaderContext, int minDoc, int maxDoc) {
+            this.leafReaderContext = leafReaderContext;
+            this.minDoc = minDoc;
+            this.maxDoc = maxDoc;
+        }
+
+        PartialLeafReaderContext(LeafReaderContext leafReaderContext) {
+            this(leafReaderContext, 0, leafReaderContext.reader().maxDoc());
+        }
+
     }
 
     @Override

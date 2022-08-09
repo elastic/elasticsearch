@@ -41,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -163,7 +164,47 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
-    public void testOperatorsWithPassthroughExchange() throws InterruptedException {
+    public void testOperatorsWithLuceneSlicing() throws IOException {
+        int numDocs = 100000;
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            NumericDocValuesField docValuesField = new NumericDocValuesField("value", 0);
+            for (int i = 0; i < numDocs; i++) {
+                doc.clear();
+                docValuesField.setLongValue(i);
+                doc.add(docValuesField);
+                w.addDocument(doc);
+            }
+            if (randomBoolean()) {
+                w.forceMerge(randomIntBetween(1, 10));
+            }
+            w.commit();
+
+            try (IndexReader reader = w.getReader()) {
+                AtomicInteger rowCount = new AtomicInteger();
+
+                List<Driver> drivers = new ArrayList<>();
+                for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(reader, new MatchAllDocsQuery()).slice(
+                    randomIntBetween(1, 10)
+                )) {
+                    drivers.add(
+                        new Driver(
+                            List.of(
+                                luceneSourceOperator,
+                                new NumericDocValuesExtractor(reader, 0, 1, "value"),
+                                new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount()))
+                            ),
+                            () -> {}
+                        )
+                    );
+                }
+                Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+                assertEquals(numDocs, rowCount.get());
+            }
+        }
+    }
+
+    public void testOperatorsWithPassthroughExchange() {
         ExchangeSource exchangeSource = new ExchangeSource();
 
         Driver driver1 = new Driver(
@@ -247,7 +288,7 @@ public class OperatorTests extends ESTestCase {
             () -> {}
         );
 
-        Driver.runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4)).actionGet();
+        Driver.runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4));
     }
 
     public void testOperatorsAsync() {

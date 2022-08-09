@@ -177,7 +177,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
-  if (module.name.startsWith('transport-')) {
+  if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 

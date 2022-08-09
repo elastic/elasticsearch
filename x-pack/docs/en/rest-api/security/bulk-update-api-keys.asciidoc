@@ -2,4 +2,44 @@
 [[security-api-bulk-update-api-keys]]
 === Bulk update API keys API
 
-coming::[8.5.0]
+++++
+<titleabbrev>Bulk update API keys</titleabbrev>
+++++
+
+[[security-api-bulk-update-api-keys-request]]
+==== {api-request-title}
+
+`POST /_security/api_key/_bulk_update`
+
+[[security-api-bulk-update-api-keys-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_own_api_key` cluster privilege.
+Users can only update API keys that they created or that were granted to them.
+To update another user's API key, use the <<run-as-privilege,`run_as` feature>>
+to submit a request on behalf of another user.
+
+IMPORTANT: It's not possible to use an API key as the authentication credential for this API.
+To update API keys, the owner user's credentials are required.
+
+[[security-api-bulk-update-api-keys-desc]]
+==== {api-description-title}
+
+This API is similar to the <<security-api-update-api-key,update single API Key>> API but allows you to apply the same update to a batch of API keys at once.
+
+It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
+
+This API supports updates to API key access scope and metadata.
+The access scope of each API key is derived from the <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> you specify in the request, and a snapshot of the owner user's permissions at the time of the request.
+The snapshot of the owner's permissions is updated automatically on every call.
+
+[IMPORTANT]
+====
+If you don't specify <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request, a call to this API might still change an API key's access scope.
+This change can occur if the owner user's permissions have changed since the API key was created or last modified.
+====
+
+A successful request returns a JSON structure that contains the IDs of all successfully updated API keys, the IDs of API keys that did not require an update, and error information for any failed update.
+The API responds with a `200` status code, even in the presence of errors.
+
+

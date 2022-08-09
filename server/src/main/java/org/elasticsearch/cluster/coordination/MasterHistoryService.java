@@ -114,7 +114,7 @@ public class MasterHistoryService {
      * @param node The node whose view of the master history we want to fetch
      */
     public void refreshRemoteMasterHistory(DiscoveryNode node) {
-        Version minSupportedVersion = Version.V_8_3_0;
+        Version minSupportedVersion = Version.V_8_4_0;
         if (node.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.3.0
             logger.trace(
                 "Cannot get master history for {} because it is at version {} and {} is required",

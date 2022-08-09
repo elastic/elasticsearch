@@ -1551,7 +1551,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 ApiKeyAttribute.CREATOR,
                 expectedCreator,
                 ApiKeyAttribute.METADATA,
-                expectedMetadata == null ? Map.of() : expectedMetadata,
+                expectedMetadata,
                 ApiKeyAttribute.ASSIGNED_ROLE_DESCRIPTORS,
                 expectedRoleDescriptors,
                 ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS,
@@ -2317,7 +2317,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 case METADATA -> {
                     final var metadata = (Map<String, Object>) entry.getValue();
                     expectMetadataForApiKey(metadata, apiKeyDocMap);
-                    assertThat(metadata, equalTo(apiKeyInfo.getMetadata()));
+                    assertThat(metadata == null ? Map.of() : metadata, equalTo(apiKeyInfo.getMetadata()));
                 }
                 case ASSIGNED_ROLE_DESCRIPTORS -> {
                     final var expectedRoleDescriptors = (Collection<RoleDescriptor>) entry.getValue();

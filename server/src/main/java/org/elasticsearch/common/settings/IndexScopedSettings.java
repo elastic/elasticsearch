@@ -162,6 +162,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
         DataTier.TIER_PREFERENCE_SETTING,
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

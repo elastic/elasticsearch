@@ -17,6 +17,14 @@ import java.util.function.Predicate;
 
 public class PassThroughConfigTests extends InferenceConfigItemTestCase<PassThroughConfig> {
 
+    public static PassThroughConfig mutateForVersion(PassThroughConfig instance, Version version) {
+        return new PassThroughConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getResultsField()
+        );
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return true;
@@ -44,7 +52,7 @@ public class PassThroughConfigTests extends InferenceConfigItemTestCase<PassThro
 
     @Override
     protected PassThroughConfig mutateInstanceForVersion(PassThroughConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static PassThroughConfig createRandom() {

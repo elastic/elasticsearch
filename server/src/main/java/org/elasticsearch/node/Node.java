@@ -87,7 +87,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -102,6 +104,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
+import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpServerTransport;
@@ -396,6 +399,8 @@ public class Node implements Closeable {
                 );
             }
 
+            deleteTemporaryApmConfig(jvmInfo);
+
             this.pluginsService = pluginServiceCtor.apply(tmpSettings);
             final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
 
@@ -421,7 +426,9 @@ public class Node implements Closeable {
                 Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet());
 
-            final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders);
+            final Tracer tracer = getTracer(pluginsService, settings);
+
+            final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
 
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
             final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.flatMap(Plugin::getSettings).toList());
@@ -690,8 +697,6 @@ public class Node implements Closeable {
                 shardLimitValidator
             );
 
-            final Tracer tracer = getTracer(pluginsService, clusterService, settings);
-
             Collection<Object> pluginComponents = pluginsService.flatMap(
                 p -> p.createComponents(
                     client,
@@ -945,6 +950,9 @@ public class Node implements Closeable {
             HealthMetadataService healthMetadataService = HealthNode.isEnabled()
                 ? new HealthMetadataService(clusterService, settings)
                 : null;
+            LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
+                ? new LocalHealthMonitor(settings, clusterService, nodeService, threadPool)
+                : null;
 
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
@@ -1038,6 +1046,7 @@ public class Node implements Closeable {
                 if (HealthNode.isEnabled()) {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                     b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
+                    b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
                 }
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
@@ -1096,14 +1105,45 @@ public class Node implements Closeable {
         }
     }
 
-    private Tracer getTracer(PluginsService pluginsService, ClusterService clusterService, Settings settings) {
+    /**
+     * If the JVM was started with the Elastic APM agent and a config file argument was specified, then
+     * delete the config file. The agent only reads it once, when supplied in this fashion, and it
+     * may contain a secret token.
+     */
+    @SuppressForbidden(reason = "Cannot guarantee that the temp config path is relative to the environment")
+    private void deleteTemporaryApmConfig(JvmInfo jvmInfo) {
+        for (String inputArgument : jvmInfo.getInputArguments()) {
+            if (inputArgument.startsWith("-javaagent:")) {
+                final String agentArg = inputArgument.substring(11);
+                final String[] parts = agentArg.split("=", 2);
+                if (parts[0].matches("modules/x-pack-apm-integration/elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")) {
+                    if (parts.length == 2 && parts[1].startsWith("c=")) {
+                        final Path apmConfig = PathUtils.get(parts[1].substring(2));
+                        if (apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp")) {
+                            try {
+                                Files.deleteIfExists(apmConfig);
+                            } catch (IOException e) {
+                                logger.error(
+                                    "Failed to delete temporary APM config file [" + apmConfig + "], reason: [" + e.getMessage() + "]",
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    private Tracer getTracer(PluginsService pluginsService, Settings settings) {
         final List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
 
         if (tracerPlugins.size() > 1) {
             throw new IllegalStateException("A single TracerPlugin was expected but got: " + tracerPlugins);
         }
 
-        return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(clusterService, settings);
+        return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(settings);
     }
 
     private HealthService createHealthService(

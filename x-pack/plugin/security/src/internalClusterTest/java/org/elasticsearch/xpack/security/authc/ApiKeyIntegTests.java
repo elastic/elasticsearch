@@ -1551,7 +1551,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 ApiKeyAttribute.CREATOR,
                 expectedCreator,
                 ApiKeyAttribute.METADATA,
-                expectedMetadata,
+                expectedMetadata == null ? Map.of() : expectedMetadata,
                 ApiKeyAttribute.ASSIGNED_ROLE_DESCRIPTORS,
                 expectedRoleDescriptors,
                 ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS,
@@ -2317,7 +2317,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 case METADATA -> {
                     final var metadata = (Map<String, Object>) entry.getValue();
                     expectMetadataForApiKey(metadata, apiKeyDocMap);
-                    assertThat(metadata == null ? Map.of() : metadata, equalTo(apiKeyInfo.getMetadata()));
+                    assertThat(metadata, equalTo(apiKeyInfo.getMetadata()));
                 }
                 case ASSIGNED_ROLE_DESCRIPTORS -> {
                     final var expectedRoleDescriptors = (Collection<RoleDescriptor>) entry.getValue();
@@ -2343,7 +2343,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(actualRawApiKeyDoc);
         @SuppressWarnings("unchecked")
         final var actualMetadata = (Map<String, Object>) actualRawApiKeyDoc.get("metadata_flattened");
-        assertThat("for api key doc " + actualRawApiKeyDoc, actualMetadata, equalTo(expectedMetadata));
+        assertThat(
+            "for api key doc " + actualRawApiKeyDoc,
+            // Internally, metadata may be stored as `null`. However, it is always exposed as an empty map through the API. We define
+            // `expectedMetadata` as the expected value according to the API, so we need to account for this discrepancy here
+            actualMetadata == null ? anEmptyMap() : actualMetadata,
+            equalTo(expectedMetadata)
+        );
     }
 
     private void expectCreatorForApiKey(final Map<String, Object> expectedCreator, final Map<String, Object> actualRawApiKeyDoc) {

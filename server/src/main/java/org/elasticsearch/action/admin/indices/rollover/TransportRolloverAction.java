@@ -265,11 +265,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             ClusterState currentState,
             List<TaskContext<RolloverTask>> taskContexts,
             Supplier<Releasable> dropHeadersContextSupplier
-        ) throws Exception {
+        ) {
             final var results = new ArrayList<MetadataRolloverService.RolloverResult>(taskContexts.size());
             var state = currentState;
             for (final var taskContext : taskContexts) {
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     state = executeTask(state, results, taskContext);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
@@ -286,7 +286,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     1024,
                     reason
                 );
-                state = allocationService.reroute(state, reason.toString());
+                try (var ignored = dropHeadersContextSupplier.get()) {
+                    state = allocationService.reroute(state, reason.toString());
+                }
             }
             return state;
         }

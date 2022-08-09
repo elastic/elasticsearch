@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -83,7 +84,8 @@ public class AllocationActionListenerTests extends ESTestCase {
         // this header should be ignored as it is added after context is captured
         context.addResponseHeader("header", "2");
 
-        executeInRandomOrder(context, () -> {
+        // reroute is executed for multiple changes so its headers should be ignored
+        for (var action : shuffledList(List.<Runnable>of(() -> {
             context.addResponseHeader("header", "3");
             var csl = listener.clusterStateUpdate();
             context.addResponseHeader("header", "4");
@@ -94,13 +96,50 @@ public class AllocationActionListenerTests extends ESTestCase {
             var reroute = listener.reroute();
             context.addResponseHeader("header", "6");
             reroute.onResponse(null);
-        });
-    }
-
-    private static void executeInRandomOrder(ThreadContext context, Runnable... actions) {
-        for (var action : shuffledList(List.of(actions))) {
+        }))) {
             try (var ignored = context.stashContext()) {
                 action.run();
+            }
+        }
+    }
+
+    public void testShouldFailWithCorrectContext() {
+
+        var context = new ThreadContext(Settings.EMPTY);
+
+        // should not be changed after the listener is created
+        context.putHeader("header", "root");// ensure this is visible in the listener
+        context.addResponseHeader("header", "1");
+
+        var listener = new AllocationActionListener<>(
+            ActionListener.wrap(ignore -> { throw new AssertionError("Should not fail in test"); }, exception -> {
+                assertThat(
+                    context.getResponseHeaders().get("header"),
+                    Objects.equals(exception.getMessage(), "cluster-state-update-failed")
+                        ? containsInAnyOrder("1", "3", "4")
+                        : containsInAnyOrder("1")
+                );
+                assertThat(context.getHeader("header"), equalTo("root"));
+            }),
+            context
+        );
+
+        // this header should be ignored as it is added after context is captured
+        context.addResponseHeader("header", "2");
+
+        if (randomBoolean()) {
+            try (var ignored = context.stashContext()) {
+                context.addResponseHeader("header", "3");
+                var csl = listener.clusterStateUpdate();
+                context.addResponseHeader("header", "4");
+                csl.onFailure(new RuntimeException("cluster-state-update-failed"));
+            }
+        } else {
+            try (var ignored = context.stashContext()) {
+                context.addResponseHeader("header", "5");
+                var reroute = listener.reroute();
+                context.addResponseHeader("header", "6");
+                reroute.onFailure(new RuntimeException("reroute-failed"));
             }
         }
     }

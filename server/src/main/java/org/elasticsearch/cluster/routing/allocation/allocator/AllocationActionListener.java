@@ -44,20 +44,30 @@ public class AllocationActionListener<T> {
 
     private void notifyListenerExecuted() {
         if (listenersExecuted.decrementAndGet() == 0) {
-            // required to clear whatever context that might be set during reroute
-            try (ThreadContext.StoredContext ignore1 = context.stashContext()) {
-                try (ThreadContext.StoredContext ignore2 = original.get()) {
-                    appendAdditionalResponseHeaders(context, additionalResponseHeaders.get());
-                    delegate.onResponse(AllocationActionListener.this.response.get());
-                }
+            executeInContext(() -> delegate.onResponse(AllocationActionListener.this.response.get()));
+        }
+    }
+
+    private void notifyListenerFailed(Exception e) {
+        executeInContext(() -> delegate.onFailure(e));
+    }
+
+    private void executeInContext(Runnable action) {
+        // required to clear whatever context that might be set during reroute
+        try (ThreadContext.StoredContext ignore1 = context.stashContext()) {
+            try (ThreadContext.StoredContext ignore2 = original.get()) {
+                appendAdditionalResponseHeaders(context, additionalResponseHeaders.get());
+                action.run();
             }
         }
     }
 
     private static void appendAdditionalResponseHeaders(ThreadContext context, Map<String, List<String>> additionalHeaders) {
-        for (var entry : additionalHeaders.entrySet()) {
-            for (String header : entry.getValue()) {
-                context.addResponseHeader(entry.getKey(), header);
+        if (additionalHeaders != null) {
+            for (var entry : additionalHeaders.entrySet()) {
+                for (String header : entry.getValue()) {
+                    context.addResponseHeader(entry.getKey(), header);
+                }
             }
         }
     }
@@ -73,7 +83,8 @@ public class AllocationActionListener<T> {
 
             @Override
             public void onFailure(Exception e) {
-                delegate.onFailure(e);
+                additionalResponseHeaders.set(context.getResponseHeaders());
+                notifyListenerFailed(e);
             }
         };
     }
@@ -87,7 +98,7 @@ public class AllocationActionListener<T> {
 
             @Override
             public void onFailure(Exception e) {
-                delegate.onFailure(e);
+                notifyListenerFailed(e);
             }
         };
     }

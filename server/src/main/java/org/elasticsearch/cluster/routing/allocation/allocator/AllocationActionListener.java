@@ -12,15 +12,19 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import java.util.function.Supplier;
 
 public class AllocationActionListener<T> {
 
     private final ActionListener<T> delegate;
     private final SetOnce<T> response = new SetOnce<>();
     private final AtomicInteger listenersExecuted = new AtomicInteger(2);
+    private final ThreadContext context;
+    private final Supplier<ThreadContext.StoredContext> original;
+    private final SetOnce<Map<String, List<String>>> additionalResponseHeaders = new SetOnce<>();
 
     /**
      * This listener could be used when reroute completion (such as even balancing shards across the cluster) is not required for the
@@ -33,12 +37,28 @@ public class AllocationActionListener<T> {
     }
 
     public AllocationActionListener(ActionListener<T> delegate, ThreadContext context) {
-        this.delegate = wrapPreservingContext(delegate, context);
+        this.delegate = delegate;
+        this.context = context;
+        this.original = context.newRestorableContext(true);
     }
 
     private void notifyListenerExecuted() {
         if (listenersExecuted.decrementAndGet() == 0) {
-            delegate.onResponse(AllocationActionListener.this.response.get());
+            // required to clear whatever context that might be set during reroute
+            try (ThreadContext.StoredContext ignore1 = context.stashContext()) {
+                try (ThreadContext.StoredContext ignore2 = original.get()) {
+                    appendAdditionalResponseHeaders(context, additionalResponseHeaders.get());
+                    delegate.onResponse(AllocationActionListener.this.response.get());
+                }
+            }
+        }
+    }
+
+    private static void appendAdditionalResponseHeaders(ThreadContext context, Map<String, List<String>> additionalHeaders) {
+        for (var entry : additionalHeaders.entrySet()) {
+            for (String header : entry.getValue()) {
+                context.addResponseHeader(entry.getKey(), header);
+            }
         }
     }
 
@@ -47,6 +67,7 @@ public class AllocationActionListener<T> {
             @Override
             public void onResponse(T response) {
                 AllocationActionListener.this.response.set(response);
+                additionalResponseHeaders.set(context.getResponseHeaders());
                 notifyListenerExecuted();
             }
 

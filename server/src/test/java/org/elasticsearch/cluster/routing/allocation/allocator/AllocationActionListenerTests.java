@@ -12,13 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AllocationActionListenerTests extends ESTestCase {
@@ -70,34 +69,38 @@ public class AllocationActionListenerTests extends ESTestCase {
 
     public void testShouldExecuteWithCorrectContext() {
 
-        var threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader("header", "root");
+        var context = new ThreadContext(Settings.EMPTY);
 
-        var result = new AtomicReference<String>();
-        var listener = new AllocationActionListener<>(
-            ActionListener.wrap(
-                ignore -> result.set(threadContext.getHeader("header")),
-                exception -> { throw new AssertionError("Should not fail in test"); }
-            ),
-            threadContext
-        );
+        // should not be changed after the listener is created
+        context.putHeader("header", "root");// ensure this is visible in the listener
+        context.addResponseHeader("header", "1");
 
-        executeInRandomOrder(
-            threadContext,
-            List.of(
-                new Tuple<>("clusterStateUpdate", () -> listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE)),
-                new Tuple<>("reroute", () -> listener.reroute().onResponse(null))
-            )
-        );
+        var listener = new AllocationActionListener<>(ActionListener.wrap(ignore -> {
+            assertThat(context.getResponseHeaders().get("header"), containsInAnyOrder("1", "3", "4"));
+            assertThat(context.getHeader("header"), equalTo("root"));
+        }, exception -> { throw new AssertionError("Should not fail in test"); }), context);
 
-        assertThat(result.get(), equalTo("root"));
+        // this header should be ignored as it is added after context is captured
+        context.addResponseHeader("header", "2");
+
+        executeInRandomOrder(context, () -> {
+            context.addResponseHeader("header", "3");
+            var csl = listener.clusterStateUpdate();
+            context.addResponseHeader("header", "4");
+            csl.onResponse(AcknowledgedResponse.TRUE);
+        }, () -> {
+            // reroute is executed for multiple changes so its headers should be ignored
+            context.addResponseHeader("header", "5");
+            var reroute = listener.reroute();
+            context.addResponseHeader("header", "6");
+            reroute.onResponse(null);
+        });
     }
 
-    private static void executeInRandomOrder(ThreadContext context, List<Tuple<String, Runnable>> actions) {
-        for (var action : shuffledList(actions)) {
+    private static void executeInRandomOrder(ThreadContext context, Runnable... actions) {
+        for (var action : shuffledList(List.of(actions))) {
             try (var ignored = context.stashContext()) {
-                context.putHeader("header", action.v1());
-                action.v2().run();
+                action.run();
             }
         }
     }

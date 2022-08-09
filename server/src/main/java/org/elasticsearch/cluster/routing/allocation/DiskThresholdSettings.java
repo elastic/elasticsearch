@@ -250,21 +250,18 @@ public class DiskThresholdSettings {
             }
         }
 
-        private static List<Setting<?>> settingsList = null;
-
         @Override
         public Iterator<Setting<?>> settings() {
-            if (settingsList == null) {
-                settingsList = List.of(
-                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING
-                );
-            }
-            return settingsList.iterator();
+            return watermarkValidatorSettingsList.iterator();
         }
 
     }
+
+    private static List<Setting<?>> watermarkValidatorSettingsList = List.of(
+        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING
+    );
 
     /**
      * Validates that low, high and flood stage max headrooms adhere to the comparison: flood &lt; high &lt; low.
@@ -365,24 +362,21 @@ public class DiskThresholdSettings {
             }
         }
 
-        private static List<Setting<?>> settingsList = null;
-
         @Override
         public Iterator<Setting<?>> settings() {
-            if (settingsList == null) {
-                settingsList = List.of(
-                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
-                );
-            }
-            return settingsList.iterator();
+            return maxHeadroomValidatorSettingsList.iterator();
         }
 
     }
+
+    private static List<Setting<?>> maxHeadroomValidatorSettingsList = List.of(
+        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
+    );
 
     private void setRerouteInterval(TimeValue rerouteInterval) {
         this.rerouteInterval = rerouteInterval;

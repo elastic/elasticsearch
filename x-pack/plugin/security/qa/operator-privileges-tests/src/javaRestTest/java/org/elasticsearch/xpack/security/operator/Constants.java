@@ -245,9 +245,6 @@ public class Constants {
         "cluster:internal/xpack/ml/trained_models/cache/info",
         "cluster:internal/xpack/ml/trained_models/deployments/stats/get",
         "cluster:internal/xpack/transform/reset_mode",
-        "cluster:internal/master_history/get",
-        "cluster:internal/coordination_diagnostics/info",
-        "cluster:internal/formation/info",
         "cluster:monitor/allocation/explain",
         "cluster:monitor/async_search/status",
         "cluster:monitor/ccr/follow_info",
@@ -481,6 +478,9 @@ public class Constants {
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info",
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info[n]",
         "internal:cluster/nodes/indices/shard/store",
+        "internal:cluster/master_history/get",
+        "internal:cluster/coordination_diagnostics/info",
+        "internal:cluster/formation/info",
         "internal:gateway/local/started_shards"
     );
 }

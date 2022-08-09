@@ -407,7 +407,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         ActionListener<Void> failureHandlingListener = ActionListener.wrap(listener::onResponse, failure -> {
-            failureHandler.handleSearchOrIndexingFailure(failure, getConfig().getSettings());
+            failureHandler.handleIndexerFailure(failure, getConfig().getSettings());
             listener.onFailure(failure);
         });
 
@@ -624,7 +624,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         startIndexerThreadShutdown();
         // the failure handler must not throw an exception due to internal problems
         try {
-            failureHandler.handleSearchOrIndexingFailure(exc, getConfig().getSettings());
+            failureHandler.handleIndexerFailure(exc, getConfig().getSettings());
         } catch (Exception e) {
             logger.error(() -> "[" + getJobId() + "] transform encountered an unexpected internal exception: ", e);
         }
@@ -915,7 +915,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * (Note: originally this method was synchronized, which is not necessary)
      */
     void handleFailure(Exception e) {
-        failureHandler.handleSearchOrIndexingFailure(e, getConfig().getSettings());
+        failureHandler.handleIndexerFailure(e, getConfig().getSettings());
     }
 
     /**

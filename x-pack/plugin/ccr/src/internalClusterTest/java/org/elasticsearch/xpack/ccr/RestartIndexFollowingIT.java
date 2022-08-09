@@ -84,11 +84,8 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
-        cleanRemoteCluster();
         getLeaderCluster().fullRestart();
         ensureLeaderGreen("index1");
-        // Remote connection needs to be re-configured, because all the nodes in leader cluster have been restarted:
-        setupRemoteCluster();
 
         final long thirdBatchNumDocs = randomIntBetween(10, 200);
         for (int i = 0; i < thirdBatchNumDocs; i++) {

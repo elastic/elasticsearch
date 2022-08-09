@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.sql.action.compute.data.Block;
@@ -88,6 +89,9 @@ public class OperatorBenchmark {
     @Param({ "100000000" }) // 100 million
     int numDocs;
 
+    @Param({ "1", "10" })
+    int maxNumSegments;
+
     ThreadPool threadPool;
 
     @Setup
@@ -105,7 +109,7 @@ public class OperatorBenchmark {
                 indexWriter.addDocument(doc);
             }
             indexWriter.commit();
-            indexWriter.forceMerge(1);
+            indexWriter.forceMerge(maxNumSegments);
             indexWriter.flush();
         }
         indexReader = DirectoryReader.open(dir);
@@ -340,7 +344,7 @@ public class OperatorBenchmark {
     }
 
     @Benchmark
-    public long testSingleThreadedAvg() {
+    public long testLongAvgSingleThreadedAvg() {
         return runWithDriver(
             ByteSizeValue.ofKb(16).bytesAsInt(),
             new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
@@ -350,9 +354,9 @@ public class OperatorBenchmark {
     }
 
     @Benchmark
-    public long testMultiThreadedAvg() {
+    public long testLongAvgMultiThreadedAvgWithSingleThreadedSearch() {
         AtomicInteger rowCount = new AtomicInteger();
-        int parallelCount = 8;
+        int parallelCount = ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY));
         List<Driver> drivers = new ArrayList<>(parallelCount);
         List<ExchangeSource> forkExchangeSources = new ArrayList<>(parallelCount);
         List<ExchangeSource> joinExchangeSources = new ArrayList<>(parallelCount);
@@ -404,7 +408,90 @@ public class OperatorBenchmark {
         );
         drivers.add(reduceDriver);
 
-        Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers).actionGet();
+        Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+        return rowCount.get();
+    }
+
+    @Benchmark
+    public long testLongAvgMultiThreadedAvgWithMultiThreadedSearch() {
+        AtomicInteger rowCount = new AtomicInteger();
+        int parallelCount = ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY));
+        List<Driver> drivers = new ArrayList<>(parallelCount);
+        List<ExchangeSource> joinExchangeSources = new ArrayList<>(parallelCount);
+
+        for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(
+            indexReader,
+            new MatchAllDocsQuery(),
+            ByteSizeValue.ofKb(16).bytesAsInt()
+        ).slice(parallelCount)) {
+            ExchangeSource joinExchangeSource = new ExchangeSource();
+            joinExchangeSources.add(joinExchangeSource);
+            Driver driver = new Driver(
+                List.of(
+                    luceneSourceOperator,
+                    new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
+                    new LongAvgOperator(2), // PARTIAL
+                    new ExchangeSinkOperator(
+                        new ExchangeSink(new PassthroughExchanger(joinExchangeSource, Integer.MAX_VALUE), s -> joinExchangeSource.finish())
+                    )
+                ),
+                () -> {}
+            );
+            drivers.add(driver);
+        }
+
+        Driver reduceDriver = new Driver(
+            List.of(
+                new RandomUnionSourceOperator(joinExchangeSources),
+                new LongAvgOperator(0, 1), // FINAL
+                new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount()))
+            ),
+            () -> {}
+        );
+        drivers.add(reduceDriver);
+
+        Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+        return rowCount.get();
+    }
+
+    @Benchmark
+    public long testLongAvgMultiThreadedAvgWithMultiThreadedSegmentSearch() {
+        AtomicInteger rowCount = new AtomicInteger();
+        List<Driver> drivers = new ArrayList<>();
+        List<ExchangeSource> joinExchangeSources = new ArrayList<>();
+
+        for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(
+            indexReader,
+            new MatchAllDocsQuery(),
+            ByteSizeValue.ofKb(16).bytesAsInt()
+        ).segmentSlice()) {
+            ExchangeSource joinExchangeSource = new ExchangeSource();
+            joinExchangeSources.add(joinExchangeSource);
+            Driver driver = new Driver(
+                List.of(
+                    luceneSourceOperator,
+                    new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
+                    new LongAvgOperator(2), // PARTIAL
+                    new ExchangeSinkOperator(
+                        new ExchangeSink(new PassthroughExchanger(joinExchangeSource, Integer.MAX_VALUE), s -> joinExchangeSource.finish())
+                    )
+                ),
+                () -> {}
+            );
+            drivers.add(driver);
+        }
+
+        Driver reduceDriver = new Driver(
+            List.of(
+                new RandomUnionSourceOperator(joinExchangeSources),
+                new LongAvgOperator(0, 1), // FINAL
+                new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount()))
+            ),
+            () -> {}
+        );
+        drivers.add(reduceDriver);
+
+        Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
         return rowCount.get();
     }
 }

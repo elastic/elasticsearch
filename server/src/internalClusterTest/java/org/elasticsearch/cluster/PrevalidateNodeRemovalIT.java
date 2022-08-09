@@ -8,7 +8,22 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation;
+import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalAction;
+import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalRequest;
+import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class PrevalidateNodeRemovalIT extends ESIntegTestCase {}
+public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
+
+    public void testNodeRemovalFromGreenClusterIsSafe() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        PrevalidateNodeRemovalRequest req = new PrevalidateNodeRemovalRequest(randomFrom(internalCluster().getNodeNames()));
+        PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
+        assertThat(resp.getPrevalidation().getOverallResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
+    }
+}

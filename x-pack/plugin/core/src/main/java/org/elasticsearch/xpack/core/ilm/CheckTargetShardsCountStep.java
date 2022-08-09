@@ -73,11 +73,11 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
             .get(this.getKey().getPhase())
             .getActions()
             .get(this.getKey().getAction());
-        if (lifecycleAction instanceof WithTargetNumberOfShards withTargetNumberOfShards) {
-            return withTargetNumberOfShards.getNumberOfShards();
+        if (lifecycleAction instanceof ShrinkAction shrinkAction) {
+            return shrinkAction.getNumberOfShards();
         } else {
             throw new IllegalStateException(
-                "The action [" + getKey().getName() + "] should be able to provide a target shard count to step " + getKey().getName() + "."
+                "The action [" + getKey().getName() + "] was not the expected shrink action  " + getKey().getName() + "."
             );
         }
     }

@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_
 /**
  * A {@link LifecycleAction} which shrinks the index.
  */
-public class ShrinkAction implements LifecycleAction, WithTargetNumberOfShards {
+public class ShrinkAction implements LifecycleAction {
     private static final Logger logger = LogManager.getLogger(ShrinkAction.class);
 
     public static final String NAME = "shrink";

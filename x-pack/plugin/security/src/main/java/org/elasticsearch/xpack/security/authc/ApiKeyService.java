@@ -1650,26 +1650,26 @@ public class ApiKeyService {
     }
 
     private ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {
-        final VersionedApiKeyDoc versionedApiKeyDoc = convertSearchHitToVersionedApiKeyDoc(hit);
+        final ApiKeyDoc apiKeyDoc = convertSearchHitToVersionedApiKeyDoc(hit).doc;
         final String apiKeyId = hit.getId();
-        final Map<String, Object> metadata = versionedApiKeyDoc.doc.metadataFlattened != null
-            ? XContentHelper.convertToMap(versionedApiKeyDoc.doc.metadataFlattened, false, XContentType.JSON).v2()
+        final Map<String, Object> metadata = apiKeyDoc.metadataFlattened != null
+            ? XContentHelper.convertToMap(apiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
             : Map.of();
 
         final List<RoleDescriptor> roleDescriptors = parseRoleDescriptorsBytes(
             apiKeyId,
-            versionedApiKeyDoc.doc.roleDescriptorsBytes,
+            apiKeyDoc.roleDescriptorsBytes,
             RoleReference.ApiKeyRoleType.ASSIGNED
         );
 
         return new ApiKey(
-            versionedApiKeyDoc.doc.name,
+            apiKeyDoc.name,
             apiKeyId,
-            Instant.ofEpochMilli(versionedApiKeyDoc.doc.creationTime),
-            versionedApiKeyDoc.doc.expirationTime != -1 ? Instant.ofEpochMilli(versionedApiKeyDoc.doc.expirationTime) : null,
-            versionedApiKeyDoc.doc.invalidated,
-            (String) versionedApiKeyDoc.doc.creator.get("principal"),
-            (String) versionedApiKeyDoc.doc.creator.get("realm"),
+            Instant.ofEpochMilli(apiKeyDoc.creationTime),
+            apiKeyDoc.expirationTime != -1 ? Instant.ofEpochMilli(apiKeyDoc.expirationTime) : null,
+            apiKeyDoc.invalidated,
+            (String) apiKeyDoc.creator.get("principal"),
+            (String) apiKeyDoc.creator.get("realm"),
             metadata,
             roleDescriptors
         );

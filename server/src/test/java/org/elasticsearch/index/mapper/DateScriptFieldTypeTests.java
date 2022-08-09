@@ -431,6 +431,21 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         }
     }
 
+    public void testLegacyDateFormatName() throws IOException {
+        CheckedSupplier<XContentBuilder, IOException> mapping = () -> runtimeFieldMapping(b -> {
+            minimalMapping(b);
+            b.field("format", "strictDateOptionalTime");
+        });
+        // Check that we can correctly use the camel case date format for 7.x indices
+        createMapperService(Version.fromId(7_99_99_99), mapping.get()); // no exception thrown
+
+        // Check that we don't allow the use of camel case date formats on 8.x indices
+        assertEquals(
+            "Failed to parse mapping: Invalid format: [strictDateOptionalTime]: Unknown pattern letter: t",
+            expectThrows(MapperParsingException.class, () -> { createMapperService(mapping.get()); }).getMessage()
+        );
+    }
+
     @Override
     protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termsQuery(randomList(1, 100, DateScriptFieldTypeTests::randomDate), ctx);

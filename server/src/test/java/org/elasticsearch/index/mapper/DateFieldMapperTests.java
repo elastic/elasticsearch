@@ -734,7 +734,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             null,
             mock(ScriptService.class),
             true,
-            Version.CURRENT.minimumIndexCompatibilityVersion() // BWC compatible index, e.g 7.x
+            Version.fromId(7_99_99_99) // BWC compatible index, e.g 7.x
         );
 
         // Check that we allow the use of camel case date formats on 7.x indices

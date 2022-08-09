@@ -8,10 +8,13 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalAction;
+import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +36,12 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] nodeIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        return channel -> {};
+        PrevalidateNodeRemovalRequest prevalidationRequest = new PrevalidateNodeRemovalRequest(nodeIds);
+        return channel -> client.execute(
+            PrevalidateNodeRemovalAction.INSTANCE,
+            prevalidationRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 
 }

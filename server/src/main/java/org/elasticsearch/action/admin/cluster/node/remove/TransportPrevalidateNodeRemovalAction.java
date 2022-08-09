@@ -20,8 +20,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
+import java.util.Map;
 
+// TODO: should this instead extend TransportMasterNodeReadAction?
 public class TransportPrevalidateNodeRemovalAction extends TransportAction<PrevalidateNodeRemovalRequest, PrevalidateNodeRemovalResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPrevalidateNodeRemovalAction.class);
@@ -54,10 +55,17 @@ public class TransportPrevalidateNodeRemovalAction extends TransportAction<Preva
     private void doPrevalidation(ClusterHealthResponse clusterHealthResponse, ActionListener<PrevalidateNodeRemovalResponse> listener) {
         switch (clusterHealthResponse.getStatus()) {
             case GREEN, YELLOW -> listener.onResponse(
-                new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(NodesRemovalPrevalidation.IsSafe.YES, List.of()))
+                new PrevalidateNodeRemovalResponse(
+                    new NodesRemovalPrevalidation(new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.YES, ""), Map.of())
+                )
             );
             case RED -> listener.onResponse(
-                new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(NodesRemovalPrevalidation.IsSafe.UNKNOWN, List.of()))
+                new PrevalidateNodeRemovalResponse(
+                    new NodesRemovalPrevalidation(
+                        new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.UNKNOWN, "cluster health is RED"),
+                        Map.of()
+                    )
+                )
             );
         }
     }

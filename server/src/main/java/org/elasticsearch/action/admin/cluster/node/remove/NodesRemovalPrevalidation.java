@@ -8,37 +8,50 @@
 
 package org.elasticsearch.action.admin.cluster.node.remove;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Map;
 
-public class NodesRemovalPrevalidation implements Writeable {
+public class NodesRemovalPrevalidation implements ToXContentFragment {
 
-    private final IsSafe isSafe;
-    private final List<NodeResult> nodePrevalidations;
+    private final Result overallResult;
+    private final Map<String, Result> perNodeResult;
 
-    public NodesRemovalPrevalidation(IsSafe isSafe, List<NodeResult> nodePrevalidations) {
-        this.isSafe = isSafe;
-        this.nodePrevalidations = nodePrevalidations;
+    public NodesRemovalPrevalidation(Result overallResult, Map<String, Result> perNodeResult) {
+        this.overallResult = overallResult;
+        this.perNodeResult = perNodeResult;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("overall_result");
+        overallResult.toXContent(builder, params);
+        builder.endObject();
+        builder.startObject("per_node_result");
+        for (Map.Entry<String, Result> entry : perNodeResult.entrySet()) {
+            builder.startObject(entry.getKey());
+            entry.getValue().toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
     }
 
-    public record NodeResult(IsSafe isSafe, String reason) implements ToXContentObject {
+    // TODO: implement writable but throw exception?
+
+    public record Result(IsSafe isSafe, String reason) implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return null;
+            builder.field("is_safe", isSafe.name());
+            builder.field("reason", reason);
+            return builder;
         }
     }
 
-    public enum IsSafe implements Writeable {
+    public enum IsSafe {
         YES("yes"),
         NO("no"),
         UNKNOWN("unknown");
@@ -51,11 +64,6 @@ public class NodesRemovalPrevalidation implements Writeable {
 
         public String isSafe() {
             return isSafe;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-
         }
     }
 }

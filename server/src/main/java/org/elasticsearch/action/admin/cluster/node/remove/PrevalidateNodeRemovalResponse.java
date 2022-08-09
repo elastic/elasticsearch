@@ -34,6 +34,7 @@ public class PrevalidateNodeRemovalResponse extends ActionResponse implements To
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        prevalidation.toXContent(builder, params);
         return builder.endObject();
     }
 

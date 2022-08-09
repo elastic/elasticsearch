@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
@@ -37,6 +36,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -181,11 +181,14 @@ public class GetSnapshotsResponseTests extends ESTestCase {
     public void testToChunkedXContent() throws Exception {
         final GetSnapshotsResponse response = createTestInstance();
         final XContentBuilder builder = JsonXContent.contentBuilder();
-        final ChunkedToXContent.ChunkedXContentSerialization serialization = response.toXContentChunked(builder, EMPTY_PARAMS);
+        final Iterator<ToXContent> serialization = response.toXContentChunked();
+        serialization.next().toXContent(builder, EMPTY_PARAMS);
         for (int i = 0; i < response.getSnapshots().size(); i++) {
-            assertFalse(serialization.writeChunk());
+            serialization.next().toXContent(builder, EMPTY_PARAMS);
+            assertTrue(serialization.hasNext());
         }
-        assertTrue(serialization.writeChunk());
+        serialization.next().toXContent(builder, EMPTY_PARAMS);
+        assertFalse(serialization.hasNext());
         final BytesReference bytesReferenceFromChunked = BytesReference.bytes(builder);
         assertEquals(bytesReferenceFromChunked, BytesReference.bytes(response.toXContent(JsonXContent.contentBuilder(), EMPTY_PARAMS)));
     }

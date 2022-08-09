@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -18,7 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -164,77 +165,41 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     }
 
     @Override
-    public ChunkedXContentSerialization toXContentChunked(XContentBuilder builder, Params params) {
-        return new Serialization(builder, params, this);
-    }
-
-    private static final class Serialization implements ChunkedXContentSerialization {
-
-        private final Params params;
-
-        @Nullable
-        private final String next;
-
-        private final Map<String, ElasticsearchException> failures;
-
-        private final int total;
-
-        private final int remaining;
-        private final Iterator<SnapshotInfo> snapshotsIter;
-        private XContentBuilder builder;
-
-        private boolean wroteStart = false;
-
-        Serialization(XContentBuilder builder, Params params, GetSnapshotsResponse response) {
-            this.builder = builder;
-            this.params = params;
-            this.snapshotsIter = response.getSnapshots().iterator();
-            this.next = response.next;
-            this.total = response.total;
-            this.remaining = response.remaining;
-            this.failures = response.failures;
-        }
-
-        @Override
-        public boolean writeChunk() throws IOException {
-            if (wroteStart == false) {
-                builder.startObject();
-                builder.startArray("snapshots");
-                wroteStart = true;
-            }
-            if (snapshotsIter.hasNext()) {
-                // write one snapshot info per invocation
-                snapshotsIter.next().toXContentExternal(builder, params);
-                return false;
-            }
-            // no more snapshot infos to write, close array and write the remaining fields in the last invocation
-            builder.endArray();
-            if (failures.isEmpty() == false) {
-                builder.startObject("failures");
-                for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
-                    builder.field(error.getKey(), (b, pa) -> {
-                        b.startObject();
-                        error.getValue().toXContent(b, pa);
-                        b.endObject();
-                        return b;
-                    });
+    public Iterator<ToXContent> toXContentChunked() {
+        return Iterators.concat(Iterators.single((b, p) -> {
+            b.startObject();
+            b.startArray("snapshots");
+            return b;
+        }),
+            getSnapshots().stream().map(snapshotInfo -> (ToXContent) snapshotInfo::toXContentExternal).iterator(),
+            Iterators.single((b, p) -> {
+                // no more snapshot infos to write, close array and write the remaining fields in the last invocation
+                b.endArray();
+                if (failures.isEmpty() == false) {
+                    b.startObject("failures");
+                    for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
+                        b.field(error.getKey(), (bb, pa) -> {
+                            bb.startObject();
+                            error.getValue().toXContent(bb, pa);
+                            bb.endObject();
+                            return bb;
+                        });
+                    }
+                    b.endObject();
                 }
-                builder.endObject();
-            }
-            if (next != null) {
-                builder.field("next", next);
-            }
-            if (total >= 0) {
-                builder.field("total", total);
-            }
-            if (remaining >= 0) {
-                builder.field("remaining", remaining);
-            }
-            builder.endObject();
-            final XContentBuilder b = builder;
-            builder = null;
-            return true;
-        }
+                if (next != null) {
+                    b.field("next", next);
+                }
+                if (total >= 0) {
+                    b.field("total", total);
+                }
+                if (remaining >= 0) {
+                    b.field("remaining", remaining);
+                }
+                b.endObject();
+                return b;
+            })
+        );
     }
 
     @Override

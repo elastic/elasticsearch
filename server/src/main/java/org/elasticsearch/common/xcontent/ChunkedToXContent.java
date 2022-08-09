@@ -12,43 +12,28 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
- * An extension of {@link ToXContent} that can be serialized in chunks by creating a {@link ChunkedXContentSerialization}.
+ * An extension of {@link ToXContent} that can be serialized in chunks by creating an {@link Iterator<ToXContent>}.
  * This is used by the REST layer to implement flow control that does not rely on blocking the serializing thread when writing the
  * serialized bytes to a non-blocking channel.
  */
 public interface ChunkedToXContent extends ToXContent {
 
     /**
-     * Create a serialization session for the implementation instance that will flush to the given {@code builder} and use the given
-     * {@code params} the same way {@link ToXContent#toXContent(XContentBuilder, Params)} would.
-     * @param builder builder to flush to
-     * @param params params for serialization
-     * @return serialization session
+     * Create an iterator of {@link ToXContent} chunks, that must be serialized individually with the same {@link XContentBuilder} and
+     * {@link ToXContent.Params} for each call until it is fully drained.
+     * @return iterator o over chunks of {@link ToXContent}
      */
-    ChunkedXContentSerialization toXContentChunked(XContentBuilder builder, ToXContent.Params params);
+    Iterator<ToXContent> toXContentChunked();
 
     @Override
     default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        ChunkedXContentSerialization serialization = toXContentChunked(builder, params);
-        while (serialization.writeChunk() == false)
-            ;
+        Iterator<ToXContent> serialization = toXContentChunked();
+        while (serialization.hasNext()) {
+            serialization.next().toXContent(builder, params);
+        }
         return builder;
-    }
-
-    /**
-     * The state of a chunked x-content serialization.
-     */
-    interface ChunkedXContentSerialization {
-
-        /**
-         * Writes a single chunk to the underlying {@link XContentBuilder}. Must be called repeatedly until a {@code true} return to
-         * complete the serialization.
-         *
-         * @return {@code true} once the serialization has completed
-         * @throws IOException on serialization failure
-         */
-        boolean writeChunk() throws IOException;
     }
 }

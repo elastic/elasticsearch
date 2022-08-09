@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Iterator;
 
 /**
  * The body of a rest response that uses chunked HTTP encoding. Implementations are used to avoid materializing full responses on heap and
@@ -75,18 +76,13 @@ public interface ChunkedRestResponseBody {
                 Streams.noCloseStream(out)
             );
 
-            private final ChunkedToXContent.ChunkedXContentSerialization serialization = chunkedToXContent.toXContentChunked(
-                builder,
-                params
-            );
-
-            private boolean done = false;
+            private final Iterator<ToXContent> serialization = chunkedToXContent.toXContentChunked();
 
             private BytesStream target;
 
             @Override
             public boolean isDone() {
-                return done;
+                return serialization.hasNext() == false;
             }
 
             @Override
@@ -94,12 +90,13 @@ public interface ChunkedRestResponseBody {
                 final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
                 assert this.target == null;
                 this.target = chunkStream;
-                while ((done = serialization.writeChunk()) == false) {
+                while (serialization.hasNext()) {
+                    serialization.next().toXContent(builder, params);
                     if (chunkStream.size() > sizeHint) {
                         break;
                     }
                 }
-                if (done) {
+                if (serialization.hasNext() == false) {
                     builder.close();
                 }
                 this.target = null;

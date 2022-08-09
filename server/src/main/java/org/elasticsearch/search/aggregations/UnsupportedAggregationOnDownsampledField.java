@@ -8,12 +8,19 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 public class UnsupportedAggregationOnDownsampledField extends AggregationExecutionException {
 
     public UnsupportedAggregationOnDownsampledField(final String msg) {
         super(msg);
+    }
+
+    public UnsupportedAggregationOnDownsampledField(final StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

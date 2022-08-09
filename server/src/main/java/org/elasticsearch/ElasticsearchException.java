@@ -1578,6 +1578,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             HealthNodeNotDiscoveredException::new,
             166,
             Version.V_8_5_0
+        ),
+        UNSUPPORTED_AGGREGATION_ON_DOWNSAMPLED_FIELD_EXCEPTION(
+            org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledField.class,
+            org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledField::new,
+            167,
+            Version.V_8_4_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

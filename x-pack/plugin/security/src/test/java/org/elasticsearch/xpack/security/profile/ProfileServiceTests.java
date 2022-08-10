@@ -15,8 +15,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -59,6 +57,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.common.ResultsAndErrors;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequestTests;
@@ -101,6 +100,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.security.support.Validation.VALID_NAME_CHARS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -204,54 +204,68 @@ public class ProfileServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testGetProfileByUid() {
-        final String uid = randomAlphaOfLength(20);
-        doAnswer(invocation -> {
-            assertThat(
-                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
-            );
-            final GetRequest getRequest = (GetRequest) invocation.getArguments()[1];
-            @SuppressWarnings("unchecked")
-            final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[2];
-            client.get(getRequest, listener);
-            return null;
-        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), anyActionListener());
-
-        final long lastSynchronized = Instant.now().toEpochMilli();
-        mockGetRequest(uid, lastSynchronized);
-
-        final PlainActionFuture<Profile> future = new PlainActionFuture<>();
-
-        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of());
-
-        profileService.getProfile(uid, dataKeys, future);
-        final Profile profile = future.actionGet();
-
-        final Map<String, Object> applicationData = new HashMap<>();
-
-        if (dataKeys != null && dataKeys.contains("app1")) {
-            applicationData.put("app1", Map.of("name", "app1"));
-        }
-
-        if (dataKeys != null && dataKeys.contains("app2")) {
-            applicationData.put("app2", Map.of("name", "app2"));
-        }
-
-        assertThat(
-            profile,
-            equalTo(
-                new Profile(
-                    uid,
-                    true,
-                    lastSynchronized,
-                    new Profile.ProfileUser("Foo", List.of("role1", "role2"), "realm_name_1", "domainA", "foo@example.com", "User Foo"),
-                    Map.of(),
-                    applicationData,
-                    new Profile.VersionControl(1, 0)
-                )
+    public void testGetProfilesByUids() {
+        final List<SampleDocumentParameter> sampleDocumentParameters = randomList(
+            1,
+            5,
+            () -> new SampleDocumentParameter(
+                randomAlphaOfLength(20),
+                randomAlphaOfLengthBetween(3, 18),
+                randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)),
+                Instant.now().toEpochMilli() + randomLongBetween(-100_000, 100_000)
             )
         );
+        mockMultiGetRequest(sampleDocumentParameters);
+
+        final PlainActionFuture<ResultsAndErrors<Profile>> future = new PlainActionFuture<>();
+        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of());
+        profileService.getProfiles(sampleDocumentParameters.stream().map(SampleDocumentParameter::uid).toList(), dataKeys, future);
+        final ResultsAndErrors<Profile> resultsAndErrors = future.actionGet();
+        assertThat(resultsAndErrors.results().size(), equalTo(sampleDocumentParameters.size()));
+        assertThat(resultsAndErrors.errors(), anEmptyMap());
+
+        int i = 0;
+        for (Profile profile : resultsAndErrors.results()) {
+            final Map<String, Object> applicationData = new HashMap<>();
+
+            if (dataKeys != null && dataKeys.contains("app1")) {
+                applicationData.put("app1", Map.of("name", "app1"));
+            }
+
+            if (dataKeys != null && dataKeys.contains("app2")) {
+                applicationData.put("app2", Map.of("name", "app2"));
+            }
+
+            final SampleDocumentParameter sampleDocumentParameter = sampleDocumentParameters.get(i);
+            assertThat(
+                profile,
+                equalTo(
+                    new Profile(
+                        sampleDocumentParameter.uid,
+                        true,
+                        sampleDocumentParameter.lastSynchronized,
+                        new Profile.ProfileUser(
+                            sampleDocumentParameter.username,
+                            sampleDocumentParameter.roles,
+                            "realm_name_1",
+                            "domainA",
+                            "foo@example.com",
+                            "User Foo"
+                        ),
+                        Map.of(),
+                        applicationData,
+                        new Profile.VersionControl(1, 0)
+                    )
+                )
+            );
+            i++;
+        }
+    }
+
+    public void testGetProfilesEmptyUids() {
+        final PlainActionFuture<ResultsAndErrors<Profile>> future = new PlainActionFuture<>();
+        profileService.getProfiles(List.of(), Set.of(), future);
+        assertThat(future.actionGet().isEmpty(), is(true));
     }
 
     @SuppressWarnings("unchecked")
@@ -748,8 +762,39 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(e3.getMessage(), containsString("The username must begin with an alphanumeric character"));
     }
 
-    private void mockGetRequest(String uid, long lastSynchronized) {
-        mockGetRequest(uid, "Foo", List.of("role1", "role2"), lastSynchronized);
+    record SampleDocumentParameter(String uid, String username, List<String> roles, long lastSynchronized) {}
+
+    private void mockMultiGetRequest(List<SampleDocumentParameter> sampleDocumentParameters) {
+        mockMultiGetRequest(sampleDocumentParameters, Map.of());
+    }
+
+    private void mockMultiGetRequest(List<SampleDocumentParameter> sampleDocumentParameters, Map<String, Exception> errors) {
+        doAnswer(invocation -> {
+            assertThat(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+            );
+            final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
+            client.multiGet(multiGetRequest, listener);
+            return null;
+        }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
+
+        final Map<String, String> results = sampleDocumentParameters.stream()
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    param -> "profile_" + param.uid,
+                    param -> getSampleProfileDocumentSource(param.uid, param.username, param.roles, param.lastSynchronized)
+                )
+            );
+
+        SecurityMocks.mockMultiGetRequest(
+            client,
+            SECURITY_PROFILE_ALIAS,
+            results,
+            errors.entrySet().stream().collect(Collectors.toUnmodifiableMap(entry -> "profile_" + entry.getKey(), Map.Entry::getValue))
+        );
     }
 
     public static String getSampleProfileDocumentSource(String uid, String username, List<String> roles, long lastSynchronized) {
@@ -759,11 +804,6 @@ public class ProfileServiceTests extends ESTestCase {
             roles.stream().map(v -> "\"" + v + "\"").collect(Collectors.toList()),
             lastSynchronized
         );
-    }
-
-    private void mockGetRequest(String uid, String username, List<String> roles, long lastSynchronized) {
-        final String source = getSampleProfileDocumentSource(uid, username, roles, lastSynchronized);
-        SecurityMocks.mockGetRequest(client, SECURITY_PROFILE_ALIAS, "profile_" + uid, new BytesArray(source));
     }
 
     private ProfileDocument randomProfileDocument(String uid) {

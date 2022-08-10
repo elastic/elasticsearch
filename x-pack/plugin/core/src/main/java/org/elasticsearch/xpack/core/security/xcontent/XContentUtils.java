@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.xcontent;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -109,5 +111,22 @@ public class XContentUtils {
             case SERVICE_ACCOUNT -> builder.field("service_account", authenticationSubject.getUser().principal());
         }
         builder.endObject();
+    }
+
+    public static void maybeAddErrorDetails(XContentBuilder builder, Map<String, Exception> errors) throws IOException {
+        if (false == errors.isEmpty()) {
+            builder.startObject("errors");
+            {
+                builder.field("count", errors.size());
+                builder.startObject("details");
+                for (Map.Entry<String, Exception> idWithException : errors.entrySet()) {
+                    builder.startObject(idWithException.getKey());
+                    ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, idWithException.getValue());
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
     }
 }

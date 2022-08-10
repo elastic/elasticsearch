@@ -32,7 +32,9 @@ The result of the prevalidation is expressed as either `YES`, `NO`, or `UNKNOWN`
 [[prevalidate-node-removal-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+`<node>`::
+    (Required, string) Comma-separated list of node IDs.
+
 [[prevalidate-node-removal-api-example]]
 ==== {api-examples-title}
 

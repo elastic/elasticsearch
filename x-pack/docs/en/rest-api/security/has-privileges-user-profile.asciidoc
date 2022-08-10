@@ -81,7 +81,7 @@ It does **not** include the profile IDs of the users that do not have all the re
 ====
 `count`:: (number) Total number of errors
 
-``details``:: (object) The detailed error report with keys being profile IDs and values being the exact errors.
+`details`:: (object) The detailed error report with keys being profile IDs and values being the exact errors.
 ====
 
 [[security-api-has-privileges-user-profile-example]]

@@ -372,4 +372,90 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             assertThat(actual, equalTo(expected));
         }
     }
+
+    public void testAddition() {
+        assertThat(ByteSizeValue.add(ByteSizeValue.MINUS_ONE, ByteSizeValue.ZERO), is(ByteSizeValue.MINUS_ONE));
+        assertThat(ByteSizeValue.add(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.add(ByteSizeValue.ZERO, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.add(ByteSizeValue.ZERO, ByteSizeValue.ONE), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.add(ByteSizeValue.ONE, ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(2L)));
+        assertThat(ByteSizeValue.add(ByteSizeValue.ofBytes(100L), ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(101L)));
+        assertThat(ByteSizeValue.add(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(2L)), is(ByteSizeValue.ofBytes(102L)));
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.KB), new ByteSizeValue(4, ByteSizeUnit.KB)),
+            is(ByteSizeValue.ofBytes(12288L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.MB), new ByteSizeValue(4, ByteSizeUnit.MB)),
+            is(ByteSizeValue.ofBytes(12582912L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.GB), new ByteSizeValue(4, ByteSizeUnit.GB)),
+            is(ByteSizeValue.ofBytes(12884901888L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.TB), new ByteSizeValue(4, ByteSizeUnit.TB)),
+            is(ByteSizeValue.ofBytes(13194139533312L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.PB), new ByteSizeValue(4, ByteSizeUnit.PB)),
+            is(ByteSizeValue.ofBytes(13510798882111488L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.PB), new ByteSizeValue(4, ByteSizeUnit.GB)),
+            is(ByteSizeValue.ofBytes(9007203549708288L))
+        );
+        Exception e = expectThrows(
+            ArithmeticException.class,
+            () -> ByteSizeValue.add(ByteSizeValue.ofBytes(Long.MAX_VALUE), ByteSizeValue.ONE)
+        );
+        assertThat(e.getMessage(), containsString("long overflow"));
+    }
+
+    public void testSubtraction() {
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.MINUS_ONE, ByteSizeValue.ZERO), is(ByteSizeValue.MINUS_ONE));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ByteSizeValue.subtract(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE)
+        );
+        assertThat(e.getMessage(), containsString("Values less than -1 bytes are not supported: -2b"));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.MINUS_ONE), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ONE), is(ByteSizeValue.MINUS_ONE));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ONE, ByteSizeValue.MINUS_ONE), is(ByteSizeValue.ofBytes(2L)));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ONE, ByteSizeValue.ZERO), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ONE, ByteSizeValue.ONE), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(99L)));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(2L)), is(ByteSizeValue.ofBytes(98L)));
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.KB), new ByteSizeValue(4, ByteSizeUnit.KB)),
+            is(ByteSizeValue.ofBytes(4096L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.MB), new ByteSizeValue(4, ByteSizeUnit.MB)),
+            is(ByteSizeValue.ofBytes(4194304L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.GB), new ByteSizeValue(4, ByteSizeUnit.GB)),
+            is(ByteSizeValue.ofBytes(4294967296L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.TB), new ByteSizeValue(4, ByteSizeUnit.TB)),
+            is(ByteSizeValue.ofBytes(4398046511104L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.PB), new ByteSizeValue(4, ByteSizeUnit.PB)),
+            is(ByteSizeValue.ofBytes(4503599627370496L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.PB), new ByteSizeValue(4, ByteSizeUnit.GB)),
+            is(ByteSizeValue.ofBytes(9007194959773696L))
+        );
+        e = expectThrows(
+            ArithmeticException.class,
+            () -> ByteSizeValue.subtract(ByteSizeValue.ofBytes(Long.MAX_VALUE), ByteSizeValue.MINUS_ONE)
+        );
+        assertThat(e.getMessage(), containsString("long overflow"));
+    }
 }

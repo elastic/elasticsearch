@@ -423,7 +423,7 @@ public class DiskThresholdSettings {
         if (watermark.isAbsolute()) {
             return watermark.getAbsolute();
         }
-        return ByteSizeValue.ofBytes(total.getBytes() - watermark.calculateValueWithCeil(total, maxHeadroom).getBytes());
+        return ByteSizeValue.subtract(total, watermark.calculateValueWithCeil(total, maxHeadroom));
     }
 
     public ByteSizeValue getFreeBytesThresholdLowStage(ByteSizeValue total) {
@@ -449,23 +449,26 @@ public class DiskThresholdSettings {
     ) {
         // If watermark is absolute, simply return total disk = used disk + free disk, where free disk bytes is the watermark value.
         if (watermark.isAbsolute()) {
-            return ByteSizeValue.ofBytes(watermark.getAbsolute().getBytes() + used.getBytes());
+            return ByteSizeValue.add(watermark.getAbsolute(), used);
         }
 
-        // If watermark is percentage/ratio, calculate the total needed disk space.
-        // This may not be the minimum, due to the possible max headroom value which can cap the free disk space required.
         double percentThreshold = watermark.getRatio().getAsPercent();
         if (percentThreshold >= 0.0 && percentThreshold < 100.0) {
+            // If watermark is percentage/ratio, calculate the total needed disk space.
             // Use percentage instead of ratio, and multiply bytes with 100, to make division with double more accurate (issue #88791).
             ByteSizeValue totalBytes = ByteSizeValue.ofBytes((long) Math.ceil((100 * used.getBytes()) / percentThreshold));
 
-            // Now calculate the minimum free bytes, taking into account the possible max headroom value as well.
-            ByteSizeValue minimumFreeBytes = ByteSizeValue.ofBytes(
-                totalBytes.getBytes() - watermark.calculateValueWithFloor(totalBytes, maxHeadroom).getBytes()
-            );
+            // So far, we calculated the totalBytes by only considering the percentage watermark, ignoring the possible max headroom
+            // value which can cap the free disk space required. This means that the resulting total size may not be the minimum.
+            // For this reason, we calculate the minimum free disk space required, by taking into account the possible max headroom
+            // value as well which can cap the free disk space required. The following calculation is similar to the
+            // getFreeBytesThreshold() method, with the difference of getting the floor instead of the ceiling in the watermark
+            // calculation function, exactly because we would like to calculate the minimum allowed free disk space to stay below
+            // the watermark rather than above it.
+            ByteSizeValue cappedFreeBytes = ByteSizeValue.subtract(totalBytes, watermark.calculateValueWithFloor(totalBytes, maxHeadroom));
 
-            // Finally return used + minimum free bytes
-            return ByteSizeValue.ofBytes(minimumFreeBytes.getBytes() + used.getBytes());
+            // Add the capped free bytes to the provided used space in order to return the final minimum total size.
+            return ByteSizeValue.add(cappedFreeBytes, used);
         } else {
             return used;
         }

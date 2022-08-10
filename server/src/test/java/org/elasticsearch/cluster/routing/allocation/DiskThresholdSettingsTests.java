@@ -102,7 +102,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         );
         // For 100TB used bytes, the max headroom should cap the minimum required free space to 200GB. So we need 100TB+200GB total bytes.
         assertEquals(
-            ByteSizeValue.ofBytes(ByteSizeValue.ofTb(100).getBytes() + ByteSizeValue.ofGb(200).getBytes()),
+            ByteSizeValue.add(ByteSizeValue.ofTb(100), ByteSizeValue.ofGb(200)),
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofTb(100))
         );
 
@@ -124,12 +124,12 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         // For 850 used bytes, we need 850b + 1GB total bytes.
         assertEquals(
-            ByteSizeValue.ofBytes(ByteSizeValue.ofGb(1).getBytes() + ByteSizeValue.ofBytes(850).getBytes()),
+            ByteSizeValue.add(ByteSizeValue.ofGb(1), ByteSizeValue.ofBytes(850)),
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(850))
         );
         // For 100TB used bytes, we need 100TB+1GB total bytes.
         assertEquals(
-            ByteSizeValue.ofBytes(ByteSizeValue.ofTb(100).getBytes() + ByteSizeValue.ofGb(1).getBytes()),
+            ByteSizeValue.add(ByteSizeValue.ofTb(100), ByteSizeValue.ofGb(1)),
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofTb(100))
         );
 
@@ -163,7 +163,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         );
         // For 100TB used bytes, the max headroom should cap the minimum required free space to 500GB. So we need 100TB+500GB total bytes.
         assertEquals(
-            ByteSizeValue.ofBytes(ByteSizeValue.ofTb(100).getBytes() + ByteSizeValue.ofGb(500).getBytes()),
+            ByteSizeValue.add(ByteSizeValue.ofTb(100), ByteSizeValue.ofGb(500)),
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofTb(100))
         );
 

@@ -181,7 +181,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             if (watermark.isAbsolute()) {
                 return watermark.getAbsolute();
             }
-            return ByteSizeValue.ofBytes(total.getBytes() - watermark.calculateValueWithCeil(total, maxHeadroom).getBytes());
+            return ByteSizeValue.subtract(total, watermark.calculateValueWithCeil(total, maxHeadroom));
         }
 
         public ByteSizeValue getFreeBytesHighWatermark(ByteSizeValue total) {

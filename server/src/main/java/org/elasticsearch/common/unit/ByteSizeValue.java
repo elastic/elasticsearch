@@ -332,4 +332,22 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
     }
+
+    /**
+     * @return Constructs a {@link ByteSizeValue} with the bytes resulting from the addition of the arguments' bytes. Note that the
+     *         resulting {@link ByteSizeUnit} is bytes.
+     * @throws ArithmeticException if the resulting bytes overflow a long
+     */
+    public static ByteSizeValue add(ByteSizeValue x, ByteSizeValue y) {
+        return ByteSizeValue.ofBytes(Math.addExact(x.getBytes(), y.getBytes()));
+    }
+
+    /**
+     * @return Constructs a {@link ByteSizeValue} with the bytes resulting from the difference of the arguments' bytes. Note that the
+     *         resulting {@link ByteSizeUnit} is bytes.
+     * @throws ArithmeticException if the resulting bytes overflow a long
+     */
+    public static ByteSizeValue subtract(ByteSizeValue x, ByteSizeValue y) {
+        return ByteSizeValue.ofBytes(Math.subtractExact(x.getBytes(), y.getBytes()));
+    }
 }

@@ -47,22 +47,23 @@ public class PostAnalyzer {
 
             Source projectCtx = synthetic("<implicit-project>");
             final boolean isSequence = plan.anyMatch(Sequence.class::isInstance);
-            // first per KeyedFilter
-            plan = plan.transformUp(KeyedFilter.class, k -> {
-                LogicalPlan newPlan = new Project(projectCtx, k.child(), isSequence ? k.extractionAttributes() : k.keys());
-                if (isSequence) {
-                    // TODO: this could be incorporated into the query generation
-                    newPlan = new LimitWithOffset(
-                        synthetic("<fetch-size>"),
-                        new Literal(synthetic("<fetch-value>"), configuration.fetchSize(), DataTypes.INTEGER),
-                        newPlan
-                    );
-                }
-                return new KeyedFilter(k.source(), newPlan, k.keys(), k.timestamp(), k.tiebreaker());
-            });
-
-            // in case of event queries, filter everything
-            if (isSequence == false && plan.anyMatch(Sample.class::isInstance) == false) {
+            final boolean isSample = plan.anyMatch(Sample.class::isInstance);
+            if (isSequence || isSample) {
+                // first per KeyedFilter
+                plan = plan.transformUp(KeyedFilter.class, k -> {
+                    LogicalPlan newPlan = new Project(projectCtx, k.child(), isSequence ? k.extractionAttributes() : k.keys());
+                    if (isSequence) {
+                        // TODO: this could be incorporated into the query generation
+                        newPlan = new LimitWithOffset(
+                            synthetic("<fetch-size>"),
+                            new Literal(synthetic("<fetch-value>"), configuration.fetchSize(), DataTypes.INTEGER),
+                            newPlan
+                        );
+                    }
+                    return new KeyedFilter(k.source(), newPlan, k.keys(), k.timestamp(), k.tiebreaker());
+                });
+            } else {
+                // in case of event queries, filter everything
                 plan = new Project(projectCtx, plan, emptyList());
             }
         }

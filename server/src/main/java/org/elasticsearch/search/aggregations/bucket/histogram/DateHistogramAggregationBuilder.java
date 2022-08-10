@@ -420,14 +420,16 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        if (IndexMode.TIME_SERIES.getName().equals(context.getIndexSettings().getSettings().get(IndexSettings.MODE.getKey()))
-            && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramInterval.getIntervalType())) {
+        final String indexMode = context.getIndexSettings().getSettings().get(IndexSettings.MODE.getKey());
+        final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
+        if (IndexMode.TIME_SERIES.getName().equals(indexMode)
+            && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
             throw new UnsupportedAggregationOnDownsampledField(
                 config.getDescription()
                     + " is not supported for aggregation ["
                     + this.getName()
                     + "] with interval type ["
-                    + dateHistogramInterval.getIntervalType().getPreferredName()
+                    + dateHistogramIntervalType.getPreferredName()
                     + "]"
             );
         }

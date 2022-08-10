@@ -48,7 +48,7 @@ import java.util.Set;
  * 0.85 (85.0%).
  *
  * <code>cluster.routing.allocation.disk.watermark.low.max_headroom</code> is the
- * max headroom for the low watermark. Defaults to 150GB when the low watermark
+ * max headroom for the low watermark. Defaults to 200GB when the low watermark
  * is not explicitly set. This caps the amount of free space required.
  *
  * <code>cluster.routing.allocation.disk.watermark.high</code> is the high disk
@@ -58,7 +58,7 @@ import java.util.Set;
  * 0.90 (90.0%).
  *
  * <code>cluster.routing.allocation.disk.watermark.high.max_headroom</code> is the
- * max headroom for the high watermark. Defaults to 100GB when the high watermark
+ * max headroom for the high watermark. Defaults to 150GB when the high watermark
  * is not explicitly set. This caps the amount of free space required.
  *
  * The watermark settings are expressed in terms of used disk percentage/ratio, or

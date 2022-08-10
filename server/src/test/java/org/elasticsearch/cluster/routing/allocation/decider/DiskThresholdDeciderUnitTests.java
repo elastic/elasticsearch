@@ -225,8 +225,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             containsString(
                 testMaxHeadroom
                     ? "allocating the shard to this node will bring the node above the high watermark cluster setting "
-                        + "[cluster.routing.allocation.disk.watermark.high.max_headroom=100gb] "
-                        + "and cause it to have less than the minimum required [100gb] of free space "
+                        + "[cluster.routing.allocation.disk.watermark.high.max_headroom=150gb] "
+                        + "and cause it to have less than the minimum required [150gb] of free space "
                         + "(free: ["
                         + ByteSizeValue.ofBytes(freeBytes)
                         + "], used: ["
@@ -333,7 +333,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         // actual test -- after all that bloat :)
 
         final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
-        final long exactFreeSpaceForHighWatermark = testMaxHeadroom ? ByteSizeValue.ofGb(100).getBytes() : 10;
+        final long exactFreeSpaceForHighWatermark = testMaxHeadroom ? ByteSizeValue.ofGb(150).getBytes() : 10;
         final long exactFreeSpaceForBelowHighWatermark = exactFreeSpaceForHighWatermark - 1;
         final double exactUsedSpaceForBelowHighWatermark = 100.0 * (totalBytes - exactFreeSpaceForBelowHighWatermark) / totalBytes;
         final long ninetyPercentFreeSpace = (long) (totalBytes * 0.9);
@@ -387,7 +387,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             containsString(
                 "the shard cannot remain on this node because it is above the high watermark cluster setting "
                     + "[cluster.routing.allocation.disk.watermark.high"
-                    + (testMaxHeadroom ? ".max_headroom=100gb" : "=90%")
+                    + (testMaxHeadroom ? ".max_headroom=150gb" : "=90%")
                     + "] and there is less than the required ["
                     + ByteSizeValue.ofBytes(exactFreeSpaceForHighWatermark)
                     + "] free space on "

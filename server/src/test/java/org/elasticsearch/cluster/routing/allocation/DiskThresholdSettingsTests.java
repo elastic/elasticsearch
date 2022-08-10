@@ -59,28 +59,28 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         // Test default watermark max headroom values
         ByteSizeValue thousandTb = ByteSizeValue.parseBytesSizeValue("1000tb", "test");
-        ByteSizeValue lowHeadroom = ByteSizeValue.parseBytesSizeValue("150gb", "test");
-        ByteSizeValue highHeadroom = ByteSizeValue.parseBytesSizeValue("100gb", "test");
-        ByteSizeValue floodHeadroom = ByteSizeValue.parseBytesSizeValue("50gb", "test");
+        ByteSizeValue lowHeadroom = ByteSizeValue.parseBytesSizeValue("200gb", "test");
+        ByteSizeValue highHeadroom = ByteSizeValue.parseBytesSizeValue("150gb", "test");
+        ByteSizeValue floodHeadroom = ByteSizeValue.parseBytesSizeValue("100gb", "test");
         ByteSizeValue frozenFloodHeadroom = ByteSizeValue.parseBytesSizeValue("20gb", "test");
         assertEquals(lowHeadroom, diskThresholdSettings.getFreeBytesThresholdLowStage(thousandTb));
         assertEquals(highHeadroom, diskThresholdSettings.getFreeBytesThresholdHighStage(thousandTb));
         assertEquals(floodHeadroom, diskThresholdSettings.getFreeBytesThresholdFloodStage(thousandTb));
         assertEquals(frozenFloodHeadroom, diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(thousandTb));
-        assertEquals("max_headroom=150gb", diskThresholdSettings.describeLowThreshold(thousandTb, false));
-        assertEquals("max_headroom=100gb", diskThresholdSettings.describeHighThreshold(thousandTb, false));
-        assertEquals("max_headroom=50gb", diskThresholdSettings.describeFloodStageThreshold(thousandTb, false));
+        assertEquals("max_headroom=200gb", diskThresholdSettings.describeLowThreshold(thousandTb, false));
+        assertEquals("max_headroom=150gb", diskThresholdSettings.describeHighThreshold(thousandTb, false));
+        assertEquals("max_headroom=100gb", diskThresholdSettings.describeFloodStageThreshold(thousandTb, false));
         assertEquals("max_headroom=20gb", diskThresholdSettings.describeFrozenFloodStageThreshold(thousandTb, false));
         assertEquals(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey() + "=" + "150gb",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey() + "=" + "200gb",
             diskThresholdSettings.describeLowThreshold(thousandTb, true)
         );
         assertEquals(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey() + "=" + "100gb",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey() + "=" + "150gb",
             diskThresholdSettings.describeHighThreshold(thousandTb, true)
         );
         assertEquals(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey() + "=" + "50gb",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey() + "=" + "100gb",
             diskThresholdSettings.describeFloodStageThreshold(thousandTb, true)
         );
         assertEquals(
@@ -100,9 +100,9 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             ByteSizeValue.ofBytes(1000),
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(850))
         );
-        // For 100TB used bytes, the max headroom should cap the minimum required free space to 150GB. So we need 100TB+150GB total bytes.
+        // For 100TB used bytes, the max headroom should cap the minimum required free space to 200GB. So we need 100TB+200GB total bytes.
         assertEquals(
-            ByteSizeValue.ofBytes(ByteSizeValue.ofTb(100).getBytes() + ByteSizeValue.ofGb(150).getBytes()),
+            ByteSizeValue.ofBytes(ByteSizeValue.ofTb(100).getBytes() + ByteSizeValue.ofGb(200).getBytes()),
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofTb(100))
         );
 
@@ -152,7 +152,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         newSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "0.50")
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "200gb")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "500gb")
             .build();
         nss.applySettings(newSettings);
 
@@ -161,9 +161,9 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             ByteSizeValue.ofBytes(1700),
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(850))
         );
-        // For 100TB used bytes, the max headroom should cap the minimum required free space to 200GB. So we need 100TB+200GB total bytes.
+        // For 100TB used bytes, the max headroom should cap the minimum required free space to 500GB. So we need 100TB+500GB total bytes.
         assertEquals(
-            ByteSizeValue.ofBytes(ByteSizeValue.ofTb(100).getBytes() + ByteSizeValue.ofGb(200).getBytes()),
+            ByteSizeValue.ofBytes(ByteSizeValue.ofTb(100).getBytes() + ByteSizeValue.ofGb(500).getBytes()),
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofTb(100))
         );
 
@@ -515,7 +515,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [150GB] to [100g]";
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [200GB] to [100g]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -586,7 +586,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [150GB] to [300m]";
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [200GB] to [300m]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -605,7 +605,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.high.max_headroom] from [100GB] to [400m]";
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.high.max_headroom] from [150GB] to [400m]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -624,7 +624,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [150GB] to [100GB]";
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [200GB] to [100GB]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -646,7 +646,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.high.max_headroom] from [100GB] to [90GB]";
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.high.max_headroom] from [150GB] to [90GB]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -744,9 +744,9 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             equalTo(frozenFloodWatermarkPrefix + "95%")
         );
 
-        assertThat(diskThresholdSettings.describeLowThreshold(thousandTb, includeKey), equalTo(lowMaxHeadroomPrefix + "150gb"));
-        assertThat(diskThresholdSettings.describeHighThreshold(thousandTb, includeKey), equalTo(highMaxHeadroomPrefix + "100gb"));
-        assertThat(diskThresholdSettings.describeFloodStageThreshold(thousandTb, includeKey), equalTo(floodMaxHeadroomPrefix + "50gb"));
+        assertThat(diskThresholdSettings.describeLowThreshold(thousandTb, includeKey), equalTo(lowMaxHeadroomPrefix + "200gb"));
+        assertThat(diskThresholdSettings.describeHighThreshold(thousandTb, includeKey), equalTo(highMaxHeadroomPrefix + "150gb"));
+        assertThat(diskThresholdSettings.describeFloodStageThreshold(thousandTb, includeKey), equalTo(floodMaxHeadroomPrefix + "100gb"));
         assertThat(
             diskThresholdSettings.describeFrozenFloodStageThreshold(thousandTb, includeKey),
             equalTo(frozenFloodMaxHeadroomPrefix + "20gb")

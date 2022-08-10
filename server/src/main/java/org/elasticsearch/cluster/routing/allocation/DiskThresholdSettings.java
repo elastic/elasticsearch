@@ -45,7 +45,7 @@ public class DiskThresholdSettings {
             if (CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.exists(settings)) {
                 return "-1";
             } else {
-                return "150GB";
+                return "200GB";
             }
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, "cluster.routing.allocation.disk.watermark.low.max_headroom"),
@@ -67,7 +67,7 @@ public class DiskThresholdSettings {
             if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.exists(settings)) {
                 return "-1";
             } else {
-                return "100GB";
+                return "150GB";
             }
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, "cluster.routing.allocation.disk.watermark.high.max_headroom"),
@@ -89,7 +89,7 @@ public class DiskThresholdSettings {
             if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.exists(settings)) {
                 return "-1";
             } else {
-                return "50GB";
+                return "100GB";
             }
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, "cluster.routing.allocation.disk.watermark.flood_stage.max_headroom"),

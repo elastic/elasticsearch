@@ -132,11 +132,11 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         Map<String, DiskUsage> builder = new HashMap<>();
         builder.put(
             "node1",
-            new DiskUsage("node1", "node1", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(49).getBytes() : 4)
+            new DiskUsage("node1", "node1", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(99).getBytes() : 4)
         );
         builder.put(
             "node2",
-            new DiskUsage("node2", "node2", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(200).getBytes() : 30)
+            new DiskUsage("node2", "node2", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(250).getBytes() : 30)
         );
         builder.put(
             "frozen",
@@ -162,11 +162,11 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         builder = new HashMap<>();
         builder.put(
             "node1",
-            new DiskUsage("node1", "node1", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(49).getBytes() : 4)
+            new DiskUsage("node1", "node1", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(99).getBytes() : 4)
         );
         builder.put(
             "node2",
-            new DiskUsage("node2", "node2", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(50).getBytes() : 5)
+            new DiskUsage("node2", "node2", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(100).getBytes() : 5)
         );
         builder.put(
             "frozen",
@@ -228,11 +228,11 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         builder = new HashMap<>();
         builder.put(
             "node1",
-            new DiskUsage("node1", "node1", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(49).getBytes() : 4)
+            new DiskUsage("node1", "node1", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(99).getBytes() : 4)
         );
         builder.put(
             "node2",
-            new DiskUsage("node2", "node2", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(50).getBytes() : 5)
+            new DiskUsage("node2", "node2", "/foo/bar", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(100).getBytes() : 5)
         );
         builder.put(
             "frozen",
@@ -300,7 +300,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(51, 99)).getBytes() : between(5, 9)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(101, 149)).getBytes() : between(5, 9)
             )
         );
         oneDiskAboveWatermark.put(
@@ -448,12 +448,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
 
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpaces = new HashMap<>();
-        final long reservedSpaceNode1 = testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 100)).getBytes() : between(0, 10);
+        final long reservedSpaceNode1 = testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 150)).getBytes() : between(0, 10);
         reservedSpaces.put(
             new ClusterInfo.NodeAndPath("node1", "/foo/bar"),
             new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), reservedSpaceNode1).build()
         );
-        final long reservedSpaceNode2 = testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 100)).getBytes() : between(0, 10);
+        final long reservedSpaceNode2 = testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 150)).getBytes() : between(0, 10);
         reservedSpaces.put(
             new ClusterInfo.NodeAndPath("node2", "/foo/bar"),
             new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), reservedSpaceNode2).build()
@@ -491,7 +491,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 49)).getBytes() : between(0, 4)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 99)).getBytes() : between(0, 4)
             )
         );
         builder.put(
@@ -501,7 +501,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 49)).getBytes() : between(0, 4)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 99)).getBytes() : between(0, 4)
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
@@ -519,7 +519,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(50, 9900)).getBytes() : between(5, 90)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 9850)).getBytes() : between(5, 90)
             )
         );
         builder.put(
@@ -529,7 +529,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(50, 9900)).getBytes() : between(5, 90)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 9850)).getBytes() : between(5, 90)
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
@@ -573,7 +573,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 listener.onResponse(null);
             }
         };
-        // When free disk on any of node1 or node2 goes below 5% flood watermark, then apply index block on indices not having the block
+        // When free disk on any of node1 or node2 goes below the flood watermark, then apply index block on indices not having the block
         indicesToMarkReadOnly.set(null);
         indicesToRelease.set(null);
         builder = new HashMap<>();
@@ -594,14 +594,14 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 49)).getBytes() : between(0, 4)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 99)).getBytes() : between(0, 4)
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
         assertNull(indicesToRelease.get());
 
-        // When free disk on node1 and node2 goes above 10% high watermark then release index block, ignoring reserved space
+        // When free disk on node1 and node2 goes above the high watermark then release index block, ignoring reserved space
         indicesToMarkReadOnly.set(null);
         indicesToRelease.set(null);
         builder = new HashMap<>();
@@ -612,7 +612,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 10000)).getBytes() : between(10, 100)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(150, 10000)).getBytes() : between(10, 100)
             )
         );
         builder.put(
@@ -622,7 +622,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 10000)).getBytes() : between(10, 100)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(150, 10000)).getBytes() : between(10, 100)
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
@@ -640,7 +640,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 49)).getBytes() : between(0, 4)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 99)).getBytes() : between(0, 4)
             )
         );
         monitor.onNewInfo(clusterInfo(builder));
@@ -658,7 +658,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(50, 99)).getBytes() : between(5, 9)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 149)).getBytes() : between(5, 9)
             )
         );
         builder.put(
@@ -668,7 +668,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(50, 10000)).getBytes() : between(5, 100)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 10000)).getBytes() : between(5, 100)
             )
         );
         if (randomBoolean()) {
@@ -698,7 +698,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(50, 10000)).getBytes() : between(5, 100)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 10000)).getBytes() : between(5, 100)
             )
         );
         if (randomBoolean()) {
@@ -728,7 +728,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 49)).getBytes() : between(0, 4)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 99)).getBytes() : between(0, 4)
             )
         );
         if (randomBoolean()) {
@@ -781,12 +781,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
 
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpaces = new HashMap<>();
-        final long reservedSpaceNode1 = testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 100)).getBytes() : between(0, 10);
+        final long reservedSpaceNode1 = testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 150)).getBytes() : between(0, 10);
         reservedSpaces.put(
             new ClusterInfo.NodeAndPath("node1", "/foo/bar"),
             new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), reservedSpaceNode1).build()
         );
-        final long reservedSpaceNode2 = testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 100)).getBytes() : between(0, 10);
+        final long reservedSpaceNode2 = testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 150)).getBytes() : between(0, 10);
         reservedSpaces.put(
             new ClusterInfo.NodeAndPath("node2", "/foo/bar"),
             new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), reservedSpaceNode2).build()
@@ -826,7 +826,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 49)).getBytes() : between(0, 4)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 99)).getBytes() : between(0, 4)
             )
         );
         builder.put(
@@ -836,7 +836,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 49)).getBytes() : between(0, 4)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 99)).getBytes() : between(0, 4)
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
@@ -854,7 +854,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(50, 9900)).getBytes() : between(5, 90)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 9850)).getBytes() : between(5, 90)
             )
         );
         builder.put(
@@ -864,7 +864,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(50, 9900)).getBytes() : between(5, 90)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 9850)).getBytes() : between(5, 90)
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
@@ -939,7 +939,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 49)).getBytes() : between(0, 4)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(0, 99)).getBytes() : between(0, 4)
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
@@ -957,7 +957,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 10000)).getBytes() : between(10, 100)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(150, 10000)).getBytes() : between(10, 100)
             )
         );
         builder.put(
@@ -967,7 +967,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 10000)).getBytes() : between(10, 100)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(150, 10000)).getBytes() : between(10, 100)
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
@@ -994,7 +994,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node1",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 10000)).getBytes() : between(10, 100)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(150, 10000)).getBytes() : between(10, 100)
             )
         );
         builder.put(
@@ -1004,7 +1004,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 "node2",
                 "/foo/bar",
                 totalBytes,
-                testMaxHeadroom ? ByteSizeValue.ofGb(between(100, 10000)).getBytes() : between(10, 100)
+                testMaxHeadroom ? ByteSizeValue.ofGb(between(150, 10000)).getBytes() : between(10, 100)
             )
         );
         monitor.onNewInfo(clusterInfo(builder, reservedSpaces));
@@ -1065,7 +1065,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         long total = testHeadroom ? thousandTb : 100;
 
         Map<String, DiskUsage> allDisksOk = new HashMap<>();
-        allDisksOk.put("node1", new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(150, 1000) : between(15, 100)));
+        allDisksOk.put("node1", new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(200, 1000) : between(15, 100)));
         allDisksOk.put(
             "frozen",
             new DiskUsage(
@@ -1080,17 +1080,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         Map<String, DiskUsage> aboveLowWatermark = new HashMap<>();
         aboveLowWatermark.put(
             "node1",
-            new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(100, 149) : between(10, 14))
+            new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(150, 199) : between(10, 14))
         );
         aboveLowWatermark.put(
             "frozen",
-            new DiskUsage("frozen", "frozen", "/foo/bar", total, testHeadroom ? betweenGb(100, 149) : between(10, 14))
+            new DiskUsage("frozen", "frozen", "/foo/bar", total, testHeadroom ? betweenGb(150, 199) : between(10, 14))
         );
 
         Map<String, DiskUsage> aboveHighWatermark = new HashMap<>();
         aboveHighWatermark.put(
             "node1",
-            new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(50, 99) : between(5, 9))
+            new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(100, 149) : between(5, 9))
         );
         aboveHighWatermark.put(
             "frozen",
@@ -1100,7 +1100,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         Map<String, DiskUsage> aboveFloodStageWatermark = new HashMap<>();
         aboveFloodStageWatermark.put(
             "node1",
-            new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(0, 49) : between(0, 4))
+            new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(0, 99) : between(0, 4))
         );
         // frozen is below flood stage, so no logging from it.
         aboveFloodStageWatermark.put(
@@ -1112,7 +1112,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         // node1 is below low watermark, so no logging from it.
         frozenAboveFloodStageWatermark.put(
             "node1",
-            new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(150, 1000) : between(15, 100))
+            new DiskUsage("node1", "node1", "/foo/bar", total, testHeadroom ? betweenGb(200, 1000) : between(15, 100))
         );
         frozenAboveFloodStageWatermark.put(
             "frozen",
@@ -1124,9 +1124,9 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         advanceTime.set(randomBoolean()); // no new nodes so no reroute delay needed
         assertNoLogging(monitor, allDisksOk);
 
-        String lowWatermarkString = testHeadroom ? "max_headroom=150gb" : "85%";
-        String highWatermarkString = testHeadroom ? "max_headroom=100gb" : "90%";
-        String floodWatermarkString = testHeadroom ? "max_headroom=50gb" : "95%";
+        String lowWatermarkString = testHeadroom ? "max_headroom=200gb" : "85%";
+        String highWatermarkString = testHeadroom ? "max_headroom=150gb" : "90%";
+        String floodWatermarkString = testHeadroom ? "max_headroom=100gb" : "95%";
         String frozenFloodWatermarkString = testHeadroom ? "max_headroom=20gb" : "95%";
 
         assertSingleInfoMessage(
@@ -1164,7 +1164,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 + "] exceeded on *node1* all indices on this node will be marked read-only"
         );
 
-        relocatingShardSizeRef.set(testHeadroom ? (-1L) * ByteSizeValue.ofGb(50).getBytes() : -5L);
+        relocatingShardSizeRef.set(testHeadroom ? (-1L) * ByteSizeValue.ofGb(100).getBytes() : -5L);
         advanceTime.set(true);
         assertSingleInfoMessage(
             monitor,

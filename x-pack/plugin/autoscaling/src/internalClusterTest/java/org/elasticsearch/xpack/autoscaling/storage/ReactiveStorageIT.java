@@ -43,6 +43,7 @@ import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -391,7 +392,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         ensureGreen();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88478")
     public void testScaleDuringSplitOrClone() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();
@@ -426,6 +426,14 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         final String dataNode2Name = internalCluster().startDataOnlyNode();
         setTotalSpace(dataNode1Name, enoughSpace);
         setTotalSpace(dataNode2Name, enoughSpace);
+
+        // It might take a while until the autoscaling polls the node information of dataNode2 and
+        // provides a complete autoscaling capacity response
+        assertBusy(() -> {
+            GetAutoscalingCapacityAction.Response response = capacity();
+            assertThat(response.results().keySet(), equalTo(Set.of(policyName)));
+            assertThat(response.results().get(policyName).requiredCapacity(), is(notNullValue()));
+        });
 
         // validate initial state looks good
         GetAutoscalingCapacityAction.Response response = capacity();

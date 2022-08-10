@@ -39,7 +39,7 @@ public class AllocationActionListener<T> {
     public AllocationActionListener(ActionListener<T> delegate, ThreadContext context) {
         this.delegate = delegate;
         this.context = context;
-        this.original = context.newRestorableContext(true);
+        this.original = context.newRestorableContext(false);
     }
 
     private void notifyListenerExecuted() {
@@ -53,12 +53,9 @@ public class AllocationActionListener<T> {
     }
 
     private void executeInContext(Runnable action) {
-        // required to clear whatever context that might be set during reroute
-        try (ThreadContext.StoredContext ignore1 = context.stashContext()) {
-            try (ThreadContext.StoredContext ignore2 = original.get()) {
-                appendAdditionalResponseHeaders(context, additionalResponseHeaders.get());
-                action.run();
-            }
+        try (ThreadContext.StoredContext ignore2 = original.get()) {
+            appendAdditionalResponseHeaders(context, additionalResponseHeaders.get());
+            action.run();
         }
     }
 

@@ -53,6 +53,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -75,7 +76,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
@@ -91,6 +94,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
+import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -188,6 +192,7 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskS
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
+import org.elasticsearch.xpack.ml.action.TransportClearDeploymentCacheAction;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
@@ -276,11 +281,15 @@ import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationB
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.changepoint.InternalChangePointAggregation;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregatorFactory;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.kstest.InternalKSTestAggregation;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
@@ -388,6 +397,7 @@ import org.elasticsearch.xpack.ml.rest.filter.RestDeleteFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestClearDeploymentCacheAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
@@ -492,6 +502,37 @@ public class MachineLearning extends Plugin
     public static final LicensedFeature.Persistent ML_PYTORCH_MODEL_INFERENCE_FEATURE = LicensedFeature.persistent(
         MachineLearningField.ML_FEATURE_FAMILY,
         "pytorch-model-inference",
+        License.OperationMode.PLATINUM
+    );
+
+    private static final LicensedFeature.Momentary CATEGORIZE_TEXT_AGG_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "categorize-text-agg",
+        License.OperationMode.PLATINUM
+    );
+    private static final LicensedFeature.Momentary FREQUENT_ITEM_SETS_AGG_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "frequent-items-agg",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Momentary INFERENCE_AGG_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "inference-agg",
+        License.OperationMode.PLATINUM
+    );
+    private static final LicensedFeature.Momentary CHANGE_POINT_AGG_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "change-point-agg",
+        License.OperationMode.PLATINUM
+    );
+    private static final LicensedFeature.Momentary BUCKET_CORRELATION_AGG_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "bucket-correlation-agg",
+        License.OperationMode.PLATINUM
+    );
+    private static final LicensedFeature.Momentary BUCKET_COUNT_KS_TEST_AGG_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "bucket-count-ks-test-agg",
         License.OperationMode.PLATINUM
     );
 
@@ -681,6 +722,7 @@ public class MachineLearning extends Plugin
         return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
     }
 
+    @Override
     public List<Setting<?>> getSettings() {
         return List.of(
             MachineLearningField.AUTODETECT_PROCESS,
@@ -782,7 +824,8 @@ public class MachineLearning extends Plugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         if (enabled == false) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
@@ -1249,6 +1292,7 @@ public class MachineLearning extends Plugin
             new RestPutTrainedModelDefinitionPartAction(),
             new RestPutTrainedModelVocabularyAction(),
             new RestInferTrainedModelAction(),
+            new RestClearDeploymentCacheAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1353,6 +1397,7 @@ public class MachineLearning extends Plugin
                 UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE,
                 TransportUpdateTrainedModelAssignmentStateAction.class
             ),
+            new ActionHandler<>(ClearDeploymentCacheAction.INSTANCE, TransportClearDeploymentCacheAction.class),
             usageAction,
             infoAction
         );
@@ -1444,11 +1489,23 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
-        return Arrays.asList(
+        return List.of(
             InferencePipelineAggregationBuilder.buildSpec(modelLoadingService, getLicenseState(), settings),
-            BucketCorrelationAggregationBuilder.buildSpec(),
-            BucketCountKSTestAggregationBuilder.buildSpec(),
-            ChangePointAggregationBuilder.buildSpec()
+            new SearchPlugin.PipelineAggregationSpec(
+                BucketCorrelationAggregationBuilder.NAME,
+                BucketCorrelationAggregationBuilder::new,
+                checkAggLicense(BucketCorrelationAggregationBuilder.PARSER, BUCKET_CORRELATION_AGG_FEATURE)
+            ),
+            new SearchPlugin.PipelineAggregationSpec(
+                BucketCountKSTestAggregationBuilder.NAME,
+                BucketCountKSTestAggregationBuilder::new,
+                checkAggLicense(BucketCountKSTestAggregationBuilder.PARSER, BUCKET_COUNT_KS_TEST_AGG_FEATURE)
+            ).addResultReader(InternalKSTestAggregation::new),
+            new SearchPlugin.PipelineAggregationSpec(
+                ChangePointAggregationBuilder.NAME,
+                ChangePointAggregationBuilder::new,
+                checkAggLicense(ChangePointAggregationBuilder.PARSER, CHANGE_POINT_AGG_FEATURE)
+            ).addResultReader(InternalChangePointAggregation::new)
         );
     }
 
@@ -1457,15 +1514,30 @@ public class MachineLearning extends Plugin
         return List.of(new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER));
     }
 
+    private <T> ContextParser<String, T> checkAggLicense(ContextParser<String, T> realParser, LicensedFeature.Momentary feature) {
+        return (parser, name) -> {
+            if (feature.check(getLicenseState()) == false) {
+                throw LicenseUtils.newComplianceException(feature.getName());
+            }
+            return realParser.parse(parser, name);
+        };
+    }
+
     @Override
     public List<AggregationSpec> getAggregations() {
         return List.of(
             new AggregationSpec(
                 CategorizeTextAggregationBuilder.NAME,
                 CategorizeTextAggregationBuilder::new,
-                CategorizeTextAggregationBuilder.PARSER
+                checkAggLicense(CategorizeTextAggregationBuilder.PARSER, CATEGORIZE_TEXT_AGG_FEATURE)
             ).addResultReader(InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
+                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
+            new AggregationSpec(
+                FrequentItemSetsAggregationBuilder.NAME,
+                FrequentItemSetsAggregationBuilder::new,
+                checkAggLicense(FrequentItemSetsAggregationBuilder.PARSER, FREQUENT_ITEM_SETS_AGG_FEATURE)
+            ).addResultReader(FrequentItemSetsAggregatorFactory.getResultReader())
+                .setAggregatorRegistrar(FrequentItemSetsAggregationBuilder::registerAggregators)
         );
     }
 
@@ -1597,6 +1669,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
+
         return namedWriteables;
     }
 

@@ -1,3 +1,44 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "description": "simple model for testing",
+            "model_type": "pytorch",
+            "inference_config": {
+              "pass_through": {
+                "tokenization": {
+                  "bert": {
+                    "with_special_tokens": false
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model_vocabulary:
+        model_id: "test_model"
+        body: >
+          { "vocabulary": ["[PAD]","[UNK]","these", "are", "my", "words"] }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model_definition_part:
+        model_id: "test_model"
+        part: 0
+        body: >
+          {
+            "total_definition_length":1630,
+            "definition": "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",
+            "total_parts": 1
+          }
 ---
 "Test start deployment fails with missing model definition":
 
@@ -17,3 +58,165 @@
       catch: /Could not find trained model definition \[distilbert-finetuned-sst\]/
       ml.start_trained_model_deployment:
         model_id: distilbert-finetuned-sst
+---
+"Test start and stop deployment with no cache":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        cache_size: 0
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+  - match: {assignment.task_parameters.model_id: test_model}
+  - match: {assignment.task_parameters.cache_size: "0"}
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model
+  - match: { stopped: true }
+---
+"Test start and stop deployment with cache":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        cache_size: 10kb
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+  - match: {assignment.task_parameters.model_id: test_model}
+  - match: {assignment.task_parameters.cache_size: 10kb}
+
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "are" }
+            ]
+          }
+
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+
+  - do:
+      ml.get_trained_models_stats:
+        model_id: "test_model"
+  - match: { count: 1 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_count: 3 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_cache_hit_count: 1 }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model
+  - match: { stopped: true }
+---
+"Test clear deployment cache":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        cache_size: 10kb
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+  - match: {assignment.task_parameters.model_id: test_model}
+  - match: {assignment.task_parameters.cache_size: 10kb}
+
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "are" }
+            ]
+          }
+
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+
+  - do:
+      ml.get_trained_models_stats:
+        model_id: "test_model"
+  - match: { count: 1 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_count: 3 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_cache_hit_count: 1 }
+
+
+  - do:
+      ml.clear_trained_model_deployment_cache:
+        model_id: test_model
+  - match: { cleared: true }
+
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+
+  - do:
+      ml.get_trained_models_stats:
+        model_id: "test_model"
+  - match: { count: 1 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_count: 4 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_cache_hit_count: 1 }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model
+  - match: { stopped: true }

@@ -19,9 +19,9 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -75,7 +75,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         if (factory == null) {
             factory = scriptService.compile(script, IngestScript.CONTEXT);
         }
-        factory.newInstance(script.getParams(), document.getMetadata(), document.getSourceAndMetadata()).execute();
+        factory.newInstance(script.getParams(), document.getCtxMap()).execute();
         return document;
     }
 
@@ -110,7 +110,7 @@ public final class ScriptProcessor extends AbstractProcessor {
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
                 InputStream stream = BytesReference.bytes(builder).streamInput();
                 XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                    .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
             ) {
                 Script script = Script.parse(parser);
 

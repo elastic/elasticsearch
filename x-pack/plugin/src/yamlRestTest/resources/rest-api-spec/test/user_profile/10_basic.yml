@@ -18,12 +18,83 @@ setup:
             "email" : "joe@bazooka.gum"
           }
 
+  - do:
+      security.put_user:
+        username: "doe"
+        body:  >
+          {
+            "password" : "s3krit-password",
+            "roles" : [ "superuser" ],
+            "full_name" : "Bazooka Doe",
+            "email" : "doe@bazooka.gum"
+          }
+
 ---
 teardown:
   - do:
       security.delete_user:
         username: "joe"
         ignore: 404
+  - do:
+      security.delete_user:
+        username: "doe"
+        ignore: 404
+
+---
+"Test get user profiles":
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "joe",
+            "password" : "s3krit-password"
+          }
+  - is_true: uid
+  - match: { "user.username" : "joe" }
+  - match: { "user.roles" : [ "superuser" ] }
+  - match: { "user.full_name" : "Bazooka Joe" }
+  - match: { "user.realm_name" : "default_native" }
+  - is_false: "user.realm_domain"
+  - is_true: _doc
+  - set: { uid: profile_uid_1 }
+
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "doe",
+            "password" : "s3krit-password"
+          }
+  - is_true: uid
+  - match: { "user.username" : "doe" }
+  - match: { "user.roles" : [ "superuser" ] }
+  - match: { "user.full_name" : "Bazooka Doe" }
+  - match: { "user.realm_name" : "default_native" }
+  - is_false: "user.realm_domain"
+  - is_true: _doc
+  - set: { uid: profile_uid_2 }
+
+  - do:
+      security.get_user_profile:
+        uid: "u_eGdcwXYIE3LEOrqz6p-3DHQ4HrAtxuk_ttRNFh2m7rM_0,u_eZ75KhGvkY4_t0HfQpNPO1aO0tk6wd908bjUGieTKm8_0,does_not_exist"
+
+  - length: { profiles : 2 }
+  - set: { profiles.0 : profile }
+  - match: { $profile.uid : "$profile_uid_1" }
+  - match: { $profile.user.username : "joe" }
+  - match: { $profile.data : {} }
+  - set: { profiles.1 : profile }
+  - match: { $profile.uid : "$profile_uid_2" }
+  - match: { $profile.user.username : "doe" }
+  - match: { $profile.data : {} }
+
+  - is_true: errors
+  - set: { errors: errors }
+  - match: { $errors.count : 1 }
+  - match: { $errors.details.does_not_exist.type: "resource_not_found_exception" }
+
 
 ---
 "Test user profile apis":
@@ -48,9 +119,9 @@ teardown:
       security.get_user_profile:
         uid: "$profile_uid"
 
-  - length: { $body: 1 }
-  - is_true: "$profile_uid"
-  - set: { $profile_uid: profile }
+  - length: { profiles: 1 }
+  - is_false: errors
+  - set: { profiles.0: profile }
   - match: { $profile.uid : "$profile_uid" }
   - match: { $profile.user.username : "joe" }
   - match: { $profile.data : {} }
@@ -83,9 +154,10 @@ teardown:
         uid: "$profile_uid"
         data: "app1"
 
-  - length: { $body: 1 }
-  - is_true: "$profile_uid"
-  - set: { $profile_uid: profile }
+  - length: { profiles: 1 }
+  - is_false: errors
+  - set: { profiles.0: profile }
+  - match: { $profile.uid: "$profile_uid" }
   - match: { $profile.data: { "app1": { "theme": "default" } } }
 
   # Activate again should get the same profile
@@ -105,19 +177,23 @@ teardown:
         uid: "$profile_uid"
         data: "*"
 
-  - length: { $body: 1 }
-  - is_true: "$profile_uid"
-  - set: { $profile_uid: profile }
+  - length: { profiles: 1 }
+  - is_false: errors
+  - set: { profiles.0: profile }
+  - match: { $profile.uid: "$profile_uid" }
   - match: { $profile.labels: { "kibana": { "spaces": "demo" } } }
   - match: { $profile.data: { "app1": { "theme": "default" }, "app2": { "theme": "dark"} } }
 
-  # Attempting to get a non-existing profile leads to 404
+  # Attempting to get a non-existing profile
   - do:
-      catch: missing
       security.get_user_profile:
         uid: no_such_profile_uid
 
-  - length: { $body: 0 }
+  - length: { profiles: 0 }
+  - is_true: errors
+  - set: { errors: errors }
+  - match: { $errors.count : 1 }
+  - match: { $errors.details.no_such_profile_uid.type: "resource_not_found_exception" }
 
 
 ---
@@ -136,7 +212,7 @@ teardown:
   - do:
       security.get_user_profile:
         uid: "$profile_uid"
-  - set: { $profile_uid: profile }
+  - set: { profiles.0: profile }
   - is_true: "$profile.enabled"
 
   # disable the profile
@@ -147,7 +223,7 @@ teardown:
   - do:
       security.get_user_profile:
         uid: "$profile_uid"
-  - set: { $profile_uid: profile }
+  - set: { profiles.0: profile }
   - is_false: "$profile.enabled"
 
   # enable again
@@ -158,7 +234,7 @@ teardown:
   - do:
       security.get_user_profile:
         uid: "$profile_uid"
-  - set: { $profile_uid: profile }
+  - set: { profiles.0: profile }
   - is_true: "$profile.enabled"
 
 ---

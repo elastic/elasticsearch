@@ -6,8 +6,44 @@
 This section provides a series of troubleshooting solutions aimed at helping users
 fix problems that an {es} deployment might encounter.
 
-Several troubleshooting issues can be diagnosed using the
+[discrete]
+[[troubleshooting-general]]
+=== General
+* <<fix-common-cluster-issues,Fix common cluster issues>>
+* Several troubleshooting issues can be diagnosed using the
 <<health-api,health API>>.
+
+[discrete]
+[[troubleshooting-data]]
+=== Data
+* <<add-tier,Add a missing tier to the system>>
+* <<allow-all-cluster-allocation,Allow Elasticsearch to allocate the data in the system>>
+* <<allow-all-index-allocation,Allow Elasticsearch to allocate the index>>
+* <<troubleshoot-migrate-to-tiers,Indices mix index allocation filters with data tiers node roles to move through data tiers>>
+* <<increase-tier-capacity,Not enough nodes to allocate all shard replicas>>
+* <<increase-shard-limit,Total number of shards for an index on a single node exceeded>>
+* <<increase-cluster-shard-limit,Total number of shards per node has been reached>>
+* <<corruption-troubleshooting,Troubleshooting data corruption>>
+
+[discrete]
+[[troubleshooting-management]]
+=== Management
+* <<start-ilm,Start index lifecycle management>>
+* <<start-slm,Start snapshot lifecycle management>>
+
+[discrete]
+[[troubleshooting-snapshot]]
+=== Snapshot and restore
+* <<restore-from-snapshot,Restore data from snapshot>>
+* <<add-repository,Multiple deployments writing to the same snapshot repository>>
+
+[discrete]
+[[troubleshooting-others]]
+=== Others
+* <<discovery-troubleshooting,Troubleshooting discovery>>
+* <<monitoring-troubleshooting,Troubleshooting monitoring>>
+* <<transform-troubleshooting,Troubleshooting transforms>>
+* <<watcher-troubleshooting,Troubleshooting Watcher>>
 
 If none of these solutions relate to your issue, you can still get help:
 
@@ -36,27 +72,31 @@ the experts in the community, including people from Elastic.
 
 include::troubleshooting/fix-common-cluster-issues.asciidoc[]
 
+include::troubleshooting/data/add-tier.asciidoc[]
+
+include::troubleshooting/data/enable-cluster-allocation.asciidoc[]
+
+include::troubleshooting/data/enable-index-allocation.asciidoc[]
+
+include::troubleshooting/data/data-tiers-mixed-with-node-attr.asciidoc[]
+
+include::troubleshooting/data/increase-tier-capacity.asciidoc[]
+
 include::troubleshooting/data/increase-shard-limit.asciidoc[]
 
 include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
 
-include::troubleshooting/data/enable-index-allocation.asciidoc[]
-
-include::troubleshooting/data/enable-cluster-allocation.asciidoc[]
-
-include::troubleshooting/data/data-tiers-mixed-with-node-attr.asciidoc[]
-
-include::troubleshooting/data/add-tier.asciidoc[]
-
-include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
-
-include::troubleshooting/discovery-issues.asciidoc[]
-
-include::troubleshooting/data/increase-tier-capacity.asciidoc[]
+include::troubleshooting/corruption-issues.asciidoc[]
 
 include::troubleshooting/data/start-ilm.asciidoc[]
 
 include::troubleshooting/data/start-slm.asciidoc[]
+
+include::troubleshooting/data/restore-from-snapshot.asciidoc[]
+
+include::troubleshooting/snapshot/add-repository.asciidoc[]
+
+include::troubleshooting/discovery-issues.asciidoc[]
 
 include::monitoring/troubleshooting.asciidoc[]
 

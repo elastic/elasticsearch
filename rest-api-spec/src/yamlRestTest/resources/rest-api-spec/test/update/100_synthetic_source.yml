@@ -1,7 +1,7 @@
 keyword:
   - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
 
   - do:
       indices.create:
@@ -9,7 +9,7 @@ keyword:
         body:
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               kwd:
                 type: keyword

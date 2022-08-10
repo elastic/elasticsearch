@@ -11,11 +11,10 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -38,13 +37,7 @@ public class ObjectPath {
     }
 
     public static ObjectPath createFromXContent(XContent xContent, BytesReference input) throws IOException {
-        try (
-            XContentParser parser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                input.streamInput()
-            )
-        ) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, input.streamInput())) {
             if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                 return new ObjectPath(parser.listOrderedMap());
             }

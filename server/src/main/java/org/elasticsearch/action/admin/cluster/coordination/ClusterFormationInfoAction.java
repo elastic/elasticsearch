@@ -33,7 +33,7 @@ import java.util.Objects;
 public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoAction.Response> {
 
     public static final ClusterFormationInfoAction INSTANCE = new ClusterFormationInfoAction();
-    public static final String NAME = "cluster:internal/formation/info";
+    public static final String NAME = "internal:cluster/formation/info";
 
     private ClusterFormationInfoAction() {
         super(NAME, ClusterFormationInfoAction.Response::new);

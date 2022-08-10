@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
 
 public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckTargetShardsCountStep> {
@@ -133,9 +132,9 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
         Phase phase = new Phase(
             checkTargetShardsCountStep.getKey().getPhase(),
             TimeValue.ZERO,
-            singletonMap(checkTargetShardsCountStep.getKey().getAction(), new ReadOnlyAction())
+            Map.of(checkTargetShardsCountStep.getKey().getAction(), new ReadOnlyAction())
         );
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, Map.of(phase.getName(), phase));
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(
             Map.of(policyName, new LifecyclePolicyMetadata(lifecyclePolicy, Map.of(), 0L, 0L)),
             OperationMode.RUNNING
@@ -154,8 +153,8 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
         String actionName,
         int targetNumberOfShards
     ) {
-        Phase phase = new Phase(phaseName, TimeValue.ZERO, singletonMap(actionName, new ShrinkAction(targetNumberOfShards, null)));
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
+        Phase phase = new Phase(phaseName, TimeValue.ZERO, Map.of(actionName, new ShrinkAction(targetNumberOfShards, null)));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, Map.of(phase.getName(), phase));
         return new IndexLifecycleMetadata(
             Map.of(policyName, new LifecyclePolicyMetadata(lifecyclePolicy, Map.of(), 0L, 0L)),
             OperationMode.RUNNING

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -150,19 +149,21 @@ public class ProfileService {
         }));
     }
 
-    public void getProfileSubjects(Collection<String> uids, ActionListener<MultiProfileSubjectResponse> listener) {
+    public void getProfileSubjects(Collection<String> uids, ActionListener<ResultsAndErrors<Map.Entry<String, Subject>>> listener) {
         getVersionedDocuments(uids, listener.map(resultsAndErrors -> {
             if (resultsAndErrors != null) {
-                return new MultiProfileSubjectResponse(
+                // convert the list of profile document to a list of "uid to subject" entries
+                return new ResultsAndErrors<>(
                     resultsAndErrors.results()
                         .stream()
                         .map(VersionedDocument::doc)
                         .filter(ProfileDocument::enabled)
-                        .collect(Collectors.toMap(ProfileDocument::uid, profileDoc -> profileDoc.user().toSubject())),
-                    Set.copyOf(errorUidsExcludingNotFound(resultsAndErrors.errors()))
+                        .map(doc -> Map.entry(doc.uid(), doc.user().toSubject()))
+                        .toList(),
+                    resultsAndErrors.errors()
                 );
             } else {
-                return new MultiProfileSubjectResponse(Map.of(), Set.of());
+                return new ResultsAndErrors<>(List.of(), Map.of());
             }
         }));
     }
@@ -386,6 +387,7 @@ public class ProfileService {
                         for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
                             final String profileUid = docIdToUid(itemResponse.getId());
                             if (itemResponse.isFailed()) {
+                                logger.debug("Failed to retrieve profile [{}]", profileUid);
                                 errors.put(profileUid, itemResponse.getFailure().getFailure());
                             } else if (itemResponse.getResponse() != null) {
                                 if (itemResponse.getResponse().isExists()) {
@@ -407,16 +409,6 @@ public class ProfileService {
                             }
                         }
                         final ResultsAndErrors<VersionedDocument> resultsAndErrors = new ResultsAndErrors<>(retrievedDocs, errors);
-                        if (logger.isDebugEnabled() && false == resultsAndErrors.errors().isEmpty()) {
-                            Exception loggedException = null;
-                            final List<String> errorUids = errorUidsExcludingNotFound(resultsAndErrors.errors());
-                            for (String uid : errorUids) {
-                                loggedException = ExceptionsHelper.useOrSuppress(loggedException, resultsAndErrors.errors().get(uid));
-                            }
-                            if (loggedException != null) {
-                                logger.debug(() -> format("Failed to retrieve profiles %s", errorUids), loggedException);
-                            }
-                        }
                         listener.onResponse(resultsAndErrors);
                     }, listener::onFailure))
             );
@@ -839,14 +831,6 @@ public class ProfileService {
         );
     }
 
-    private static List<String> errorUidsExcludingNotFound(Map<String, Exception> errors) {
-        return errors.entrySet()
-            .stream()
-            .filter(entry -> entry.getValue() != null && false == entry.getValue() instanceof ResourceNotFoundException)
-            .map(Map.Entry::getKey)
-            .toList();
-    }
-
     // Package private for testing
     record VersionedDocument(ProfileDocument doc, long primaryTerm, long seqNo) {
 
@@ -874,6 +858,4 @@ public class ProfileService {
         }
 
     }
-
-    public record MultiProfileSubjectResponse(Map<String, Subject> profileUidToSubject, Set<String> failureProfileUids) {}
 }

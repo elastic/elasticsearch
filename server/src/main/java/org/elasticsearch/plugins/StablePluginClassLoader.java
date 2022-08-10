@@ -10,14 +10,16 @@ package org.elasticsearch.plugins;
 
 import java.io.IOException;
 import java.lang.module.ModuleReader;
-import java.lang.module.ResolvedModule;
+import java.lang.module.ModuleReference;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.util.Enumeration;
+import java.util.Set;
 
 /**
  * This classloader will load classes from stable plugins.
@@ -54,12 +56,14 @@ import java.util.Enumeration;
  */
 public class StablePluginClassLoader extends SecureClassLoader {
 
-    private ResolvedModule module;
+    private ModuleReference module;
 
-    static StablePluginClassLoader getInstance(ClassLoader parent, ResolvedModule module) {
-        // TODO: how does the access controller work and when does it go away?
+    static StablePluginClassLoader getInstance(ClassLoader parent, ModuleReference module) {
         PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(module);
         return AccessController.doPrivileged(pa);
+    }
+    static StablePluginClassLoader getInstance(ClassLoader parent, Path jar) {
+        return getInstance(parent, buildSyntheticModule(jar));
     }
     /**
      * Constructor
@@ -74,10 +78,15 @@ public class StablePluginClassLoader extends SecureClassLoader {
      * Second cut: main jar plus dependencies (can we have modularized main jar with unmodularized dependencies?)
      * Third cut: link it up with the "crate/bundle" descriptor
      */
-    public StablePluginClassLoader(ResolvedModule module) {
+    public StablePluginClassLoader(ModuleReference module) {
         // TODO: here, we need to figure out if our jar/jars are modules are not
         this.module = module;
     }
+
+    private static ModuleReference buildSyntheticModule(Path jar) {
+        return ModuleSupport.ofSyntheticPluginModule("synthetic", new Path[]{jar}, Set.of()).find("synthetic").orElseThrow();
+    }
+
 
     /**
      * @param moduleName
@@ -124,7 +133,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // ModuleReference does a lot of the work
 
         // from jdk.internal.loader.Loader#defineClass
-        try (ModuleReader reader = module.reference().open()) {
+        try (ModuleReader reader = module.open()) {
 
             String rn = name.replace('.', '/').concat(".class");
             ByteBuffer bb = reader.read(rn).orElse(null);
@@ -175,7 +184,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // searching the current module, then other modules, and checking access levels
 
         // TODO: what if we can't find the resource?
-        try (ModuleReader reader = module.reference().open()) {
+        try (ModuleReader reader = module.open()) {
             return reader.find(name).orElseThrow().toURL();
         } catch (IOException e) {
             return null;

@@ -13,6 +13,7 @@ import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
+import java.io.IOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.net.URL;
@@ -21,9 +22,11 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -36,36 +39,15 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class StablePluginClassLoaderTests extends ESTestCase {
 
-    // Test loading a modularized jar...
-    // We should be able to pass a URI for the jar and load a class from it.
-    public void testLoadFromModularizedJar() throws Exception {
+    // This test is just to see that there's a jar with a compiled class in it
+    // TODO: remove
+    public void testJarWithURLClassLoader() throws Exception {
 
-        // TODO: extract some part of jar creation for common use
-        Map<String, CharSequence> sources = new HashMap<>();
-        sources.put("p.Modular", """
-            package p;
-            public class Modular {
-                @Override
-                public String toString() {
-                    return "Modular";
-                }
-            }
-            """);
-        sources.put("module-info", """
-            module p {
-              exports p;
-            }
-            """);
-        var classToBytes = InMemoryJavaCompiler.compile(sources);
-
-        Map<String, byte[]> jarEntries = new HashMap<>();
-        jarEntries.put("p/Modular.class", classToBytes.get("p.Modular"));
-        jarEntries.put("module-info.class", classToBytes.get("module-info"));
         Path topLevelDir = createTempDir(getTestName());
-        Path outerJar = topLevelDir.resolve("test.jar");
-        JarUtils.createJarWithEntries(outerJar, jarEntries);
+        Path outerJar = topLevelDir.resolve("modular.jar");
+        boolean modular = randomBoolean();
+        createJar(outerJar, modular);
 
-        // TODO: Extract URL loader section and use it to verify jars
         // loading it with a URL classloader (just checking the jar, remove
         // this block)
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
@@ -75,19 +57,30 @@ public class StablePluginClassLoaderTests extends ESTestCase {
             URLClassLoader loader = AccessController.doPrivileged(pa);
             Class<?> c = loader.loadClass("p.Modular");
             Object instance = c.getConstructor().newInstance();
-            assertThat("Modular", equalTo(instance.toString()));
+            assertThat(instance.toString(), equalTo(modular ? "Modular" : "NonModular"));
         } finally {
             PrivilegedOperations.closeURLClassLoader(parent);
         }
+    }
+
+    // Test loading a modularized jar...
+    // We should be able to pass a URI for the jar and load a class from it.
+    public void testLoadFromModularizedJar() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("modular.jar");
+        createJar(jar, true);
 
         // load it with a module
-        ModuleFinder moduleFinder = ModuleFinder.of(outerJar);
+        ModuleFinder moduleFinder = ModuleFinder.of(jar);
         ModuleLayer mparent = ModuleLayer.boot();
         Configuration cf = mparent.configuration().resolve(moduleFinder, ModuleFinder.of(), Set.of("p"));
         var resolvedModule = cf.findModule("p").orElseThrow();
         // we have the module, but how do we load the class?
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, resolvedModule);
+        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
+            StablePluginClassLoaderTests.class.getClassLoader(),
+            resolvedModule.reference()
+        );
 
         URL location = loader.findResource("p/Modular.class");
         assertThat(location, notNullValue());
@@ -95,5 +88,56 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         assertThat(c, notNullValue());
         Object instance = c.getConstructor().newInstance();
         assertThat("Modular", equalTo(instance.toString()));
+    }
+
+    public void testLoadFromNonModularizedJar() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("non-modular.jar");
+        createJar(jar, true);
+
+        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
+            StablePluginClassLoader.class.getClassLoader(),
+            jar
+        );
+
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> loader.findResource("p/NonModular" +
+            ".class"));
+
+        assertThat(e, notNullValue());
+        /*
+        URL location = loader.findResource("p/Modular.class");
+        assertThat(location, notNullValue());
+        Class<?> c = loader.loadClass("p.Modular");
+        assertThat(c, notNullValue());
+        Object instance = c.getConstructor().newInstance();
+        assertThat("Modular", equalTo(instance.toString()));
+        */
+    }
+
+    private static void createJar(Path outerJar, boolean modular) throws IOException {
+        String name = modular ? "Modular" : "NonModular";
+        Map<String, CharSequence> sources = new HashMap<>();
+        sources.put("p." + name, String.format(Locale.ENGLISH, """
+            package p;
+            public class %s {
+                @Override
+                public String toString() {
+                    return "%s";
+                }
+            }
+            """, name, name));
+        if (modular) {
+            sources.put("module-info", """
+                module p {
+                  exports p;
+                }
+                """);
+        }
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
+
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("p/Modular.class", classToBytes.get("p.Modular"));
+        jarEntries.put("module-info.class", classToBytes.get("module-info"));
+        JarUtils.createJarWithEntries(outerJar, jarEntries);
     }
 }

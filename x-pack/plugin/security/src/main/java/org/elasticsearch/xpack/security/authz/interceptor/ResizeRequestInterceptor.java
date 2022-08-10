@@ -47,15 +47,19 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest() instanceof ResizeRequest) {
-            final ResizeRequest request = (ResizeRequest) requestInfo.getRequest();
+        if (requestInfo.getRequest()instanceof ResizeRequest request) {
+            final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if (isDlsLicensed == false) {
+                listener.onResponse(null);
+                return;
+            }
             final AuditTrail auditTrail = auditTrailService.get();
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(request.getSourceIndex());
             if (indexAccessControl != null) {
                 final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                 final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                if ((fls || dls) && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
+                if (fls || dls) {
                     listener.onFailure(
                         new ElasticsearchSecurityException(
                             "Resize requests are not allowed for users when "

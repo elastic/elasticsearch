@@ -48,20 +48,24 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
         ActionListener<Void> listener
     ) {
         if (requestInfo.getRequest()instanceof BulkShardRequest bulkShardRequest) {
+            final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if (isDlsLicensed) {
+                listener.onResponse(null);
+                return;
+            }
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}
             // can still be an unresolved date math expression
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());
             // TODO replace if condition with assertion
             if (indexAccessControl != null) {
-                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
                 for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                     boolean found = false;
                     if (bulkItemRequest.request() instanceof UpdateRequest) {
                         boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                         // the feature usage checker is a "last-ditch" verification, it doesn't have practical importance
-                        if ((fls || dls) && isDlsLicensed) {
+                        if (fls || dls) {
                             found = true;
                             logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
                             bulkItemRequest.abort(

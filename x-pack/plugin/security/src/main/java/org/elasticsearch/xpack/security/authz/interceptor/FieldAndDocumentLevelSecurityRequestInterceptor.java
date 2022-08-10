@@ -49,9 +49,8 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
     ) {
         if (requestInfo.getRequest()instanceof IndicesRequest indicesRequest
             && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
-            // TODO: should we check is DLS/FLS feature allowed here
-            if (supports(indicesRequest)) {
-                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if (isDlsLicensed && supports(indicesRequest)) {
                 final IndicesAccessControl indicesAccessControl = threadContext.getTransient(
                     AuthorizationServiceField.INDICES_PERMISSIONS_KEY
                 );
@@ -61,7 +60,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                     if (indexAccessControl != null) {
                         final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        if ((flsEnabled || dlsEnabled) && isDlsLicensed) {
+                        if (flsEnabled || dlsEnabled) {
                             logger.trace(
                                 "intercepted request for index [{}] with field level access controls [{}] "
                                     + "document level access controls [{}]. disabling conflicting features",

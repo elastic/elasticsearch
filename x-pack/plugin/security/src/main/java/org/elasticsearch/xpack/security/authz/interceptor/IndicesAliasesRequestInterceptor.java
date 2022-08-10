@@ -55,10 +55,13 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest() instanceof IndicesAliasesRequest) {
-            final IndicesAliasesRequest request = (IndicesAliasesRequest) requestInfo.getRequest();
-            final AuditTrail auditTrail = auditTrailService.get();
+        if (requestInfo.getRequest()instanceof IndicesAliasesRequest request) {
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if (isDlsLicensed == false) {
+                listener.onResponse(null);
+                return;
+            }
+            final AuditTrail auditTrail = auditTrailService.get();
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
                 if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
@@ -67,7 +70,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                         if (indexAccessControl != null) {
                             final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                             final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                            if ((fls || dls) && isDlsLicensed) {
+                            if (fls || dls) {
                                 listener.onFailure(
                                     new ElasticsearchSecurityException(
                                         "Alias requests are not allowed for "

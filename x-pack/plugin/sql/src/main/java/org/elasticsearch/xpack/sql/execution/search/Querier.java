@@ -537,7 +537,7 @@ public class Querier {
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             TotalHits totalHits = response.getHits().getTotalHits();
-            ConstantExtractor totalCount = totalHits == null ? null : new ConstantExtractor(totalHits.value);
+            ConstantExtractor totalCount = new ConstantExtractor(totalHits == null ? -1 : totalHits.value);
             for (QueryContainer.FieldInfo ref : refs) {
                 exts.add(createExtractor(ref.extraction(), totalCount));
             }
@@ -562,9 +562,6 @@ public class Querier {
             }
 
             if (ref == GlobalCountRef.INSTANCE) {
-                if (totalCount == null) {
-                    throw new SqlIllegalArgumentException("Inconsistent total hits count handling, expected a value but found null");
-                }
                 return totalCount;
             }
 

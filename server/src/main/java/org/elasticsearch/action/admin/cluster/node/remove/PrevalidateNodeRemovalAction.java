@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionType;
 public class PrevalidateNodeRemovalAction extends ActionType<PrevalidateNodeRemovalResponse> {
 
     public static final PrevalidateNodeRemovalAction INSTANCE = new PrevalidateNodeRemovalAction();
-    public static final String NAME = "cluster:admin/nodes/prevalidate_remove";
+    public static final String NAME = "cluster:admin/nodes/prevalidate_removal";
 
     private PrevalidateNodeRemovalAction() {
         super(NAME, PrevalidateNodeRemovalResponse::new);

@@ -13,6 +13,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -419,7 +420,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        if ("time_series".equals(context.getIndexSettings().getSettings().get(IndexSettings.MODE.getKey()))
+        if (IndexMode.TIME_SERIES.getName().equals(context.getIndexSettings().getSettings().get(IndexSettings.MODE.getKey()))
             && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramInterval.getIntervalType())) {
             throw new UnsupportedAggregationOnDownsampledField(
                 config.getDescription()

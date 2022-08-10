@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,7 +33,9 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Response;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -73,29 +76,38 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                 );
             }
         } else {
-            List<LifecyclePolicyResponseItem> requestedPolicies;
-            // if no policies explicitly provided, behave as if `*` was specified
+            List<String> names;
             if (request.getPolicyNames().length == 0) {
-                requestedPolicies = new ArrayList<>(metadata.getPolicyMetadatas().size());
-                for (LifecyclePolicyMetadata policyMetadata : metadata.getPolicyMetadatas().values()) {
-                    requestedPolicies.add(
-                        new LifecyclePolicyResponseItem(
-                            policyMetadata.getPolicy(),
-                            policyMetadata.getVersion(),
-                            policyMetadata.getModifiedDateString(),
-                            LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
-                        )
-                    );
-                }
+                names = List.of("*");
             } else {
-                requestedPolicies = new ArrayList<>(request.getPolicyNames().length);
-                for (String name : request.getPolicyNames()) {
+                names = Arrays.asList(request.getPolicyNames());
+            }
+
+            Map<String, LifecyclePolicyResponseItem> policyResponseItemMap = new LinkedHashMap<>();
+            for (String name : names) {
+                if (Regex.isSimpleMatchPattern(name)) {
+                    for (Map.Entry<String, LifecyclePolicyMetadata> entry : metadata.getPolicyMetadatas().entrySet()) {
+                        LifecyclePolicyMetadata policyMetadata = entry.getValue();
+                        if (Regex.simpleMatch(name, entry.getKey())) {
+                            policyResponseItemMap.put(
+                                entry.getKey(),
+                                new LifecyclePolicyResponseItem(
+                                    policyMetadata.getPolicy(),
+                                    policyMetadata.getVersion(),
+                                    policyMetadata.getModifiedDateString(),
+                                    LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                                )
+                            );
+                        }
+                    }
+                } else {
                     LifecyclePolicyMetadata policyMetadata = metadata.getPolicyMetadatas().get(name);
                     if (policyMetadata == null) {
                         listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", name));
                         return;
                     }
-                    requestedPolicies.add(
+                    policyResponseItemMap.put(
+                        name,
                         new LifecyclePolicyResponseItem(
                             policyMetadata.getPolicy(),
                             policyMetadata.getVersion(),
@@ -105,6 +117,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                     );
                 }
             }
+            List<LifecyclePolicyResponseItem> requestedPolicies = new ArrayList<>(policyResponseItemMap.values());
             listener.onResponse(new Response(requestedPolicies));
         }
     }

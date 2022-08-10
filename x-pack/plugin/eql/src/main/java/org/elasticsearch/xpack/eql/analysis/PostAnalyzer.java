@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sample;
+import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
@@ -45,34 +45,24 @@ public class PostAnalyzer {
 
             // implicit project + fetch size (if needed)
 
-            Holder<Boolean> hasJoin = new Holder<>(Boolean.FALSE);
-
             Source projectCtx = synthetic("<implicit-project>");
-            if (plan.anyMatch(x -> x instanceof Sample)) {
-                plan = plan.transformUp(KeyedFilter.class, k -> {
-                    hasJoin.set(Boolean.TRUE);
-                    Project p = new Project(projectCtx, k.child(), k.keys());
-                    return new KeyedFilter(k.source(), p, k.keys(), k.timestamp(), k.tiebreaker());
-                });
-            } else {
-                // first per KeyedFilter
-                plan = plan.transformUp(KeyedFilter.class, k -> {
-                    hasJoin.set(Boolean.TRUE);
-                    Project p = new Project(projectCtx, k.child(), k.extractionAttributes());
-
+            final boolean isSequence = plan.anyMatch(Sequence.class::isInstance);
+            // first per KeyedFilter
+            plan = plan.transformUp(KeyedFilter.class, k -> {
+                LogicalPlan newPlan = new Project(projectCtx, k.child(), isSequence ? k.extractionAttributes() : k.keys());
+                if (isSequence) {
                     // TODO: this could be incorporated into the query generation
-                    LogicalPlan fetchSize = new LimitWithOffset(
+                    newPlan = new LimitWithOffset(
                         synthetic("<fetch-size>"),
                         new Literal(synthetic("<fetch-value>"), configuration.fetchSize(), DataTypes.INTEGER),
-                        p
+                        newPlan
                     );
-
-                    return new KeyedFilter(k.source(), fetchSize, k.keys(), k.timestamp(), k.tiebreaker());
-                });
-            }
+                }
+                return new KeyedFilter(k.source(), newPlan, k.keys(), k.timestamp(), k.tiebreaker());
+            });
 
             // in case of event queries, filter everything
-            if (hasJoin.get() == false) {
+            if (isSequence == false && plan.anyMatch(Sample.class::isInstance) == false) {
                 plan = new Project(projectCtx, plan, emptyList());
             }
         }

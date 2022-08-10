@@ -901,7 +901,7 @@ public class Node implements Closeable {
                 settingsModule.getIndexScopedSettings()
             );
             final HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNode.isEnabled()
-                ? new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterService.getClusterSettings())
+                ? HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterService.getClusterSettings())
                 : null;
             final List<PersistentTasksExecutor<?>> builtinTaskExecutors = HealthNode.isEnabled()
                 ? List.of(systemIndexMigrationExecutor, healthNodeTaskExecutor)

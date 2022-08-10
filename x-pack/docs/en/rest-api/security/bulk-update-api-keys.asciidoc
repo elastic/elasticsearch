@@ -71,7 +71,8 @@ A successful request returns a JSON structure that contains the IDs of all updat
 [[security-api-bulk-update-api-keys-example]]
 ==== {api-examples-title}
 
-For the examples below, assume a user creates two API keys. The first API key:
+For the examples below, assume a user creates two API keys.
+The user creates the first API key:
 
 [source,console]
 ------------------------------------------------------------
@@ -99,7 +100,6 @@ POST /_security/api_key
   }
 }
 ------------------------------------------------------------
-// TEST[skip:api key ids not available]
 
 This results in a response with the following API key information.
 
@@ -112,6 +112,9 @@ This results in a response with the following API key information.
   "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
 }
 --------------------------------------------------
+// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
 The user creates the second API key:
 
@@ -130,7 +133,6 @@ POST /_security/api_key
   }
 }
 ------------------------------------------------------------
-// TEST[skip:api key ids not available]
 
 Resulting in the following API key information:
 
@@ -143,6 +145,9 @@ Resulting in the following API key information:
   "encoded": "SDNfQWhvSUJBOWhtZVFKZGc3aWo6MTM0RzRpbG1UX3VHV1hIUmZKZlhYQQ=="
 }
 --------------------------------------------------
+// TESTRESPONSE[s/H3_AhoIBA9hmeQJdg7ij/$body.id/]
+// TESTRESPONSE[s/134G4ilmT_uGWXHRfJfXXA/$body.api_key/]
+// TESTRESPONSE[s/SDNfQWhvSUJBOWhtZVFKZGc3aWo6MTM0RzRpbG1UX3VHV1hIUmZKZlhYQQ==/$body.encoded/]
 
 Further, assume that the owner user's permissions are:
 
@@ -161,7 +166,7 @@ Further, assume that the owner user's permissions are:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following example updates the API keys created above, assigning them new role descriptors and metadata:
+The following example updates the API keys created above, assigning them new role descriptors and metadata.
 
 [source,console]
 ----
@@ -280,7 +285,7 @@ For the next example, assume that the owner user's permissions have changed from
 --------------------------------------------------
 // NOTCONSOLE
 
-The following request auto-updates the snapshot of the user's permissions associated with the two API keys:
+The following request auto-updates the snapshot of the user's permissions associated with the two API keys.
 
 [source,console]
 ----
@@ -324,6 +329,7 @@ Resulting in the following effective permissions for both API keys:
 // NOTCONSOLE
 
 If any API keys fail to update, error details are included in the `errors` field.
+For example:
 
 [[security-api-bulk-update-api-keys-examples-errors]]
 [source,js]

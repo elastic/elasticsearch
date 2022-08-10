@@ -26,6 +26,8 @@ To update an API key, the owner user's credentials are required.
 ==== {api-description-title}
 
 Use this API to update API keys created by the <<security-api-create-api-key,create API Key>> or <<security-api-grant-api-key,grant API Key>> APIs.
+If you need to apply the same update to many API keys, you can use <<security-api-bulk-update-api-keys,bulk update API Keys>> to reduce overhead.
+
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
 
 This API supports updates to an API key's access scope and metadata.

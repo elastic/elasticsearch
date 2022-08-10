@@ -414,8 +414,14 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert publishRequest.getAcceptedState().nodes().getLocalNode().equals(getLocalNode())
             : publishRequest.getAcceptedState().nodes().getLocalNode() + " != " + getLocalNode();
 
+        final ClusterState newClusterState = publishRequest.getAcceptedState();
+        if (newClusterState.nodes().isLocalNodeElectedMaster() == false) {
+            // background initialization on the current master has been started by the master service already
+            newClusterState.initializeAsync(transportService.getThreadPool().generic());
+        }
+
         synchronized (mutex) {
-            final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
+            final DiscoveryNode sourceNode = newClusterState.nodes().getMasterNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
 
             if (sourceNode.equals(getLocalNode()) && mode != Mode.LEADER) {
@@ -427,30 +433,30 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             final ClusterState localState = coordinationState.get().getLastAcceptedState();
 
             if (localState.metadata().clusterUUIDCommitted()
-                && localState.metadata().clusterUUID().equals(publishRequest.getAcceptedState().metadata().clusterUUID()) == false) {
+                && localState.metadata().clusterUUID().equals(newClusterState.metadata().clusterUUID()) == false) {
                 logger.warn(
                     "received cluster state from {} with a different cluster uuid {} than local cluster uuid {}, rejecting",
                     sourceNode,
-                    publishRequest.getAcceptedState().metadata().clusterUUID(),
+                    newClusterState.metadata().clusterUUID(),
                     localState.metadata().clusterUUID()
                 );
                 throw new CoordinationStateRejectedException(
                     "received cluster state from "
                         + sourceNode
                         + " with a different cluster uuid "
-                        + publishRequest.getAcceptedState().metadata().clusterUUID()
+                        + newClusterState.metadata().clusterUUID()
                         + " than local cluster uuid "
                         + localState.metadata().clusterUUID()
                         + ", rejecting"
                 );
             }
 
-            if (publishRequest.getAcceptedState().term() > localState.term()) {
+            if (newClusterState.term() > localState.term()) {
                 // only do join validation if we have not accepted state from this master yet
-                onJoinValidators.forEach(a -> a.accept(getLocalNode(), publishRequest.getAcceptedState()));
+                onJoinValidators.forEach(a -> a.accept(getLocalNode(), newClusterState));
             }
 
-            ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
+            ensureTermAtLeast(sourceNode, newClusterState.term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
 
             if (sourceNode.equals(getLocalNode())) {
@@ -459,10 +465,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 becomeFollower("handlePublishRequest", sourceNode); // also updates preVoteCollector
             }
 
-            return new PublishWithJoinResponse(
-                publishResponse,
-                joinWithDestination(lastJoin, sourceNode, publishRequest.getAcceptedState().term())
-            );
+            return new PublishWithJoinResponse(publishResponse, joinWithDestination(lastJoin, sourceNode, newClusterState.term()));
         }
     }
 

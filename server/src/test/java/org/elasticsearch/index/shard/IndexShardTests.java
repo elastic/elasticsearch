@@ -55,6 +55,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -4400,7 +4401,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null),
+                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
                 config.getEventListener(),
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),

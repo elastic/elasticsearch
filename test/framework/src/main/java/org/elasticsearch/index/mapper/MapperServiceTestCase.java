@@ -21,6 +21,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -77,7 +78,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -644,8 +644,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
-        return (mft, lookupSource) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource))
+    protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo))
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 

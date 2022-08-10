@@ -3283,12 +3283,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 repoShardId
                             );
                         } else {
-                            startShardOperation(
-                                shardsBuilder(),
-                                updatedState.nodeId(),
-                                updatedState.generation(),
-                                entry.shardId(repoShardId)
-                            );
+                            startShardSnapshot(repoShardId, updatedState.generation());
                         }
                     }
                 }
@@ -3298,32 +3293,35 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 assert entry.source() == null;
                 // current entry is a snapshot operation so we must translate the repository shard id to a routing shard id
                 if (isQueued(entry.shardsByRepoShardId().get(repoShardId))) {
-                    final Index index = entry.indexByName(repoShardId.indexName());
-                    assert index != null
-                        : "index ["
-                            + repoShardId.index()
-                            + "] must exist in snapshot entry ["
-                            + entry
-                            + "] because it's a normal snapshot but did not";
-                    // A clone was updated, so we must use the correct data node id for the reassignment as actual shard snapshot
-                    final IndexRoutingTable indexRouting = currentState.routingTable().index(index);
-                    final ShardRouting shardRouting;
-                    if (indexRouting == null) {
-                        shardRouting = null;
-                    } else {
-                        shardRouting = indexRouting.shard(repoShardId.shardId()).primaryShard();
-                    }
-                    final ShardSnapshotStatus shardSnapshotStatus = initShardSnapshotStatus(generation, shardRouting);
-                    final ShardId routingShardId = shardRouting != null
-                        ? shardRouting.shardId()
-                        : new ShardId(index, repoShardId.shardId());
-                    if (shardSnapshotStatus.isActive()) {
-                        startShardOperation(shardsBuilder(), routingShardId, shardSnapshotStatus);
-                    } else {
-                        // update to queued snapshot did not result in an actual update execution so we just record it but keep applying
-                        // the update to e.g. fail all snapshots for a given shard if the primary for the shard went away
-                        shardsBuilder().put(routingShardId, shardSnapshotStatus);
-                    }
+                    startShardSnapshot(repoShardId, generation);
+                }
+            }
+
+            private void startShardSnapshot(RepositoryShardId repoShardId, ShardGeneration generation) {
+                final Index index = entry.indexByName(repoShardId.indexName());
+                assert index != null
+                    : "index ["
+                        + repoShardId.index()
+                        + "] must exist in snapshot entry ["
+                        + entry
+                        + "] because it's a normal snapshot but did not";
+                // work out the node to run the snapshot task on as it might have changed from the previous operation if it was a clone
+                // or there was a primary failover
+                final IndexRoutingTable indexRouting = currentState.routingTable().index(index);
+                final ShardRouting shardRouting;
+                if (indexRouting == null) {
+                    shardRouting = null;
+                } else {
+                    shardRouting = indexRouting.shard(repoShardId.shardId()).primaryShard();
+                }
+                final ShardSnapshotStatus shardSnapshotStatus = initShardSnapshotStatus(generation, shardRouting);
+                final ShardId routingShardId = shardRouting != null ? shardRouting.shardId() : new ShardId(index, repoShardId.shardId());
+                if (shardSnapshotStatus.isActive()) {
+                    startShardOperation(shardsBuilder(), routingShardId, shardSnapshotStatus);
+                } else {
+                    // update to queued snapshot did not result in an actual update execution so we just record it but keep applying
+                    // the update to e.g. fail all snapshots for a given shard if the primary for the shard went away
+                    shardsBuilder().put(routingShardId, shardSnapshotStatus);
                 }
             }
 

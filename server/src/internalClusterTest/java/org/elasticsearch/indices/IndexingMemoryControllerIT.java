@@ -9,6 +9,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -62,7 +63,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null),
+                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
                 config.getEventListener(),
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),

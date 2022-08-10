@@ -65,6 +65,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
@@ -80,13 +82,13 @@ import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
-import org.elasticsearch.xpack.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
@@ -542,6 +544,23 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(auth.getValue().principal(), is("hulk"));
             checkAuthApiKeyMetadata(metadata, auth);
         }
+    }
+
+    public void testBulkUpdateWithApiKeyCredentialNotSupported() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        final ApiKeyService service = createApiKeyService(settings);
+
+        final PlainActionFuture<BulkUpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.updateApiKeys(
+            AuthenticationTestHelper.builder().apiKey().build(false),
+            BulkUpdateApiKeyRequest.usingApiKeyIds("id"),
+            Set.of(),
+            listener
+        );
+
+        final var ex = expectThrows(ExecutionException.class, listener::get);
+        assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(ex.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
     }
 
     private Map<String, Object> mockKeyDocument(
@@ -1660,17 +1679,11 @@ public class ApiKeyServiceTests extends ESTestCase {
             new Authentication.RealmRef("realm1", "realm_type1", "node")
         );
 
-        var ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, apiKeyDocWithNullName)
-        );
+        var ex = expectThrows(IllegalArgumentException.class, () -> apiKeyService.validateForUpdate(apiKeyId, auth, apiKeyDocWithNullName));
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
 
         final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "", Version.V_8_2_0.id);
-        ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> apiKeyService.validateCurrentApiKeyDocForUpdate(apiKeyId, auth, apiKeyDocWithEmptyName)
-        );
+        ex = expectThrows(IllegalArgumentException.class, () -> apiKeyService.validateForUpdate(apiKeyId, auth, apiKeyDocWithEmptyName));
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
     }
 
@@ -1737,6 +1750,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final var service = createApiKeyService();
 
         final XContentBuilder builder = service.maybeBuildUpdatedDocument(
+            request.getId(),
             oldApiKeyDoc,
             newVersion,
             newAuthentication,

@@ -2,9 +2,9 @@
 [[internal-users]]
 === Internal users
 
-The {stack-security-features} use three _internal_ users (`_system`, `_xpack`,
-and `_xpack_security`), which are responsible for the operations that take place
-inside an {es} cluster.
+The {stack-security-features} use four _internal_ users (`_system`, `_xpack`,
+`_xpack_security`, and `_async_search`), which are responsible for the operations
+that take place inside an {es} cluster.
 
 These users are only used by requests that originate from within the cluster.
 For this reason, they cannot be used to authenticate against the API and there

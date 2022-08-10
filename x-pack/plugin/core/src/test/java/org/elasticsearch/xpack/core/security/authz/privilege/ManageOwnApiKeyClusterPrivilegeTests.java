@@ -11,6 +11,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.user.User;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -54,6 +57,16 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(apiKeyId);
 
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
+    }
+
+    public void testAuthenticationForBulkUpdateApiKeyAllowsAll() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+        final List<String> apiKeyIds = randomList(1, 5, () -> randomAlphaOfLengthBetween(4, 7));
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final TransportRequest bulkUpdateApiKeyRequest = new BulkUpdateApiKeyRequest(apiKeyIds, null, null);
+
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", bulkUpdateApiKeyRequest, authentication));
     }
 
     public void testAuthenticationWithApiKeyDeniesAccessToApiKeyActionsWhenItIsNotOwner() {

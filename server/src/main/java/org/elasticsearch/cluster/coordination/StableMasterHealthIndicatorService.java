@@ -154,11 +154,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     builder.field("stack_trace", coordinationDiagnosticsDetails.remoteExceptionStackTrace());
                 });
             }
-            if (coordinationDiagnosticsDetails.clusterFormationDescription() != null) {
-                builder.object(
-                    CLUSTER_FORMATION,
-                    xContentBuilder -> { builder.field("description", coordinationDiagnosticsDetails.clusterFormationDescription()); }
-                );
+            if (coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap() != null) {
+                builder.field(CLUSTER_FORMATION, coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap());
             }
             return builder.endObject();
         };

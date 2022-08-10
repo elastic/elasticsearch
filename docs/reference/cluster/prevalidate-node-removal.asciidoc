@@ -13,7 +13,7 @@ Prevalidate node removal.
 [[prevalidate-node-removal-api-request]]
 ==== {api-request-title}
 
-`GET /_internal/prevalidate_node_removal/<node>`
+`GET /_internal/prevalidate_node_removal/<node_id>`
 
 [[prevalidate-node-removal-api-prereqs]]
 ==== {api-prereq-title}
@@ -32,7 +32,7 @@ The result of the prevalidation is expressed as either `YES`, `NO`, or `UNKNOWN`
 [[prevalidate-node-removal-api-path-params]]
 ==== {api-path-parms-title}
 
-`<node>`::
+`<node_id>`::
     (Required, string) Comma-separated list of node IDs.
 
 [[prevalidate-node-removal-api-example]]

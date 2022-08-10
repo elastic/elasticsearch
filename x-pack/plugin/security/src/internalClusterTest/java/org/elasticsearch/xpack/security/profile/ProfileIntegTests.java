@@ -221,7 +221,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             allUids.add(future.actionGet().uid());
         });
 
-        final List<String> requestedUids = new ArrayList<>(randomSubsetOf(allUids));
+        final List<String> requestedUids = new ArrayList<>(randomNonEmptySubsetOf(allUids));
         String nonExistingUid = null;
         if (randomBoolean()) {
             // request a non-existing uid

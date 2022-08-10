@@ -71,7 +71,7 @@ A successful request returns a JSON structure that contains the IDs of all updat
 [[security-api-bulk-update-api-keys-example]]
 ==== {api-examples-title}
 
-For the examples below, assume a user creates two API keys as follows:
+For the examples below, assume a user creates two API keys. The first API key:
 
 [source,console]
 ------------------------------------------------------------
@@ -101,6 +101,20 @@ POST /_security/api_key
 ------------------------------------------------------------
 // TEST[skip:api key ids not available]
 
+This results in a response with the following API key information.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "VuaCfGcBCdbkQm-e5aOx",
+  "name": "my-api-key",
+  "api_key": "ui2lp2axTNmsyakw9tvNnw",
+  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
+}
+--------------------------------------------------
+
+The user creates the second API key:
+
 [source,console]
 ------------------------------------------------------------
 POST /_security/api_key
@@ -118,17 +132,7 @@ POST /_security/api_key
 ------------------------------------------------------------
 // TEST[skip:api key ids not available]
 
-This results in the following information for the two created API keys:
-
-[source,console-result]
---------------------------------------------------
-{
-  "id": "VuaCfGcBCdbkQm-e5aOx",
-  "name": "my-api-key",
-  "api_key": "ui2lp2axTNmsyakw9tvNnw",
-  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
-}
---------------------------------------------------
+Resulting in the following API key information:
 
 [source,console-result]
 --------------------------------------------------
@@ -319,7 +323,7 @@ Resulting in the following effective permissions for both API keys:
 --------------------------------------------------
 // NOTCONSOLE
 
-If any API keys fail to update, error details are included in the `errors` field:
+If any API keys fail to update, error details are included in the `errors` field.
 
 [[security-api-bulk-update-api-keys-examples-errors]]
 [source,js]

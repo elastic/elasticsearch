@@ -73,69 +73,53 @@ public abstract class TransportHealthNodeAction<Request extends ActionRequest, R
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());
         }
-        new AsyncSingleAction(task, request, listener).doStart(state);
+        if (isTaskCancelled(task)) {
+            listener.onFailure(new TaskCancelledException("Task was cancelled"));
+            return;
+        }
+        try {
+            ClusterState clusterState = clusterService.state();
+            DiscoveryNode healthNode = HealthNode.findHealthNode(clusterState);
+            DiscoveryNode localNode = clusterState.nodes().getLocalNode();
+            if (healthNode == null) {
+                listener.onFailure(new HealthNodeNotDiscoveredException("Health node was null"));
+            } else if (localNode.getId().equals(healthNode.getId())) {
+                threadPool.executor(executor).execute(() -> {
+                    try {
+                        if (isTaskCancelled(task)) {
+                            listener.onFailure(new TaskCancelledException("Task was cancelled"));
+                        } else {
+                            healthOperation(task, request, clusterState, listener);
+                        }
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            } else {
+                logger.trace("forwarding request [{}] to health node [{}]", actionName, healthNode);
+                transportService.sendRequest(
+                    healthNode,
+                    actionName,
+                    request,
+                    new ActionListenerResponseHandler<>(listener, responseReader) {
+                        @Override
+                        public void handleException(final TransportException exception) {
+                            logger.trace(
+                                () -> format("failure when forwarding request [%s] to health node [%s]", actionName, healthNode),
+                                exception
+                            );
+                            listener.onFailure(exception);
+                        }
+                    }
+                );
+            }
+        } catch (Exception e) {
+            logger.trace(() -> format("Failed to route/execute health node action %s", actionName), e);
+            listener.onFailure(e);
+        }
     }
 
-    class AsyncSingleAction {
-
-        private final ActionListener<Response> listener;
-        private final Request request;
-        private final Task task;
-
-        AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
-            this.task = task;
-            this.request = request;
-            this.listener = listener;
-        }
-
-        protected void doStart(ClusterState clusterState) {
-            if (isTaskCancelled()) {
-                listener.onFailure(new TaskCancelledException("Task was cancelled"));
-                return;
-            }
-            try {
-                DiscoveryNode healthNode = HealthNode.findHealthNode(clusterState);
-                DiscoveryNode localNode = clusterState.nodes().getLocalNode();
-                if (healthNode == null) {
-                    listener.onFailure(new HealthNodeNotDiscoveredException("Health node was null"));
-                } else if (localNode.getId().equals(healthNode.getId())) {
-                    threadPool.executor(executor).execute(() -> {
-                        try {
-                            if (isTaskCancelled()) {
-                                listener.onFailure(new TaskCancelledException("Task was cancelled"));
-                            } else {
-                                healthOperation(task, request, clusterState, listener);
-                            }
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
-                } else {
-                    logger.trace("forwarding request [{}] to health node [{}]", actionName, healthNode);
-                    transportService.sendRequest(
-                        healthNode,
-                        actionName,
-                        request,
-                        new ActionListenerResponseHandler<>(listener, responseReader) {
-                            @Override
-                            public void handleException(final TransportException exception) {
-                                logger.trace(
-                                    () -> format("failure when forwarding request [%s] to health node [%s]", actionName, healthNode),
-                                    exception
-                                );
-                                listener.onFailure(exception);
-                            }
-                        }
-                    );
-                }
-            } catch (Exception e) {
-                logger.trace(() -> format("Failed to route/execute health node action %s", actionName), e);
-                listener.onFailure(e);
-            }
-        }
-
-        private boolean isTaskCancelled() {
-            return (task instanceof CancellableTask t) && t.isCancelled();
-        }
+    private boolean isTaskCancelled(Task task) {
+        return (task instanceof CancellableTask t) && t.isCancelled();
     }
 }

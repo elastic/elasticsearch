@@ -258,7 +258,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
     public static class Histogram {
         private static final double ADJUST_FACTOR = 100.f;
 
-        // This kind of histogram as a lower memory footprint than a DoubleHistogram,
+        // This kind of histogram has a lower memory footprint than a DoubleHistogram,
         // and provides enough granularity for our use case
         private final ShortCountsHistogram delegate;
         private final MeanMetric average;
@@ -276,6 +276,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
         void reset() {
             delegate.reset();
+            average.reset();
         }
 
         public double getValueAtPercentile(double percentile) {

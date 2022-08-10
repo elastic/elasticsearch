@@ -51,11 +51,12 @@ public class PendingAllocationCommandsService {
     }
 
     public void onNoLongerMaster() {
-        var pendingCommands = pendingCommandsToCompute.clearAndGetAll();
-        for (var command : pendingCommands) {
-            command.listener.onFailure(new NotMasterException("no longer master"));
-        }
-        pendingCommandsToReconcile.clearAndGetAll();
+        // TODO uncomment once service is properly injected (currently this is shared between all nodes in ITs)
+//        var pendingCommands = pendingCommandsToCompute.clearAndGetAll();
+//        for (var command : pendingCommands) {
+//            command.listener.onFailure(new NotMasterException("no longer master"));
+//        }
+//        pendingCommandsToReconcile.clearAndGetAll();
     }
 
     public static void execute(

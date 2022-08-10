@@ -131,7 +131,7 @@ and one of them is not found:
   "errors": {
     "count": 1,
     "details": {
-      "u_doesnotexist_0": {
+      "u_does-not-exist_0": {
         "type": "resource_not_found_exception",
         "reason": "profile document not found"
       }

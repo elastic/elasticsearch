@@ -18,31 +18,34 @@ setup:
                 end_time: 2021-04-29T00:00:00Z
           mappings:
             properties:
-              "timestamp":
+              "@timestamp":
                 type: date
               uid:
                 type: keyword
                 time_series_dimension: true
               total_memory_used:
                 type: aggregate_metric_double
-                metrics: [ min, max, sum ]
-                default_metric: sum
+                metrics: [ min, max ]
+                default_metric: min
   - do:
       bulk:
         refresh: true
         index: test
         body:
           - '{ "index": {} }'
-          - '{ "timestamp": "2021-04-28T18:50:00.000Z", "uid": "001", "total_memory_used": 99198 }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "001", "total_memory_used": { "min": 99198, "max": 106780 } }'
           - '{ "index": {} }'
-          - '{ "timestamp": "2021-04-28T18:55:00.000Z", "uid": "001", "total_memory_used": 102334 }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "002", "total_memory_used": { "min": 102334, "max": 110450 } }'
           - '{ "index": {} }'
-          - '{ "timestamp": "2021-04-28T18:50:00.000Z", "uid": "002", "total_memory_used": 98012 }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "003", "total_memory_used": { "min": 98012, "max": 109009 } }'
           - '{ "index": {} }'
-          - '{ "timestamp": "2021-04-28T18:55:00.000Z", "uid": "002", "total_memory_used": 101990 }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "004", "total_memory_used": { "min": 101990, "max": 120770 } }'
 
 ---
 "Histogram aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.3.99"
+      reason: "rollup: unsupported aggregations errors added in 8.4.0"
 
   - do:
       catch: bad_request
@@ -63,6 +66,9 @@ setup:
 
 ---
 "Range aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.3.99"
+      reason: "rollup: unsupported aggregations errors added in 8.4.0"
 
   - do:
       catch: bad_request
@@ -90,6 +96,9 @@ setup:
 
 ---
 "Cardinality aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.3.99"
+      reason: "rollup: unsupported aggregations errors added in 8.4.0"
 
   - do:
       catch: bad_request
@@ -108,6 +117,9 @@ setup:
 
 ---
 "Percentiles aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.3.99"
+      reason: "rollup: unsupported aggregations errors added in 8.4.0"
 
   - do:
       catch: bad_request
@@ -127,6 +139,9 @@ setup:
 
 ---
 "Top-metrics aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.3.99"
+      reason: "rollup: unsupported aggregations errors added in 8.4.0"
 
   - do:
       catch: bad_request

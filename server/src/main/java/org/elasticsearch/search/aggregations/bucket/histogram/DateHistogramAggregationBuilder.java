@@ -13,12 +13,14 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledField;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -417,6 +419,17 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
+        if ("time_series".equals(context.getIndexSettings().getSettings().get(IndexSettings.MODE.getKey()))
+            && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramInterval.getIntervalType())) {
+            throw new UnsupportedAggregationOnDownsampledField(
+                config.getDescription()
+                    + " is not supported for aggregation ["
+                    + this.getName()
+                    + "] with interval type ["
+                    + dateHistogramInterval.getIntervalType().getPreferredName()
+                    + "]"
+            );
+        }
         DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
         final ZoneId tz = timeZone();

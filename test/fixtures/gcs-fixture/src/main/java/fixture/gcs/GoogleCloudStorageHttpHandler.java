@@ -12,7 +12,6 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -44,10 +43,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Minimal HTTP handler that acts as a Google Cloud Storage compliant server
@@ -333,9 +333,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         if (content == null) {
             final InputStream stream = fullRequestBody.streamInput();
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "Failed to find multi-part upload in [{}]",
-                    new BufferedReader(new InputStreamReader(stream)).lines().collect(Collectors.joining("\n"))
+                () -> format(
+                    "Failed to find multi-part upload in [%s]",
+                    new BufferedReader(new InputStreamReader(stream)).lines().collect(joining("\n"))
                 )
             );
         }

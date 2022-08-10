@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
@@ -164,9 +165,9 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                 }
                 if (false == ENCRYPTED_SNAPSHOT_FEATURE.check(getLicenseState())) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "Encrypted snapshots are not allowed for the currently installed license [{}]."
-                                + " Snapshots to the [{}] encrypted repository are not permitted."
+                        () -> format(
+                            "Encrypted snapshots are not allowed for the currently installed license [%s]."
+                                + " Snapshots to the [%s] encrypted repository are not permitted."
                                 + " All the other operations, including restore, work without restrictions.",
                             getLicenseState().getOperationMode().description(),
                             metadata.name()

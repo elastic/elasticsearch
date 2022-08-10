@@ -1,5 +1,0 @@
-pr: 84907
-summary: "Support mail, name, and dn claims in JWT realms"
-area: Authentication
-type: feature
-issues: []

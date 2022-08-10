@@ -9,8 +9,6 @@ package org.elasticsearch.test;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
@@ -27,7 +25,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
@@ -52,9 +49,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
         if (getCurrentClusterScope() == Scope.SUITE) {
             // Clear the realm cache for all realms since we use a SUITE scoped cluster
-            RestHighLevelClient restClient = new TestRestHighLevelClient();
-            restClient.security()
-                .clearRealmCache(new ClearRealmCacheRequest(Collections.emptyList(), Collections.emptyList()), SECURITY_REQUEST_OPTIONS);
+            getSecurityClient(SECURITY_REQUEST_OPTIONS).clearRealmCache("*");
         }
     }
 

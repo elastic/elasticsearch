@@ -25,10 +25,14 @@ testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'false'
-  requiresFeature 'es.rollup_v2_feature_flag_enabled', Version.fromString("8.0.0")
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.3.0")
 }
 
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("yamlRestTest").configure{enabled = false }
+}
+
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest("rollup/10_basic/Rollup index", "rollup for TSDB changed the configuration")
 }

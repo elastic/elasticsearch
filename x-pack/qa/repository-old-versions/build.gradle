@@ -47,9 +47,13 @@ restResources {
   }
 }
 
+if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+  jdks.legacy.vendor = 'zulu'
+  jdks.legacy.distributionVersion = '8.56.0.23'
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling repository-old-versions tests because we can't get the pid file on windows")
-  tasks.named("testingConventions").configure { enabled = false }
 } else {
   /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
    * zip files here. Using artifact transforms allow a better caching of the downloaded distros as the
@@ -62,6 +66,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
   });
 
+  int currentMajorVersion = org.elasticsearch.gradle.VersionProperties.elasticsearchVersion.major
+  assert (currentMajorVersion - 2) == 6 : "add archive BWC tests for major version " + (currentMajorVersion - 2)
   for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.20']) {
     Version version = Version.fromString(versionString)
     String packageName = 'org.elasticsearch.distribution.zip'

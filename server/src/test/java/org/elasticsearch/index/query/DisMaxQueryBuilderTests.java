@@ -95,15 +95,13 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 "queries" : [ {
                   "term" : {
                     "age" : {
-                      "value" : 34,
-                      "boost" : 1.0
+                      "value" : 34
                     }
                   }
                 }, {
                   "term" : {
                     "age" : {
-                      "value" : 35,
-                      "boost" : 1.0
+                      "value" : 35
                     }
                   }
                 } ],

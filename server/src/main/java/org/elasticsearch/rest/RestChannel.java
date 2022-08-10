@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -29,7 +29,7 @@ public interface RestChannel {
     XContentBuilder newBuilder(@Nullable XContentType xContentType, @Nullable XContentType responseContentType, boolean useFiltering)
         throws IOException;
 
-    BytesStreamOutput bytesOutput();
+    BytesStream bytesOutput();
 
     RestRequest request();
 

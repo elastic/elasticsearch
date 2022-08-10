@@ -1,5 +1,0 @@
-pr: 85138
-summary: Speed up `MetadataStateFormat` Writes
-area: Cluster Coordination
-type: enhancement
-issues: []

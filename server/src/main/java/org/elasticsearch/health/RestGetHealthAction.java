@@ -20,6 +20,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetHealthAction extends BaseRestHandler {
 
+    private static final String EXPLAIN_PARAM = "explain";
+
     @Override
     public String getName() {
         // TODO: Existing - "cluster_health_action", "cat_health_action"
@@ -28,12 +30,14 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_internal/_health"));
+        return List.of(new Route(GET, "/_internal/_health"), new Route(GET, "/_internal/_health/{indicator}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request();
+        String indicatorName = request.param("indicator");
+        boolean explain = request.paramAsBoolean(EXPLAIN_PARAM, true);
+        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, explain);
         return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
     }
 }

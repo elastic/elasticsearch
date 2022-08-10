@@ -10,14 +10,13 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CumulativeSumTests extends BasePipelineAggregationTestCase<CumulativeSumPipelineAggregationBuilder> {
     @Override
@@ -42,9 +41,7 @@ public class CumulativeSumTests extends BasePipelineAggregationTestCase<Cumulati
     }
 
     public void testInvalidParent() throws IOException {
-        AggregationBuilder parent = mock(AggregationBuilder.class);
-        when(parent.getName()).thenReturn("name");
-
+        AggregationBuilder parent = new TermsAggregationBuilder("name");
         assertThat(
             validate(parent, new CumulativeSumPipelineAggregationBuilder("name", "invalid_agg>metric")),
             equalTo(

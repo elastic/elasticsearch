@@ -17,8 +17,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.core.internal.net.NetUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -126,12 +125,12 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         assertThat(nettyChannel.getNettyChannel(), instanceOf(Netty4NioSocketChannel.class));
         Netty4NioSocketChannel netty4NioSocketChannel = (Netty4NioSocketChannel) nettyChannel.getNettyChannel();
         SocketChannel socketChannel = netty4NioSocketChannel.javaChannel();
-        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIdleSocketOptionOrNull()));
-        Integer keepIdle = socketChannel.getOption(NetUtils.getTcpKeepIdleSocketOptionOrNull());
+        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIdleSocketOption()));
+        Integer keepIdle = socketChannel.getOption(NetUtils.getTcpKeepIdleSocketOption());
         assertNotNull(keepIdle);
         assertThat(keepIdle, lessThanOrEqualTo(500));
-        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIntervalSocketOptionOrNull()));
-        Integer keepInterval = socketChannel.getOption(NetUtils.getTcpKeepIntervalSocketOptionOrNull());
+        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIntervalSocketOption()));
+        Integer keepInterval = socketChannel.getOption(NetUtils.getTcpKeepIntervalSocketOption());
         assertNotNull(keepInterval);
         assertThat(keepInterval, lessThanOrEqualTo(500));
     }

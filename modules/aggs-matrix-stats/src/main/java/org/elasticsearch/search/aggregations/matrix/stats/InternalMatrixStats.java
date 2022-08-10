@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
 
@@ -202,6 +204,26 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
+        } else if (path.size() == 2) {
+            if (results == null) {
+                return emptyMap();
+            }
+            final String field = path.get(0)
+                .replaceAll("^\"", "") // remove leading "
+                .replaceAll("^'", "") // remove leading '
+                .replaceAll("\"$", "") // remove trailing "
+                .replaceAll("'$", ""); // remove trailing '
+            final String element = path.get(1);
+            return switch (element) {
+                case "counts" -> results.getFieldCount(field);
+                case "means" -> results.getMean(field);
+                case "variances" -> results.getVariance(field);
+                case "skewness" -> results.getSkewness(field);
+                case "kurtosis" -> results.getKurtosis(field);
+                case "covariance" -> results.getCovariance(field, field);
+                case "correlation" -> results.getCorrelation(field, field);
+                default -> throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
+            };
         } else if (path.size() == 1) {
             String element = path.get(0);
             if (results == null) {
@@ -235,6 +257,16 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
         RunningStats runningStats = new RunningStats();
         for (InternalAggregation agg : aggs) {
+            final Set<String> missingFields = runningStats.missingFieldNames(((InternalMatrixStats) agg).stats);
+            if (missingFields.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + agg.getName()
+                        + "] all fields must exist in all indices, but some indices are missing these fields ["
+                        + String.join(", ", new TreeSet<>(missingFields))
+                        + "]"
+                );
+            }
             runningStats.merge(((InternalMatrixStats) agg).stats);
         }
 

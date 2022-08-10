@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -132,17 +133,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
                 onTaskSuccess.add(() -> nodeJoinTask.listener().onResponse(null));
             }
-            joinTaskContext.success(new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterState clusterState) {
-                    for (Runnable joinCompleter : onTaskSuccess) {
-                        joinCompleter.run();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    joinTask.onFailure(e);
+            joinTaskContext.success(() -> {
+                for (Runnable joinCompleter : onTaskSuccess) {
+                    joinCompleter.run();
                 }
             });
         }
@@ -179,7 +172,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
             }
 
-            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build());
+            final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
+                newState.nodes(nodesBuilder).build()
+            );
+            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
                 || updatedState.nodes().getMinNodeVersion().onOrAfter(currentState.nodes().getMinNodeVersion())
                 : "min node version decreased from ["

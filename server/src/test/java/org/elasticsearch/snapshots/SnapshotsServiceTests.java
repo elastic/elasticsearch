@@ -228,9 +228,10 @@ public class SnapshotsServiceTests extends ESTestCase {
                     .add(
                         IndexRoutingTable.builder(routingShardId1.getIndex())
                             .addIndexShard(
-                                new IndexShardRoutingTable.Builder(routingShardId1).addShard(
-                                    TestShardRouting.newShardRouting(routingShardId1, dataNodeId, true, ShardRoutingState.STARTED)
-                                ).build()
+                                IndexShardRoutingTable.builder(routingShardId1)
+                                    .addShard(
+                                        TestShardRouting.newShardRouting(routingShardId1, dataNodeId, true, ShardRoutingState.STARTED)
+                                    )
                             )
                     )
                     .build()
@@ -256,9 +257,10 @@ public class SnapshotsServiceTests extends ESTestCase {
                     .add(
                         IndexRoutingTable.builder(routingShardId1.getIndex())
                             .addIndexShard(
-                                new IndexShardRoutingTable.Builder(routingShardId1).addShard(
-                                    TestShardRouting.newShardRouting(routingShardId1, dataNodeId, true, ShardRoutingState.INITIALIZING)
-                                ).build()
+                                IndexShardRoutingTable.builder(routingShardId1)
+                                    .addShard(
+                                        TestShardRouting.newShardRouting(routingShardId1, dataNodeId, true, ShardRoutingState.INITIALIZING)
+                                    )
                             )
                     )
                     .build()
@@ -350,10 +352,10 @@ public class SnapshotsServiceTests extends ESTestCase {
         final SnapshotsInProgress.Entry completedSnapshot = snapshotsInProgress.forRepo(repoName).get(0);
         assertThat(completedSnapshot.state(), is(SnapshotsInProgress.State.SUCCESS));
         final SnapshotsInProgress.Entry startedSnapshot = snapshotsInProgress.forRepo(repoName).get(1);
-        assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.STARTED));
+        assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.SUCCESS));
         final SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus = startedSnapshot.shards().get(routingShardId);
-        assertThat(shardSnapshotStatus.state(), is(SnapshotsInProgress.ShardState.INIT));
-        assertThat(shardSnapshotStatus.nodeId(), is(dataNodeId));
+        assertThat(shardSnapshotStatus.state(), is(SnapshotsInProgress.ShardState.MISSING));
+        assertNull(shardSnapshotStatus.nodeId());
         assertIsNoop(updatedClusterState, completeShard);
     }
 
@@ -481,7 +483,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         final RoutingTable.Builder routingTable = RoutingTable.builder();
         for (String index : indexNames) {
             final Index idx = metaBuilder.get(index).getIndex();
-            routingTable.add(IndexRoutingTable.builder(idx).addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(idx, 0)).build()));
+            routingTable.add(IndexRoutingTable.builder(idx).addIndexShard(IndexShardRoutingTable.builder(new ShardId(idx, 0))));
         }
         return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metaBuilder).routingTable(routingTable.build()).build();
     }

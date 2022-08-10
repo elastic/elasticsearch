@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
@@ -15,18 +16,28 @@ import java.io.IOException;
 /**
  * Per-document geo-point values.
  */
-public abstract class GeoPointValues {
+public final class GeoPointValues {
+
+    private final GeoPoint point = new GeoPoint();
+    private final NumericDocValues values;
+
+    GeoPointValues(NumericDocValues values) {
+        this.values = values;
+    }
 
     /**
      * Advance this instance to the given document id
      * @return true if there is a value for this document
      */
-    public abstract boolean advanceExact(int doc) throws IOException;
+    public boolean advanceExact(int doc) throws IOException {
+        return values.advanceExact(doc);
+    }
 
     /**
      * Get the {@link GeoPoint} associated with the current document.
      * The returned {@link GeoPoint} might be reused across calls.
      */
-    public abstract GeoPoint geoPointValue();
-
+    public GeoPoint geoPointValue() throws IOException {
+        return point.resetFromEncoded(values.longValue());
+    }
 }

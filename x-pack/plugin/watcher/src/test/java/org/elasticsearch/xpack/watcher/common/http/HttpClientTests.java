@@ -10,8 +10,6 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -541,7 +539,7 @@ public class HttpClientTests extends ESTestCase {
                     socket.getOutputStream().flush();
                 } catch (Exception e) {
                     hasExceptionHappened.set(e);
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Error in writing non HTTP response"), e);
+                    logger.error("Error in writing non HTTP response", e);
                 }
             });
             HttpRequest request = HttpRequest.builder("localhost", serverSocket.getLocalPort()).path("/").build();

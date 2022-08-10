@@ -14,7 +14,7 @@ import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
-import java.util.Map;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -53,7 +53,7 @@ public class FleetTests extends ESTestCase {
     public void testFleetFeature() {
         Fleet module = new Fleet();
         Feature fleet = Feature.fromSystemIndexPlugin(module, Settings.EMPTY);
-        SystemIndices systemIndices = new SystemIndices(Map.of(module.getFeatureName(), fleet));
+        SystemIndices systemIndices = new SystemIndices(List.of(fleet));
         assertNotNull(systemIndices);
     }
 }

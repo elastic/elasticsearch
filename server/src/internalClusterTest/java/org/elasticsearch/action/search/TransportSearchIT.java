@@ -39,6 +39,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
@@ -694,7 +695,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         public void close() {}
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 

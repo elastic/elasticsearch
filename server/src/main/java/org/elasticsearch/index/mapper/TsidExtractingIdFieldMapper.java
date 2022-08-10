@@ -19,17 +19,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
@@ -99,13 +97,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
         }
     }
 
     private TsidExtractingIdFieldMapper() {
-        super(new IdFieldType(), Lucene.KEYWORD_ANALYZER);
+        super(new IdFieldType());
     }
 
     private static final long SEED = 0;
@@ -196,5 +194,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             return tsid;
         }
         return tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
+    }
+
+    @Override
+    public String reindexId(String id) {
+        // null the _id so we recalculate it on write
+        return null;
     }
 }

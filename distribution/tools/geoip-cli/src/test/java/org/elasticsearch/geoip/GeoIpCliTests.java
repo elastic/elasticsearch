@@ -8,10 +8,13 @@
 
 package org.elasticsearch.geoip;
 
+import joptsimple.OptionException;
+
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -34,7 +37,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
-public class GeoIpCliTests extends LuceneTestCase {
+public class GeoIpCliTests extends CommandTestCase {
 
     private Path source;
     private Path target;
@@ -46,16 +49,14 @@ public class GeoIpCliTests extends LuceneTestCase {
     }
 
     public void testNoSource() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        new GeoIpCli().main(new String[] {}, terminal);
-        assertThat(terminal.getErrorOutput(), containsString("Missing required option(s) [s/source]"));
+        var e = expectThrows(OptionException.class, () -> execute());
+        assertThat(e.getMessage(), containsString("Missing required option(s) [s/source]"));
     }
 
     public void testDifferentDirectories() throws Exception {
         Map<String, byte[]> data = createTestFiles(source);
 
-        GeoIpCli cli = new GeoIpCli();
-        cli.main(new String[] { "-t", target.toAbsolutePath().toString(), "-s", source.toAbsolutePath().toString() }, new MockTerminal());
+        execute("-t", target.toAbsolutePath().toString(), "-s", source.toAbsolutePath().toString());
 
         try (Stream<Path> list = Files.list(source)) {
             List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
@@ -73,9 +74,7 @@ public class GeoIpCliTests extends LuceneTestCase {
 
     public void testSameDirectory() throws Exception {
         Map<String, byte[]> data = createTestFiles(target);
-
-        GeoIpCli cli = new GeoIpCli();
-        cli.main(new String[] { "-s", target.toAbsolutePath().toString() }, new MockTerminal());
+        execute("-s", target.toAbsolutePath().toString());
 
         try (Stream<Path> list = Files.list(target)) {
             List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
@@ -142,5 +141,10 @@ public class GeoIpCliTests extends LuceneTestCase {
         Files.createFile(dir.resolve("c.tgz"));
 
         return data;
+    }
+
+    @Override
+    protected Command newCommand() {
+        return new GeoIpCli();
     }
 }

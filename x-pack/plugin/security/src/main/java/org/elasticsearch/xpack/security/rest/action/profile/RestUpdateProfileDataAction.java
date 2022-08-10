@@ -36,7 +36,7 @@ public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("access"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("labels"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("data"));
     }
 
@@ -64,7 +64,7 @@ public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
 
         final UpdateProfileDataRequest updateProfileDataRequest = new UpdateProfileDataRequest(
             uid,
-            payload.access,
+            payload.labels,
             payload.data,
             ifPrimaryTerm,
             ifSeqNo,
@@ -74,5 +74,5 @@ public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
         return channel -> client.execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest, new RestToXContentListener<>(channel));
     }
 
-    record Payload(Map<String, Object> access, Map<String, Object> data) {}
+    record Payload(Map<String, Object> labels, Map<String, Object> data) {}
 }

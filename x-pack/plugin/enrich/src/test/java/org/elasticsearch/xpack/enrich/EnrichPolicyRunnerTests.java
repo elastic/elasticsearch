@@ -52,16 +52,17 @@ import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -86,7 +87,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, TestGeoShapeFieldMapperPlugin.class, LocalStateEnrich.class);
+        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, SpatialPlugin.class, LocalStateEnrich.class);
     }
 
     private static ThreadPool testThreadPool;
@@ -1949,6 +1950,47 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         latch.await();
         assertThat(exception.get(), notNullValue());
         assertThat(exception.get().getMessage(), containsString("cancelled policy execution [test1], status ["));
+    }
+
+    public void testRunRangePolicyWithObjectFieldAsMatchField() throws Exception {
+        final String sourceIndex = "source-index";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("field1");
+        if (randomBoolean()) {
+            mapping.field("type", "object");
+        }
+        mapping.startObject("properties")
+            .startObject("sub")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("field3")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(sourceIndex, Settings.EMPTY, mapping);
+
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "field1", List.of("field2"));
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        Exception e = exception.get();
+        assertThat(e, notNullValue());
+        assertThat(e.getMessage(), equalTo("Field 'field1' has type [object] which doesn't appear to be a range type"));
     }
 
     private EnrichPolicyRunner createPolicyRunner(

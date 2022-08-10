@@ -139,11 +139,14 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     @Override
     public void close(ActionListener<Boolean> listener) {
-        client.execute(
-            ClosePointInTimeAction.INSTANCE,
-            new ClosePointInTimeRequest(pitId),
-            map(listener, ClosePointInTimeResponse::isSucceeded)
-        );
-        pitId = null;
+        // the pitId could be null as a consequence of a failure on openPIT
+        if (pitId != null) {
+            client.execute(
+                ClosePointInTimeAction.INSTANCE,
+                new ClosePointInTimeRequest(pitId),
+                map(listener, ClosePointInTimeResponse::isSucceeded)
+            );
+            pitId = null;
+        }
     }
 }

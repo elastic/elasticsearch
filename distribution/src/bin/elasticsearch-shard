@@ -1,5 +1,3 @@
 #!/bin/bash
 
-ES_MAIN_CLASS=org.elasticsearch.index.shard.ShardToolCli \
-  "`dirname "$0"`"/elasticsearch-cli \
-  "$@"
+source "`dirname "$0"`"/elasticsearch-cli

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -56,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class ShardChangesAction extends ActionType<ShardChangesAction.Response> {
@@ -464,11 +464,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             final IndexShard indexShard
         ) {
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "{} exception waiting for global checkpoint advancement to [{}]",
-                    shardId,
-                    request.getFromSeqNo()
-                ),
+                () -> format("%s exception waiting for global checkpoint advancement to [%s]", shardId, request.getFromSeqNo()),
                 e
             );
             if (e instanceof TimeoutException) {

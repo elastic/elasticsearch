@@ -90,12 +90,16 @@ public interface Role {
      * @param checkForIndexPatterns check permission grants for the set of index patterns
      * @param allowRestrictedIndices if {@code true} then checks permission grants even for restricted indices by index matching
      * @param checkForPrivileges check permission grants for the set of index privileges
-     * @return an instance of {@link ResourcePrivilegesMap}
+     * @param resourcePrivilegesMapBuilder out-parameter for returning the details on which privilege over which resource is granted or not.
+     *                                     Can be {@code null} when no such details are needed so the method can return early, after
+     *                                     encountering the first privilege that is not granted over some resource.
+     * @return {@code true} when all the privileges are granted over all the resources, or {@code false} otherwise
      */
-    ResourcePrivilegesMap checkIndicesPrivileges(
+    boolean checkIndicesPrivileges(
         Set<String> checkForIndexPatterns,
         boolean allowRestrictedIndices,
-        Set<String> checkForPrivileges
+        Set<String> checkForPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     );
 
     /**
@@ -127,13 +131,17 @@ public interface Role {
      * @param checkForPrivilegeNames check permission grants for the set of privilege names
      * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for an application against which the access checks are
      * performed
-     * @return an instance of {@link ResourcePrivilegesMap}
+     * @param resourcePrivilegesMapBuilder out-parameter for returning the details on which privilege over which resource is granted or not.
+     *                                     Can be {@code null} when no such details are needed so the method can return early, after
+     *                                     encountering the first privilege that is not granted over some resource.
+     * @return {@code true} when all the privileges are granted over all the resources, or {@code false} otherwise
      */
-    ResourcePrivilegesMap checkApplicationResourcePrivileges(
+    boolean checkApplicationResourcePrivileges(
         String applicationName,
         Set<String> checkForResources,
         Set<String> checkForPrivilegeNames,
-        Collection<ApplicationPrivilegeDescriptor> storedPrivileges
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     );
 
     /**

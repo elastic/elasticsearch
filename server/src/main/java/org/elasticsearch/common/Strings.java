@@ -32,6 +32,8 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Strings {
 
@@ -278,17 +280,6 @@ public class Strings {
     }
 
     /**
-     * Delete all occurrences of the given substring.
-     *
-     * @param inString the original String
-     * @param pattern  the pattern to delete all occurrences of
-     * @return the resulting String
-     */
-    public static String delete(String inString, String pattern) {
-        return replace(inString, pattern, "");
-    }
-
-    /**
      * Delete any character in a given String.
      *
      * @param inString      the original String
@@ -313,17 +304,6 @@ public class Strings {
     // ---------------------------------------------------------------------
     // Convenience methods for working with formatted Strings
     // ---------------------------------------------------------------------
-
-    /**
-     * Quote the given String with single quotes.
-     *
-     * @param str the input String (e.g. "myString")
-     * @return the quoted String (e.g. "'myString'"),
-     *         or <code>null</code> if the input was <code>null</code>
-     */
-    public static String quote(String str) {
-        return (str != null ? "'" + str + "'" : null);
-    }
 
     /**
      * Capitalize a <code>String</code>, changing the first letter to
@@ -351,12 +331,13 @@ public class Strings {
         return sb.toString();
     }
 
-    public static final Set<Character> INVALID_FILENAME_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+    public static final String INVALID_FILENAME_CHARS = "["
+        + Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',').map(c -> "'" + c + "'").collect(Collectors.joining(","))
+        + "]";
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
-            char c = fileName.charAt(i);
-            if (INVALID_FILENAME_CHARS.contains(c)) {
+            if (isInvalidFileNameCharacter(fileName.charAt(i))) {
                 return false;
             }
         }
@@ -366,11 +347,18 @@ public class Strings {
     public static boolean validFileNameExcludingAstrix(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
             char c = fileName.charAt(i);
-            if (c != '*' && INVALID_FILENAME_CHARS.contains(c)) {
+            if (c != '*' && isInvalidFileNameCharacter(c)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isInvalidFileNameCharacter(char c) {
+        return switch (c) {
+            case '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',' -> true;
+            default -> false;
+        };
     }
 
     /**

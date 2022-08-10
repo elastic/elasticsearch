@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -206,37 +205,33 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         Metadata metadata = Metadata.builder()
             .indices(
-                ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .fPut(
-                        AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
-                        IndexMetadata.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(SETTING_INDEX_HIDDEN, true)
-                                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
-                            .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).isHidden(true).build())
-                            .build()
-                    )
-                    .fPut(
-                        AnnotationIndex.LATEST_INDEX_NAME,
-                        IndexMetadata.builder(AnnotationIndex.LATEST_INDEX_NAME)
-                            .settings(
-                                Settings.builder()
-                                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(SETTING_INDEX_HIDDEN, true)
-                                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
-                            .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).isHidden(true).build())
-                            .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true).build())
-                            .build()
-                    )
-                    .build()
+                Map.of(
+                    AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
+                    IndexMetadata.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001")
+                        .settings(
+                            Settings.builder()
+                                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_INDEX_HIDDEN, true)
+                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .build()
+                        )
+                        .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).isHidden(true).build())
+                        .build(),
+                    AnnotationIndex.LATEST_INDEX_NAME,
+                    IndexMetadata.builder(AnnotationIndex.LATEST_INDEX_NAME)
+                        .settings(
+                            Settings.builder()
+                                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_INDEX_HIDDEN, true)
+                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .build()
+                        )
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).isHidden(true).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true).build())
+                        .build()
+                )
             )
             .build();
         clusterState = mock(ClusterState.class);

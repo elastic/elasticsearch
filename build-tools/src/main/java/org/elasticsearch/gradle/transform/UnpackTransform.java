@@ -13,6 +13,7 @@ import org.gradle.api.artifacts.transform.TransformAction;
 import org.gradle.api.artifacts.transform.TransformOutputs;
 import org.gradle.api.artifacts.transform.TransformParameters;
 import org.gradle.api.file.FileSystemLocation;
+import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -21,16 +22,24 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
-import org.gradle.internal.UncheckedException;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.function.Function;
 
 public interface UnpackTransform extends TransformAction<UnpackTransform.Parameters> {
+
+    Logger LOGGER = Logging.getLogger(UnpackTransform.class);
 
     interface Parameters extends TransformParameters {
         @Input
@@ -78,11 +87,16 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         }
 
         try {
-            Logging.getLogger(UnpackTransform.class)
-                .info("Unpacking " + archiveFile.getName() + " using " + getClass().getSimpleName() + ".");
+            LOGGER.info("Unpacking {} using {}.", archiveFile.getName(), getClass().getSimpleName());
             unpack(archiveFile, extractedDir, outputs, getParameters().getAsFiletreeOutput());
-        } catch (IOException e) {
-            throw UncheckedException.throwAsUncheckedException(e);
+        } catch (IOException e1) {
+            String hash = "[unknown]";
+            try {
+                hash = getSha1(archiveFile);
+            } catch (Exception e2) {
+                LOGGER.warn("Unable to calculate hash for file " + archiveFile.getPath(), e2);
+            }
+            throw new UncheckedIOException("Failed to unpack " + archiveFile.getName() + " with checksum " + hash, e1);
         }
     }
 
@@ -136,5 +150,16 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         }
         // finally remove the top-level directories from the output path
         return entryName.subpath(index + 1, entryName.getNameCount());
+    }
+
+    static String getSha1(File file) throws IOException, NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-1");
+        try (InputStream is = new DigestInputStream(new FileInputStream(file), digest)) {
+            byte[] buffer = new byte[4096];
+            while (is.read(buffer) > 0) {
+                // loop
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
     }
 }

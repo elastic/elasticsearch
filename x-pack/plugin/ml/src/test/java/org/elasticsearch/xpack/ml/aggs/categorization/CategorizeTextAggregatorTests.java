@@ -64,9 +64,9 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             CategorizeTextAggregatorTests::writeTestDocs,
             (InternalCategorizationAggregation result) -> {
                 assertThat(result.getBuckets(), hasSize(2));
-                assertThat(result.getBuckets().get(0).docCount, equalTo(6L));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
                 assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
-                assertThat(result.getBuckets().get(1).docCount, equalTo(2L));
+                assertThat(result.getBuckets().get(1).getDocCount(), equalTo(2L));
                 assertThat(
                     result.getBuckets().get(1).getKeyAsString(),
                     equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
@@ -89,20 +89,20 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             CategorizeTextAggregatorTests::writeTestDocs,
             (InternalCategorizationAggregation result) -> {
                 assertThat(result.getBuckets(), hasSize(2));
-                assertThat(result.getBuckets().get(0).docCount, equalTo(6L));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
                 assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
-                assertThat(((Max) result.getBuckets().get(0).aggregations.get("max")).value(), equalTo(5.0));
-                assertThat(((Min) result.getBuckets().get(0).aggregations.get("min")).value(), equalTo(0.0));
-                assertThat(((Avg) result.getBuckets().get(0).aggregations.get("avg")).getValue(), equalTo(2.5));
+                assertThat(((Max) result.getBuckets().get(0).getAggregations().get("max")).value(), equalTo(5.0));
+                assertThat(((Min) result.getBuckets().get(0).getAggregations().get("min")).value(), equalTo(0.0));
+                assertThat(((Avg) result.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(2.5));
 
-                assertThat(result.getBuckets().get(1).docCount, equalTo(2L));
+                assertThat(result.getBuckets().get(1).getDocCount(), equalTo(2L));
                 assertThat(
                     result.getBuckets().get(1).getKeyAsString(),
                     equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
                 );
-                assertThat(((Max) result.getBuckets().get(1).aggregations.get("max")).value(), equalTo(4.0));
-                assertThat(((Min) result.getBuckets().get(1).aggregations.get("min")).value(), equalTo(0.0));
-                assertThat(((Avg) result.getBuckets().get(1).aggregations.get("avg")).getValue(), equalTo(2.0));
+                assertThat(((Max) result.getBuckets().get(1).getAggregations().get("max")).value(), equalTo(4.0));
+                assertThat(((Min) result.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(0.0));
+                assertThat(((Avg) result.getBuckets().get(1).getAggregations().get("avg")).getValue(), equalTo(2.0));
             },
             new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME),
             longField(NUMERIC_FIELD_NAME)
@@ -123,9 +123,9 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             CategorizeTextAggregatorTests::writeTestDocs,
             (InternalCategorizationAggregation result) -> {
                 assertThat(result.getBuckets(), hasSize(2));
-                assertThat(result.getBuckets().get(0).docCount, equalTo(6L));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
                 assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
-                Histogram histo = result.getBuckets().get(0).aggregations.get("histo");
+                Histogram histo = result.getBuckets().get(0).getAggregations().get("histo");
                 assertThat(histo.getBuckets(), hasSize(3));
                 for (Histogram.Bucket bucket : histo.getBuckets()) {
                     assertThat(bucket.getDocCount(), equalTo(2L));
@@ -140,12 +140,12 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 assertThat(((Min) histo.getBuckets().get(2).getAggregations().get("min")).value(), equalTo(4.0));
                 assertThat(((Avg) histo.getBuckets().get(2).getAggregations().get("avg")).getValue(), equalTo(4.5));
 
-                assertThat(result.getBuckets().get(1).docCount, equalTo(2L));
+                assertThat(result.getBuckets().get(1).getDocCount(), equalTo(2L));
                 assertThat(
                     result.getBuckets().get(1).getKeyAsString(),
                     equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
                 );
-                histo = result.getBuckets().get(1).aggregations.get("histo");
+                histo = result.getBuckets().get(1).getAggregations().get("histo");
                 assertThat(histo.getBuckets(), hasSize(3));
                 assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(1L));
                 assertThat(histo.getBuckets().get(1).getDocCount(), equalTo(0L));
@@ -175,49 +175,49 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(3L));
             InternalCategorizationAggregation categorizationAggregation = result.getBuckets().get(0).getAggregations().get("my_agg");
             assertThat(categorizationAggregation.getBuckets(), hasSize(2));
-            assertThat(categorizationAggregation.getBuckets().get(0).docCount, equalTo(2L));
+            assertThat(categorizationAggregation.getBuckets().get(0).getDocCount(), equalTo(2L));
             assertThat(categorizationAggregation.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
-            assertThat(((Max) categorizationAggregation.getBuckets().get(0).aggregations.get("max")).value(), equalTo(1.0));
-            assertThat(((Min) categorizationAggregation.getBuckets().get(0).aggregations.get("min")).value(), equalTo(0.0));
-            assertThat(((Avg) categorizationAggregation.getBuckets().get(0).aggregations.get("avg")).getValue(), equalTo(0.5));
+            assertThat(((Max) categorizationAggregation.getBuckets().get(0).getAggregations().get("max")).value(), equalTo(1.0));
+            assertThat(((Min) categorizationAggregation.getBuckets().get(0).getAggregations().get("min")).value(), equalTo(0.0));
+            assertThat(((Avg) categorizationAggregation.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(0.5));
 
-            assertThat(categorizationAggregation.getBuckets().get(1).docCount, equalTo(1L));
+            assertThat(categorizationAggregation.getBuckets().get(1).getDocCount(), equalTo(1L));
             assertThat(
                 categorizationAggregation.getBuckets().get(1).getKeyAsString(),
                 equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
             );
-            assertThat(((Max) categorizationAggregation.getBuckets().get(1).aggregations.get("max")).value(), equalTo(0.0));
-            assertThat(((Min) categorizationAggregation.getBuckets().get(1).aggregations.get("min")).value(), equalTo(0.0));
-            assertThat(((Avg) categorizationAggregation.getBuckets().get(1).aggregations.get("avg")).getValue(), equalTo(0.0));
+            assertThat(((Max) categorizationAggregation.getBuckets().get(1).getAggregations().get("max")).value(), equalTo(0.0));
+            assertThat(((Min) categorizationAggregation.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(0.0));
+            assertThat(((Avg) categorizationAggregation.getBuckets().get(1).getAggregations().get("avg")).getValue(), equalTo(0.0));
 
             // Second histo bucket
             assertThat(result.getBuckets().get(1).getDocCount(), equalTo(2L));
             categorizationAggregation = result.getBuckets().get(1).getAggregations().get("my_agg");
             assertThat(categorizationAggregation.getBuckets(), hasSize(1));
-            assertThat(categorizationAggregation.getBuckets().get(0).docCount, equalTo(2L));
+            assertThat(categorizationAggregation.getBuckets().get(0).getDocCount(), equalTo(2L));
             assertThat(categorizationAggregation.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
-            assertThat(((Max) categorizationAggregation.getBuckets().get(0).aggregations.get("max")).value(), equalTo(3.0));
-            assertThat(((Min) categorizationAggregation.getBuckets().get(0).aggregations.get("min")).value(), equalTo(2.0));
-            assertThat(((Avg) categorizationAggregation.getBuckets().get(0).aggregations.get("avg")).getValue(), equalTo(2.5));
+            assertThat(((Max) categorizationAggregation.getBuckets().get(0).getAggregations().get("max")).value(), equalTo(3.0));
+            assertThat(((Min) categorizationAggregation.getBuckets().get(0).getAggregations().get("min")).value(), equalTo(2.0));
+            assertThat(((Avg) categorizationAggregation.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(2.5));
 
             // Third histo bucket
             assertThat(result.getBuckets().get(2).getDocCount(), equalTo(3L));
             categorizationAggregation = result.getBuckets().get(2).getAggregations().get("my_agg");
             assertThat(categorizationAggregation.getBuckets(), hasSize(2));
-            assertThat(categorizationAggregation.getBuckets().get(0).docCount, equalTo(2L));
+            assertThat(categorizationAggregation.getBuckets().get(0).getDocCount(), equalTo(2L));
             assertThat(categorizationAggregation.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
-            assertThat(((Max) categorizationAggregation.getBuckets().get(0).aggregations.get("max")).value(), equalTo(5.0));
-            assertThat(((Min) categorizationAggregation.getBuckets().get(0).aggregations.get("min")).value(), equalTo(4.0));
-            assertThat(((Avg) categorizationAggregation.getBuckets().get(0).aggregations.get("avg")).getValue(), equalTo(4.5));
+            assertThat(((Max) categorizationAggregation.getBuckets().get(0).getAggregations().get("max")).value(), equalTo(5.0));
+            assertThat(((Min) categorizationAggregation.getBuckets().get(0).getAggregations().get("min")).value(), equalTo(4.0));
+            assertThat(((Avg) categorizationAggregation.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(4.5));
 
-            assertThat(categorizationAggregation.getBuckets().get(1).docCount, equalTo(1L));
+            assertThat(categorizationAggregation.getBuckets().get(1).getDocCount(), equalTo(1L));
             assertThat(
                 categorizationAggregation.getBuckets().get(1).getKeyAsString(),
                 equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
             );
-            assertThat(((Max) categorizationAggregation.getBuckets().get(1).aggregations.get("max")).value(), equalTo(4.0));
-            assertThat(((Min) categorizationAggregation.getBuckets().get(1).aggregations.get("min")).value(), equalTo(4.0));
-            assertThat(((Avg) categorizationAggregation.getBuckets().get(1).aggregations.get("avg")).getValue(), equalTo(4.0));
+            assertThat(((Max) categorizationAggregation.getBuckets().get(1).getAggregations().get("max")).value(), equalTo(4.0));
+            assertThat(((Min) categorizationAggregation.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(4.0));
+            assertThat(((Avg) categorizationAggregation.getBuckets().get(1).getAggregations().get("avg")).getValue(), equalTo(4.0));
         }, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME));
     }
 
@@ -235,12 +235,12 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             CategorizeTextAggregatorTests::writeManyTestDocs,
             (InternalCategorizationAggregation result) -> {
                 assertThat(result.getBuckets(), hasSize(2));
-                assertThat(result.getBuckets().get(0).docCount, equalTo(30_000L));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(30000L));
                 assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
-                Histogram histo = result.getBuckets().get(0).aggregations.get("histo");
+                Histogram histo = result.getBuckets().get(0).getAggregations().get("histo");
                 assertThat(histo.getBuckets(), hasSize(3));
                 for (Histogram.Bucket bucket : histo.getBuckets()) {
-                    assertThat(bucket.getDocCount(), equalTo(10_000L));
+                    assertThat(bucket.getDocCount(), equalTo(10000L));
                 }
                 assertThat(((Max) histo.getBuckets().get(0).getAggregations().get("max")).value(), equalTo(1.0));
                 assertThat(((Min) histo.getBuckets().get(0).getAggregations().get("min")).value(), equalTo(0.0));
@@ -252,16 +252,16 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 assertThat(((Min) histo.getBuckets().get(2).getAggregations().get("min")).value(), equalTo(4.0));
                 assertThat(((Avg) histo.getBuckets().get(2).getAggregations().get("avg")).getValue(), equalTo(4.5));
 
-                assertThat(result.getBuckets().get(1).docCount, equalTo(10_000L));
+                assertThat(result.getBuckets().get(1).getDocCount(), equalTo(10000L));
                 assertThat(
                     result.getBuckets().get(1).getKeyAsString(),
                     equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
                 );
-                histo = result.getBuckets().get(1).aggregations.get("histo");
+                histo = result.getBuckets().get(1).getAggregations().get("histo");
                 assertThat(histo.getBuckets(), hasSize(3));
-                assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(5_000L));
+                assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(5000L));
                 assertThat(histo.getBuckets().get(1).getDocCount(), equalTo(0L));
-                assertThat(histo.getBuckets().get(2).getDocCount(), equalTo(5_000L));
+                assertThat(histo.getBuckets().get(2).getDocCount(), equalTo(5000L));
                 assertThat(((Avg) histo.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(0.0));
                 assertThat(((Avg) histo.getBuckets().get(2).getAggregations().get("avg")).getValue(), equalTo(4.0));
             },
@@ -328,7 +328,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
     }
 
     private static void writeManyTestDocs(RandomIndexWriter w) throws IOException {
-        for (int i = 0; i < 5_000; i++) {
+        for (int i = 0; i < 5000; i++) {
             writeTestDocs(w);
         }
     }

@@ -153,6 +153,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             "indices": [
                 {
                     "names": [
+                        "search-*",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
                         "metricbeat-ent-search-*",

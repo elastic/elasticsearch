@@ -1,0 +1,110 @@
+[[modules-network-threading-model]]
+==== Networking threading model
+
+This section describes the threading model used by the networking subsystem in
+{es}. This information isn't required to use {es}, but it may be useful to
+advanced users who are diagnosing network problems in a cluster.
+
+{es} nodes communicate over a collection of TCP channels that together form a
+transport connection. {es} clients communicate with the cluster over HTTP,
+which also uses one or more TCP channels. Each of these TCP channels is owned
+by exactly one of the `transport_worker` threads in the node. This owning
+thread is chosen when the channel is opened and remains the same for the
+lifetime of the channel.
+
+Each `transport_worker` thread has sole responsibility for sending and
+receiving data over the channels it owns. One of the `transport_worker` threads
+is also responsible for accepting new incoming transport connections, and one
+is responsible for accepting new HTTP connections.
+
+If a thread in {es} wants to send data over a particular channel, it passes the
+data to the owning `transport_worker` thread for the actual transmission.
+
+Normally the `transport_worker` threads will not completely handle the messages
+they receive. Instead, they will do a small amount of preliminary processing
+and then dispatch (hand off) the message to a different
+<<modules-threadpool,threadpool>> for the rest of their handling. For instance,
+bulk messages are dispatched to the `write` threadpool, searches are dispatched
+to one of the `search` threadpools, and requests for statistics and other
+management tasks are mostly dispatched to the `management` threadpool. However
+in some cases the processing of a message is expected to be so quick that {es}
+will do all of the processing on the `transport_worker` thread rather than
+incur the overhead of dispatching it elsewhere.
+
+By default, there is one `transport_worker` thread per CPU. In contrast, there
+may sometimes be tens-of-thousands of TCP channels. If data arrives on a TCP
+channel and its owning `transport_worker` thread is busy, the data isn't
+processed until the thread finishes whatever it is doing. Similarly, outgoing
+data are not sent over a channel until the owning `transport_worker` thread is
+free. This means that we require every `transport_worker` thread to be idle
+frequently. An idle `transport_worker` looks something like this in a stack
+dump:
+
+[source,text]
+----
+"elasticsearch[instance-0000000004][transport_worker][T#1]" #32 daemon prio=5 os_prio=0 cpu=9645.94ms elapsed=501.63s tid=0x00007fb83b6307f0 nid=0x1c4 runnable  [0x00007fb7b8ffe000]
+   java.lang.Thread.State: RUNNABLE
+	at sun.nio.ch.EPoll.wait(java.base@17.0.2/Native Method)
+	at sun.nio.ch.EPollSelectorImpl.doSelect(java.base@17.0.2/EPollSelectorImpl.java:118)
+	at sun.nio.ch.SelectorImpl.lockAndDoSelect(java.base@17.0.2/SelectorImpl.java:129)
+	- locked <0x00000000c443c518> (a sun.nio.ch.Util$2)
+	- locked <0x00000000c38f7700> (a sun.nio.ch.EPollSelectorImpl)
+	at sun.nio.ch.SelectorImpl.select(java.base@17.0.2/SelectorImpl.java:146)
+	at io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:813)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:460)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at java.lang.Thread.run(java.base@17.0.2/Thread.java:833)
+----
+
+In the <<cluster-nodes-hot-threads>> API an idle `transport_worker` thread is
+reported like this:
+
+[source,text]
+----
+   100.0% [cpu=0.0%, other=100.0%] (500ms out of 500ms) cpu usage by thread 'elasticsearch[instance-0000000004][transport_worker][T#1]'
+     10/10 snapshots sharing following 9 elements
+       java.base@17.0.2/sun.nio.ch.EPoll.wait(Native Method)
+       java.base@17.0.2/sun.nio.ch.EPollSelectorImpl.doSelect(EPollSelectorImpl.java:118)
+       java.base@17.0.2/sun.nio.ch.SelectorImpl.lockAndDoSelect(SelectorImpl.java:129)
+       java.base@17.0.2/sun.nio.ch.SelectorImpl.select(SelectorImpl.java:146)
+       io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:813)
+       io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:460)
+       io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:986)
+       io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+       java.base@17.0.2/java.lang.Thread.run(Thread.java:833)
+----
+
+Note that `transport_worker` threads should always be in state `RUNNABLE`, even
+when waiting for input, because they block in the native `EPoll#wait` method.
+This means the hot threads API will report these threads at 100% overall
+utilisation. This is normal, and the breakdown of time into `cpu=` and `other=`
+fractions shows how much time the thread spent running and waiting for input
+respectively.
+
+If a `transport_worker` thread is not frequently idle, it may build up a
+backlog of work. This can cause delays in processing messages on the channels
+that it owns. It's hard to predict exactly which work will be delayed:
+
+* There are many more channels than threads. If work related to one channel is
+causing delays to its worker thread, all other channels owned by that thread
+will also suffer delays.
+
+* The mapping from TCP channels to worker threads is fixed but arbitrary. Each
+channel is assigned an owning thread in a round-robin fashion when the channel
+is opened. Each worker thread is responsible for many different kinds of
+channel.
+
+* There are many channels open between each pair of nodes. For each request,
+{es} will choose from the appropriate channels in a round-robin fashion. Some
+requests may end up on a channel owned by a delayed worker while other
+identical requests will be sent on a channel that's working smoothly.
+
+If the backlog builds up too far, some messages may be delayed by many seconds.
+The node might even <<cluster-fault-detection,fail its health checks>> and be
+removed from the cluster. Sometimes, you can find evidence of busy
+`transport_worker` threads using the <<cluster-nodes-hot-threads>> API.
+However, this API itself sends network messages so may not work correctly if
+the `transport_worker` threads are too busy. It is more reliable to use
+`jstack` to obtain stack dumps or use Java Flight Recorder to obtain a
+profiling trace. These tools are independent of any work the JVM is performing.

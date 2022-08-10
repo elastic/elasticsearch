@@ -19,8 +19,9 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -84,7 +84,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
-    private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING;
+    public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING;
 
     private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
 
@@ -122,6 +122,47 @@ public class MetadataIndexTemplateService {
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
 
+    /**
+     * This is the cluster state task executor for all template-based actions.
+     */
+    private static final ClusterStateTaskExecutor<TemplateClusterStateUpdateTask> TEMPLATE_TASK_EXECUTOR = (currentState, taskContexts) -> {
+        ClusterState state = currentState;
+        for (final var taskContext : taskContexts) {
+            try {
+                final var task = taskContext.getTask();
+                state = task.execute(state);
+                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
+            } catch (Exception e) {
+                taskContext.onFailure(e);
+            }
+        }
+        return state;
+    };
+
+    /**
+     * A specialized cluster state update task that always takes a listener handling an
+     * AcknowledgedResponse, as all template actions have simple acknowledged yes/no responses.
+     */
+    private abstract static class TemplateClusterStateUpdateTask implements ClusterStateTaskListener {
+        final ActionListener<AcknowledgedResponse> listener;
+
+        TemplateClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener) {
+            this.listener = listener;
+        }
+
+        public abstract ClusterState execute(ClusterState currentState) throws Exception;
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "not called";
+        }
+    }
+
     @Inject
     public MetadataIndexTemplateService(
         ClusterService clusterService,
@@ -141,53 +182,33 @@ public class MetadataIndexTemplateService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
-    }
-
-    public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask(
-            "remove-index-template [" + request.name + "]",
-            new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    Set<String> templateNames = new HashSet<>();
-                    for (Map.Entry<String, IndexTemplateMetadata> cursor : currentState.metadata().templates().entrySet()) {
-                        String templateName = cursor.getKey();
-                        if (Regex.simpleMatch(request.name, templateName)) {
-                            templateNames.add(templateName);
-                        }
+    public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", new TemplateClusterStateUpdateTask(listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                Set<String> templateNames = new HashSet<>();
+                for (Map.Entry<String, IndexTemplateMetadata> cursor : currentState.metadata().templates().entrySet()) {
+                    String templateName = cursor.getKey();
+                    if (Regex.simpleMatch(request.name, templateName)) {
+                        templateNames.add(templateName);
                     }
-                    if (templateNames.isEmpty()) {
-                        // if its a match all pattern, and no templates are found (we have none), don't
-                        // fail with index missing...
-                        if (Regex.isMatchAllPattern(request.name)) {
-                            return currentState;
-                        }
-                        throw new IndexTemplateMissingException(request.name);
-                    }
-                    Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-                    for (String templateName : templateNames) {
-                        logger.info("removing template [{}]", templateName);
-                        metadata.removeTemplate(templateName);
-                    }
-                    return ClusterState.builder(currentState).metadata(metadata).build();
                 }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
+                if (templateNames.isEmpty()) {
+                    // if its a match all pattern, and no templates are found (we have none), don't
+                    // fail with index missing...
+                    if (Regex.isMatchAllPattern(request.name)) {
+                        return currentState;
+                    }
+                    throw new IndexTemplateMissingException(request.name);
                 }
-            },
-            newExecutor()
-        );
+                Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+                for (String templateName : templateNames) {
+                    logger.info("removing template [{}]", templateName);
+                    metadata.removeTemplate(templateName);
+                }
+                return ClusterState.builder(currentState).metadata(metadata).build();
+            }
+        }, ClusterStateTaskConfig.build(Priority.URGENT, request.masterTimeout), TEMPLATE_TASK_EXECUTOR);
     }
 
     /**
@@ -204,29 +225,19 @@ public class MetadataIndexTemplateService {
     ) {
         clusterService.submitStateUpdateTask(
             "create-component-template [" + name + "], cause [" + cause + "]",
-            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
+            new TemplateClusterStateUpdateTask(listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return addComponentTemplate(currentState, create, name, template);
                 }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }
             },
-            newExecutor()
+            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
+            TEMPLATE_TASK_EXECUTOR
         );
     }
 
-    // Package visible for testing
-    ClusterState addComponentTemplate(
+    // Public visible for testing
+    public ClusterState addComponentTemplate(
         final ClusterState currentState,
         final boolean create,
         final String name,
@@ -376,24 +387,14 @@ public class MetadataIndexTemplateService {
         validateNotInUse(state.metadata(), names);
         clusterService.submitStateUpdateTask(
             "remove-component-template [" + String.join(",", names) + "]",
-            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
+            new TemplateClusterStateUpdateTask(listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerRemoveComponentTemplate(currentState, names);
                 }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }
             },
-            newExecutor()
+            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
+            TEMPLATE_TASK_EXECUTOR
         );
     }
 
@@ -493,24 +494,14 @@ public class MetadataIndexTemplateService {
         validateV2TemplateRequest(clusterService.state().metadata(), name, template);
         clusterService.submitStateUpdateTask(
             "create-index-template-v2 [" + name + "], cause [" + cause + "]",
-            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
+            new TemplateClusterStateUpdateTask(listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return addIndexTemplateV2(currentState, create, name, template);
                 }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }
             },
-            newExecutor()
+            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
+            TEMPLATE_TASK_EXECUTOR
         );
     }
 
@@ -635,17 +626,21 @@ public class MetadataIndexTemplateService {
         var finalTemplate = Optional.ofNullable(indexTemplate.template());
         var finalSettings = Settings.builder();
         final var now = Instant.now();
+        final var metadata = currentState.getMetadata();
 
+        final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), "tmp_idx");
+        final var combinedSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
             finalSettings.put(
                 provider.getAdditionalIndexSettings(
                     "validate-index-name",
                     indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    indexTemplate.getDataStreamTemplate() != null ? indexTemplate.getDataStreamTemplate().getIndexMode() : null,
+                    indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
                     currentState.getMetadata(),
                     now,
-                    finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
+                    combinedSettings,
+                    combinedMappings
                 )
             );
         }
@@ -748,6 +743,7 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
+        Metadata currentMetadata = state.getMetadata();
         Metadata updatedMetadata = null;
         Set<String> dataStreamsWithNonTsdbTemplate = null;
 
@@ -761,7 +757,7 @@ public class MetadataIndexTemplateService {
             }
             var matchingTemplate = findV2Template(updatedMetadata, dataStream.getName(), false);
             if (templateName.equals(matchingTemplate)) {
-                if (newTemplate.getDataStreamTemplate().getIndexMode() != IndexMode.TIME_SERIES) {
+                if (currentMetadata.isTimeSeriesTemplate(newTemplate) == false) {
                     if (dataStreamsWithNonTsdbTemplate == null) {
                         dataStreamsWithNonTsdbTemplate = new HashSet<>();
                     }
@@ -771,6 +767,8 @@ public class MetadataIndexTemplateService {
         }
 
         if (dataStreamsWithNonTsdbTemplate != null) {
+            var settings = MetadataIndexTemplateService.resolveSettings(newTemplate, currentMetadata.componentTemplates());
+            var routingPaths = IndexMetadata.INDEX_ROUTING_PATH.get(settings);
             throw new IllegalArgumentException(
                 "composable template ["
                     + templateName
@@ -779,9 +777,9 @@ public class MetadataIndexTemplateService {
                     + ", priority ["
                     + newTemplate.priority()
                     + "]"
-                    + ", index_mode ["
-                    + newTemplate.getDataStreamTemplate().getIndexMode()
-                    + "] "
+                    + ", index.routing_path "
+                    + routingPaths
+                    + " "
                     + "would cause tsdb data streams "
                     + dataStreamsWithNonTsdbTemplate
                     + " to no longer match a data stream template with a time_series index_mode"
@@ -883,24 +881,14 @@ public class MetadataIndexTemplateService {
     ) {
         clusterService.submitStateUpdateTask(
             "remove-index-template-v2 [" + String.join(",", names) + "]",
-            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
+            new TemplateClusterStateUpdateTask(listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerRemoveIndexTemplateV2(currentState, names);
                 }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }
             },
-            newExecutor()
+            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
+            TEMPLATE_TASK_EXECUTOR
         );
     }
 
@@ -992,7 +980,7 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toSet());
     }
 
-    public void putTemplate(final PutRequest request, final PutListener listener) {
+    public void putTemplate(final PutRequest request, final ActionListener<AcknowledgedResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
@@ -1017,25 +1005,15 @@ public class MetadataIndexTemplateService {
 
         clusterService.submitStateUpdateTask(
             "create-index-template [" + request.name + "], cause [" + request.cause + "]",
-            new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
+            new TemplateClusterStateUpdateTask(listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     validateTemplate(request.settings, request.mappings, indicesService);
                     return innerPutTemplate(currentState, request, templateBuilder);
                 }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new PutResponse(true));
-                }
             },
-            newExecutor()
+            ClusterStateTaskConfig.build(Priority.URGENT, request.masterTimeout),
+            TEMPLATE_TASK_EXECUTOR
         );
     }
 
@@ -1247,8 +1225,7 @@ public class MetadataIndexTemplateService {
     /**
      * Collect the given v2 template into an ordered list of mappings.
      */
-    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName, final String indexName)
-        throws Exception {
+    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName, final String indexName) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve mappings for a template [" + templateName + "] that did not exist in the cluster state";
@@ -1267,7 +1244,7 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final Map<String, ComponentTemplate> componentTemplates,
         final String indexName
-    ) throws Exception {
+    ) {
         Objects.requireNonNull(template, "Composable index template must be provided");
         List<CompressedXContent> mappings = template.composedOf()
             .stream()
@@ -1483,7 +1460,7 @@ public class MetadataIndexTemplateService {
             try {
                 MapperService mapperService = tempIndexService.mapperService();
                 for (CompressedXContent mapping : mappings) {
-                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
+                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
                 }
 
                 if (template.getDataStreamTemplate() != null) {
@@ -1553,12 +1530,7 @@ public class MetadataIndexTemplateService {
             name,
             maybeTemplate.map(Template::settings).orElse(Settings.EMPTY),
             indexPatterns,
-            maybeTemplate.map(Template::aliases)
-                .orElse(Collections.emptyMap())
-                .values()
-                .stream()
-                .map(MetadataIndexTemplateService::toAlias)
-                .toList()
+            maybeTemplate.map(Template::aliases).orElse(emptyMap()).values().stream().map(MetadataIndexTemplateService::toAlias).toList()
         );
     }
 
@@ -1658,13 +1630,6 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    public interface PutListener {
-
-        void onResponse(PutResponse response);
-
-        void onFailure(Exception e);
-    }
-
     public static class PutRequest {
         final String name;
         final String cause;
@@ -1724,18 +1689,6 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    public static class PutResponse {
-        private final boolean acknowledged;
-
-        public PutResponse(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
-    }
-
     public static class RemoveRequest {
         final String name;
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
@@ -1748,12 +1701,5 @@ public class MetadataIndexTemplateService {
             this.masterTimeout = masterTimeout;
             return this;
         }
-    }
-
-    public interface RemoveListener {
-
-        void onResponse(AcknowledgedResponse response);
-
-        void onFailure(Exception e);
     }
 }

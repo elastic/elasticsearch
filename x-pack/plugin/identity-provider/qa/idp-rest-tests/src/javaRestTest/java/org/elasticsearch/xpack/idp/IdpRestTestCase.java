@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.idp;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -33,16 +32,12 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@SuppressWarnings("removal")
 public abstract class IdpRestTestCase extends ESRestTestCase {
-
-    private RestHighLevelClient highLevelAdminClient;
 
     @Override
     protected Settings restAdminSettings() {
@@ -54,14 +49,6 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("idp_admin", new SecureString("idp-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    private RestHighLevelClient getHighLevelAdminClient() {
-        if (highLevelAdminClient == null) {
-            highLevelAdminClient = new RestHighLevelClient(adminClient(), ignore -> {}, List.of()) {
-            };
-        }
-        return highLevelAdminClient;
     }
 
     protected User createUser(String username, SecureString password, String role) throws IOException {

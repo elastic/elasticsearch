@@ -10,7 +10,6 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
@@ -46,8 +45,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -446,7 +445,12 @@ public class TranslogTests extends ESTestCase {
         assertThat(Translog.findEarliestLastModifiedAge(fixedTime, readers, w), equalTo(LongStream.of(periods).max().orElse(0L)));
     }
 
-    public void testStats() throws IOException {
+    private void waitForPositiveAge() throws Exception {
+        final var lastModifiedTime = translog.getCurrent().getLastModifiedTime();
+        assertBusy(() -> assertThat(System.currentTimeMillis(), greaterThan(lastModifiedTime)));
+    }
+
+    public void testStats() throws Exception {
         // self control cleaning for test
         final long firstOperationPosition = translog.getFirstOperationPosition();
         {
@@ -454,9 +458,10 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.estimatedNumberOfOperations(), equalTo(0));
         }
         assertThat((int) firstOperationPosition, greaterThan(CodecUtil.headerLength(TranslogHeader.TRANSLOG_CODEC)));
-        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
 
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(157L));
@@ -467,6 +472,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.add(new Translog.Delete("2", 1, primaryTerm.get()));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(193L));
@@ -477,6 +483,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.add(new Translog.Delete("3", 2, primaryTerm.get()));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(229L));
@@ -487,6 +494,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.add(new Translog.NoOp(3, 1, randomAlphaOfLength(16)));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(271L));
@@ -497,6 +505,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.rollGeneration();
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
@@ -532,13 +541,13 @@ public class TranslogTests extends ESTestCase {
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));
         translog.trimUnreferencedReaders();
         {
-            long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(0));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
-            assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
     }
 
@@ -1032,7 +1041,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("--> writer [{}] had an error", threadName), e);
+                    logger.error(() -> "--> writer [" + threadName + "] had an error", e);
                     errors.add(e);
                 }
             }, threadName);
@@ -1047,7 +1056,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("--> reader [{}] had an error", threadId), e);
+                    logger.error(() -> "--> reader [" + threadId + "] had an error", e);
                     errors.add(e);
                     try {
                         closeRetentionLock();
@@ -3335,18 +3344,14 @@ public class TranslogTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         long randomSeqNum = randomNonNegativeLong();
         long randomPrimaryTerm = randomBoolean() ? 0 : randomNonNegativeLong();
-        seqID.seqNo.setLongValue(randomSeqNum);
-        seqID.seqNoDocValue.setLongValue(randomSeqNum);
-        seqID.primaryTerm.setLongValue(randomPrimaryTerm);
+        seqID.set(randomSeqNum, randomPrimaryTerm);
         Field idField = IdFieldMapper.standardIdField("1");
         Field versionField = new NumericDocValuesField("_version", 1);
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("value", "test", Field.Store.YES));
         document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        seqID.addFields(document);
         ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", null, Arrays.asList(document), B_1, XContentType.JSON, null);
 
         Engine.Index eIndex = new Engine.Index(

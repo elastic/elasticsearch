@@ -1,0 +1,5 @@
+pr: 87229
+summary: Support exists query for API key query
+area: Security
+type: enhancement
+issues: []

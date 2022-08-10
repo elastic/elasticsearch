@@ -1,0 +1,169 @@
+keyword:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+
+---
+fetch without refresh also produces synthetic source:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              refresh_interval: -1
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              obj:
+                properties:
+                  kwd:
+                    type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: false # no refreshing!
+        body:
+          obj.kwd: foo
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source: # synthetic source will convert the dotted field names into an object, even when loading from the translog
+        obj:
+          kwd: foo
+
+---
+force_synthetic_source_ok:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              obj:
+                properties:
+                  kwd:
+                    type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          obj.kwd: foo
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      get:
+        index: test
+        id: 1
+  - match:
+      _source:
+        obj.kwd: foo
+
+  # When we force synthetic source dots in field names get turned into objects
+  - do:
+      get:
+        index: test
+        id: 1
+        force_synthetic_source: true
+  - match:
+      _source:
+        obj:
+          kwd: foo
+
+---
+force_synthetic_source_bad_mapping:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1 # Use a single shard to get consistent error messages
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: foo
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      get:
+        index: test
+        id: 1
+  - match:
+      _source:
+        text: foo
+
+  # Forcing synthetic source fails because the mapping is invalid
+  - do:
+      catch: bad_request
+      get:
+        index: test
+        id: 1
+        force_synthetic_source: true

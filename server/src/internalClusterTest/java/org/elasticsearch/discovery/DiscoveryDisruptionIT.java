@@ -8,6 +8,7 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.JoinHelper;
@@ -27,6 +28,8 @@ import org.elasticsearch.transport.TransportService;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -205,4 +208,53 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3);
     }
 
+    public void testJoinWaitsForClusterApplier() throws Exception {
+        startCluster(3);
+
+        final var masterName = internalCluster().getMasterName();
+        final var victimName = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
+        logger.info("--> master [{}], victim [{}]", masterName, victimName);
+
+        // block the cluster applier thread on the victim (we expect no further cluster state applications at this point)
+        logger.info("--> blocking victim's applier service");
+        final var barrier = new CyclicBarrier(2);
+        internalCluster().getInstance(ClusterService.class, victimName).getClusterApplierService().onNewClusterState("block", () -> {
+            try {
+                barrier.await(10, TimeUnit.SECONDS);
+                barrier.await(10, TimeUnit.SECONDS);
+                return null;
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }, ActionListener.wrap(() -> {}));
+        barrier.await(10, TimeUnit.SECONDS);
+
+        // drop the victim from the cluster with a network disruption
+        final var masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterName);
+        masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(TransportService.class, victimName));
+        logger.info("--> waiting for victim's departure");
+        ensureStableCluster(2, masterName);
+
+        // verify that the victim sends no joins while the applier is blocked
+        final var victimTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, victimName);
+        victimTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            assertNotEquals(action, JoinHelper.JOIN_ACTION_NAME);
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // fix the network disruption
+        logger.info("--> removing network disruption");
+        masterTransportService.clearAllRules();
+        ensureStableCluster(2, masterName);
+
+        // permit joins again
+        victimTransportService.addSendBehavior(null);
+
+        // release the cluster applier thread
+        logger.info("--> releasing block on victim's applier service");
+        barrier.await(10, TimeUnit.SECONDS);
+
+        logger.info("--> waiting for cluster to heal");
+        ensureStableCluster(3);
+    }
 }

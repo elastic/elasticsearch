@@ -135,7 +135,7 @@ public final class AnalysisModule {
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
                 }
-                return new AbstractTokenFilterFactory(indexSettings, name, settings) {
+                return new AbstractTokenFilterFactory(name, settings) {
                     @Override
                     public TokenStream create(TokenStream tokenStream) {
                         return tokenStream;

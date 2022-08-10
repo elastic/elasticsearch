@@ -150,6 +150,22 @@ setup:
                 type : date
   - do:
       indices.create:
+        index: test_ck_without_constant_field
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              foo:
+                type : constant_keyword
+              other:
+                type : text
+              timestamp:
+                type : date
+  - do:
+      indices.create:
         index: test_f
         body:
           settings:
@@ -194,6 +210,12 @@ setup:
           index:  test_ck
           id:     "2"
           body:   { other: "foo", "timestamp":"2020-01-01T01:01:01.000Z"  }
+
+  - do:
+      index:
+        index:  test_ck_without_constant_field
+        id:     "2"
+        body:   { other: "foo", "timestamp":"2020-01-01T01:01:01.000Z"  }
 
   - do:
       index:
@@ -465,6 +487,18 @@ teardown:
         index:  test_ck
         body:  {"field": "foo", "string":"", "search_after":"baa"}
   - length: {terms: 1}
+
+---
+"Test search after on unconfigured constant keyword field":
+  - skip:
+      version: " - 8.2.99"
+      reason:  bug fixed in 8.3.0
+
+  - do:
+      terms_enum:
+        index:  test_ck_without_constant_field
+        body:  {"field": "foo", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
 
 ---
 "Test index filtering":

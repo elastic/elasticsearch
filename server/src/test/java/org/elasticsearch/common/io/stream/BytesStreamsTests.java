@@ -421,8 +421,8 @@ public class BytesStreamsTests extends ESTestCase {
             byte[] bytes = BytesReference.toBytes(out.bytes());
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
                 assertEquals(in.available(), bytes.length);
-                IOException e = expectThrows(IOException.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
-                assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+                AssertionError e = expectThrows(AssertionError.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
+                assertThat(e.getCause().getMessage(), endsWith("] returned null which is not allowed."));
             }
         }
     }
@@ -431,8 +431,8 @@ public class BytesStreamsTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeOptionalWriteable(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-            IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
-            assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+            AssertionError e = expectThrows(AssertionError.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
+            assertThat(e.getCause().getMessage(), endsWith("] returned null which is not allowed."));
         }
     }
 
@@ -523,7 +523,7 @@ public class BytesStreamsTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        final ImmutableOpenMap<String, String> loaded = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readString);
 
         assertThat(expected, equalTo(loaded));
     }
@@ -539,7 +539,7 @@ public class BytesStreamsTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         out.writeMap(expected);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
+        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableOpenMap(TestWriteable::new, TestWriteable::new);
 
         assertThat(expected, equalTo(loaded));
     }

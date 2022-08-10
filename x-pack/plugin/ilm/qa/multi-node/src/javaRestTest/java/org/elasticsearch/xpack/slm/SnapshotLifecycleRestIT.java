@@ -15,7 +15,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.ilm.RolloverAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
@@ -32,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -715,8 +715,17 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         assertHistoryIndexWaitingForRollover();
     }
 
+    @SuppressWarnings("unchecked")
     private void assertHistoryIndexWaitingForRollover() throws IOException {
-        Step.StepKey stepKey = getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName(SLM_HISTORY_DATA_STREAM, 1));
+        Response response = client().performRequest(new Request("GET", "/_data_stream/" + SLM_HISTORY_DATA_STREAM));
+        assertOK(response);
+        List<Object> dataStreams = (List<Object>) entityAsMap(response).get("data_streams");
+        assertEquals(1, dataStreams.size());
+        Map<String, Object> ds = (Map<String, Object>) dataStreams.get(0);
+        List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
+        assertEquals(1, indices.size());
+
+        Step.StepKey stepKey = getStepKeyForIndex(client(), indices.get(0).get("index_name"));
         assertEquals("hot", stepKey.getPhase());
         assertEquals(RolloverAction.NAME, stepKey.getAction());
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());

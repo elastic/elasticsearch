@@ -57,18 +57,14 @@ public class AggregatedDfs implements Writeable {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeVInt(termStatistics.size());
-
-        for (var entry : termStatistics().entrySet()) {
-            Term term = entry.getKey();
-            out.writeString(term.field());
-            out.writeBytesRef(term.bytes());
-            TermStatistics stats = entry.getValue();
-            out.writeBytesRef(stats.term());
-            out.writeVLong(stats.docFreq());
-            out.writeVLong(DfsSearchResult.addOne(stats.totalTermFreq()));
-        }
-
+        out.writeMap(termStatistics, (o, k) -> {
+            o.writeString(k.field());
+            o.writeBytesRef(k.bytes());
+        }, (o, v) -> {
+            o.writeBytesRef(v.term());
+            o.writeVLong(v.docFreq());
+            o.writeVLong(DfsSearchResult.addOne(v.totalTermFreq()));
+        });
         DfsSearchResult.writeFieldStats(out, fieldStatistics);
         out.writeVLong(maxDoc);
     }

@@ -19,10 +19,14 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +35,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xcontent.ObjectParser.fromList;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -134,8 +139,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             {  "index_filter": {
                 "term": {
                   "field": {
-                    "value": "value",
-                    "boost": 1.0
+                    "value": "value"
                   }
                 }
               },
@@ -145,6 +149,18 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
                 }
               }
             }""").replaceAll("\\s+", ""), xContent);
+    }
+
+    public void testFromXContent() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"fields\" : [\"FOO\"] }");
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
+        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), new ParseField("fields"));
+
+        PARSER.parse(parser, request, null);
+
+        assertArrayEquals(request.fields(), new String[] { "FOO" });
+
     }
 
     public void testValidation() {

@@ -902,4 +902,46 @@ public class DynamicMappingTests extends MapperServiceTestCase {
               }
             }"""), Strings.toString(doc.dynamicMappingsUpdate()));
     }
+
+    public void testSubobjectsFalseRootDynamicUpdate() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties");
+            b.startObject("host.name").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            {
+              "time" : 10,
+              "time.max" : 500,
+              "time.min" : 1,
+              "host.name" : "localhost",
+              "host.id" : 111
+            }
+            """));
+
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.max"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.min"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("host.id"));
+        assertNull(mappingsUpdate.getRoot().getMapper("host.name"));
+
+        assertNotNull(doc.rootDoc().getFields("time"));
+        assertNotNull(doc.rootDoc().getFields("time.max"));
+        assertNotNull(doc.rootDoc().getFields("time.min"));
+        assertNotNull(doc.rootDoc().getFields("host.name"));
+        assertNotNull(doc.rootDoc().getFields("host.id"));
+
+        merge(mapperService, dynamicMapping(mappingsUpdate));
+
+        assertNotNull(mapperService.fieldType("time"));
+        assertNotNull(mapperService.fieldType("time.max"));
+        assertNotNull(mapperService.fieldType("time.min"));
+        assertNotNull(mapperService.fieldType("host.id"));
+        assertNotNull(mapperService.fieldType("host.name"));
+
+        assertEquals(0, mapperService.mappingLookup().objectMappers().size());
+    }
 }

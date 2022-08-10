@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -38,6 +37,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class TransportBroadcastAction<
     Request extends BroadcastRequest<Request>,
@@ -220,8 +221,8 @@ public abstract class TransportBroadcastAction<
                     if (logger.isTraceEnabled()) {
                         if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.trace(
-                                new ParameterizedMessage(
-                                    "{}: failed to execute [{}]",
+                                () -> format(
+                                    "%s: failed to execute [%s]",
                                     shard != null ? shard.shortSummary() : shardIt.shardId(),
                                     request
                                 ),
@@ -236,8 +237,8 @@ public abstract class TransportBroadcastAction<
                     if (e != null) {
                         if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "{}: failed to execute [{}]",
+                                () -> format(
+                                    "%s: failed to execute [%s]",
                                     shard != null ? shard.shortSummary() : shardIt.shardId(),
                                     request
                                 ),
@@ -296,14 +297,7 @@ public abstract class TransportBroadcastAction<
                 try {
                     channel.sendResponse(e);
                 } catch (Exception e1) {
-                    logger.warn(
-                        () -> new ParameterizedMessage(
-                            "Failed to send error response for action [{}] and request [{}]",
-                            actionName,
-                            request
-                        ),
-                        e1
-                    );
+                    logger.warn(() -> format("Failed to send error response for action [%s] and request [%s]", actionName, request), e1);
                 }
             }));
         }

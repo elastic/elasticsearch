@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CLIENT_ID_NAME;
@@ -157,6 +158,11 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             return this;
         }
 
+        public RequestObjectBuilder allowPartialSearchResults(boolean allowPartialSearchResults) {
+            request.append(field(ALLOW_PARTIAL_SEARCH_RESULTS_NAME, allowPartialSearchResults));
+            return this;
+        }
+
         private static String field(String name, Object value) {
             if (value == null) {
                 return StringUtils.EMPTY;
@@ -212,10 +218,10 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
     }
 
     protected void deleteTestIndex() throws IOException {
-        deleteIndex(TEST_INDEX);
+        deleteIndexWithProvisioningClient(TEST_INDEX);
     }
 
-    protected static void deleteIndex(String name) throws IOException {
+    protected static void deleteIndexWithProvisioningClient(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
     }
 

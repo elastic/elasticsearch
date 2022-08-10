@@ -8,6 +8,9 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.service.BatchSummary;
+import org.elasticsearch.tasks.Task;
+
 /**
  * Represents a cluster state update computed by the {@link org.elasticsearch.cluster.service.MasterService} for publication to the cluster.
  * If publication is successful then this creates a {@link ClusterChangedEvent} which is applied on every node.
@@ -19,9 +22,10 @@ public class ClusterStatePublicationEvent {
      */
     private static final long NOT_SET = -1L;
 
-    private final String summary;
+    private final BatchSummary summary;
     private final ClusterState oldState;
     private final ClusterState newState;
+    private final Task task;
     private final long computationTimeMillis;
     private final long publicationStartTimeMillis;
     private volatile long publicationContextConstructionElapsedMillis = NOT_SET;
@@ -30,20 +34,22 @@ public class ClusterStatePublicationEvent {
     private volatile long masterApplyElapsedMillis = NOT_SET;
 
     public ClusterStatePublicationEvent(
-        String summary,
+        BatchSummary summary,
         ClusterState oldState,
         ClusterState newState,
+        Task task,
         long computationTimeMillis,
         long publicationStartTimeMillis
     ) {
         this.summary = summary;
         this.oldState = oldState;
         this.newState = newState;
+        this.task = task;
         this.computationTimeMillis = computationTimeMillis;
         this.publicationStartTimeMillis = publicationStartTimeMillis;
     }
 
-    public String getSummary() {
+    public BatchSummary getSummary() {
         return summary;
     }
 
@@ -53,6 +59,10 @@ public class ClusterStatePublicationEvent {
 
     public ClusterState getNewState() {
         return newState;
+    }
+
+    public Task getTask() {
+        return task;
     }
 
     public long getComputationTimeMillis() {

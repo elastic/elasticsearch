@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -90,8 +91,8 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
 
             Point point = GeometryTestUtils.randomPoint(false);
-            double lon = point.getX();
-            double lat = point.getY();
+            double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getX()));
+            double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(point.getY()));
 
             // valid missing values
             for (Object missingVal : List.of("POINT(" + lon + " " + lat + ")", lat + ", " + lon, new GeoPoint(lat, lon))) {

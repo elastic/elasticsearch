@@ -50,6 +50,11 @@ public class NoRewriteMatchNoDocsQuery extends Query {
             public boolean isCacheable(LeafReaderContext ctx) {
                 return true;
             }
+
+            @Override
+            public int count(LeafReaderContext context) {
+                return 0;
+            }
         };
     }
 

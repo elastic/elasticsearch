@@ -141,11 +141,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             {
               "match_phrase_prefix" : {
                 "message" : {
-                  "query" : "this is a test",
-                  "slop" : 0,
-                  "max_expansions" : 50,
-                  "zero_terms_query" : "NONE",
-                  "boost" : 1.0
+                  "query" : "this is a test"
                 }
               }
             }""";
@@ -166,10 +162,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
               "match_phrase_prefix" : {
                 "message" : {
                   "query" : "this is a test",
-                  "slop" : 0,
-                  "max_expansions" : 10,
-                  "zero_terms_query" : "NONE",
-                  "boost" : 1.0
+                  "max_expansions" : 10
                 }
               }
             }""";

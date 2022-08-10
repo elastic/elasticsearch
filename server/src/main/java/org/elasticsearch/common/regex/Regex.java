@@ -182,19 +182,6 @@ public class Regex {
         return patterns != null && simpleMatch(patterns.toArray(Strings.EMPTY_ARRAY), str);
     }
 
-    public static boolean simpleMatch(String[] patterns, String[] types) {
-        if (patterns != null && types != null) {
-            for (String type : types) {
-                for (String pattern : patterns) {
-                    if (simpleMatch(pattern, type)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
     public static Pattern compile(String regex, String flags) {
         int pFlags = flags == null ? 0 : flagsFromString(flags);
         return Pattern.compile(regex, pFlags);

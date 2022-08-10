@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
@@ -224,11 +224,9 @@ public class UserPrivilegeResolverTests extends ESTestCase {
     }
 
     private void setupUser(String principal, Runnable runnable) {
-        final Authentication authentication = new Authentication(
-            new User(principal, randomAlphaOfLengthBetween(6, 12)),
-            mock(RealmRef.class),
-            mock(RealmRef.class)
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User(principal, randomAlphaOfLengthBetween(6, 12)))
+            .build();
         securityContext.executeWithAuthentication(authentication, ignored -> {
             runnable.run();
             return null;

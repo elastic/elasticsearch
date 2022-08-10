@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +34,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Rest action to search for API keys
  */
-public final class RestQueryApiKeyAction extends SecurityBaseRestHandler {
+public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<QueryApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(

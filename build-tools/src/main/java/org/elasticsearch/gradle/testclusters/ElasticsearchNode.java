@@ -62,6 +62,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.LineNumberReader;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -160,8 +162,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path transportPortFile;
     private final Path httpPortsFile;
     private final Path readinessPortsFile;
-    private final Path esLogFile;
-    private final Path esStdinFile;
+    private final Path esOutputFile;
+    private final Path esInputFile;
     private final Path tmpDir;
     private final Provider<File> runtimeJava;
     private final Function<Version, Boolean> isReleasedVersion;
@@ -211,8 +213,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
         readinessPortsFile = confPathLogs.resolve("readiness.ports");
-        esLogFile = confPathLogs.resolve(clusterName + ".log");
-        esStdinFile = workingDir.resolve("es.stdin");
+        esOutputFile = confPathLogs.resolve("es.out");
+        esInputFile = workingDir.resolve("es.in");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
         defaultConfig.put("cluster.name", clusterName);
@@ -489,6 +491,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         configurationFrozen.set(true);
     }
 
+    private static String throwableToString(Throwable t) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        t.printStackTrace(pw);
+        return sw.toString();
+    }
+
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
@@ -505,11 +514,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
                     if (preserveDataDir) {
-                        Files.list(workingDir)
-                            .filter(path -> path.equals(confPathData) == false)
-                            .forEach(path -> fileSystemOperations.delete(d -> d.delete(path)));
+                        Files.list(workingDir).filter(path -> path.equals(confPathData) == false).forEach(this::uncheckedDeleteWithRetry);
                     } else {
-                        fileSystemOperations.delete(d -> d.delete(workingDir));
+                        deleteWithRetry(workingDir);
                     }
                 }
                 isWorkingDirConfigured = true;
@@ -517,7 +524,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             setupNodeDistribution(getExtractedDistributionDir());
             createWorkingDir();
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to create working directory for " + this, e);
+            String msg = "Failed to create working directory for " + this + ", with: " + e + throwableToString(e);
+            logToProcessStdout(msg);
+            throw new UncheckedIOException(msg, e);
+        } catch (org.gradle.api.UncheckedIOException e) {
+            String msg = "Failed to create working directory for " + this + ", with: " + e + throwableToString(e);
+            logToProcessStdout(msg);
+            throw e;
         }
 
         copyExtraJars();
@@ -593,11 +606,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void logToProcessStdout(String message) {
         try {
-            if (Files.exists(esLogFile.getParent()) == false) {
-                Files.createDirectories(esLogFile.getParent());
+            if (Files.exists(esOutputFile.getParent()) == false) {
+                Files.createDirectories(esOutputFile.getParent());
             }
             Files.writeString(
-                esLogFile,
+                esOutputFile,
                 "[" + Instant.now().toString() + "] [BUILD] " + message + "\n",
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
@@ -916,15 +929,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         environment.clear();
         environment.putAll(getESEnvironment());
 
-        // Direct the stdout and stderr to the ES log file. This should not contend with the actual ES
-        // process once it is started since there we close replace stdout/stderr handles once logging is setup.
-        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esLogFile.toFile()));
+        // Direct the stderr to the ES log file. This should capture any jvm problems to start.
+        // Stdout is discarded because ES duplicates the log file to stdout when run in the foreground.
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esOutputFile.toFile()));
         processBuilder.redirectErrorStream(true);
 
         if (keystorePassword != null && keystorePassword.length() > 0) {
             try {
-                Files.writeString(esStdinFile, keystorePassword + "\n", StandardOpenOption.CREATE);
-                processBuilder.redirectInput(esStdinFile.toFile());
+                Files.writeString(esInputFile, keystorePassword + "\n", StandardOpenOption.CREATE);
+                processBuilder.redirectInput(esInputFile.toFile());
             } catch (IOException e) {
                 throw new TestClustersException("Failed to set the keystore password for " + this, e);
             }
@@ -1035,7 +1048,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        logFileContents("Log output of node", esLogFile, tailLogs);
+        logFileContents("Log output of node", esOutputFile, tailLogs);
     }
 
     @Override
@@ -1141,7 +1154,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         if (tailLogs) {
             if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
-                LOGGER.error("\n=== {} `{}` ===", description, this);
+                LOGGER.lifecycle("\n=== {} `{}` ===", description, this);
             }
             if (errorsAndWarnings.isEmpty() == false) {
                 LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
@@ -1192,9 +1205,75 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
+    private static final int RETRY_DELETE_MILLIS = OS.current() == OS.WINDOWS ? 500 : 0;
+    private static final int MAX_RETRY_DELETE_TIMES = OS.current() == OS.WINDOWS ? 15 : 0;
+
+    /**
+     * Deletes a path, retrying if necessary.
+     *
+     * @param path  the path to delete
+     * @throws IOException
+     *         if an I/O error occurs
+     */
+    void deleteWithRetry(Path path) throws IOException {
+        try {
+            deleteWithRetry0(path);
+        } catch (InterruptedException x) {
+            throw new IOException("Interrupted while deleting.", x);
+        }
+    }
+
+    /** Unchecked variant of deleteWithRetry. */
+    void uncheckedDeleteWithRetry(Path path) {
+        try {
+            deleteWithRetry0(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (InterruptedException x) {
+            throw new UncheckedIOException("Interrupted while deleting.", new IOException());
+        }
+    }
+
+    // The exception handling here is loathsome, but necessary!
+    private void deleteWithRetry0(Path path) throws IOException, InterruptedException {
+        int times = 0;
+        IOException ioe = null;
+        while (true) {
+            try {
+                fileSystemOperations.delete(d -> d.delete(path));
+                times++;
+                // Checks for absence of the file. Semantics of Files.exists() is not the same.
+                while (Files.notExists(path) == false) {
+                    if (times > MAX_RETRY_DELETE_TIMES) {
+                        throw new IOException("File still exists after " + times + " waits.");
+                    }
+                    Thread.sleep(RETRY_DELETE_MILLIS);
+                    // retry
+                    fileSystemOperations.delete(d -> d.delete(path));
+                    times++;
+                }
+                break;
+            } catch (NoSuchFileException ignore) {
+                // already deleted, ignore
+                break;
+            } catch (org.gradle.api.UncheckedIOException | IOException x) {
+                if (x.getCause() instanceof NoSuchFileException) {
+                    // already deleted, ignore
+                    break;
+                }
+                // Backoff/retry in case another process is accessing the file
+                times++;
+                if (ioe == null) ioe = new IOException();
+                ioe.addSuppressed(x);
+                if (times > MAX_RETRY_DELETE_TIMES) throw ioe;
+                Thread.sleep(RETRY_DELETE_MILLIS);
+            }
+        }
+    }
+
     private void createWorkingDir() throws IOException {
         // Start configuration from scratch in case of a restart
-        fileSystemOperations.delete(d -> d.delete(configFile.getParent()));
+        deleteWithRetry(configFile.getParent());
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);
@@ -1616,8 +1695,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Internal
-    Path getEsLogFile() {
-        return esLogFile;
+    Path getEsOutputFile() {
+        return esOutputFile;
     }
 
     private static class FileEntry implements Named {

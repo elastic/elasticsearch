@@ -1,6 +1,0 @@
-pr: 84766
-summary: Warn on slow signature verification
-area: Infra/Plugins
-type: enhancement
-issues:
- - 80480

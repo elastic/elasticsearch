@@ -35,8 +35,6 @@ import java.util.Objects;
 public class ForceMergeAction implements LifecycleAction {
     private static final Logger logger = LogManager.getLogger(ForceMergeAction.class);
 
-    private static final Settings READ_ONLY_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-
     private static final Settings BEST_COMPRESSION_SETTINGS = Settings.builder()
         .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC)
         .build();
@@ -120,7 +118,7 @@ public class ForceMergeAction implements LifecycleAction {
         final boolean codecChange = codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC);
 
         StepKey preForceMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FORCE_MERGE_STEP);
-        StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey checkNotWriteIndexKey = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
 
         StepKey closeKey = new StepKey(phase, NAME, CloseIndexStep.NAME);
@@ -133,7 +131,7 @@ public class ForceMergeAction implements LifecycleAction {
 
         BranchingStep conditionalSkipShrinkStep = new BranchingStep(
             preForceMergeBranchingKey,
-            checkNotWriteIndex,
+            checkNotWriteIndexKey,
             nextStepKey,
             (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
@@ -152,13 +150,17 @@ public class ForceMergeAction implements LifecycleAction {
                 return false;
             }
         );
-        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex, readOnlyKey);
-        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(
-            readOnlyKey,
-            codecChange ? closeKey : forceMergeKey,
-            client,
-            READ_ONLY_SETTINGS
+
+        // Indices in this step key can skip the no-op step and jump directly to the step with closeKey/forcemergeKey key
+        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
+            checkNotWriteIndexKey,
+            codecChange ? closeKey : forceMergeKey
         );
+
+        // Indices already in this step key when upgrading need to know how to move forward but stop making the index
+        // read-only. In order to achieve this we introduce a no-op step with the same key as the read-only step so that
+        // the index can safely move to the next step without performing any read-only action nor getting stuck in this step
+        NoopStep noopStep = new NoopStep(readOnlyKey, codecChange ? closeKey : forceMergeKey);
 
         CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
         UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(
@@ -180,7 +182,7 @@ public class ForceMergeAction implements LifecycleAction {
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(conditionalSkipShrinkStep);
         mergeSteps.add(checkNotWriteIndexStep);
-        mergeSteps.add(readOnlyStep);
+        mergeSteps.add(noopStep);
 
         if (codecChange) {
             mergeSteps.add(closeIndexStep);

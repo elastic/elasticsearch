@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -445,5 +446,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return in.readerContext();
+    }
+
+    @Override
+    public SourceLoader newSourceLoader() {
+        return in.newSourceLoader();
     }
 }

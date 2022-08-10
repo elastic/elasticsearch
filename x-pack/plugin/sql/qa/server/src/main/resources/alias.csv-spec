@@ -94,7 +94,7 @@ SHOW TABLES LIKE 'test\_alias' ESCAPE '\';
 
 catalog:s  |name:s               | type:s  | kind:s
 
-integTest  |test_alias           | VIEW    | ALIAS
+javaRestTest  |test_alias           | VIEW    | ALIAS
 ;
 
 showPattern
@@ -102,10 +102,10 @@ SHOW TABLES LIKE 'test_%';
 
 catalog:s  |name:s               | type:s | kind :s
 
-integTest  |test_alias           | VIEW   | ALIAS
-integTest  |test_alias_emp       | VIEW   | ALIAS
-integTest  |test_emp             | TABLE  | INDEX
-integTest  |test_emp_copy        | TABLE  | INDEX
+javaRestTest  |test_alias           | VIEW   | ALIAS
+javaRestTest  |test_alias_emp       | VIEW   | ALIAS
+javaRestTest  |test_emp             | TABLE  | INDEX
+javaRestTest  |test_emp_copy        | TABLE  | INDEX
 ;
 
 groupByOnAlias

@@ -125,7 +125,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

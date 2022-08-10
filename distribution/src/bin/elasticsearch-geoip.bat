@@ -3,8 +3,8 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set ES_MAIN_CLASS=org.elasticsearch.geoip.GeoIpCli
-set ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/geoip-cli
+set CLI_SCRIPT=%~0
+set CLI_LIBS=lib/tools/geoip-cli
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit

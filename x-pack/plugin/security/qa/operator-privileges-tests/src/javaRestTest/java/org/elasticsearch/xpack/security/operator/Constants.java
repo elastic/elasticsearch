@@ -43,7 +43,7 @@ public class Constants {
         "cluster:admin/migration/get_system_feature",
         "cluster:admin/migration/post_system_feature",
         "cluster:admin/nodes/reload_secure_settings",
-        "cluster:admin/nodes/prevalidate_remove",
+        "cluster:admin/nodes/prevalidate_removal",
         "cluster:admin/persistent/completion",
         "cluster:admin/persistent/remove",
         "cluster:admin/persistent/start",

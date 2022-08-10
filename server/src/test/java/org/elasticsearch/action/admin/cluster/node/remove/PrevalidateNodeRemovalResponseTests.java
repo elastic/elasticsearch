@@ -17,11 +17,14 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation.IsSafe;
+import static org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation.Result;
+
 public class PrevalidateNodeRemovalResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         PrevalidateNodeRemovalResponse simpleResp = new PrevalidateNodeRemovalResponse(
-            new NodesRemovalPrevalidation(new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.YES, ""), Map.of())
+            new NodesRemovalPrevalidation(new Result(IsSafe.YES, ""), Map.of())
         );
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
@@ -38,11 +41,8 @@ public class PrevalidateNodeRemovalResponseTests extends ESTestCase {
 
         PrevalidateNodeRemovalResponse respWithNodes = new PrevalidateNodeRemovalResponse(
             new NodesRemovalPrevalidation(
-                new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.UNKNOWN, ""),
-                Map.of(
-                    "node1",
-                    new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.UNKNOWN, "node hosts a red shard copy")
-                )
+                new Result(IsSafe.UNKNOWN, ""),
+                Map.of("node1", new Result(IsSafe.UNKNOWN, "node hosts a red shard copy"))
             )
         );
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {

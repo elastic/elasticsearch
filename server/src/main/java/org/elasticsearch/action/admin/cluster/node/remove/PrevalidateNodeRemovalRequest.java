@@ -18,6 +18,7 @@ public class PrevalidateNodeRemovalRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
+        // TODO: make sure all provided node IDs are in the cluster
         return null;
     }
 

@@ -35,13 +35,13 @@ class TransformFailureHandler {
     private static final Logger logger = LogManager.getLogger(TransformFailureHandler.class);
     public static final int LOG_FAILURE_EVERY = 10;
     private final TransformAuditor auditor;
-    private final String jobId;
+    private final String transformId;
     private final TransformContext context;
 
     // protected for unit tests
-    TransformFailureHandler(TransformAuditor auditor, TransformContext context, String jobId) {
+    TransformFailureHandler(TransformAuditor auditor, TransformContext context, String transformId) {
         this.auditor = auditor;
-        this.jobId = jobId;
+        this.transformId = transformId;
         this.context = context;
     }
 
@@ -53,7 +53,7 @@ class TransformFailureHandler {
      */
     void handleIndexerFailure(Exception e, SettingsConfig settingsConfig) {
         // more detailed reporting in the handlers and below
-        logger.debug(() -> "[" + jobId + "] transform encountered an exception: ", e);
+        logger.debug(() -> "[" + transformId + "] transform encountered an exception: ", e);
         Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
         boolean unattended = Boolean.TRUE.equals(settingsConfig.getUnattended());
 
@@ -123,14 +123,13 @@ class TransformFailureHandler {
             String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
             if (unattended) {
                 retry(circuitBreakingException, message, true, -1);
-
             } else {
                 fail(message);
             }
         } else {
             String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize, newPageSize);
-            auditor.info(jobId, message);
-            logger.info("[{}] {}", jobId, message);
+            auditor.info(transformId, message);
+            logger.info("[{}] {}", transformId, message);
             context.setPageSize(newPageSize);
         }
     }
@@ -242,8 +241,8 @@ class TransformFailureHandler {
                 failureCount,
                 numFailureRetries
             );
-            logger.warn(() -> "[" + jobId + "] " + retryMessage);
-            auditor.warning(jobId, retryMessage);
+            logger.warn(() -> "[" + transformId + "] " + retryMessage);
+            auditor.warning(transformId, retryMessage);
         }
     }
 

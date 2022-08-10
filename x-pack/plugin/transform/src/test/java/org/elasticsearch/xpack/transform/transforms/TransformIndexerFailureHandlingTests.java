@@ -88,6 +88,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+/**
+ * Tests various indexer failure cases.
+ * <p>
+ * Legacy Warning: These tests have been written before {@link TransformFailureHandler} has been created,
+ * potentially a lot of these tests can be rewritten. For new test cases use {@link TransformFailureHandlerTests}
+ * if possible.
+ */
 public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
     private Client client;

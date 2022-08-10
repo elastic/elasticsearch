@@ -21,9 +21,21 @@ However, some {es} features need to _look up_ a user without using their credent
   together so that a user who authenticates against one realm can have the roles
   and metadata associated with a user from a different realm.
 
-In each of the above cases the second user must be resolved without directly
-authenticating. The ability for a realm to lookup a user by username is an
-optional operation that is not supported by all realms.
+In each of these cases, a user must first authenticate to one realm and then
+{es} will query the second realm to find another user.
+The authenticated user credentials are used to authenticate in the first realm only,
+The user in the second realm is retrieved by username, without needing credentials.
+
+When {es} resolves a user using their credentials (as performed in the first realm),
+it is known as _user authentication_.
+
+When {es} resolves a user using the username only (as performed in the second realm),
+it is known as _user lookup_.
+
+See the <<run-as-privilege,run_as>> and <<authorization_realms,delegated authorization>>
+documentation to learn more about these features, including which realms and authentication
+methods support `run_as` or delegated authorization. 
+In both cases, only the following realms can be used for the user lookup:
 
 * The reserved, <<native-realm,`native`>> and <<file-realm,`file`>> realms always 
 support user lookup.

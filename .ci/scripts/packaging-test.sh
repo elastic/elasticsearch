@@ -47,7 +47,7 @@ if [ -f "/etc/os-release" ] ; then
       # Downgrade containerd if necessary to work around runc bug
       # See: https://github.com/opencontainers/runc/issues/3551
       if containerd -version | grep -sF 1.6.7; then
-        sudo dnf downgrade -y containerd.io
+        sudo yum downgrade -y containerd.io
       fi
     fi
 else

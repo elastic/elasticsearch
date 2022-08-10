@@ -139,11 +139,11 @@ class TransformContext {
         this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
     }
 
-    public int getPageSize() {
+    int getPageSize() {
         return pageSize;
     }
 
-    public void setPageSize(int pageSize) {
+    void setPageSize(int pageSize) {
         this.pageSize = pageSize;
     }
 

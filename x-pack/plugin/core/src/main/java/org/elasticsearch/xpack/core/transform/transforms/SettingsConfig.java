@@ -510,7 +510,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
          *
          * An explicit `null` resets to default.
          *
-         * @param unattended true if the point in time API should be used.
+         * @param unattended true if this is a unattended transform.
          * @return the {@link Builder} with usePit set.
          */
         public Builder setUnattended(Boolean unattended) {

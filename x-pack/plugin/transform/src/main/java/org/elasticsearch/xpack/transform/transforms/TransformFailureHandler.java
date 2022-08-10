@@ -22,6 +22,15 @@ import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * Handles all failures a transform can run into when searching, indexing as well as internal
+ * state handling.
+ *
+ * TODO:
+ *
+ *  - the settings have to be passed as parameter - because they can change at runtime - longer term the necessary
+ *    parts should be read from the context object instead
+ */
 class TransformFailureHandler {
     private static final Logger logger = LogManager.getLogger(TransformFailureHandler.class);
     public static final int LOG_FAILURE_EVERY = 10;
@@ -36,6 +45,12 @@ class TransformFailureHandler {
         this.context = context;
     }
 
+    /**
+     * Handle a search or indexing failure
+     *
+     * @param e the exception caught
+     * @param settingsConfig The settings
+     */
     void handleIndexerFailure(Exception e, SettingsConfig settingsConfig) {
         // more detailed reporting in the handlers and below
         logger.debug(() -> "[" + jobId + "] transform encountered an exception: ", e);
@@ -46,8 +61,8 @@ class TransformFailureHandler {
             handleCircuitBreakingException(circuitBreakingException, unattended);
         } else if (unwrappedException instanceof ScriptException scriptException) {
             handleScriptException(scriptException, unattended);
-        } else if (unwrappedException instanceof BulkIndexingException bulkIndexingException && bulkIndexingException.isIrrecoverable()) {
-            handleIrrecoverableBulkIndexingException(bulkIndexingException, unattended);
+        } else if (unwrappedException instanceof BulkIndexingException bulkIndexingException) {
+            handleBulkIndexingException(bulkIndexingException, unattended, getNumFailureRetries(settingsConfig));
         } else if (unwrappedException instanceof ElasticsearchException elasticsearchException) {
             handleElasticsearchException(elasticsearchException, unattended, getNumFailureRetries(settingsConfig));
         } else if (unwrappedException instanceof IllegalArgumentException illegalArgumentException) {
@@ -62,6 +77,12 @@ class TransformFailureHandler {
         }
     }
 
+    /**
+     * Handle failures persisting internal state
+     *
+     * @param e the exception caught
+     * @param settingsConfig The settings
+     */
     boolean handleStatePersistenceFailure(Exception e, SettingsConfig settingsConfig) {
         // we use the same setting for retries, however a separate counter, because the failure
         // counter for search/index gets reset after a successful bulk index request
@@ -87,6 +108,7 @@ class TransformFailureHandler {
      * note that it breaks early, that's why we also reduce using
      *
      * @param circuitBreakingException CircuitBreakingException thrown
+     * @param unattended whether the transform runs in unattended mode
      */
     private void handleCircuitBreakingException(CircuitBreakingException circuitBreakingException, boolean unattended) {
         final int pageSize = context.getPageSize();
@@ -117,6 +139,7 @@ class TransformFailureHandler {
      * Handle script exception case. This is error is irrecoverable.
      *
      * @param scriptException ScriptException thrown
+     * @param unattended whether the transform runs in unattended mode
      */
     private void handleScriptException(ScriptException scriptException, boolean unattended) {
         String message = TransformMessages.getMessage(
@@ -132,22 +155,33 @@ class TransformFailureHandler {
     }
 
     /**
-     * Handle permanent bulk indexing exception case. This is error is irrecoverable.
+     * Handle bulk indexing exception case. This is error can be irrecoverable.
      *
      * @param bulkIndexingException BulkIndexingException thrown
+     * @param unattended whether the transform runs in unattended mode
+     * @param numFailureRetries the number of configured retries
      */
-    private void handleIrrecoverableBulkIndexingException(BulkIndexingException bulkIndexingException, boolean unattended) {
-        String message = TransformMessages.getMessage(
-            TransformMessages.LOG_TRANSFORM_PIVOT_IRRECOVERABLE_BULK_INDEXING_ERROR,
-            bulkIndexingException.getDetailedMessage()
-        );
-        if (unattended) {
-            retry(bulkIndexingException, message, true, -1);
-        } else {
+    private void handleBulkIndexingException(BulkIndexingException bulkIndexingException, boolean unattended, int numFailureRetries) {
+        if (unattended == false && bulkIndexingException.isIrrecoverable()) {
+            String message = TransformMessages.getMessage(
+                TransformMessages.LOG_TRANSFORM_PIVOT_IRRECOVERABLE_BULK_INDEXING_ERROR,
+                bulkIndexingException.getDetailedMessage()
+            );
             fail(message);
+        } else {
+            retry(bulkIndexingException, bulkIndexingException.getDetailedMessage(), unattended, numFailureRetries);
         }
     }
 
+    /**
+     * Handle a generic elasticsearch exception. This is error can be irrecoverable.
+     * <p>
+     * The failure is classified using the http status code from the exception.
+     *
+     * @param elasticsearchException ElasticsearchException thrown
+     * @param unattended whether the transform runs in unattended mode
+     * @param numFailureRetries the number of configured retries
+     */
     private void handleElasticsearchException(ElasticsearchException elasticsearchException, boolean unattended, int numFailureRetries) {
         if (unattended == false && ExceptionRootCauseFinder.IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
             String message = "task encountered irrecoverable failure: " + elasticsearchException.getDetailedMessage();
@@ -157,6 +191,14 @@ class TransformFailureHandler {
         }
     }
 
+    /**
+     * Handle a generic illegal argument exception. This is error is irrecoverable.
+     * <p>
+     * If this exception is caught it is likely a bug somewhere.
+     *
+     * @param illegalArgumentException IllegalArgumentException thrown
+     * @param unattended whether the transform runs in unattended mode
+     */
     private void handleIllegalArgumentException(IllegalArgumentException illegalArgumentException, boolean unattended) {
         if (unattended) {
             retry(illegalArgumentException, illegalArgumentException.getMessage(), true, -1);
@@ -166,6 +208,17 @@ class TransformFailureHandler {
         }
     }
 
+    /**
+     * Terminate failure handling with a retry.
+     * <p>
+     * In case the number of retries are exhausted - and the transform does not run as unattended - the transform
+     * might be set to failed.
+     *
+     * @param unwrappedException The exception caught
+     * @param message error message to log/audit
+     * @param unattended whether the transform runs in unattended mode
+     * @param numFailureRetries the number of configured retries
+     */
     private void retry(Throwable unwrappedException, String message, boolean unattended, int numFailureRetries) {
         // group failures to decide whether to report it below
         final String thisFailureClass = unwrappedException.getClass().toString();
@@ -194,11 +247,28 @@ class TransformFailureHandler {
         }
     }
 
+    /**
+     * Terminate failure handling by failing the transform.
+     * <p>
+     * This should be called if the transform does not run unattended and the failure is permanent or after the
+     * configured number of retries.
+     *
+     * @param failureMessage the reason of the failure
+     */
     private void fail(String failureMessage) {
         // note: logging and audit is done as part of context.markAsFailed
         context.markAsFailed(failureMessage);
     }
 
+    /**
+     * Get the number of retries.
+     * <p>
+     * The number of retries are read from the config or if not read from the context which is based on a cluster wide
+     * default. If the transform runs in unattended mode, the number of retries is always indefinite.
+     *
+     * @param settingsConfig the setting config
+     * @return the number of retries or -1 if retries are indefinite
+     */
     private int getNumFailureRetries(SettingsConfig settingsConfig) {
         return Boolean.TRUE.equals(settingsConfig.getUnattended())
             ? -1

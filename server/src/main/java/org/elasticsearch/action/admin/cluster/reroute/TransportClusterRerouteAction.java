@@ -236,6 +236,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 request.getCommands(),
                 request.explain(),
                 request.isRetryFailed(),
+                request.dryRun(),
                 listener.explanations(),
                 listener.reroute()
             );

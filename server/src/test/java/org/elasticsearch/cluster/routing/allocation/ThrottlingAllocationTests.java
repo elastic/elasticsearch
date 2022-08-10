@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -46,6 +47,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -305,31 +307,34 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 1);
 
         logger.info("move started non-primary to new node");
-        AllocationService.CommandsResult commandsResult = strategy.reroute(
+        AtomicBoolean foundThrottledMessage = new AtomicBoolean(false);
+        clusterState = strategy.reroute(
             clusterState,
             new AllocationCommands(new MoveAllocationCommand("test", 0, "node2", "node4")),
             true,
-            false
+            false,
+            false,
+            ActionListener.wrap(response -> {
+                assertEquals(response.explanations().size(), 1);
+                assertEquals(response.explanations().get(0).decisions().type(), Decision.Type.THROTTLE);
+                for (Decision decision : response.explanations().get(0).decisions().getDecisions()) {
+                    if (decision.label().equals(ThrottlingAllocationDecider.NAME)) {
+                        assertEquals(
+                            "reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, "
+                                + "cluster setting [cluster.routing.allocation.node_concurrent_outgoing_recoveries=1] "
+                                + "(can also be set via [cluster.routing.allocation.node_concurrent_recoveries])",
+                            decision.getExplanation()
+                        );
+                        assertEquals(Decision.Type.THROTTLE, decision.type());
+                        foundThrottledMessage.set(true);
+                    }
+                }
+            }, exception -> { throw new AssertionError("Should not happen in this test", exception); }),
+            ActionListener.noop()
         );
-        assertEquals(commandsResult.explanations().explanations().size(), 1);
-        assertEquals(commandsResult.explanations().explanations().get(0).decisions().type(), Decision.Type.THROTTLE);
-        boolean foundThrottledMessage = false;
-        for (Decision decision : commandsResult.explanations().explanations().get(0).decisions().getDecisions()) {
-            if (decision.label().equals(ThrottlingAllocationDecider.NAME)) {
-                assertEquals(
-                    "reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, "
-                        + "cluster setting [cluster.routing.allocation.node_concurrent_outgoing_recoveries=1] "
-                        + "(can also be set via [cluster.routing.allocation.node_concurrent_recoveries])",
-                    decision.getExplanation()
-                );
-                assertEquals(Decision.Type.THROTTLE, decision.type());
-                foundThrottledMessage = true;
-            }
-        }
-        assertTrue(foundThrottledMessage);
-        // even though it is throttled, move command still forces allocation
 
-        clusterState = commandsResult.clusterState();
+        assertTrue(foundThrottledMessage.get());
+
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(1));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(1));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));

@@ -383,6 +383,7 @@ public class AllocationService {
         AllocationCommands commands,
         boolean explain,
         boolean retryFailed,
+        boolean dryRun,
         ActionListener<RoutingExplanations> explanationsListener,
         ActionListener<Void> rerouteListener
     ) {

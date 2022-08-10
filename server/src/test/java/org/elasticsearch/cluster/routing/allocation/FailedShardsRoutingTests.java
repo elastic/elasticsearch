@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -97,7 +98,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         String origReplicaNodeId = clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId();
 
         logger.info("--> moving primary shard to node3");
-        AllocationService.CommandsResult commandsResult = allocation.reroute(
+        clusterState = allocation.reroute(
             clusterState,
             new AllocationCommands(
                 new MoveAllocationCommand(
@@ -108,10 +109,11 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop(),
+            ActionListener.noop()
         );
-        assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
-        clusterState = commandsResult.clusterState();
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(RELOCATING));
         assertThat(clusterState.getRoutingNodes().node("node3").iterator().next().state(), equalTo(INITIALIZING));
 
@@ -122,7 +124,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(0));
 
         logger.info("--> moving primary shard to node3");
-        commandsResult = allocation.reroute(
+        clusterState = allocation.reroute(
             clusterState,
             new AllocationCommands(
                 new MoveAllocationCommand(
@@ -133,10 +135,11 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop(),
+            ActionListener.noop()
         );
-        assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
-        clusterState = commandsResult.clusterState();
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(RELOCATING));
         assertThat(clusterState.getRoutingNodes().node("node3").iterator().next().state(), equalTo(INITIALIZING));
 

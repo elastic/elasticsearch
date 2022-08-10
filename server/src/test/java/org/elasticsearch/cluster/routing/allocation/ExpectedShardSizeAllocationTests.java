@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(ExpectedShardSizeAllocationTests.class);
@@ -123,14 +123,15 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         } else {
             toNodeId = "node1";
         }
-        AllocationService.CommandsResult commandsResult = allocation.reroute(
+        clusterState = allocation.reroute(
             clusterState,
             new AllocationCommands(new MoveAllocationCommand("test", 0, existingNodeId, toNodeId)),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop(),
+            ActionListener.noop()
         );
-        assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
-        clusterState = commandsResult.clusterState();
         assertEquals(clusterState.getRoutingNodes().node(existingNodeId).iterator().next().state(), ShardRoutingState.RELOCATING);
         assertEquals(clusterState.getRoutingNodes().node(toNodeId).iterator().next().state(), ShardRoutingState.INITIALIZING);
 

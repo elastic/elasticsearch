@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -76,15 +77,17 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         assertThat("reroute should be a no-op", strategy.reroute(clusterState, "test"), sameInstance(clusterState));
 
         // Now allocate replica with retry_failed flag set
-        AllocationService.CommandsResult result = strategy.reroute(
+        clusterState = strategy.reroute(
             clusterState,
             new AllocationCommands(
                 new AllocateReplicaAllocationCommand(INDEX_NAME, 0, getPrimary().currentNodeId().equals("node1") ? "node2" : "node1")
             ),
             false,
-            true
+            true,
+            false,
+            ActionListener.noop(),
+            ActionListener.noop()
         );
-        clusterState = result.clusterState();
 
         assertEquals(ShardRoutingState.INITIALIZING, getReplica().state());
         clusterState = startShardsAndReroute(strategy, clusterState, getReplica());

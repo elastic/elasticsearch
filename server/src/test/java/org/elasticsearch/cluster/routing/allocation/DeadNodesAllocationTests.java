@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -30,7 +31,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
@@ -176,7 +176,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         String origReplicaNodeId = clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId();
 
         logger.info("--> moving primary shard to node3");
-        AllocationService.CommandsResult commandsResult = allocation.reroute(
+        clusterState = allocation.reroute(
             clusterState,
             new AllocationCommands(
                 new MoveAllocationCommand(
@@ -187,10 +187,11 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop(),
+            ActionListener.noop()
         );
-        assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
-        clusterState = commandsResult.clusterState();
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(RELOCATING));
         assertThat(clusterState.getRoutingNodes().node("node3").iterator().next().state(), equalTo(INITIALIZING));
 
@@ -253,7 +254,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         String origReplicaNodeId = clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId();
 
         logger.info("--> moving primary shard to node3");
-        AllocationService.CommandsResult commandsResult = allocation.reroute(
+        clusterState = allocation.reroute(
             clusterState,
             new AllocationCommands(
                 new MoveAllocationCommand(
@@ -264,10 +265,11 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop(),
+            ActionListener.noop()
         );
-        assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
-        clusterState = commandsResult.clusterState();
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(RELOCATING));
         assertThat(clusterState.getRoutingNodes().node("node3").iterator().next().state(), equalTo(INITIALIZING));
 

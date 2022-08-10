@@ -134,7 +134,7 @@ POST /_security/api_key
 }
 ------------------------------------------------------------
 
-Resulting in the following API key information:
+Resulting in the following API key information.
 
 [source,console-result]
 --------------------------------------------------

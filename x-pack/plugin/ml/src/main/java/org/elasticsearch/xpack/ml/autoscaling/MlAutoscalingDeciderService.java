@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -296,40 +295,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         return scaleDownDetected == NO_SCALE_DOWN_POSSIBLE;
     }
 
-    /**
-     * The "current scale" is defined as the possible capacity of the current cluster, not
-     * the sum of what's actually in use.
-     * @return A {@link NativeMemoryCapacity} object where the "tier requirement" is the sum of
-     *         the ML native memory allowance (less per-node overhead) on all ML nodes, the
-     *         "node requirement" is the highest ML native memory allowance (less per-node overhead)
-     *         across all ML nodes and the JVM size is the biggest JVM size across all ML nodes.
-     */
-    public static NativeMemoryCapacity currentScale(
-        final List<DiscoveryNode> machineLearningNodes,
-        int maxMachineMemoryPercent,
-        boolean useAuto
-    ) {
-        long[] mlMemory = machineLearningNodes.stream()
-            .mapToLong(node -> NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent, useAuto).orElse(0L))
-            // NativeMemoryCapacity is in terms of ML memory excluding the per-node overhead
-            .map(mem -> Math.max(mem - NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), 0L))
-            .toArray();
-
-        return new NativeMemoryCapacity(
-            Arrays.stream(mlMemory).sum(),
-            Arrays.stream(mlMemory).max().orElse(0L),
-            // We assume that JVM size is universal, at least, the largest JVM indicates the largest node
-            machineLearningNodes.stream()
-                .map(MlAutoscalingDeciderService::getNodeJvmSize)
-                .filter(OptionalLong::isPresent)
-                .map(OptionalLong::getAsLong)
-                .max(Long::compare)
-                .orElse(null)
-        );
-    }
-
     NativeMemoryCapacity currentScale(final List<DiscoveryNode> machineLearningNodes) {
-        return currentScale(machineLearningNodes, maxMachineMemoryPercent, useAuto);
+        return NativeMemoryCapacity.currentScale(machineLearningNodes, maxMachineMemoryPercent, useAuto);
     }
 
     @Override

@@ -25,8 +25,8 @@ To update API keys, the owner user's credentials are required.
 [[security-api-bulk-update-api-keys-desc]]
 ==== {api-description-title}
 
-This API is similar to the <<security-api-update-api-key,update single API Key>> API but allows you to apply the same update to multiple API keys in one API call.
-This can greatly increase throughput over making individual updates.
+This API is similar to <<security-api-update-api-key,update single API Key>> but allows you to apply the same update to multiple API keys in one API call.
+This can greatly improve performance over making individual updates.
 
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
 
@@ -49,16 +49,16 @@ You can specify the following parameters in the request body.
 
 [[security-api-bulk-update-api-keys-api-key-role-descriptors]]
 `role_descriptors`::
-(Optional, object) The role descriptors to assign to all requested API keys.
+(Optional, object) The role descriptors to assign to the API keys.
 An API key's effective permissions are an intersection of its assigned privileges and the point in time snapshot of permissions of the owner user.
 If no privileges are assigned, the API key inherits the owner user's full permissions.
-You can assign new privileges to all requested API keys by specifying them in this parameter.
+You can assign new privileges by specifying them in this parameter.
 To remove assigned privileges, you can supply an empty `role_descriptors` parameter.
 The snapshot of the owner's permissions is always updated, whether you supply the `role_descriptors` parameter or not.
 The structure of a role descriptor is the same as the request for the <<security-api-put-role, create or update roles API>>.
 
 `metadata`::
-(Optional, object) Arbitrary metadata that you want to associate with all requested API keys.
+(Optional, object) Arbitrary metadata that you want to associate with the API keys.
 It supports nested data structure.
 Within the `metadata` object, top-level keys beginning with `_` are reserved for system usage.
 When specified, this fully replaces metadata previously associated with the API key.
@@ -71,7 +71,7 @@ A successful request returns a JSON structure that contains the IDs of all updat
 [[security-api-bulk-update-api-keys-example]]
 ==== {api-examples-title}
 
-If you create an API key as follows:
+For the examples below, assume a user creates two API keys as follows:
 
 [source,console]
 ------------------------------------------------------------
@@ -99,9 +99,26 @@ POST /_security/api_key
   }
 }
 ------------------------------------------------------------
+// TEST[skip:api key ids not available]
 
-A successful call returns a JSON structure that provides API key information.
-For example:
+[source,console]
+------------------------------------------------------------
+POST /_security/api_key
+{
+  "name": "my-other-api-key",
+  "metadata": {
+    "application": "my-application",
+    "environment": {
+       "level": 2,
+       "trusted": true,
+       "tags": ["dev", "staging"]
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip:api key ids not available]
+
+This results in the following information for the two created API keys:
 
 [source,console-result]
 --------------------------------------------------
@@ -112,11 +129,18 @@ For example:
   "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
 }
 --------------------------------------------------
-// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
-// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
-// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
-For the examples below, assume that the owner user's permissions are:
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "H3_AhoIBA9hmeQJdg7ij",
+  "name": "my-other-api-key",
+  "api_key": "134G4ilmT_uGWXHRfJfXXA",
+  "encoded": "SDNfQWhvSUJBOWhtZVFKZGc3aWo6MTM0RzRpbG1UX3VHV1hIUmZKZlhYQQ=="
+}
+--------------------------------------------------
+
+Further, assume that the owner user's permissions are:
 
 [[security-api-bulk-update-api-keys-examples-user-permissions]]
 [source,js]
@@ -133,13 +157,16 @@ For the examples below, assume that the owner user's permissions are:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following example updates the API key created above, assigning it new role descriptors and metadata:
+The following example updates the API keys created above, assigning them new role descriptors and metadata:
 
 [source,console]
 ----
 POST /_security/api_key/_bulk_update
 {
-  "ids": ["VuaCfGcBCdbkQm-e5aOx"]
+  "ids": [
+    "VuaCfGcBCdbkQm-e5aOx",
+    "H3_AhoIBA9hmeQJdg7ij"
+  ],
   "role_descriptors": {
     "role-a": {
       "index": [
@@ -159,20 +186,22 @@ POST /_security/api_key/_bulk_update
   }
 }
 ----
-// TEST[s/VuaCfGcBCdbkQm-e5aOx/\${body.id}/]
-// TEST[continued]
+// TEST[skip:api key ids not available]
 
-A successful call returns a JSON structure indicating that the API key was updated:
+A successful call returns a JSON structure indicating that the API keys were updated:
 
 [source,console-result]
 ----
 {
-  "updated": ["VuaCfGcBCdbkQm-e5aOx"],
+  "updated": [
+    "VuaCfGcBCdbkQm-e5aOx",
+    "H3_AhoIBA9hmeQJdg7ij"
+  ],
   "noops": []
 }
 ----
 
-The API key's effective permissions after the update will be the intersection of the supplied role descriptors and the <<security-api-bulk-update-api-keys-examples-user-permissions, owner user's permissions>>:
+Both API keys' effective permissions after the update will be the intersection of the supplied role descriptors and the <<security-api-bulk-update-api-keys-examples-user-permissions, owner user's permissions>>:
 
 [source,js]
 --------------------------------------------------
@@ -187,7 +216,110 @@ The API key's effective permissions after the update will be the intersection of
 --------------------------------------------------
 // NOTCONSOLE
 
-If any API keys failed to update, error details are included in the `errors` field:
+The following example removes the API keys' previously assigned permissions.
+
+[source,console]
+----
+POST /_security/api_key/_bulk_update
+{
+  "ids": [
+    "VuaCfGcBCdbkQm-e5aOx",
+    "H3_AhoIBA9hmeQJdg7ij"
+  ],
+  "role_descriptors": {}
+}
+----
+// TEST[skip:api key ids not available]
+
+Which returns the response:
+
+[source,console-result]
+----
+{
+  "updated": [
+    "VuaCfGcBCdbkQm-e5aOx",
+    "H3_AhoIBA9hmeQJdg7ij"
+  ],
+  "noops": []
+}
+----
+
+The API keys' effective permissions after the update will the same as the <<security-api-bulk-update-api-keys-examples-user-permissions, owner user's>>:
+
+[source,js]
+--------------------------------------------------
+{
+  "cluster": ["all"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["all"]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+For the next example, assume that the owner user's permissions have changed from <<security-api-bulk-update-api-keys-examples-user-permissions, the original permissions>> to:
+
+[source,js]
+--------------------------------------------------
+{
+  "cluster": ["manage_security"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["read"]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The following request auto-updates the snapshot of the user's permissions associated with the two API keys:
+
+[source,console]
+----
+POST /_security/api_key/_bulk_update
+{
+  "ids": [
+    "VuaCfGcBCdbkQm-e5aOx",
+    "H3_AhoIBA9hmeQJdg7ij"
+  ]
+}
+----
+// TEST[skip:api key ids not available]
+
+Which returns the response:
+
+[source,console-result]
+----
+{
+  "updated": [
+    "VuaCfGcBCdbkQm-e5aOx",
+    "H3_AhoIBA9hmeQJdg7ij"
+  ],
+  "noops": []
+}
+----
+
+Resulting in the following effective permissions for both API keys:
+
+[source,js]
+--------------------------------------------------
+{
+  "cluster": ["manage_security"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["read"]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+If any API keys fail to update, error details are included in the `errors` field:
 
 [[security-api-bulk-update-api-keys-examples-errors]]
 [source,js]

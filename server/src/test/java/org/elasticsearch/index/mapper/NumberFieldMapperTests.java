@@ -10,13 +10,16 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -346,19 +349,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             })));
             assertEquals("Failed to parse mapping: Unknown parameter [script] for mapper [field]", e.getMessage());
         }
-    }
-
-    public void testAllowMultipleValuesField() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("allow_multiple_values", false);
-        }));
-
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
     }
 
     protected abstract Number randomNumber();

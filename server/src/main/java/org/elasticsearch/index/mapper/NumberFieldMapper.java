@@ -116,7 +116,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
 
-        private final Parameter<Boolean> allowMultipleValues;
+        private boolean allowMultipleValues = true;
         private final Version indexCreatedVersion;
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings, Version indexCreatedVersion) {
@@ -189,8 +189,6 @@ public class NumberFieldMapper extends FieldMapper {
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
-
-            this.allowMultipleValues = Parameter.boolParam("allow_multiple_values", false, m -> toType(m).allowMultipleValues, true);
         }
 
         Builder nullValue(Number number) {
@@ -221,7 +219,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public Builder allowMultipleValues(boolean allowMultipleValues) {
-            this.allowMultipleValues.setValue(allowMultipleValues);
+            this.allowMultipleValues = allowMultipleValues;
             return this;
         }
 
@@ -238,8 +236,7 @@ public class NumberFieldMapper extends FieldMapper {
                 onScriptError,
                 meta,
                 dimension,
-                metric,
-                allowMultipleValues };
+                metric };
         }
 
         @Override
@@ -1555,7 +1552,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
-        this.allowMultipleValues = builder.allowMultipleValues.get();
+        this.allowMultipleValues = builder.allowMultipleValues;
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
@@ -1626,8 +1623,11 @@ public class NumberFieldMapper extends FieldMapper {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
             List<IndexableField> fields = context.doc().getFields();
             IndexableField last = fields.get(fields.size() - 1);
-            assert last.name().equals(fieldType().name())
-                : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
+            assert last.name().equals(fieldType().name()) : "last field name ["
+                + last.name()
+                + "] mis match field name ["
+                + fieldType().name()
+                + "]";
             context.doc().onlyAddKey(fieldType().name(), fields.get(fields.size() - 1));
         }
 

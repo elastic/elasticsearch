@@ -1,39 +1,39 @@
-[[pre-validate-node-removal-api]]
-=== Pre-validate node removal API
+[[prevalidate-node-removal-api]]
+=== Prevalidate node removal API
 ++++
-<titleabbrev>Pre-validate node removal</titleabbrev>
+<titleabbrev>Prevalidate node removal</titleabbrev>
 ++++
 
 This API is currently experimental for internal use by Elastic software only.
 
 NOTE: {cloud-only}
 
-Pre-validate node removal.
+Prevalidate node removal.
 
-[[pre-validate-node-removal-api-request]]
+[[prevalidate-node-removal-api-request]]
 ==== {api-request-title}
 
 `GET /_internal/prevalidate_node_removal/<node_id>`
 
-[[pre-validate-node-removal-api-prereqs]]
+[[prevalidate-node-removal-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[pre-validate-node-removal-api-desc]]
+[[prevalidate-node-removal-api-desc]]
 ==== {api-description-title}
 
 This API allows validating whether it is safe to remove the specified node(s) from the cluster. In case the cluster has a RED health status, this verifies that removal of the node(s) would not risk removing the last remaining copy of an unassigned shard.
 
 The response includes the overall safety of the removal of the specified nodes, and a detailed response for each node. The node-specific part of the response also includes more details on why removal of that node might not be safe.
 
-The result of the pre-validation is expressed as either `yes`, `no`, or `unknown`.
+The result of the prevalidation is expressed as either `YES`, `NO`, or `UNKNOWN`.
 
-[[pre-validate-node-removal-api-path-params]]
+[[prevalidate-node-removal-api-path-params]]
 ==== {api-path-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
-[[pre-validate-node-removal-api-example]]
+[[prevalidate-node-removal-api-example]]
 ==== {api-examples-title}
 
 This example validates whether it is safe to remove the nodes `node1` and `node2`.
@@ -48,14 +48,17 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "is_removal_safe": "unknown",
-    "nodes": {
+    "overall_result": {
+        "is_safe": "UNKNOWN",
+        "reason": ""
+    },
+    "per_node_result": {
         "node1": {
-            "is_removal_safe": "yes",
+            "is_safe": "YES",
             "reason": ""
         },
         "node2": {
-            "is_removal_safe": "unknown",
+            "is_safe": "UNKNOWN",
             "reason": "no response from the node"
         }
     }

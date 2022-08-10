@@ -22,8 +22,13 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
     public void testNodeRemovalFromGreenClusterIsSafe() throws Exception {
         createIndex("test");
         ensureGreen();
-        PrevalidateNodeRemovalRequest req = new PrevalidateNodeRemovalRequest(randomFrom(internalCluster().getNodeNames()));
+        String nodeName = randomFrom(internalCluster().getNodeNames());
+        PrevalidateNodeRemovalRequest req = new PrevalidateNodeRemovalRequest(nodeName);
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
+
         assertThat(resp.getPrevalidation().getOverallResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
+        assertThat(resp.getPrevalidation().getPerNodeResult().size(), equalTo(1));
+        assertThat(resp.getPrevalidation().getPerNodeResult().containsKey(nodeName), equalTo(true));
+        assertThat(resp.getPrevalidation().getPerNodeResult().get(nodeName).isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
     }
 }

@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.OptionalLong;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD;
 
@@ -26,14 +30,6 @@ public class NativeMemoryCapacity {
     static final NativeMemoryCapacity ZERO = new NativeMemoryCapacity(0L, 0L);
 
     private static final Logger logger = LogManager.getLogger(NativeMemoryCapacity.class);
-
-    static NativeMemoryCapacity from(NativeMemoryCapacity capacity) {
-        return new NativeMemoryCapacity(
-            capacity.tierMlNativeMemoryRequirementExcludingOverhead,
-            capacity.nodeMlNativeMemoryRequirementExcludingOverhead,
-            capacity.jvmSize
-        );
-    }
 
     private final long tierMlNativeMemoryRequirementExcludingOverhead;
     private final long nodeMlNativeMemoryRequirementExcludingOverhead;
@@ -268,5 +264,37 @@ public class NativeMemoryCapacity {
     @Override
     public int hashCode() {
         return Objects.hash(tierMlNativeMemoryRequirementExcludingOverhead, nodeMlNativeMemoryRequirementExcludingOverhead, jvmSize);
+    }
+
+    /**
+     * The "current scale" is defined as the possible capacity of the current cluster, not
+     * the sum of what's actually in use.
+     * @return A {@link NativeMemoryCapacity} object where the "tier requirement" is the sum of
+     *         the ML native memory allowance (less per-node overhead) on all ML nodes, the
+     *         "node requirement" is the highest ML native memory allowance (less per-node overhead)
+     *         across all ML nodes and the JVM size is the biggest JVM size across all ML nodes.
+     */
+    public static NativeMemoryCapacity currentScale(
+        final List<DiscoveryNode> machineLearningNodes,
+        int maxMachineMemoryPercent,
+        boolean useAuto
+    ) {
+        long[] mlMemory = machineLearningNodes.stream()
+            .mapToLong(node -> NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent, useAuto).orElse(0L))
+            // NativeMemoryCapacity is in terms of ML memory excluding the per-node overhead
+            .map(mem -> Math.max(mem - NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), 0L))
+            .toArray();
+
+        return new NativeMemoryCapacity(
+            Arrays.stream(mlMemory).sum(),
+            Arrays.stream(mlMemory).max().orElse(0L),
+            // We assume that JVM size is universal, at least, the largest JVM indicates the largest node
+            machineLearningNodes.stream()
+                .map(MlAutoscalingDeciderService::getNodeJvmSize)
+                .filter(OptionalLong::isPresent)
+                .map(OptionalLong::getAsLong)
+                .max(Long::compare)
+                .orElse(null)
+        );
     }
 }

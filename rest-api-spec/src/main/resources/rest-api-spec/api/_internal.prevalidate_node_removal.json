@@ -2,7 +2,7 @@
   "_internal.prevalidate_node_removal": {
     "documentation":{
       "url": null,
-      "description":""
+      "description":"Prevalidates node removal from the cluster"
     },
     "stability":"experimental",
     "visibility":"private",
@@ -12,18 +12,18 @@
     "url":{
       "paths":[
         {
-          "path":"/_internal/prevalidate_node_removal",
+          "path":"/_internal/prevalidate_node_removal/{node}",
           "methods":[
             "GET"
-          ]
+          ],
+          "parts":{
+            "node":{
+              "type":"list",
+              "description":"A comma-separated list of node IDs to prevalidate"
+            }
+          }
         }
       ]
-    },
-    "params":{
-      "node_id":{
-        "type":"string",
-        "description":""
-      }
     }
   }
 }

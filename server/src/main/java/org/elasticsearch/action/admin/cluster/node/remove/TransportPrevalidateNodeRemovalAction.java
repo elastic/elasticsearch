@@ -21,6 +21,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation.IsSafe;
+import static org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation.Result;
 
 // TODO: should this instead extend TransportMasterNodeReadAction?
 public class TransportPrevalidateNodeRemovalAction extends TransportAction<PrevalidateNodeRemovalRequest, PrevalidateNodeRemovalResponse> {
@@ -41,7 +46,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportAction<Preva
         client.admin().cluster().health(new ClusterHealthRequest(), new ActionListener<>() {
             @Override
             public void onResponse(ClusterHealthResponse clusterHealthResponse) {
-                doPrevalidation(clusterHealthResponse, listener);
+                doPrevalidation(request, clusterHealthResponse, listener);
             }
 
             @Override
@@ -52,21 +57,26 @@ public class TransportPrevalidateNodeRemovalAction extends TransportAction<Preva
         });
     }
 
-    private void doPrevalidation(ClusterHealthResponse clusterHealthResponse, ActionListener<PrevalidateNodeRemovalResponse> listener) {
+    private void doPrevalidation(
+        PrevalidateNodeRemovalRequest prevalidationRequest,
+        ClusterHealthResponse clusterHealthResponse,
+        ActionListener<PrevalidateNodeRemovalResponse> listener
+    ) {
         switch (clusterHealthResponse.getStatus()) {
-            case GREEN, YELLOW -> listener.onResponse(
-                new PrevalidateNodeRemovalResponse(
-                    new NodesRemovalPrevalidation(new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.YES, ""), Map.of())
-                )
-            );
-            case RED -> listener.onResponse(
-                new PrevalidateNodeRemovalResponse(
-                    new NodesRemovalPrevalidation(
-                        new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.UNKNOWN, "cluster health is RED"),
-                        Map.of()
-                    )
-                )
-            );
+            case GREEN, YELLOW -> {
+                Result overall = new Result(IsSafe.YES, "");
+                Map<String, Result> nodeResults = prevalidationRequest.getNodeIds()
+                    .stream()
+                    .collect(Collectors.toMap(Function.identity(), id -> new Result(IsSafe.YES, "")));
+                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(overall, nodeResults)));
+            }
+            case RED -> {
+                Result overall = new Result(IsSafe.UNKNOWN, "cluster health is RED");
+                Map<String, Result> nodeResults = prevalidationRequest.getNodeIds()
+                    .stream()
+                    .collect(Collectors.toMap(Function.identity(), id -> new Result(IsSafe.UNKNOWN, "")));
+                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(overall, nodeResults)));
+            }
         }
     }
 }

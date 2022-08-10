@@ -1,1 +1,14 @@
 ---
+"node removal prevalidation basic test":
+  # Fetch a node ID and stash it in node_id
+  - do:
+      nodes.info: { }
+  - set:
+      nodes._arbitrary_key_: node_id
+  # Prevalidate its removal
+  - do:
+      _internal.prevalidate_node_removal:
+        node: $node_id
+
+  - match: { overall_result.is_safe: "YES"}
+  - match: { per_node_result.$node_id.is_safe: "YES"}

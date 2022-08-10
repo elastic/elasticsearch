@@ -433,9 +433,15 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                     + "]"
             );
         }
-        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
         final ZoneId tz = timeZone();
+        if (IndexMode.TIME_SERIES.getName().equals(indexMode) && ZoneId.of("UTC").equals(tz) == false) {
+            throw new UnsupportedAggregationOnDownsampledField(
+                config.getDescription() + " is not supported for aggregation [" + this.getName() + "] with timezone [" + tz + "]"
+            );
+        }
+
+        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
 
         LongBounds roundedBounds = null;

@@ -56,6 +56,26 @@ setup:
   - match: { error.root_cause.0.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with interval type [calendar_interval]" }
 
 ---
+"Date aggregation with non utc timezone":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1m
+                time_zone: "America/New_York"
+                min_doc_count: 1
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_downsampled_field }
+  - match: { error.root_cause.0.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with timezone [America/New_York]" }
+
+---
 "Date aggregation with fixed_interval":
   - do:
       search:

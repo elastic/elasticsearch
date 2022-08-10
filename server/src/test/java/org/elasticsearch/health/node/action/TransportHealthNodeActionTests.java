@@ -64,6 +64,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
     private DiscoveryNode localNode;
     private DiscoveryNode remoteNode;
     private DiscoveryNode[] allNodes;
+    private TaskManager taskManager;
 
     @BeforeClass
     public static void beforeClass() {
@@ -74,6 +75,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(
@@ -291,12 +293,32 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         }
     }
 
-    public void testDelegateToHealthNode() throws ExecutionException, InterruptedException {
+    public void testDelegateToHealthNodeWithoutParentTask() throws ExecutionException, InterruptedException {
         Request request = new Request();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, remoteNode, allNodes));
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
+
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
+        assertThat(capturedRequest.node(), equalTo(remoteNode));
+        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(capturedRequest.action(), equalTo("internal:testAction"));
+
+        Response response = new Response();
+        transport.handleResponse(capturedRequest.requestId(), response);
+        assertTrue(listener.isDone());
+        assertThat(listener.get(), equalTo(response));
+    }
+
+    public void testDelegateToHealthNodeWithParentTask() throws ExecutionException, InterruptedException {
+        Request request = new Request();
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, remoteNode, allNodes));
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
+        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), task, request, listener);
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
@@ -330,8 +352,6 @@ public class TransportHealthNodeActionTests extends ESTestCase {
     }
 
     public void testTaskCancellation() {
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-
         Request request = new Request();
         final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
 

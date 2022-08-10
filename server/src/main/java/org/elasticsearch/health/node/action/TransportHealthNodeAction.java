@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.core.Strings.format;
@@ -70,9 +71,6 @@ public abstract class TransportHealthNodeAction<Request extends ActionRequest, R
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
         logger.trace("starting to process request [{}] with cluster state version [{}]", request, state.version());
-        if (task != null) {
-            request.setParentTask(clusterService.localNode().getId(), task.getId());
-        }
         if (isTaskCancelled(task)) {
             listener.onFailure(new TaskCancelledException("Task was cancelled"));
             return;
@@ -97,21 +95,21 @@ public abstract class TransportHealthNodeAction<Request extends ActionRequest, R
                 });
             } else {
                 logger.trace("forwarding request [{}] to health node [{}]", actionName, healthNode);
-                transportService.sendRequest(
-                    healthNode,
-                    actionName,
-                    request,
-                    new ActionListenerResponseHandler<>(listener, responseReader) {
-                        @Override
-                        public void handleException(final TransportException exception) {
-                            logger.trace(
-                                () -> format("failure when forwarding request [%s] to health node [%s]", actionName, healthNode),
-                                exception
-                            );
-                            listener.onFailure(exception);
-                        }
+                ActionListenerResponseHandler<Response> handler = new ActionListenerResponseHandler<>(listener, responseReader) {
+                    @Override
+                    public void handleException(final TransportException exception) {
+                        logger.trace(
+                            () -> format("failure when forwarding request [%s] to health node [%s]", actionName, healthNode),
+                            exception
+                        );
+                        listener.onFailure(exception);
                     }
-                );
+                };
+                if (task != null) {
+                    transportService.sendChildRequest(healthNode, actionName, request, task, TransportRequestOptions.EMPTY, handler);
+                } else {
+                    transportService.sendRequest(healthNode, actionName, request, handler);
+                }
             }
         } catch (Exception e) {
             logger.trace(() -> format("Failed to route/execute health node action %s", actionName), e);

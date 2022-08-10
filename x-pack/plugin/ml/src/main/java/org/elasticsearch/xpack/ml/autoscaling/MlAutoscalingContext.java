@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 
 import java.util.Collection;
@@ -42,6 +44,9 @@ class MlAutoscalingContext {
     final List<String> waitingAnalyticsJobs;
     final List<String> waitingAllocatedModels;
 
+    final List<DiscoveryNode> mlNodes;
+    final PersistentTasksCustomMetadata persistentTasks;
+
     MlAutoscalingContext() {
         anomalyDetectionTasks = List.of();
         snapshotUpgradeTasks = List.of();
@@ -52,6 +57,9 @@ class MlAutoscalingContext {
         waitingSnapshotUpgrades = List.of();
         waitingAnalyticsJobs = List.of();
         waitingAllocatedModels = List.of();
+
+        mlNodes = List.of();
+        persistentTasks = null;
     }
 
     MlAutoscalingContext(ClusterState clusterState) {
@@ -79,6 +87,9 @@ class MlAutoscalingContext {
             .filter(e -> e.getValue().getAssignmentState().equals(AssignmentState.STARTING) && e.getValue().getNodeRoutingTable().isEmpty())
             .map(Map.Entry::getKey)
             .toList();
+
+        mlNodes = getMlNodes(clusterState);
+        persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
     }
 
     private static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> anomalyDetectionTasks(
@@ -151,5 +162,9 @@ class MlAutoscalingContext {
             )
             .map(Map.Entry::getKey)
             .toList();
+    }
+
+    static List<DiscoveryNode> getMlNodes(final ClusterState clusterState) {
+        return clusterState.nodes().mastersFirstStream().filter(MachineLearning::isMlNode).toList();
     }
 }

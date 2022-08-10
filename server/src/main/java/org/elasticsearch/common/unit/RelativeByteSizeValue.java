@@ -45,7 +45,8 @@ public class RelativeByteSizeValue {
 
     private ByteSizeValue calculateValue(ByteSizeValue total, ByteSizeValue maxHeadroom, boolean floorInsteadOfCeil) {
         if (ratio != null) {
-            double res = ratio.getAsRatio() * total.getBytes();
+            // Use percentage instead of ratio, and divide bytes by 100, to make the calculation with double more accurate.
+            double res = total.getBytes() * ratio.getAsPercent() / 100;
             long ratioBytes = (long) (floorInsteadOfCeil ? Math.floor(res) : Math.ceil(res));
             if (maxHeadroom != null && maxHeadroom.getBytes() != -1) {
                 return ByteSizeValue.ofBytes(Math.max(ratioBytes, total.getBytes() - maxHeadroom.getBytes()));

@@ -948,7 +948,7 @@ public class Node implements Closeable {
             );
             HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);
             HealthMetadataService healthMetadataService = HealthNode.isEnabled()
-                ? new HealthMetadataService(clusterService, settings)
+                ? HealthMetadataService.create(clusterService, settings)
                 : null;
             LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
                 ? LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool)

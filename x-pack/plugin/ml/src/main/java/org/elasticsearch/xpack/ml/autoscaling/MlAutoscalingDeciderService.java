@@ -376,39 +376,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         }
 
         // We don't need to check anything as there are no tasks
-        // This is a quick path to downscale.
-        // simply return `0` for scale down if delay is satisfied
         if (mlContext.isEmpty()) {
-            // We might be in a need zero, have zero situation, in which case it's nicer to pass a "no change" explanation
-            if (currentScale.getTierMlNativeMemoryRequirementExcludingOverhead() == 0
-                && currentScale.getNodeMlNativeMemoryRequirementExcludingOverhead() == 0) {
-                return new AutoscalingDeciderResult(
-                    context.currentCapacity(),
-                    reasonBuilder.setSimpleReason("Passing currently perceived capacity as no scaling changes are necessary").build()
-                );
-            }
-            long msLeftToScale = msLeftToDownScale(configuration);
-            if (msLeftToScale > 0) {
-                return new AutoscalingDeciderResult(
-                    context.currentCapacity(),
-                    reasonBuilder.setSimpleReason(
-                        String.format(
-                            Locale.ROOT,
-                            "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s] "
-                                + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
-                            DOWN_SCALE_DELAY.get(configuration).getStringRep(),
-                            XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleDownDetected)),
-                            TimeValue.timeValueMillis(msLeftToScale).getStringRep()
-                        )
-                    ).build()
-                );
-            }
-            return new AutoscalingDeciderResult(
-                AutoscalingCapacity.ZERO,
-                reasonBuilder.setRequiredCapacity(AutoscalingCapacity.ZERO)
-                    .setSimpleReason("Requesting scale down as tier and/or node size could be smaller")
-                    .build()
-            );
+            // This is a quick path to downscale.
+            // simply return `0` for scale down if delay is satisfied
+            return downscaleToZero(configuration, context, currentScale, reasonBuilder);
         }
 
         // This is the sole check for memory staleness. It's possible that memory becomes stale while we execute the rest
@@ -611,6 +582,44 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         return new AutoscalingDeciderResult(
             context.currentCapacity(),
             reasonBuilder.setSimpleReason("Passing currently perceived capacity as no scaling changes are necessary").build()
+        );
+    }
+
+    private AutoscalingDeciderResult downscaleToZero(
+        Settings configuration,
+        AutoscalingDeciderContext context,
+        NativeMemoryCapacity currentScale,
+        MlScalingReason.Builder reasonBuilder
+    ) {
+        // We might be in a need zero, have zero situation, in which case it's nicer to pass a "no change" explanation
+        if (currentScale.getTierMlNativeMemoryRequirementExcludingOverhead() == 0
+            && currentScale.getNodeMlNativeMemoryRequirementExcludingOverhead() == 0) {
+            return new AutoscalingDeciderResult(
+                context.currentCapacity(),
+                reasonBuilder.setSimpleReason("Passing currently perceived capacity as no scaling changes are necessary").build()
+            );
+        }
+        long msLeftToScale = msLeftToDownScale(configuration);
+        if (msLeftToScale > 0) {
+            return new AutoscalingDeciderResult(
+                context.currentCapacity(),
+                reasonBuilder.setSimpleReason(
+                    String.format(
+                        Locale.ROOT,
+                        "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s] "
+                            + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
+                        DOWN_SCALE_DELAY.get(configuration).getStringRep(),
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleDownDetected)),
+                        TimeValue.timeValueMillis(msLeftToScale).getStringRep()
+                    )
+                ).build()
+            );
+        }
+        return new AutoscalingDeciderResult(
+            AutoscalingCapacity.ZERO,
+            reasonBuilder.setRequiredCapacity(AutoscalingCapacity.ZERO)
+                .setSimpleReason("Requesting scale down as tier and/or node size could be smaller")
+                .build()
         );
     }
 

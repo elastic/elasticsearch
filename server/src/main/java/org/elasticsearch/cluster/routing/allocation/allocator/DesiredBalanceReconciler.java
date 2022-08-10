@@ -77,8 +77,6 @@ public class DesiredBalanceReconciler {
         // 3. move any other shards that are desired elsewhere
         logger.trace("Reconciler#balance");
         balance();
-        // 4. apply pending commands
-        PendingAllocationCommandsService.INSTANCE.applyPendingCommandsOnBalanceReconciliation(allocation);
 
         logger.trace("done");
     }

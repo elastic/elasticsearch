@@ -388,31 +388,12 @@ public class AllocationService {
     ) {
         RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
 
-        if (shardsAllocator instanceof DesiredBalanceShardsAllocator desiredBalanceShardsAllocator) {
-            desiredBalanceShardsAllocator.executeCommands(commands, explain, retryFailed, explanationsListener);
-        } else {
-            // don't short circuit deciders, we want a full explanation
-            allocation.debugDecision(true);
-            // we ignore disable allocation, because commands are explicit
-            allocation.ignoreDisable(true);
-
-            if (retryFailed) {
-                allocation.resetFailedAllocationCounter();
-            }
-
-            try {
-                explanationsListener.onResponse(commands.execute(allocation, explain));
-            } catch (RuntimeException e) {
-                explanationsListener.onFailure(e);
-                throw e;
-            }
-
-            // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
-            allocation.ignoreDisable(false);
-        }
+        shardsAllocator.execute(allocation, commands, explain, retryFailed, explanationsListener);
 
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
+
+        // TODO do not reroute if this is dry run as this will cause bogus desired balance calculation
         reroute(allocation, rerouteListener);
         return buildResultAndLogHealthChange(clusterState, allocation, "reroute commands");
     }

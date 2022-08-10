@@ -115,15 +115,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         this.queue = new PendingListenersQueue(threadPool);
     }
 
-    public void executeCommands(
-        AllocationCommands commands,
-        boolean explain,
-        boolean retryFailed,
-        ActionListener<RoutingExplanations> listener
-    ) {
-        PendingAllocationCommandsService.INSTANCE.addCommands(commands, explain, retryFailed, listener);
-    }
-
     @Override
     public void allocate(RoutingAllocation allocation) {
         throw new UnsupportedOperationException();
@@ -162,6 +153,23 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         } else {
             logger.trace("Executing listeners up to [{}] as routing nodes have not changed", queue.getCompletedIndex());
             queue.resume();
+        }
+    }
+
+    @Override
+    public void execute(
+        RoutingAllocation allocation,
+        AllocationCommands commands,
+        boolean explain,
+        boolean retryFailed,
+        ActionListener<RoutingExplanations> listener
+    ) {
+        try {
+            ShardsAllocator.super.execute(allocation, commands, explain, retryFailed, listener);
+            PendingAllocationCommandsService.INSTANCE.addCommands(commands);
+            // TODO enqueue moves to be used in desired balance
+        } catch (RuntimeException e) {
+            logger.warn("Failed to execute allocation commands", e);
         }
     }
 

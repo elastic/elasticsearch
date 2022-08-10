@@ -167,7 +167,7 @@ public class DesiredBalanceComputer {
             }
         }
 
-        PendingAllocationCommandsService.INSTANCE.applyPendingCommandsOnBalanceComputation(routingAllocation);
+        PendingAllocationCommandsService.INSTANCE.applyMoveCommandsToDesiredBalanceCalculation(routingAllocation);
 
         // TODO must also bypass ResizeAllocationDecider
         // TODO must also bypass RestoreInProgressAllocationDecider

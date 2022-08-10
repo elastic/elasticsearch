@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -304,10 +303,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
         return new StableMasterHealthIndicatorService(
             new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService)
         );

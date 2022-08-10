@@ -1323,6 +1323,7 @@ public class Node implements Closeable {
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
+        injector.getInstance(CoordinationDiagnosticsService.class).start();
         coordinator.startInitialJoin();
         final TimeValue initialStateTimeout = INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);

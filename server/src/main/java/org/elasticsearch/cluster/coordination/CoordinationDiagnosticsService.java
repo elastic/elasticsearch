@@ -171,6 +171,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         this.nodeHasMasterLookupTimeframe = NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.get(clusterService.getSettings());
         this.unacceptableNullTransitions = NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.get(clusterService.getSettings());
         this.unacceptableIdentityChanges = IDENTITY_CHANGES_THRESHOLD_SETTING.get(clusterService.getSettings());
+    }
+
+    /**
+     * This method completes the initialization of the CoordinationDiagnosticsService. It kicks off polling for remote master stability
+     * results on non-master-eligible nodes, and registers the service as a cluster service listener on all nodes.
+     */
+    public void start() {
         /*
          * This is called here to cover an edge case -- when there are master-eligible nodes in the cluster but none of them has been
          * elected master. In the most common case this node will receive a ClusterChangedEvent that results in this polling being
@@ -179,10 +186,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
          * results will always be harmlessly ignored. Note that beginPollingRemoteMasterStabilityDiagnostic results in several internal
          * transport actions being called, so it must run in the system context.
          */
-        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
-            beginPollingRemoteMasterStabilityDiagnostic();
+        if (clusterService.localNode().isMasterNode() == false) {
+            final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.markAsSystemContext();
+                beginPollingRemoteMasterStabilityDiagnostic();
+            }
         }
         clusterService.addListener(this);
     }
@@ -621,17 +630,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             }
         });
         // Coordinator does not report the local node, so add it:
-        try {
-            if (clusterService.state() != null && clusterService.localNode() != null && clusterService.localNode().isMasterNode()) {
-                masterEligibleNodes.add(clusterService.localNode());
-            }
-        } catch (AssertionError e) {
-            /*
-             * Unfortunately there does not seem to be a way to tell if clusterService.state() will throw an AssertionError if assertions
-             * are enabled. In production with assertions disabled clusterService.state() will be null rather than throwing an
-             * AssertionError.
-             */
-            logger.trace("Attempted to use cluster state before it existed, and assertions are enabled in the JVM", e);
+        if (clusterService.localNode().isMasterNode()) {
+            masterEligibleNodes.add(clusterService.localNode());
         }
         return masterEligibleNodes;
     }
@@ -677,10 +677,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         } else {
             cancelPollingClusterFormationInfo();
         }
-        if (currentMaster == null && clusterService.localNode().isMasterNode() == false) {
-            beginPollingRemoteMasterStabilityDiagnostic();
-        } else {
-            cancelPollingRemoteMasterStabilityDiagnostic();
+        if (clusterService.localNode().isMasterNode() == false) {
+            if (currentMaster == null) {
+                beginPollingRemoteMasterStabilityDiagnostic();
+            } else {
+                cancelPollingRemoteMasterStabilityDiagnostic();
+            }
         }
     }
 
@@ -690,6 +692,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      */
     void beginPollingClusterFormationInfo() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+        assert ThreadPool.assertInSystemContext(transportService.getThreadPool());
         cancelPollingClusterFormationInfo();
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses = new ConcurrentHashMap<>();
         Map<DiscoveryNode, Scheduler.Cancellable> cancellables = new ConcurrentHashMap<>();
@@ -840,6 +843,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     void beginPollingRemoteMasterStabilityDiagnostic() {
+        assert ThreadPool.assertInSystemContext(transportService.getThreadPool());
         // Note that this method must be called from the system context because it calls internal transport actions
         AtomicReference<Scheduler.Cancellable> cancellableReference = new AtomicReference<>();
         AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
@@ -1001,14 +1005,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     );
                 } catch (Exception e) {
                     responseConsumer.accept(responseTransformationFunction.apply(null, e));
-                } catch (AssertionError e) {
-                    /*
-                     * This handles a fairly rare edge case. If transportService.sendRequest throws a non-remote exception and if
-                     * assesrtions are enabled in the JVM, then an AssertionError is thrown. In this case we don't want to kill the whole
-                     *  thread. Just put the exception in the response and move on -- it will probably work when it runs again 10 seconds
-                     *  later.
-                     */
-                    responseConsumer.accept(responseTransformationFunction.apply(null, new RuntimeException(e)));
                 }
             }
         }, e -> {

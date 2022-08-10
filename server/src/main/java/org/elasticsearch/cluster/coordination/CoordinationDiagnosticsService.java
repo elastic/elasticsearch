@@ -844,7 +844,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     void beginPollingRemoteMasterStabilityDiagnostic() {
         assert ThreadPool.assertInSystemContext(transportService.getThreadPool());
-        // Note that this method must be called from the system context because it calls internal transport actions
         AtomicReference<Scheduler.Cancellable> cancellableReference = new AtomicReference<>();
         AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
         remoteCoordinationDiagnosisTask = cancellableReference;

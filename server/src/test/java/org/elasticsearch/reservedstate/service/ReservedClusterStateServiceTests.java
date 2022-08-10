@@ -191,12 +191,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     public void testErrorStateTask() throws Exception {
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
 
+        final var listenerCompleted = new AtomicBoolean(false);
+
         ReservedStateErrorTask task = spy(
             new ReservedStateErrorTask(
                 new ErrorState("test", 1L, List.of("some parse error", "some io error"), ReservedStateErrorMetadata.ErrorKind.PARSING),
                 new ActionListener<>() {
                     @Override
-                    public void onResponse(ActionResponse.Empty empty) {}
+                    public void onResponse(ActionResponse.Empty empty) {
+                        listenerCompleted.set(true);
+                    }
 
                     @Override
                     public void onFailure(Exception e) {}
@@ -241,6 +245,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         assertEquals(1L, (long) operatorMetadata.errorMetadata().version());
         assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, operatorMetadata.errorMetadata().errorKind());
         assertThat(operatorMetadata.errorMetadata().errors(), contains("some parse error", "some io error"));
+        assertTrue(listenerCompleted.get());
     }
 
     public void testUpdateTaskDuplicateError() {

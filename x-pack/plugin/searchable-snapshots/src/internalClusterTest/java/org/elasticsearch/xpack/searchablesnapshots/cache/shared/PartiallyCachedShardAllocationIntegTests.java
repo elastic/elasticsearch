@@ -124,7 +124,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
                     .stream()
                     .anyMatch(
                         d -> d.getExplanation().contains(SHARED_CACHE_SIZE_SETTING.getKey())
-                            && d.getExplanation().contains("frozen searchable snapshot shards cannot be allocated to this node")
+                            && d.getExplanation().contains("shards of partially mounted indices cannot be allocated to this node")
                     )
             );
         }

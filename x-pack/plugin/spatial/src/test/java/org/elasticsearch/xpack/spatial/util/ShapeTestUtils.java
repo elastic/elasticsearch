@@ -27,9 +27,12 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.geo.GeometryTestUtils.linearRing;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 
 /** generates random cartesian shapes */
 public class ShapeTestUtils {
+
+    public static final double MIN_VALID_AREA = 1e-10;
 
     public static double randomValue() {
         return XShapeTestUtil.nextDouble();
@@ -80,7 +83,7 @@ public class ShapeTestUtils {
     }
 
     public static Polygon randomPolygon(boolean hasAlt) {
-        XYPolygon lucenePolygon = XShapeTestUtil.nextPolygon();
+        XYPolygon lucenePolygon = randomValueOtherThanMany(p -> area(p) <= MIN_VALID_AREA, XShapeTestUtil::nextPolygon);
         if (lucenePolygon.numHoles() > 0) {
             XYPolygon[] luceneHoles = lucenePolygon.getHoles();
             List<LinearRing> holes = new ArrayList<>();
@@ -94,6 +97,16 @@ public class ShapeTestUtils {
             );
         }
         return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt));
+    }
+
+    static double area(XYPolygon p) {
+        double windingSum = 0;
+        final int numPts = p.numPoints() - 1;
+        for (int i = 0; i < numPts; i++) {
+            // compute signed area
+            windingSum += p.getPolyX(i) * p.getPolyY(i + 1) - p.getPolyY(i) * p.getPolyX(i + 1);
+        }
+        return Math.abs(windingSum / 2);
     }
 
     static double[] floatsToDoubles(float[] f) {

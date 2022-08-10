@@ -13,23 +13,29 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 
-public class TransportGetProfileAction extends HandledTransportAction<GetProfileRequest, GetProfilesResponse> {
+import java.util.List;
+
+public class TransportGetProfilesAction extends HandledTransportAction<GetProfilesRequest, GetProfilesResponse> {
 
     private final ProfileService profileService;
 
     @Inject
-    public TransportGetProfileAction(TransportService transportService, ActionFilters actionFilters, ProfileService profileService) {
-        super(GetProfileAction.NAME, transportService, actionFilters, GetProfileRequest::new);
+    public TransportGetProfilesAction(TransportService transportService, ActionFilters actionFilters, ProfileService profileService) {
+        super(GetProfilesAction.NAME, transportService, actionFilters, GetProfilesRequest::new);
         this.profileService = profileService;
     }
 
     @Override
-    protected void doExecute(Task task, GetProfileRequest request, ActionListener<GetProfilesResponse> listener) {
-        profileService.getProfile(request.getUid(), request.getDataKeys(), listener.map(GetProfilesResponse::new));
+    protected void doExecute(Task task, GetProfilesRequest request, ActionListener<GetProfilesResponse> listener) {
+        profileService.getProfiles(
+            request.getUids(),
+            request.getDataKeys(),
+            listener.map(resultsAndError -> new GetProfilesResponse(List.copyOf(resultsAndError.results()), resultsAndError.errors()))
+        );
     }
 }

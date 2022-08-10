@@ -1,0 +1,5 @@
+pr: 89023
+summary: User Profile - `GetProfile` API nows supports multiple UIDs
+area: Security
+type: enhancement
+issues: []

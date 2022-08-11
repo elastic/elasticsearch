@@ -104,8 +104,8 @@ class TransformFailureHandler {
      * <p>
      * Going out of memory we smoothly reduce the page size which reduces memory consumption.
      * <p>
-     * Implementation details: We take the values from the circuit breaker as a hint, but
-     * note that it breaks early, that's why we also reduce using
+     * Implementation details: We take the values from the circuit breaker as a hint and reduce
+     * either based on the circuitbreaker value or a log-scale value.
      *
      * @param circuitBreakingException CircuitBreakingException thrown
      * @param unattended whether the transform runs in unattended mode

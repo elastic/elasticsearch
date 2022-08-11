@@ -419,7 +419,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             summary = String.format(
                 Locale.ROOT,
                 "No master node observed in the last %s, and this node is not master eligible. Reaching out to a master-eligible node"
-                    + " for more information, but no result yet.",
+                    + " for more information",
                 nodeHasMasterLookupTimeframe
             );
             if (explain) {

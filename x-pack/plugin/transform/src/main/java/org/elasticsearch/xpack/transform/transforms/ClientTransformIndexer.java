@@ -61,8 +61,10 @@ import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -76,6 +78,9 @@ class ClientTransformIndexer extends TransformIndexer {
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
+
+    // protected for unit tests
+    protected final AtomicInteger statePersistenceFailures = new AtomicInteger();
     private final ConcurrentHashMap<String, PointInTimeBuilder> namedPits = new ConcurrentHashMap<>();
     private volatile long pitCheckpoint;
     private volatile boolean disablePit = false;
@@ -287,6 +292,7 @@ class ClientTransformIndexer extends TransformIndexer {
             seqNoPrimaryTermAndIndex,
             ActionListener.wrap(r -> {
                 updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
+                statePersistenceFailures.set(0);
 
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
@@ -311,10 +317,12 @@ class ClientTransformIndexer extends TransformIndexer {
                 if (org.elasticsearch.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
                     // this should never happen, but indicates a race condition in state persistence:
                     // - there should be only 1 save persistence at a time
-                    // - this is not a catastrophic failure, if 2 state persistence calls run at the same time, 1 should succeed and update
-                    // seqNoPrimaryTermAndIndex
-                    // - for tests fail(assert), so we can debug the problem
-                    logger.error(
+                    // - there are reasons the seq_id, primary_term changes without user intervention, e.g. an internal
+                    // retry (seq_id) or an unexpected node failure (primary_term), these are rare
+                    // - in case re-get the versions and retry on the next persistence
+                    // - the transform can (extremely unlikely) fail if state persistence fails in a row
+                    // - for tests the number of allowed retries is set to 0 and therefore causes the transform to fail
+                    logger.warn(
                         () -> format(
                             "[%s] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
                             transformConfig.getId()
@@ -326,14 +334,48 @@ class ClientTransformIndexer extends TransformIndexer {
                         "Failure updating stats of transform, unexpected version conflict of internal state, resetting to recover: "
                             + statsExc.getMessage()
                     );
-                    assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
+
+                    if (handleStatePersistenceFailure(statsExc) == false) {
+                        // get the current seqNo and primary term, however ignore the stored state
+                        transformsConfigManager.getTransformStoredDoc(
+                            transformConfig.getId(),
+                            false,
+                            ActionListener.wrap(storedDocAndSeqNoPrimaryTerm -> {
+                                updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, storedDocAndSeqNoPrimaryTerm.v2());
+                                listener.onFailure(statsExc);
+                            }, e2 -> listener.onFailure(statsExc))
+                        );
+                        // wrapped listener gets called
+                        return;
+                    }
                 } else {
-                    logger.error(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
+                    logger.warn(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
+                    handleStatePersistenceFailure(statsExc);
                 }
                 listener.onFailure(statsExc);
             })
         );
+    }
+
+    private boolean handleStatePersistenceFailure(Exception statsExc) {
+        // we use the same setting for retries, however a separate counter, because the failure
+        // counter for search/index gets reset after a successful bulk index request
+        int numFailureRetries = Optional.ofNullable(transformConfig.getSettings().getNumFailureRetries())
+            .orElse(context.getNumFailureRetries());
+
+        final int failureCount = statePersistenceFailures.incrementAndGet();
+
+        if (numFailureRetries != -1 && failureCount > numFailureRetries) {
+            failIndexer(
+                "task encountered more than "
+                    + numFailureRetries
+                    + " failures updating internal state; latest failure: "
+                    + statsExc.getMessage()
+            );
+            return true;
+        }
+        return false;
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {

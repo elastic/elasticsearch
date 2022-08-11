@@ -47,10 +47,19 @@ setup:
                             doc_values: false
                         double:
                             type: double
+                        double_no_doc_values:
+                            type: double
+                            doc_values: false
                         float:
                             type: float
+                        float_no_doc_values:
+                            type: float
+                            doc_values: false
                         half_float:
                             type: half_float
+                        half_float_no_doc_values:
+                            type: half_float
+                            doc_values: false
                         scaled_float:
                             type: scaled_float
                             scaling_factor: 100
@@ -86,8 +95,11 @@ setup:
                 byte: 12
                 byte_no_doc_values: 12
                 double: 3.14159265358979
+                double_no_doc_values: 3.14159265358979
                 float: 3.141592654
+                float_no_doc_values: 3.141592654
                 half_float: 3.140625
+                half_float_no_doc_values: 3.140625
                 scaled_float: 3.14
                 token_count: count all these words please
 
@@ -121,8 +133,11 @@ setup:
               byte: [16, 32, 64, 8, 4]
               byte_no_doc_values: [16, 8, 32, 4, 64]
               double: [3.141592653588, 2.141592653587]
+              double_no_doc_values: [3.141592653588, 2.141592653587]
               float: [1.123, 2.234]
+              float_no_doc_values: [2.234, 1.123]
               half_float: [1.123, 2.234]
+              half_float_no_doc_values: [2.234, 1.123]
               scaled_float: [-3.5, 2.5]
 
 
@@ -1952,6 +1967,97 @@ setup:
     - match: { hits.hits.2.fields.field.0: 7.283185307175 }
 
 ---
+"double_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['double_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['double_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('double_no_doc_values').get(-1)"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 2.141592653587 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('double_no_doc_values', -1)"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 2.141592653587 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "double defaultDouble = 7.8; field('double_no_doc_values').get(1, defaultDouble)"
+  - match: { hits.hits.0.fields.field.0: 7.8 }
+  - match: { hits.hits.1.fields.field.0: 7.8 }
+  - match: { hits.hits.2.fields.field.0: 3.141592653588 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('double_no_doc_values').get(1, 9.2)"
+  - match: { hits.hits.0.fields.field.0: 9.2 }
+  - match: { hits.hits.1.fields.field.0: 9.2 }
+  - match: { hits.hits.2.fields.field.0: 3.141592653588 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "double total = 0; for (double d : field('double_no_doc_values')) { total += d; } total + field('double_no_doc_values').size();"
+  - match: { hits.hits.0.fields.field.0: 4.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 7.283185307175 }
+
+---
 "float":
     - do:
         search:
@@ -2039,6 +2145,97 @@ setup:
     - match: { hits.hits.0.fields.field.0: "4.141593" }
     - match: { hits.hits.1.fields.field.0: "0.0" }
     - match: { hits.hits.2.fields.field.0: "5.357" }
+
+---
+"float_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['float_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['float_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('float_no_doc_values').get(-1).toString()" # toString to avoid making this a double
+  - match: { hits.hits.0.fields.field.0: "3.1415927" }
+  - match: { hits.hits.1.fields.field.0: "-1.0" }
+  - match: { hits.hits.2.fields.field.0: "1.123" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "return $('float_no_doc_values', -1).toString()" # toString to avoid making this a double
+  - match: { hits.hits.0.fields.field.0: "3.1415927" }
+  - match: { hits.hits.1.fields.field.0: "-1.0" }
+  - match: { hits.hits.2.fields.field.0: "1.123" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "float defaultFloat = 7.8f; field('float_no_doc_values').get(1, defaultFloat).toString()"
+  - match: { hits.hits.0.fields.field.0: "7.8" }
+  - match: { hits.hits.1.fields.field.0: "7.8" }
+  - match: { hits.hits.2.fields.field.0: "2.234" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('float_no_doc_values').get(1, 9.2f).toString()"
+  - match: { hits.hits.0.fields.field.0: "9.2" }
+  - match: { hits.hits.1.fields.field.0: "9.2" }
+  - match: { hits.hits.2.fields.field.0: "2.234" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "float total = 0; for (float f : field('float_no_doc_values')) { total += f; } Float.toString(total + field('float_no_doc_values').size());"
+  - match: { hits.hits.0.fields.field.0: "4.141593" }
+  - match: { hits.hits.1.fields.field.0: "0.0" }
+  - match: { hits.hits.2.fields.field.0: "5.357" }
 
 ---
 "half_float":
@@ -2131,6 +2328,100 @@ setup:
     - match: { hits.hits.0.fields.field.0: 0.0 }
     - match: { hits.hits.1.fields.field.0: 0.0 }
     - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
+
+---
+"half_float_no_doc_values":
+  - skip:
+      features: close_to
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['half_float_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['float_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float_no_doc_values').get(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('half_float_no_doc_values', 0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float_no_doc_values').get(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float_no_doc_values').asDouble(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.0001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float_no_doc_values').asDouble(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
 
 ---
 "scaled_float":

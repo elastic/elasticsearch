@@ -375,7 +375,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
          * We want to make sure that the same elements are in this set every time we loop through it. We don't care if values are added
          * while we're copying it, which is why this is not synchronized. We only care that once we have a copy it is not changed.
          */
-        final Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationResponses = Map.copyOf(clusterFormationResponses);
+        final Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationResponses = clusterFormationResponses == null
+            ? Map.of()
+            : Map.copyOf(clusterFormationResponses);
         for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationResponses.entrySet()) {
             Exception remoteException = entry.getValue().exception();
             if (remoteException != null) {
@@ -383,7 +385,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     CoordinationDiagnosticsStatus.RED,
                     String.format(
                         Locale.ROOT,
-                        "No master node observed in the last %s, and an exception occurred while reaching out " + "to %s for diagnosis",
+                        "No master node observed in the last %s, and an exception occurred while reaching out to %s for diagnosis",
                         nodeHasMasterLookupTimeframe,
                         entry.getKey().getName()
                     ),
@@ -400,6 +402,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             nodeToClusterFormationResponses.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
+        if (nodeClusterFormationStateMap.isEmpty()) {
+            /*
+            * The most likely reason we are here is that polling for cluster formation info never began because there has been no cluster
+            * changed event because there has never been a master node. So we just use the local cluster formation state.
+            */
+            nodeClusterFormationStateMap = Map.of(coordinator.getLocalNode(), coordinator.getClusterFormationState());
+        }
         Map<String, String> nodeIdToClusterFormationDescription = nodeClusterFormationStateMap.entrySet()
             .stream()
             .collect(Collectors.toMap(entry -> entry.getKey().getId(), entry -> entry.getValue().getDescription()));
@@ -508,7 +517,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 .map(
                     entry -> String.format(
                         Locale.ROOT,
-                        "%s reports that a quorum " + "cannot be formed: [%s]",
+                        "%s reports that a quorum cannot be formed: [%s]",
                         entry.getKey().getName(),
                         entry.getValue()
                     )

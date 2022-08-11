@@ -22,7 +22,7 @@ filesystem cache, so systems typically don't verify the checksum on a file very
 often. This is why you tend only to encounter a corruption exception when
 something unusual is happening. For instance, corruptions are often detected
 during merges, shard movements, and snapshots. This does not mean that these
-proceses are causing corruption: they are examples of the rare times where
+processes are causing corruption: they are examples of the rare times where
 reading a whole file is necessary. {es} takes the opportunity to verify the
 checksum at the same time, and this is when the corruption is detected and
 reported. It doesn't indicate the cause of the corruption or when it happened.

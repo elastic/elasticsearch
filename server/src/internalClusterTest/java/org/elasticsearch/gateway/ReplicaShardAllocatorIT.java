@@ -44,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
@@ -364,7 +365,10 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 .cluster()
                 .prepareUpdateSettings()
                 .setPersistentSettings(
-                    Settings.builder().put("cluster.routing.rebalance.enable", "none").putNull("cluster.routing.allocation.enable").build()
+                    Settings.builder()
+                        .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                        .putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
+                        .build()
                 )
         );
         ensureGreen(indexName);
@@ -439,7 +443,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         transportService.clearAllRules();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testPeerRecoveryForClosedIndices() throws Exception {
         String indexName = "peer_recovery_closed_indices";
         internalCluster().ensureAtLeastNumDataNodes(1);
@@ -474,7 +477,12 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+                        .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+                        .build()
+                )
         );
         internalCluster().fullRestart();
         ensureYellow(indexName);
@@ -486,7 +494,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
+                .setPersistentSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()).build())
         );
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);

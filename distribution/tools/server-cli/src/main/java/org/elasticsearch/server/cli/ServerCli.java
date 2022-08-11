@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -76,15 +75,21 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        // setup security
-        final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
-        env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile())) {
+            // setup security
+            final SecureString keystorePassword = getKeystorePassword(keystore, terminal);
+            env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
-        // install/remove plugins from elasticsearch-plugins.yml
-        syncPlugins(terminal, env, processInfo);
+            if (keystore != null) {
+                keystore.decrypt(keystorePassword.getChars());
+            }
 
-        ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
-        this.server = startServer(terminal, processInfo, args);
+            // install/remove plugins from elasticsearch-plugins.yml
+            syncPlugins(terminal, env, processInfo);
+
+            ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
+            this.server = startServer(terminal, processInfo, args, keystore);
+        }
 
         if (options.has(daemonizeOption)) {
             server.detach();
@@ -122,13 +127,11 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private static SecureString getKeystorePassword(Path configDir, Terminal terminal) throws IOException {
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir)) {
-            if (keystore != null && keystore.hasPassword()) {
-                return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
-            } else {
-                return new SecureString(new char[0]);
-            }
+    private static SecureString getKeystorePassword(KeyStoreWrapper keystore, Terminal terminal) {
+        if (keystore != null && keystore.hasPassword()) {
+            return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
+        } else {
+            return new SecureString(new char[0]);
         }
     }
 
@@ -226,7 +229,8 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
-        return ServerProcess.start(terminal, processInfo, args);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, KeyStoreWrapper keystore)
+        throws UserException {
+        return ServerProcess.start(terminal, processInfo, args, keystore);
     }
 }

@@ -273,7 +273,7 @@ public class AllocationDecidersTests extends ESTestCase {
 
     public void testGetForcedInitialShardAllocation() {
         var deciders = new AllocationDeciders(
-            shuffleList(
+            shuffledList(
                 List.of(
                     new AnyNodeInitialShardAllocationDecider(),
                     new AnyNodeInitialShardAllocationDecider(),
@@ -290,7 +290,7 @@ public class AllocationDecidersTests extends ESTestCase {
 
     public void testGetForcedInitialShardAllocationToFixedNode() {
         var deciders = new AllocationDeciders(
-            shuffleList(
+            shuffledList(
                 List.of(
                     new AnyNodeInitialShardAllocationDecider(),
                     new FixedNodesInitialShardAllocationDecider(Set.of("node-1", "node-2")),
@@ -307,7 +307,7 @@ public class AllocationDecidersTests extends ESTestCase {
 
     public void testGetForcedInitialShardAllocationToFixedNodeFromMultipleDeciders() {
         var deciders = new AllocationDeciders(
-            shuffleList(
+            shuffledList(
                 List.of(
                     new AnyNodeInitialShardAllocationDecider(),
                     new FixedNodesInitialShardAllocationDecider(Set.of("node-1", "node-2")),

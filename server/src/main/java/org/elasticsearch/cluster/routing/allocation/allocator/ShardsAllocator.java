@@ -60,7 +60,7 @@ public interface ShardsAllocator {
         boolean retryFailed,
         ActionListener<RoutingExplanations> listener
     ) {
-
+        var originalDebugMode = allocation.getDebugMode();
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
         allocation.ignoreDisable(true);
@@ -74,10 +74,11 @@ public interface ShardsAllocator {
         } catch (RuntimeException e) {
             listener.onFailure(e);
             throw e;
+        } finally {
+            // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
+            allocation.ignoreDisable(false);
+            allocation.setDebugMode(originalDebugMode);
         }
-
-        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
-        allocation.ignoreDisable(false);
     }
 
     /**

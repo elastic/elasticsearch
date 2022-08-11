@@ -134,7 +134,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
-                        threadPool.absoluteTimeInMillis(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -177,7 +177,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
-                        threadPool.absoluteTimeInMillis(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -209,7 +209,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
-                        threadPool.absoluteTimeInMillis(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -241,7 +241,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
-                        threadPool.absoluteTimeInMillis(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 )
@@ -303,7 +303,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         indexShardSnapshotStatus,
                         Version.CURRENT,
                         Collections.emptyMap(),
-                        threadPool.absoluteTimeInMillis(),
+                        randomMillisUpToYear9999(),
                         future
                     )
                 );

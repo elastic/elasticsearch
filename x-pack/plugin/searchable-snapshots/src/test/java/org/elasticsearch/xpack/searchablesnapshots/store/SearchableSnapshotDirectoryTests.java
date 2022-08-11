@@ -632,7 +632,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                             snapshotStatus,
                             Version.CURRENT,
                             emptyMap(),
-                            threadPool.absoluteTimeInMillis(),
+                            randomMillisUpToYear9999(),
                             future
                         )
                     );

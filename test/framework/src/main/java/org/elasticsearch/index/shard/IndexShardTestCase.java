@@ -1010,7 +1010,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     snapshotStatus,
                     Version.CURRENT,
                     Collections.emptyMap(),
-                    threadPool.absoluteTimeInMillis(),
+                    randomMillisUpToYear9999(),
                     future
                 )
             );

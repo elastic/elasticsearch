@@ -104,6 +104,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
+import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -953,6 +954,7 @@ public class Node implements Closeable {
             LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
                 ? new LocalHealthMonitor(settings, clusterService, nodeService, threadPool)
                 : null;
+            HealthInfoCache nodeHealthOverview = HealthNode.isEnabled() ? new HealthInfoCache(clusterService) : null;
 
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
@@ -1047,6 +1049,7 @@ public class Node implements Closeable {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                     b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                     b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
+                    b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
                 }
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);

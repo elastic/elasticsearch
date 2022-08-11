@@ -101,9 +101,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
             Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
             Version.CURRENT
         );
-        clusterState = ClusterState.EMPTY_STATE.copyAndUpdate(
-            b -> b.nodes(DiscoveryNodes.builder().add(node).add(frozenNode).localNodeId(node.getId()).build())
-        ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        clusterState = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
 
         // Set-up cluster service
         clusterService = mock(ClusterService.class);
@@ -133,7 +132,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
         simulateHealthDiskSpace();
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
         assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
-        localHealthMonitor.monitorHealth();
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
+        localHealthMonitor.maybeScheduleNow();
         assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
     }
 
@@ -149,7 +149,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         simulateHealthDiskSpace();
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
         assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
-        localHealthMonitor.monitorHealth();
+        localHealthMonitor.maybeScheduleNow();
         assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, null);
     }
 
@@ -176,7 +176,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
         when(clusterService.state()).thenReturn(previous);
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        localHealthMonitor.monitorHealth();
+        localHealthMonitor.maybeScheduleNow();
+        assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
         assertBusy(() -> assertThat(counter.get(), equalTo(2)));
     }

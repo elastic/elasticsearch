@@ -75,6 +75,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     // Keeps the latest health state that was successfully reported to the current health node.
     private final AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo = new AtomicReference<>();
+    // If we know there is no health node selected there is not point in collecting and sending data.
+    private volatile boolean healthNodeSelected = false;
 
     private LocalHealthMonitor(
         Settings settings,
@@ -122,24 +124,27 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     /**
      * We always check if the prerequisites are fulfilled and if the health node
-     * is enabled before we schedule a monitoring task.
+     * is enabled and selected before we schedule a monitoring task.
      */
     private void maybeScheduleNextRun(TimeValue time) {
-        if (prerequisitesFulfilled && enabled) {
+        if (prerequisitesFulfilled && enabled && healthNodeSelected) {
             threadPool.scheduleUnlessShuttingDown(time, ThreadPool.Names.MANAGEMENT, this::monitorHealth);
         }
     }
 
     // Helper method that starts the monitoring without a delay.
-    private void maybeScheduleNow() {
+    // Visible for testing
+    void maybeScheduleNow() {
         maybeScheduleNextRun(TimeValue.ZERO);
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (prerequisitesFulfilled == false) {
+            healthNodeSelected = HealthNode.findHealthNode(event.state()) != null;
             prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
-                && HealthMetadata.getFromClusterState(event.state()) != null;
+                && HealthMetadata.getFromClusterState(event.state()) != null
+                && healthNodeSelected;
             maybeScheduleNow();
         } else {
             DiscoveryNode previous = HealthNode.findHealthNode(event.previousState());
@@ -148,13 +153,15 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 // The new health node (probably) does not have any information yet, so the last
                 // reported health info gets reset to null.
                 lastReportedDiskHealthInfo.set(null);
-                maybeScheduleNow();
+                healthNodeSelected = current != null;
+                if (healthNodeSelected) {
+                    maybeScheduleNow();
+                }
             }
         }
     }
 
-    // Visible for testing
-    void monitorHealth() {
+    private void monitorHealth() {
         if (inProgress.compareAndSet(false, true)) {
             ClusterState clusterState = clusterService.state();
             HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);

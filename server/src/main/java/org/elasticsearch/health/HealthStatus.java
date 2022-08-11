@@ -9,12 +9,17 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public enum HealthStatus implements Writeable {
@@ -24,6 +29,8 @@ public enum HealthStatus implements Writeable {
     RED((byte) 3);
 
     private final byte value;
+    private static final Map<Byte, HealthStatus> values = Arrays.stream(HealthStatus.values())
+        .collect(Collectors.toMap(HealthStatus::value, Function.identity()));
 
     HealthStatus(byte value) {
         this.value = value;
@@ -32,6 +39,15 @@ public enum HealthStatus implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(value);
+    }
+
+    public static HealthStatus from(StreamInput in) throws IOException {
+        byte b = in.readByte();
+        HealthStatus healthStatus = values.get(b);
+        if (healthStatus != null) {
+            return healthStatus;
+        }
+        throw new IllegalArgumentException("Cannot deserialize health with id " + b);
     }
 
     public byte value() {

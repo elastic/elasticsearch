@@ -80,7 +80,6 @@ public class UpdateHealthInfoCacheAction extends ActionType<UpdateHealthInfoCach
 
         @Inject
         public TransportAction(
-            String actionName,
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
@@ -88,7 +87,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<UpdateHealthInfoCach
             HealthInfoCache nodeHealthOverview
         ) {
             super(
-                actionName,
+                UpdateHealthInfoCacheAction.NAME,
                 transportService,
                 clusterService,
                 threadPool,

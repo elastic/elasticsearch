@@ -16,44 +16,60 @@ still significantly less than your total number of documents, use
 {ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregations].
 
 [discrete]
+[[aggs-requs-dfeeds]]
+== Requirements
+
+[discrete]
+[[aggs-]]
+=== Aggregations
+
+* Your aggregation must include a `date_histogram` aggregation or a top level 
+`composite` aggregation, which in turn must contain a `max` aggregation on the 
+time field. This requirement ensures that the aggregated data is a time series 
+and the timestamp of each bucket is the time of the last record in the bucket.
+
+* The name of the aggregation and the name of the field that it operates on need 
+to match, otherwise the aggregation doesn't work. For example, if you use a 
+`max` aggregation on a time field called `responsetime`, the name of the 
+aggregation must be also `responsetime`.
+
+[discrete]
+[[aggs-interval]]
+=== Intervals
+
+* The bucket span of your {anomaly-job} must be divisible by the value of the 
+`calendar_interval` or `fixed_interval` in your aggregation (with no remainder).
+
+* If you specify a `frequency` for your {dfeed}, it must be divisible by the 
+`calendar_interval` or the `fixed_ineterval`.
+
+* {anomaly-jobs-cap} cannot use `date_histogram` or `composite` aggregations 
+with an interval measured in months because the length of the month is not 
+fixed; they can use weeks or smaller units.
+
+* If your detectors use <<ml-metric-functions,metric>> or 
+<<ml-sum-functions,sum>> analytical functions, set the `date_histogram` or 
+`composite` aggregation interval to a tenth of the bucket span. This creates 
+finer, more granular time buckets, which are ideal for this type of analysis.
+
+* If your detectors use <<ml-count-functions,count>> or 
+<<ml-rare-functions,rare>> functions, set the interval to the same value as the 
+bucket span.
+
+[discrete]
 [[aggs-limits-dfeeds]]
-== Requirements and limitations
+== Limitations
 
-There are some limitations to using aggregations in {dfeeds}.
-
-Your aggregation must include a `date_histogram` aggregation or a top level `composite` aggregation,
-which in turn must contain a `max` aggregation on the time field.
-This requirement ensures that the aggregated data is a time series and the timestamp
-of each bucket is the time of the last record in the bucket.
-
-IMPORTANT: The name of the aggregation and the name of the field that it
-operates on need to match, otherwise the aggregation doesn't work. For example,
-if you use a `max` aggregation on a time field called `responsetime`, the name
-of the aggregation must be also `responsetime`.
-
-You must consider the interval of the `date_histogram` or `composite`
-aggregation carefully. The bucket span of your {anomaly-job} must be divisible
-by the value of the `calendar_interval` or `fixed_interval` in your aggregation
-(with no remainder). If you specify a `frequency` for your {dfeed},
-it must also be divisible by this interval. {anomaly-jobs-cap} cannot use
-`date_histogram` or `composite` aggregations with an interval measured in months
-because the length of the month is not fixed; they can use weeks or smaller units.
-
-TIP: As a rule of thumb, if your detectors use <<ml-metric-functions,metric>> or
-<<ml-sum-functions,sum>> analytical functions, set the `date_histogram` or `composite`
-aggregation interval to a tenth of the bucket span. This suggestion creates
-finer, more granular time buckets, which are ideal for this type of analysis. If
-your detectors use <<ml-count-functions,count>> or <<ml-rare-functions,rare>>
-functions, set the interval to the same value as the bucket span.
-
-If your <<aggs-dfeeds,{dfeed} uses aggregations with nested `terms` aggs>> and
-model plot is not enabled for the {anomaly-job}, neither the **Single Metric
-Viewer** nor the **Anomaly Explorer** can plot and display an anomaly
-chart for the job. In these cases, the charts are not visible and an explanatory
+* If your <<aggs-dfeeds,{dfeed} uses aggregations with nested `terms` aggs>> and
+model plot is not enabled for the {anomaly-job}, neither the 
+**Single Metric Viewer** nor the **Anomaly Explorer** can plot and display an 
+anomaly chart. In these cases, the charts are not visible and an explanatory
 message is shown.
 
-Your {dfeed} can contain multiple aggregations, but only the ones with names
+* Your {dfeed} can contain multiple aggregations, but only the ones with names
 that match values in the job configuration are fed to the job.
+
+
 
 [discrete]
 [[aggs-using-date-histogram]]

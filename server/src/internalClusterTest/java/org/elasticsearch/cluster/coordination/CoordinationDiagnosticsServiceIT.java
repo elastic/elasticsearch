@@ -50,6 +50,11 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
     }
 
+    @Before
+    private void restoreDefaultInitialDelay() {
+        CoordinationDiagnosticsService.remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
@@ -230,17 +235,16 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
 
     public void testNoMasterElected() throws Exception {
         /*
-         * This test starts up a 3-node cluster where all nodes are master eligible. It then shuts down two of the nodes and restarts one
-         *  of them. We then assert that diagnoseMasterStability returns a red status because a quorum can't be formed. This is an edge
-         * case because since there is no elected master, clusterChanged() is never called (which is what usually kicks off the polling
-         * that drives the quorum check).
+         * This test starts up a 4-node cluster where 3 nodes are master eligible. It then shuts down two of the master eligible nodes and
+         * restarts one of the master eligible nodes and the data-only node. We then assert that diagnoseMasterStability returns a red
+         * status because a quorum can't be formed on both of those nodes. This is an edge case because since there is no elected master,
+         * clusterChanged() is never called (which is what usually kicks off the polling that drives the quorum check).
          */
-        final List<String> masterNodeNames = internalCluster().startMasterOnlyNodes(
-            3,
-            Settings.builder().put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
-        );
-        ensureStableCluster(3);
-        String randomMasterNodeName = internalCluster().getRandomNodeName();
+        Settings settings = Settings.builder().put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build();
+        final List<String> masterNodeNames = internalCluster().startMasterOnlyNodes(3, settings);
+        final String dataNodeName = internalCluster().startDataOnlyNode(settings);
+        ensureStableCluster(4);
+        String randomMasterNodeName = randomFrom(masterNodeNames);
         masterNodeNames.stream().filter(nodeName -> nodeName.equals(randomMasterNodeName) == false).forEach(nodeName -> {
             try {
                 internalCluster().stopNode(nodeName);
@@ -248,25 +252,46 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
                 throw new RuntimeException(e);
             }
         });
-        internalCluster().restartNode(randomMasterNodeName, new InternalTestCluster.RestartCallback() {
+        InternalTestCluster.RestartCallback nonValidatingRestartCallback = new InternalTestCluster.RestartCallback() {
             public boolean validateClusterForming() {
                 return false;
             }
-        });
+        };
+        CoordinationDiagnosticsService.remoteRequestInitialDelay = TimeValue.ZERO;
+        internalCluster().restartNode(randomMasterNodeName, nonValidatingRestartCallback);
+        internalCluster().restartNode(dataNodeName, nonValidatingRestartCallback);
 
         try {
             CoordinationDiagnosticsService diagnosticsOnMasterEligibleNode = internalCluster().getInstance(
                 CoordinationDiagnosticsService.class,
                 randomMasterNodeName
             );
-            CoordinationDiagnosticsService.remoteRequestInitialDelay = TimeValue.ZERO;
+
             CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = diagnosticsOnMasterEligibleNode.diagnoseMasterStability(
                 true
             );
             assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
             assertThat(result.summary(), containsString("the master eligible nodes are unable to form a quorum"));
+            CoordinationDiagnosticsService diagnosticsOnDataNode = internalCluster().getInstance(
+                CoordinationDiagnosticsService.class,
+                dataNodeName
+            );
+
+            assertBusy(() -> {
+                assertNotNull(diagnosticsOnDataNode.remoteCoordinationDiagnosisResult.get());
+                assertNotNull(diagnosticsOnDataNode.remoteCoordinationDiagnosisResult.get().result());
+                assertThat(
+                    diagnosticsOnDataNode.remoteCoordinationDiagnosisResult.get().result().summary(),
+                    containsString("the master eligible nodes are unable to form a quorum")
+                );
+                assertThat(
+                    diagnosticsOnDataNode.remoteCoordinationDiagnosisResult.get().result().status(),
+                    equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED)
+                );
+            });
         } finally {
             internalCluster().stopNode(randomMasterNodeName); // This is needed for the test to clean itself up happily
+            internalCluster().stopNode(dataNodeName); // This is needed for the test to clean itself up happily
         }
     }
 

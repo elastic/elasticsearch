@@ -456,7 +456,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 } else {
                     details = CoordinationDiagnosticsDetails.EMPTY;
                 }
-            } else if (exception != null) {
+            } else {
                 status = CoordinationDiagnosticsStatus.RED;
                 summary = String.format(
                     Locale.ROOT,
@@ -470,17 +470,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 } else {
                     details = CoordinationDiagnosticsDetails.EMPTY;
                 }
-            } else {
-                assert false : "It should not be possible to get here unless there is a bug";
-                status = CoordinationDiagnosticsStatus.RED;
-                summary = String.format(
-                    Locale.ROOT,
-                    "No master node observed in the last %s from this node, and received an unexpected response from %s when "
-                        + "reaching out for diagnosis",
-                    nodeHasMasterLookupTimeframe,
-                    remoteNode.getName()
-                );
-                details = CoordinationDiagnosticsDetails.EMPTY;
             }
         }
         return new CoordinationDiagnosticsResult(status, summary, details);
@@ -1311,5 +1300,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     // Non-private for testing:
-    record RemoteMasterHealthResult(DiscoveryNode node, CoordinationDiagnosticsResult result, Exception remoteException) {}
+    record RemoteMasterHealthResult(DiscoveryNode node, CoordinationDiagnosticsResult result, Exception remoteException) {
+        public RemoteMasterHealthResult {
+            if (node == null) {
+                throw new IllegalArgumentException("Node cannot be null");
+            }
+            if (result == null && remoteException == null) {
+                throw new IllegalArgumentException("Must provide a non-null value for one of result or remoteException");
+            }
+        }
+    }
 }

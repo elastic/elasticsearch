@@ -1143,6 +1143,18 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
+    public void testRemoteMasterHealthResult() {
+        expectThrows(IllegalArgumentException.class, () -> new CoordinationDiagnosticsService.RemoteMasterHealthResult(null, null, null));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new CoordinationDiagnosticsService.RemoteMasterHealthResult(null, null, new RuntimeException())
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new CoordinationDiagnosticsService.RemoteMasterHealthResult(mock(DiscoveryNode.class), null, null)
+        );
+    }
+
     public void testResultSerialization() {
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus status = getRandomStatus();
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails details = getRandomDetails();

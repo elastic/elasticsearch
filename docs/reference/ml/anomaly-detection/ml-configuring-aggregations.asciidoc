@@ -2,25 +2,23 @@
 [[ml-configuring-aggregation]]
 = Aggregating data for faster performance
 
-By default, {dfeeds} fetch data from {es} using search and scroll requests.
-It can be significantly more efficient, however, to aggregate data in {es}
-and to configure your {anomaly-jobs} to analyze aggregated data.
+By default, {dfeeds} fetch data from {es} using search and scroll requests. It 
+can be significantly more efficient, however, to aggregate data in {es} and to 
+configure your {anomaly-jobs} to analyze aggregated data.
 
 One of the benefits of aggregating data this way is that {es} automatically
 distributes these calculations across your cluster. You can then feed this
 aggregated data into the {ml-features} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
-TIP: If you use a terms aggregation and the cardinality of a term is high but
-still significantly less than your total number of documents, use
-{ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregations].
 
 [discrete]
 [[aggs-requs-dfeeds]]
 == Requirements
 
+
 [discrete]
-[[aggs-]]
+[[aggs-aggs]]
 === Aggregations
 
 * Your aggregation must include a `date_histogram` aggregation or a top level 
@@ -29,9 +27,13 @@ time field. This requirement ensures that the aggregated data is a time series
 and the timestamp of each bucket is the time of the last record in the bucket.
 
 * The name of the aggregation and the name of the field that it operates on need 
-to match, otherwise the aggregation doesn't work. For example, if you use a 
-`max` aggregation on a time field called `responsetime`, the name of the 
-aggregation must be also `responsetime`.
+to match. For example, if you use a `max` aggregation on a time field called 
+`responsetime`, the name of the aggregation must also be `responsetime`.
+
+* If you use a terms aggregation and the cardinality of a term is high but still 
+significantly less than your total number of documents, use
+{ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregations].
+
 
 [discrete]
 [[aggs-interval]]
@@ -48,13 +50,15 @@ with an interval measured in months because the length of the month is not
 fixed; they can use weeks or smaller units.
 
 * If your detectors use <<ml-metric-functions,metric>> or 
-<<ml-sum-functions,sum>> analytical functions, set the `date_histogram` or 
-`composite` aggregation interval to a tenth of the bucket span. This creates 
-finer, more granular time buckets, which are ideal for this type of analysis.
+<<ml-sum-functions,sum>> analytical functions, it's recommended to set the 
+`date_histogram` or `composite` aggregation interval to a tenth of the bucket 
+span. This creates finer, more granular time buckets, which are ideal for this 
+type of analysis.
 
 * If your detectors use <<ml-count-functions,count>> or 
 <<ml-rare-functions,rare>> functions, set the interval to the same value as the 
 bucket span.
+
 
 [discrete]
 [[aggs-limits-dfeeds]]
@@ -68,7 +72,6 @@ message is shown.
 
 * Your {dfeed} can contain multiple aggregations, but only the ones with names
 that match values in the job configuration are fed to the job.
-
 
 
 [discrete]

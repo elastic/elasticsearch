@@ -448,7 +448,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     details = CoordinationDiagnosticsDetails.EMPTY;
                 }
             } else {
-                // It should not be possible to get here
+                assert false : "It should not be possible to get here unless there is a bug";
                 status = CoordinationDiagnosticsStatus.RED;
                 summary = String.format(
                     Locale.ROOT,

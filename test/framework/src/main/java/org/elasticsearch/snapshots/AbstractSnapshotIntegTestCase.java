@@ -470,6 +470,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void indexRandomDocs(String index, int numdocs) throws InterruptedException {
+        indexRandomDocs(index, numdocs, true);
+    }
+
+    protected void indexRandomDocsWithoutAssertingDocCount(String index, int numDocs) throws InterruptedException {
+        indexRandomDocs(index, numDocs, false);
+    }
+
+    private void indexRandomDocs(String index, int numdocs, boolean assertDocCount) throws InterruptedException {
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
@@ -477,7 +485,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         flushAndRefresh(index);
-        assertDocCount(index, numdocs);
+        if (assertDocCount) {
+            assertDocCount(index, numdocs);
+        }
     }
 
     protected long getCountForIndex(String indexName) {

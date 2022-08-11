@@ -36,7 +36,11 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
 
         final String indexName = "test-abort-restore";
         createIndex(indexName, indexSettingsNoReplicas(1).build());
-        indexRandomDocs(indexName, scaledRandomIntBetween(10, 1_000));
+        // Ensure that there are enough data files to fill the SNAPSHOT thread pool
+        final int numberOfSegments = randomIntBetween(5, 10);
+        for (int i = 0; i < numberOfSegments; i++) {
+            indexRandomDocsWithoutAssertingDocCount(indexName, scaledRandomIntBetween(10, 1_000));
+        }
         ensureGreen();
         forceMerge();
 

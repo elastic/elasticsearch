@@ -12,10 +12,10 @@ highlight:
 
     [discrete]
     [[early-stopping-dfa]]
-    === Early stopping for data frame analytics
-    Data frame analytics is even faster in 8.4. The new function automatically 
+    === Optimizing speed of {dfanalytics}
+    {dfanalytics-cap} is even faster in 8.4. The new function automatically 
     stops the process of hyperparameter optimization early in case of the 
     accuracy gain for a different set of hyperparameter values would be 
     insignificant. The early stopping of the optimization process results in a 
-    shorter runtime for the data frame analytics job.
+    shorter runtime for the {dfanalytics-job}.
   notable: true

@@ -17,8 +17,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.ProviderFactory;
 
-import java.util.Random;
-
 import javax.inject.Inject;
 
 public class InternalTestClustersPlugin implements Plugin<Project> {
@@ -40,17 +38,16 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
             version -> (version.equals(VersionProperties.getElasticsearchVersion()) && BuildParams.isSnapshotBuild() == false)
                 || BuildParams.getBwcVersions().unreleasedInfo(version) == null
         );
-        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-            .getExtensions()
-            .getByName(TestClustersPlugin.EXTENSION_NAME);
-        setRandomNodeProcessors(testClusters);
-    }
 
-    private void setRandomNodeProcessors(NamedDomainObjectContainer<ElasticsearchCluster> testClusters) {
-        final var random = new Random(Long.parseUnsignedLong(BuildParams.getTestSeed(), 16));
-        // Set node.processors to 1 rarely
-        if (random.nextInt(100) >= 90) {
+        if (shouldConfigureTestClustersWithOneProcessor()) {
+            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
+                .getExtensions()
+                .getByName(TestClustersPlugin.EXTENSION_NAME);
             testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.setting("node.processors", "1"));
         }
+    }
+
+    private boolean shouldConfigureTestClustersWithOneProcessor() {
+        return Boolean.parseBoolean(System.getProperty("tests.configure_test_clusters_with_one_processor", "false"));
     }
 }

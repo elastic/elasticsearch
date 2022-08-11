@@ -214,7 +214,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
     }
 
-    public void testTotalFieldsLimitWithRunTimefields() {
+    public void testTotalFieldsLimitWithRuntimeFields() {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 4)
@@ -243,10 +243,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
         ensureGreen("index1");
 
         {
-            // introduction of a new object with 2 sub-fields fails
+            // introduction of a new object with 2 new sub-fields fails
             final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index1")
                 .setId("1")
-                .setSource("my_object2", Map.of("field1", "value1", "field2", "value2"));
+                .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
             Exception exc = expectThrows(MapperParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
@@ -257,8 +257,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
 
         {
-            // introduction of a single field succeeds
-            client().prepareIndex("index1").setId("2").setSource("field4", 100).get();
+            // introduction of a new single field succeeds
+            client().prepareIndex("index1").setId("2").setSource("field3", "value3", "new_field4", 100).get();
         }
 
         {
@@ -272,8 +272,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
                     }
                 """, XContentType.JSON));
 
-            // introduction of a new object with 2 sub-fields succeeds
-            client().prepareIndex("index1").setId("2").setSource("my_object2", Map.of("field1", "value1", "field2", "value2")).get();
+            // introduction of a new object with 2 new sub-fields succeeds
+            client().prepareIndex("index1")
+                .setId("1")
+                .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
         }
     }
 

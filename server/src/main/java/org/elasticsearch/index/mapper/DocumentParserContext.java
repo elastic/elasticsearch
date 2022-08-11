@@ -226,7 +226,14 @@ public abstract class DocumentParserContext {
      * Add a new mapper dynamically created while parsing.
      */
     public final void addDynamicMapper(Mapper mapper) {
-        checkFieldLimit(mapper.name());
+        // eagerly check field name limit here to avoid OOM errors
+        // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
+        // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
+        if (mappingLookup.getMapper(mapper.name()) == null
+            && mappingLookup.objectMappers().containsKey(mapper.name()) == false
+            && newFieldsSeen.add(mapper.name())) {
+            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
+        }
         if (mapper instanceof ObjectMapper objectMapper) {
             dynamicObjectMappers.put(objectMapper.name(), objectMapper);
             // dynamic object mappers may have been obtained from applying a dynamic template, in which case their definition may contain
@@ -245,17 +252,6 @@ public abstract class DocumentParserContext {
         // 1) by default, they would be empty containers in the mappings, is it then important to map them?
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
         dynamicMappers.add(mapper);
-    }
-
-    private void checkFieldLimit(String fieldName) {
-        // eagerly check field name limit here to avoid OOM errors
-        // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
-        // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
-        if (mappingLookup.getMapper(fieldName) == null
-            && mappingLookup.objectMappers().containsKey(fieldName) == false
-            && newFieldsSeen.add(fieldName)) {
-            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
-        }
     }
 
     /**
@@ -283,7 +279,9 @@ public abstract class DocumentParserContext {
      * Add a new runtime field dynamically created while parsing.
      */
     public final void addDynamicRuntimeField(RuntimeField runtimeField) {
-        checkFieldLimit(runtimeField.name());
+        if (newFieldsSeen.add(runtimeField.name())) {
+            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
+        }
         dynamicRuntimeFields.add(runtimeField);
     }
 

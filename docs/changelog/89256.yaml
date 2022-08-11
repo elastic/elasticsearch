@@ -1,0 +1,6 @@
+pr: 89256
+summary: Change return type when named filters aggs with bucket sort
+area: Aggregations
+type: bug
+issues:
+  - 83957

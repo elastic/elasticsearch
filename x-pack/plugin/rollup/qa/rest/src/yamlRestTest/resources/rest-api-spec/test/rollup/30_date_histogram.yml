@@ -98,6 +98,7 @@ setup:
               date_histogram:
                 field: "@timestamp"
                 fixed_interval: 1m
+                min_doc_count: 1
 
   - match: { hits.total.value: 4 }
   - match: { hits.total.relation: "eq" }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,7 +24,15 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DateFormatTestScript {
+/**
+ * Generates mysql-dateformat-test.sql file that can be used to generate the test dataset for the {@link DateTimeDateFormatProcessorTests}.
+ * <p>
+ *  This file contains MySQL queries with the DATE_FORMAT function and random timestamps.
+ *  <p>
+ *  MySQL will generate a .csv file that will be used for testing.
+ *
+ */
+public class DateFormatRandomDatasetGenerator {
 
     private static class TestRecord {
         private final LocalDateTime localDateTime;
@@ -38,9 +47,15 @@ public class DateFormatTestScript {
     private static final List<String> PATTERNS = new ArrayList<>(DateFormatter.FORMATTER_MAP.keySet());
     private static final List<TestRecord> TESTRECORDS = new ArrayList<>();
 
-    private static final Random RANDOM = new Random();
+    private static Random RANDOM = null;
+
+    @SuppressForbidden(reason = "It is ok to use Random outside of an actual test")
+    private static Random rnd() {
+        return new Random();
+    }
 
     public static void main(String[] args) throws IOException {
+        RANDOM = rnd();
         String scriptFilename = args.length < 1 ? "mysql-dateformat-test.sql" : args[0];
         generateTestRecords();
         generateTestRecordsWithLiterals();

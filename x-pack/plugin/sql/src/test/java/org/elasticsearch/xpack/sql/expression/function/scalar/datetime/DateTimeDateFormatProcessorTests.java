@@ -34,10 +34,12 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
  * <p>
  * Process to (re)generate the test data:
  * <ol>
- *     <li>Run the @{link {@link DateFormatTestScript#main(String[])}} class. This class generates mysql-dateformat-test.sql file.</li>
+ *     <li>Run the @{link {@link DateFormatRandomDatasetGenerator#main(String[])}} class.
+ *         This class generates mysql-dateformat-test.sql file.
+ *     </li>
  *     <li>If you have MySQL installed use this command ( for example in Ubuntu):
  *       <pre>
- *       sudo mysql -u root < /path/to/mysql-dateformat-test.sql > /path/to/dateformat-generated.csv
+ *       sudo mysql -u root &lt; /path/to/mysql-dateformat-test.sql | tr "\\t" "|" &gt; /path/to/dateformat-generated.csv
  *       </pre>
  *     </li>
  *     <li>Copy file dateformat-generated.csv to resources and run this test class.
@@ -57,7 +59,7 @@ public class DateTimeDateFormatProcessorTests extends ESTestCase {
             if (line.startsWith("randomized_timestamp")) {
                 continue;
             }
-            String[] columns = line.split("\t");
+            String[] columns = line.split("\\|");
             params.add(new Object[] { testfile, lineNumber, columns[0].replace("T", " "), columns[1], columns[2] });
         }
         return params;
@@ -85,7 +87,7 @@ public class DateTimeDateFormatProcessorTests extends ESTestCase {
 
     public void test() {
         ZoneId zoneId = ZoneId.of("Asia/Dubai");
-        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.n");
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.n", Locale.ROOT);
         LocalDateTime dateTime = LocalDateTime.parse(randomizedTimestamp, dateTimeFormatter);
         ZonedDateTime dateTimeWithZone = dateTime.atZone(zoneId);
         String actualResult = (String) new DateFormat(Source.EMPTY, l(dateTimeWithZone, DATETIME), l(patternString, KEYWORD), zoneId)

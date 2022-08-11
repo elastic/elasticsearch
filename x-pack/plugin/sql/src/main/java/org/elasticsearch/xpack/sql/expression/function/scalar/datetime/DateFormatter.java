@@ -147,16 +147,14 @@ class DateFormatter {
 
     private static DateFormatter literal(String literal) {
         DateFormatter dateFormatter = new DateFormatter();
-        dateFormatter.javaFormat = timestap -> literal;
+        dateFormatter.javaFormat = timestamp -> literal;
         return dateFormatter;
     }
 
-    private static class Builder {
+    public static class Builder {
         private String pattern;
         private Function<TemporalAccessor, String> javaFormat;
         private Function<String, String> additionalMapper;
-
-        public Builder() {}
 
         public Builder pattern(String pattern) {
             this.pattern = pattern;

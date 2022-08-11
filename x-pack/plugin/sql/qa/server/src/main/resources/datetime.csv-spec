@@ -662,6 +662,23 @@ DATE_FORMAT('11:22:33.123456789Z'::time, '%H:%i:%s.%f') AS df_time;
 05/04/2020 00:00:00.000000 | 05/04/2020 11:22:33.123000 | 11:22:33.123457
 ;
 
+selectDateFormatWithLiterals
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, DATE_FORMAT(birth_date, 'he was born on the %D of %M') AS df_birth_date FROM test_emp
+WHERE gender = 'M' AND emp_no BETWEEN 10020 AND 10030 ORDER BY emp_no;
+
+birth_date               | df_birth_date
+-------------------------+---------------
+1952-12-24 00:00:00Z     | he was born on the 24th of December
+1960-02-20 00:00:00Z     | he was born on the 20th of February
+1952-07-08 00:00:00Z     | he was born on the 8th of July
+1958-10-31 00:00:00Z     | he was born on the 31st of October
+1953-04-03 00:00:00Z     | he was born on the 3rd of April
+1963-11-26 00:00:00Z     | he was born on the 26th of November
+1956-12-13 00:00:00Z     | he was born on the 13th of December
+1958-07-14 00:00:00Z     | he was born on the 14th of July
+;
+
 selectDateFormatWithField
 schema::birth_date:ts|df_birth_date1:s|df_birth_date2:s
 SELECT birth_date, DATE_FORMAT(birth_date, '%m/%d/%Y') AS df_birth_date1, DATE_FORMAT(birth_date, concat('%',gender)) AS df_birth_date2

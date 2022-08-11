@@ -554,7 +554,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .build()
         ).mappings(mapping);
 
-        var delegate = new AllocationActionListener<>(listener);
+        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         clusterService.submitStateUpdateTask(
             "create-rollup-index [" + rollupIndexName + "]",
             new RollupClusterStateUpdateTask(delegate.clusterStateUpdate()) {

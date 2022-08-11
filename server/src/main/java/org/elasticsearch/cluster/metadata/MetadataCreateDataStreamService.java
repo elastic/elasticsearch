@@ -53,6 +53,7 @@ public class MetadataCreateDataStreamService {
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
+    private final ThreadPool threadPool;
 
     public MetadataCreateDataStreamService(
         ThreadPool threadPool,
@@ -62,6 +63,7 @@ public class MetadataCreateDataStreamService {
         this.clusterService = clusterService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
+        this.threadPool = threadPool;
     }
 
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> finalListener) {
@@ -81,7 +83,7 @@ public class MetadataCreateDataStreamService {
                 finalListener.onResponse(AcknowledgedResponse.FALSE);
             }
         }, finalListener::onFailure);
-        var delegate = new AllocationActionListener<>(listener);
+        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-data-stream [" + request.name + "]",
             new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {

@@ -71,7 +71,7 @@ PUT my-index-000001/_doc/1
 --------------------------------------------------
 //TEST[continued]
 
-This document matches the following regex query:
+This document matches the following `regexp` query:
 
 [source,console]
 --------------------------------------------------

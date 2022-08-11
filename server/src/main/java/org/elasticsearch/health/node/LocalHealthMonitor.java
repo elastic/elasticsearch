@@ -11,8 +11,10 @@ package org.elasticsearch.health.node;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -27,11 +29,16 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This class monitors the health of the node regarding the load on several resources.
@@ -53,6 +60,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final DiskCheck diskCheck;
+    private final Client client;
 
     private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
@@ -63,13 +71,20 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // monitoring tasks scheduled, one of them will be no-op.
     private final AtomicBoolean inProgress = new AtomicBoolean();
     // Keeps the latest health state that was successfully reported.
-    private volatile DiskHealthInfo lastReportedDiskHealthInfo = null;
+    private final AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo = new AtomicReference<>();
 
-    public LocalHealthMonitor(Settings settings, ClusterService clusterService, NodeService nodeService, ThreadPool threadPool) {
+    public LocalHealthMonitor(
+        Settings settings,
+        ClusterService clusterService,
+        NodeService nodeService,
+        ThreadPool threadPool,
+        Client client
+    ) {
         this.threadPool = threadPool;
         this.monitorInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = HealthNodeTaskExecutor.ENABLED_SETTING.get(settings);
         this.clusterService = clusterService;
+        this.client = client;
         this.diskCheck = new DiskCheck(nodeService);
         clusterService.addListener(this);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
@@ -108,6 +123,13 @@ public class LocalHealthMonitor implements ClusterStateListener {
             prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
                 && HealthMetadata.getFromClusterState(event.state()) != null;
             maybeScheduleNow();
+        } else {
+            DiscoveryNode previous = HealthNode.findHealthNode(event.previousState());
+            DiscoveryNode current = HealthNode.findHealthNode(event.state());
+            if (Objects.equals(previous, current) == false) {
+                lastReportedDiskHealthInfo.set(null);
+                maybeScheduleNow();
+            }
         }
     }
 
@@ -117,23 +139,38 @@ public class LocalHealthMonitor implements ClusterStateListener {
             ClusterState clusterState = clusterService.state();
             HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
             assert healthMetadata != null : "health metadata should have been initialized.";
-            DiskHealthInfo previousHealth = this.lastReportedDiskHealthInfo;
+            DiskHealthInfo previousHealth = this.lastReportedDiskHealthInfo.get();
             DiskHealthInfo currentHealth = diskCheck.getHealth(healthMetadata, clusterState);
             if (currentHealth.equals(previousHealth) == false) {
-                logger.debug("Health status changed from {} to {}", previousHealth, currentHealth);
-                this.lastReportedDiskHealthInfo = currentHealth;
+                String nodeId = clusterService.localNode().getId();
+                ActionListener<UpdateHealthInfoCacheAction.Response> listener = ActionListener.wrap(response -> {
+                    // Update the last reported value if there was no change, that would mean that there
+                    // is a new health node that might have not received the value, so we should retry.
+                    lastReportedDiskHealthInfo.compareAndSet(previousHealth, currentHealth);
+                    logger.debug(
+                        "Health info [{}] successfully send, last reported value: {}.",
+                        currentHealth,
+                        lastReportedDiskHealthInfo.get()
+                    );
+                }, e -> logger.error(() -> format("Failed to send health info [{}] to health node, will try again.", currentHealth), e));
+                client.execute(
+                    UpdateHealthInfoCacheAction.INSTANCE,
+                    new UpdateHealthInfoCacheAction.Request(nodeId, currentHealth),
+                    ActionListener.runAfter(listener, () -> {
+                        inProgress.set(false);
+                        // Scheduling happens after the flag inProgress is false, this ensures that
+                        // if the feature is enabled after the following schedule statement, the setEnabled
+                        // method will be able to schedule the next run, and it will not be a no-op.
+                        // We prefer to err towards an extra scheduling than miss the enabling of this feature alltogether.
+                        maybeScheduleNextRun(monitorInterval);
+                    })
+                );
             }
-            inProgress.set(false);
-            // Scheduling happens after the flag inProgress is false, this ensures that
-            // if the feature is enabled after the following schedule statement, the setEnabled
-            // method will be able to schedule the next run, and it will not be a no-op.
-            // We prefer to err towards an extra scheduling than miss the enabling of this feature alltogether.
-            maybeScheduleNextRun(monitorInterval);
         }
     }
 
     DiskHealthInfo getLastReportedDiskHealthInfo() {
-        return lastReportedDiskHealthInfo;
+        return lastReportedDiskHealthInfo.get();
     }
 
     /**

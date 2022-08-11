@@ -952,7 +952,7 @@ public class Node implements Closeable {
                 ? new HealthMetadataService(clusterService, settings)
                 : null;
             LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
-                ? new LocalHealthMonitor(settings, clusterService, nodeService, threadPool)
+                ? new LocalHealthMonitor(settings, clusterService, nodeService, threadPool, client)
                 : null;
             HealthInfoCache nodeHealthOverview = HealthNode.isEnabled() ? new HealthInfoCache(clusterService) : null;
 

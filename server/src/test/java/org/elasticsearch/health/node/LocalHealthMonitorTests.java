@@ -9,8 +9,11 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,12 +40,15 @@ import org.junit.BeforeClass;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +61,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     private DiscoveryNode frozenNode;
     private HealthMetadata healthMetadata;
     private ClusterState clusterState;
+    private Client client;
 
     @BeforeClass
     public static void setUpThreadPool() {
@@ -104,24 +111,88 @@ public class LocalHealthMonitorTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.localNode()).thenReturn(node);
 
         // Set-up node service with a node with a healthy disk space usage
         nodeService = mock(NodeService.class);
+
+        client = mock(Client.class);
     }
 
-    public void testUpdateNodeHealthStatus() {
+    @SuppressWarnings("unchecked")
+    public void testUpdateHealthInfo() throws Exception {
+        DiskHealthInfo green = new DiskHealthInfo(HealthStatus.GREEN, null);
+        doAnswer(invocation -> {
+            DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
+            ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
+                UpdateHealthInfoCacheAction.Response>) invocation.getArguments()[2];
+            assertThat(diskHealthInfo, equalTo(green));
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(any(), any(), any());
         simulateHealthDiskSpace();
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool);
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool, client);
         assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
         localHealthMonitor.monitorHealth();
-        assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(new DiskHealthInfo(HealthStatus.GREEN, null)));
+        assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
     }
 
-    public void testEnablingAndDisabling() throws Exception {
+    @SuppressWarnings("unchecked")
+    public void testDoNotUpdateHealthInfoOnFailure() {
+        doAnswer(invocation -> {
+            ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
+                UpdateHealthInfoCacheAction.Response>) invocation.getArguments()[2];
+            listener.onFailure(new RuntimeException("simulated"));
+            return null;
+        }).when(client).execute(any(), any(), any());
+
         simulateHealthDiskSpace();
-        DiskHealthInfo healthyNode = new DiskHealthInfo(HealthStatus.GREEN, null);
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool, client);
+        assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
+        localHealthMonitor.monitorHealth();
+        assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSendHealthInfoToNewNode() throws Exception {
+        ClusterState previous = ClusterStateCreationUtils.state(node, node, frozenNode, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        ClusterState current = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        DiskHealthInfo green = new DiskHealthInfo(HealthStatus.GREEN, null);
+        simulateHealthDiskSpace();
+
+        AtomicInteger counter = new AtomicInteger(0);
+        doAnswer(invocation -> {
+            DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
+            ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
+                UpdateHealthInfoCacheAction.Response>) invocation.getArguments()[2];
+            assertThat(diskHealthInfo, equalTo(green));
+            counter.incrementAndGet();
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(any(), any(), any());
+
+        when(clusterService.state()).thenReturn(previous);
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool, client);
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
+        localHealthMonitor.monitorHealth();
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
+        assertBusy(() -> assertThat(counter.get(), equalTo(2)));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testEnablingAndDisabling() throws Exception {
+        DiskHealthInfo green = new DiskHealthInfo(HealthStatus.GREEN, null);
+        doAnswer(invocation -> {
+           ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
+                UpdateHealthInfoCacheAction.Response>) invocation.getArguments()[2];
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(any(), any(), any());
+        simulateHealthDiskSpace();
         when(clusterService.state()).thenReturn(null);
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool);
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool, client);
 
         // Ensure that there are no issues if the cluster state hasn't been initialized yet
         localHealthMonitor.setEnabled(true);
@@ -129,13 +200,13 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         when(clusterService.state()).thenReturn(clusterState);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(healthyNode)));
+        assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
 
         // Disable the local monitoring
         localHealthMonitor.setEnabled(false);
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(1));
         simulateDiskOutOfSpace();
-        assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, healthyNode);
+        assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, green);
 
         localHealthMonitor.setEnabled(true);
         DiskHealthInfo nextHealthStatus = new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);

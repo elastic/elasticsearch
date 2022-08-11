@@ -69,7 +69,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<UpdateHealthInfoCach
     }
 
     public static final UpdateHealthInfoCacheAction INSTANCE = new UpdateHealthInfoCacheAction();
-    public static final String NAME = "cluster:update/node/health/info";
+    public static final String NAME = "cluster:monitor/update/health/info";
 
     private UpdateHealthInfoCacheAction() {
         super(NAME, UpdateHealthInfoCacheAction.Response::new);

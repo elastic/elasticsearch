@@ -1583,7 +1583,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledField.class,
             org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledField::new,
             167,
-            Version.V_8_4_0
+            Version.V_8_5_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

@@ -51,7 +51,7 @@ public class HealthInfoCacheTests extends ESTestCase {
     private final DiscoveryNode[] allNodes = new DiscoveryNode[] { node1, node2 };
 
     public void testAddHealthInfo() {
-        HealthInfoCache healthInfoCache = new HealthInfoCache(clusterService);
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
         healthInfoCache.updateNodeHealth(node1.getId(), GREEN);
         healthInfoCache.updateNodeHealth(node2.getId(), RED);
 
@@ -63,7 +63,7 @@ public class HealthInfoCacheTests extends ESTestCase {
     }
 
     public void testRemoveNodeFromTheCluster() {
-        HealthInfoCache healthInfoCache = new HealthInfoCache(clusterService);
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
         healthInfoCache.updateNodeHealth(node1.getId(), GREEN);
         healthInfoCache.updateNodeHealth(node2.getId(), RED);
 
@@ -77,7 +77,7 @@ public class HealthInfoCacheTests extends ESTestCase {
     }
 
     public void testNotAHealthNode() {
-        HealthInfoCache healthInfoCache = new HealthInfoCache(clusterService);
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
         healthInfoCache.updateNodeHealth(node1.getId(), GREEN);
         healthInfoCache.updateNodeHealth(node2.getId(), RED);
 

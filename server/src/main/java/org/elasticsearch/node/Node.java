@@ -954,7 +954,7 @@ public class Node implements Closeable {
             LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
                 ? new LocalHealthMonitor(settings, clusterService, nodeService, threadPool, client)
                 : null;
-            HealthInfoCache nodeHealthOverview = HealthNode.isEnabled() ? new HealthInfoCache(clusterService) : null;
+            HealthInfoCache nodeHealthOverview = HealthNode.isEnabled() ? HealthInfoCache.create(clusterService) : null;
 
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,

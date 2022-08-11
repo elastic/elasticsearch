@@ -24,8 +24,12 @@ public class HealthInfoCache implements ClusterStateListener {
 
     private volatile ConcurrentHashMap<String, DiskHealthInfo> diskInfoByNode = new ConcurrentHashMap<>();
 
-    public HealthInfoCache(ClusterService clusterService) {
-        clusterService.addListener(this);
+    private HealthInfoCache() {}
+
+    public static HealthInfoCache create(ClusterService clusterService) {
+        HealthInfoCache healthInfoCache = new HealthInfoCache();
+        clusterService.addListener(healthInfoCache);
+        return healthInfoCache;
     }
 
     public void updateNodeHealth(String nodeId, DiskHealthInfo diskHealthInfo) {

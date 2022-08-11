@@ -185,7 +185,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     public void testEnablingAndDisabling() throws Exception {
         DiskHealthInfo green = new DiskHealthInfo(HealthStatus.GREEN, null);
         doAnswer(invocation -> {
-           ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
+            ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
                 UpdateHealthInfoCacheAction.Response>) invocation.getArguments()[2];
             listener.onResponse(null);
             return null;

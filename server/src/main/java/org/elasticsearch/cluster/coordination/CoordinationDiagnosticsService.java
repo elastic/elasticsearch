@@ -400,7 +400,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 nodeHasMasterLookupTimeframe
             );
             if (explain) {
-                details = CoordinationDiagnosticsDetails.EMPTY;
+                details = getDetails(
+                    true,
+                    localMasterHistory,
+                    null,
+                    Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
+                );
             } else {
                 details = CoordinationDiagnosticsDetails.EMPTY;
             }

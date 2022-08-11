@@ -64,19 +64,25 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
-    
+
     // Signals that all the prerequisites have been fulfilled and the monitoring task can be scheduled.
     private volatile boolean prerequisitesFulfilled;
-    
+
     // Ensures that only one monitoring task will be in progress at any moment in time.
     // It removes the need to synchronize scheduling since at the event that there are two
     // monitoring tasks scheduled, one of them will be no-op.
     private final AtomicBoolean inProgress = new AtomicBoolean();
-    
+
     // Keeps the latest health state that was successfully reported to the current health node.
     private final AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo = new AtomicReference<>();
 
-    private LocalHealthMonitor(Settings settings, ClusterService clusterService, NodeService nodeService, ThreadPool threadPool) {
+    private LocalHealthMonitor(
+        Settings settings,
+        ClusterService clusterService,
+        NodeService nodeService,
+        ThreadPool threadPool,
+        Client client
+    ) {
         this.threadPool = threadPool;
         this.monitorInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = HealthNodeTaskExecutor.ENABLED_SETTING.get(settings);
@@ -89,9 +95,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
         Settings settings,
         ClusterService clusterService,
         NodeService nodeService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Client client
     ) {
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(settings, clusterService, nodeService, threadPool);
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(settings, clusterService, nodeService, threadPool, client);
         localHealthMonitor.registerListeners();
         return localHealthMonitor;
     }

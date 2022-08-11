@@ -131,7 +131,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
         simulateHealthDiskSpace();
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool, client);
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
         assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
         localHealthMonitor.monitorHealth();
         assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
@@ -174,7 +174,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         when(clusterService.state()).thenReturn(previous);
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool, client);
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
         localHealthMonitor.monitorHealth();
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));

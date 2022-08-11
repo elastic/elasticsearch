@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -375,12 +376,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
      */
     public void testDoNotCancelRecoveryForBrokenNode() throws Exception {
         internalCluster().startMasterOnlyNode();
-
-        assumeTrue(
-            "Other ShardsAllocator implementations might not retry allocation on other node",
-            internalCluster().getInstance(ShardsAllocator.class) instanceof BalancedShardsAllocator
-        );
-
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
         String indexName = "test";
         assertAcked(
@@ -429,7 +424,18 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         );
         internalCluster().startDataOnlyNode();
         newNodeStarted.countDown();
-        ensureGreen(indexName);
+
+        var allocator = internalCluster().getInstance(ShardsAllocator.class);
+        if (allocator instanceof BalancedShardsAllocator) {
+            // BalancedShardsAllocator will try other node once retries are exhausted
+            ensureGreen(indexName);
+        } else if (allocator instanceof DesiredBalanceShardsAllocator) {
+            // DesiredBalanceShardsAllocator will keep shard in the error state if it could not be allocated on the desired node
+            ensureYellow(indexName);
+        } else {
+            fail("Unknown allocator used");
+        }
+
         transportService.clearAllRules();
     }
 

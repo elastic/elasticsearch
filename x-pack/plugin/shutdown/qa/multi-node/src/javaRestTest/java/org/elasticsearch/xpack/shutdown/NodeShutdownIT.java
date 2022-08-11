@@ -303,9 +303,10 @@ public class NodeShutdownIT extends ESRestTestCase {
                 ObjectPath.eval("nodes.0.shard_migration.explanation", status),
                 allOf(
                     containsString(indexName),
-                    containsString("cannot move, use the Cluster Allocation Explain API on this shard for details")
+                    containsString("cannot move, see [node_allocation_decision] for details or use the cluster allocation explain API")
                 )
             );
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.node_allocation_decision", status), notNullValue());
         }
 
         // Now update the allocation requirements to unblock shard relocation

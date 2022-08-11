@@ -902,7 +902,7 @@ public class Node implements Closeable {
                 settingsModule.getIndexScopedSettings()
             );
             final HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNode.isEnabled()
-                ? new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterService.getClusterSettings())
+                ? HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterService.getClusterSettings())
                 : null;
             final List<PersistentTasksExecutor<?>> builtinTaskExecutors = HealthNode.isEnabled()
                 ? List.of(systemIndexMigrationExecutor, healthNodeTaskExecutor)
@@ -949,10 +949,10 @@ public class Node implements Closeable {
             );
             HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);
             HealthMetadataService healthMetadataService = HealthNode.isEnabled()
-                ? new HealthMetadataService(clusterService, settings)
+                ? HealthMetadataService.create(clusterService, settings)
                 : null;
             LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
-                ? new LocalHealthMonitor(settings, clusterService, nodeService, threadPool, client)
+                ? LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client)
                 : null;
             HealthInfoCache nodeHealthOverview = HealthNode.isEnabled() ? HealthInfoCache.create(clusterService) : null;
 

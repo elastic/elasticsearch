@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.autoscaling;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,15 +38,15 @@ public class ScaleTimerTests extends ESTestCase {
         scaleTimer.markScale();
         scaleTimer.markScale();
 
-        Optional<Long> scaleInterval = scaleTimer.lastScaleToScaleIntervalMillis();
+        OptionalLong scaleInterval = scaleTimer.lastScaleToScaleIntervalMillis();
         assertThat(scaleInterval.isPresent(), is(true));
-        assertThat(scaleInterval.get(), equalTo(150L));
+        assertThat(scaleInterval.getAsLong(), equalTo(150L));
 
         scaleTimer.markScale();
 
         scaleInterval = scaleTimer.lastScaleToScaleIntervalMillis();
         assertThat(scaleInterval.isPresent(), is(true));
-        assertThat(scaleInterval.get(), equalTo(250L));
+        assertThat(scaleInterval.getAsLong(), equalTo(250L));
     }
 
     public void testMarkDownScaleAndGetMillisLeftFromDelay() {

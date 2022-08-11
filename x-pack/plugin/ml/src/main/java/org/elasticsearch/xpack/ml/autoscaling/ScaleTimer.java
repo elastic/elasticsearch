@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
-import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService.DOWN_SCALE_DELAY;
@@ -40,11 +40,11 @@ class ScaleTimer {
         lastScaleTimeMs = timeSupplier.getAsLong();
     }
 
-    Optional<Long> lastScaleToScaleIntervalMillis() {
+    OptionalLong lastScaleToScaleIntervalMillis() {
         if (previousScaleTimeMs > 0L && lastScaleTimeMs > previousScaleTimeMs) {
-            return Optional.of(lastScaleTimeMs - previousScaleTimeMs);
+            return OptionalLong.of(lastScaleTimeMs - previousScaleTimeMs);
         }
-        return Optional.empty();
+        return OptionalLong.empty();
     }
 
     long markDownScaleAndGetMillisLeftFromDelay(Settings configuration) {

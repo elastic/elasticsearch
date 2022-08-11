@@ -22,13 +22,22 @@ import java.util.Enumeration;
 import java.util.Set;
 
 /**
- * This classloader will load classes from stable plugins.
- * <p>
- * If the stable plugin is modularized, it will be loaded as a module.
+ * This classloader will load classes from non-modularized stable plugins. Fully
+ * modularized plugins can be loaded using
+ * {@link java.lang.module.ModuleFinder}.
  * <p>
  * If the stable plugin is not modularized, a synthetic module will be created
- * for it and all its dependencies.
+ * for all of the jars in the bundle. We want to be able to construct the
+ * "requires" relationships for this synthetic module, which will make it
+ * different from the unnamed (classpath) module.
  * <p>
+ * We can delegate to a URLClassLoader, which is battle-tested when it comes
+ * to reading classes out of jars.
+ * <p>
+ * This classloader needs to avoid parent-first search: we'll check classes
+ * against a list of packages in this synthetic module, and load a class
+ * directly if it's part of this synthetic module. This will keep libraries from
+ * clashing.
  * TODO:
  *   * We need a loadClass method
  *   * We need a findResources method
@@ -59,9 +68,13 @@ public class StablePluginClassLoader extends SecureClassLoader {
     private ModuleReference module;
 
     static StablePluginClassLoader getInstance(ClassLoader parent, ModuleReference module) {
+        // TODO: we should take jars, not a module reference
+        // TODO: delegate reading from jars to a URL class loader
         PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(module);
         return AccessController.doPrivileged(pa);
     }
+
+    // TODO: we should take multiple jars
     static StablePluginClassLoader getInstance(ClassLoader parent, Path jar) {
         return getInstance(parent, buildSyntheticModule(jar));
     }
@@ -111,6 +124,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
         //
         // jdk.internal.loader.Loader can pull a class out of a loaded module pretty easily;
         // ModuleReference does a lot of the work
+        // TODO: implement
         return null;
     }
 

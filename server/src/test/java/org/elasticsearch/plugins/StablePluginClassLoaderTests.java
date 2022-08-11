@@ -46,7 +46,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("modular.jar");
         boolean modular = randomBoolean();
-        createJar(outerJar, modular);
+        createJar(outerJar);
 
         // loading it with a URL classloader (just checking the jar, remove
         // this block)
@@ -63,14 +63,13 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         }
     }
 
-    // Test loading a modularized jar...
     // We should be able to pass a URI for the jar and load a class from it.
     public void testLoadFromModularizedJar() throws Exception {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("modular.jar");
-        createJar(jar, true);
+        createJar(jar);
 
-        // load it with a module
+        // load it with a module -- we don't actually want to do this, remove
         ModuleFinder moduleFinder = ModuleFinder.of(jar);
         ModuleLayer mparent = ModuleLayer.boot();
         Configuration cf = mparent.configuration().resolve(moduleFinder, ModuleFinder.of(), Set.of("p"));
@@ -93,7 +92,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
     public void testLoadFromNonModularizedJar() throws Exception {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("non-modular.jar");
-        createJar(jar, true);
+        createJar(jar);
 
         StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
             StablePluginClassLoader.class.getClassLoader(),
@@ -114,8 +113,8 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         */
     }
 
-    private static void createJar(Path outerJar, boolean modular) throws IOException {
-        String name = modular ? "Modular" : "NonModular";
+    private static void createJar(Path outerJar) throws IOException {
+        String name = "NonModular";
         Map<String, CharSequence> sources = new HashMap<>();
         sources.put("p." + name, String.format(Locale.ENGLISH, """
             package p;
@@ -126,18 +125,12 @@ public class StablePluginClassLoaderTests extends ESTestCase {
                 }
             }
             """, name, name));
-        if (modular) {
-            sources.put("module-info", """
-                module p {
-                  exports p;
-                }
-                """);
-        }
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();
         jarEntries.put("p/Modular.class", classToBytes.get("p.Modular"));
-        jarEntries.put("module-info.class", classToBytes.get("module-info"));
         JarUtils.createJarWithEntries(outerJar, jarEntries);
     }
+
+    // test that we don't use parent-first delegation (load from package if module has it)
 }

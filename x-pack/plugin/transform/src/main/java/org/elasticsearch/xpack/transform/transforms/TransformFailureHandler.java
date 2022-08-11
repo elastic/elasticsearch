@@ -38,7 +38,6 @@ class TransformFailureHandler {
     private final String transformId;
     private final TransformContext context;
 
-    // protected for unit tests
     TransformFailureHandler(TransformAuditor auditor, TransformContext context, String transformId) {
         this.auditor = auditor;
         this.transformId = transformId;

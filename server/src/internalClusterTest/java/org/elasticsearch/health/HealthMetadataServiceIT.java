@@ -50,7 +50,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
             String electedMaster = internalCluster.getMasterName();
             {
-                HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
+                HealthMetadata.Disk diskMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(watermarkByNode.get(electedMaster)));
             }
@@ -60,7 +60,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             ensureStableCluster(numberOfNodes - 1);
             electedMaster = internalCluster.getMasterName();
             {
-                HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
+                HealthMetadata.Disk diskMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(watermarkByNode.get(electedMaster)));
             }
@@ -89,7 +89,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
             ensureStableCluster(numberOfNodes);
             {
-                HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
+                HealthMetadata.Disk diskMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(initialWatermark));
             }
@@ -112,7 +112,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 )
                 .actionGet();
             assertBusy(() -> {
-                HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
+                HealthMetadata.Disk diskMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(updatedHighWatermark));
                 assertThat(diskMetadata.describeFloodStageWatermark(), equalTo(updatedFloodStageWatermark));

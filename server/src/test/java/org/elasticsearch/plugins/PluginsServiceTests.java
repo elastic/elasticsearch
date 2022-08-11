@@ -26,13 +26,12 @@ import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystemException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -100,7 +99,7 @@ public class PluginsServiceTests extends ESTestCase {
         Files.createDirectories(hidden);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
 
-        final String expected = "Could not load plugin descriptor for plugin directory [.hidden]";
+        final String expected = "Plugin [.hidden] is missing a descriptor properties file";
         assertThat(e, hasToString(containsString(expected)));
     }
 
@@ -116,22 +115,7 @@ public class PluginsServiceTests extends ESTestCase {
             assertNotNull(pluginsService);
         } else {
             final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-            assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [.DS_Store]"));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause(), instanceOf(FileSystemException.class));
-            if (Constants.WINDOWS) {
-                assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
-            } else {
-                // force a "Not a directory" exception to be thrown so that we can extract the locale-dependent message
-                final String expected;
-                try (InputStream ignored = Files.newInputStream(desktopServicesStore.resolve("not-a-directory"))) {
-                    throw new AssertionError();
-                } catch (final FileSystemException inner) {
-                    // locale-dependent translation of "Not a directory"
-                    expected = inner.getReason();
-                }
-                assertThat(e.getCause(), hasToString(containsString(expected)));
-            }
+            assertThat(e.getMessage(), containsString("Plugin [.DS_Store] is missing a descriptor properties file"));
         }
     }
 
@@ -399,12 +383,7 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testExistingMandatoryInstalledPlugin() throws IOException {
-        // This test opens a child classloader, reading a jar under the test temp
-        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
-        // occurs the jar is deleted while the classloader is still open. However, on
-        // windows, files cannot be deleted when they are still open by a process.
-        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
-        final Path pathHome = createTempDir();
+        final Path pathHome = createTempDir(getTestName());
         final Path plugins = pathHome.resolve("plugins");
         final Path fake = plugins.resolve("fake");
 
@@ -428,7 +407,8 @@ public class PluginsServiceTests extends ESTestCase {
         }
 
         final Settings settings = Settings.builder().put("path.home", pathHome).put("plugin.mandatory", "fake").build();
-        newPluginsService(settings);
+        var pluginsService = newPluginsService(settings);
+        closePluginLoaders(pluginsService);
     }
 
     public void testPluginFromParentClassLoader() throws IOException {
@@ -473,7 +453,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false, false),
                     extensiblePlugin
                 )
             )
@@ -487,11 +467,11 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false, false),
                     extensiblePlugin
                 ),
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false),
+                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false, false, false),
                     testPlugin
                 )
             )
@@ -726,6 +706,77 @@ public class PluginsServiceTests extends ESTestCase {
         var providers = MockPluginsService.createExtensions(TestService.class, fooPlugin);
 
         assertThat(providers, allOf(hasSize(1), everyItem(instanceOf(BarTestService.class))));
+    }
+
+    public void testDeprecatedPluginInterface() throws Exception {
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final Path plugins = home.resolve("plugins");
+        final Path plugin = plugins.resolve("deprecated-plugin");
+        Files.createDirectories(plugin);
+        PluginTestUtil.writeSimplePluginDescriptor(plugin, "deprecated-plugin", "p.DeprecatedPlugin");
+        Path jar = plugin.resolve("impl.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/DeprecatedPlugin.class", InMemoryJavaCompiler.compile("p.DeprecatedPlugin", """
+            package p;
+            import org.elasticsearch.plugins.*;
+            public class DeprecatedPlugin extends Plugin implements NetworkPlugin {}
+            """)));
+
+        var pluginService = newPluginsService(settings);
+        try {
+            assertWarnings(
+                "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements "
+                    + "deprecated plugin interface NetworkPlugin. "
+                    + "This plugin interface will be removed in a future release."
+            );
+        } finally {
+            closePluginLoaders(pluginService);
+        }
+    }
+
+    public void testDeprecatedPluginMethod() throws Exception {
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final Path plugins = home.resolve("plugins");
+        final Path plugin = plugins.resolve("deprecated-plugin");
+        Files.createDirectories(plugin);
+        PluginTestUtil.writeSimplePluginDescriptor(plugin, "deprecated-plugin", "p.DeprecatedPlugin");
+        Path jar = plugin.resolve("impl.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/DeprecatedPlugin.class", InMemoryJavaCompiler.compile("p.DeprecatedPlugin", """
+            package p;
+            import java.util.Map;
+            import org.elasticsearch.plugins.*;
+            import org.elasticsearch.cluster.coordination.ElectionStrategy;
+            public class DeprecatedPlugin extends Plugin implements DiscoveryPlugin {
+                @Override
+                public Map<String, ElectionStrategy> getElectionStrategies() {
+                    return Map.of();
+                }
+            }
+            """)));
+
+        var pluginService = newPluginsService(settings);
+        try {
+            assertWarnings(
+                "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method "
+                    + "getElectionStrategies from plugin interface DiscoveryPlugin. This method will be removed in a future release."
+            );
+        } finally {
+            closePluginLoaders(pluginService);
+        }
+    }
+
+    // Closes the URLClassLoaders of plugins loaded by the given plugin service.
+    static void closePluginLoaders(PluginsService pluginService) {
+        for (var lp : pluginService.plugins()) {
+            if (lp.loader()instanceof URLClassLoader urlClassLoader) {
+                try {
+                    PrivilegedOperations.closeURLClassLoader(urlClassLoader);
+                } catch (IOException unexpected) {
+                    throw new UncheckedIOException(unexpected);
+                }
+            }
+        }
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {

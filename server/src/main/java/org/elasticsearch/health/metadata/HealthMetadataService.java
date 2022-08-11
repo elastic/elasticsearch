@@ -18,15 +18,12 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
 
@@ -56,11 +53,20 @@ public class HealthMetadataService {
     // us from checking the cluster state before the cluster state is initialized
     private volatile boolean isMaster = false;
 
-    public HealthMetadataService(ClusterService clusterService, Settings settings) {
+    private HealthMetadataService(ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
         this.settings = settings;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
+    }
+
+    public static HealthMetadataService create(ClusterService clusterService, Settings settings) {
+        HealthMetadataService healthMetadataService = new HealthMetadataService(clusterService, settings);
+        healthMetadataService.registerListeners();
+        return healthMetadataService;
+    }
+
+    private void registerListeners() {
         if (this.enabled) {
             this.clusterService.addListener(clusterStateListener);
         }
@@ -137,15 +143,9 @@ public class HealthMetadataService {
         clusterService.submitStateUpdateTask(source, task, config, executor);
     }
 
-    public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
-        return List.of(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(HealthMetadata.TYPE), HealthMetadata::fromXContent)
-        );
-    }
-
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, HealthMetadata.TYPE, HealthMetadata::new),
+            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, HealthMetadata.TYPE, HealthMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, HealthMetadata.TYPE, HealthMetadata::readDiffFrom)
         );
     }
@@ -196,7 +196,7 @@ public class HealthMetadataService {
 
         @Override
         ClusterState execute(ClusterState clusterState) {
-            HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
+            HealthMetadata initialHealthMetadata = HealthMetadata.getFromClusterState(clusterState);
             assert initialHealthMetadata != null : "health metadata should have been initialized";
             HealthMetadata.Disk.Builder builder = HealthMetadata.Disk.newBuilder(initialHealthMetadata.getDiskMetadata());
             if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey().equals(setting)) {
@@ -214,7 +214,7 @@ public class HealthMetadataService {
             final var finalHealthMetadata = new HealthMetadata(builder.build());
             return finalHealthMetadata.equals(initialHealthMetadata)
                 ? clusterState
-                : clusterState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
+                : clusterState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
         }
     }
 
@@ -232,7 +232,7 @@ public class HealthMetadataService {
 
         @Override
         ClusterState execute(ClusterState clusterState) {
-            HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
+            HealthMetadata initialHealthMetadata = HealthMetadata.getFromClusterState(clusterState);
             final var finalHealthMetadata = new HealthMetadata(
                 new HealthMetadata.Disk(
                     CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
@@ -243,7 +243,7 @@ public class HealthMetadataService {
             );
             return finalHealthMetadata.equals(initialHealthMetadata)
                 ? clusterState
-                : clusterState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
+                : clusterState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
         }
     }
 }

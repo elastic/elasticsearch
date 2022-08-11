@@ -316,17 +316,13 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         logger.info("stopping ml nodes");
         for (int i = 0; i < numMlNodes; i++) {
-            // fork so stopping all ml nodes proceeds quicker:
-            Runnable r = () -> {
-                try {
-                    internalCluster().stopNode(
-                        internalCluster().getNodeNameThat(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE))
-                    );
-                } catch (IOException e) {
-                    logger.error("error stopping node", e);
-                }
-            };
-            new Thread(r).start();
+            try {
+                internalCluster().stopNode(
+                    internalCluster().getNodeNameThat(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE))
+                );
+            } catch (IOException e) {
+                logger.error("error stopping node", e);
+            }
         }
         ensureStableCluster(1, nonMlNode);
         assertBusy(() -> {

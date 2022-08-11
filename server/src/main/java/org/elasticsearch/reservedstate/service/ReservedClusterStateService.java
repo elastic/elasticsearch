@@ -104,9 +104,11 @@ public class ReservedClusterStateService {
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             saveErrorState(errorState);
-            logger.error("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
+            logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
-            errorListener.accept(new IllegalStateException("Error processing state change request for " + namespace, e));
+            errorListener.accept(
+                new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e)
+            );
             return;
         }
 
@@ -123,7 +125,7 @@ public class ReservedClusterStateService {
      */
     public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
         Map<String, Object> reservedState = reservedStateChunk.state();
-        ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
+        final ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
 
         LinkedHashSet<String> orderedHandlers;
         try {
@@ -137,9 +139,11 @@ public class ReservedClusterStateService {
             );
 
             saveErrorState(errorState);
-            logger.error("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
+            logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
-            errorListener.accept(new IllegalStateException("Error processing state change request for " + namespace, e));
+            errorListener.accept(
+                new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e)
+            );
             return;
         }
 
@@ -166,8 +170,11 @@ public class ReservedClusterStateService {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error("Failed to apply reserved cluster state", e);
-                        errorListener.accept(e);
+                        // Don't spam the logs on repeated errors
+                        if (isNewError(existingMetadata, reservedStateVersion.version())) {
+                            logger.debug("Failed to apply reserved cluster state", e);
+                            errorListener.accept(e);
+                        }
                     }
                 }
             ),
@@ -209,13 +216,35 @@ public class ReservedClusterStateService {
         return true;
     }
 
-    private void saveErrorState(ErrorState state) {
+    // package private for testing
+    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion) {
+        return (existingMetadata == null
+            || existingMetadata.errorMetadata() == null
+            || existingMetadata.errorMetadata().version() < newStateVersion);
+    }
+
+    private void saveErrorState(ErrorState errorState) {
+        ClusterState clusterState = clusterService.state();
+        ReservedStateMetadata existingMetadata = clusterState.metadata().reservedStateMetadata().get(errorState.namespace());
+
+        if (isNewError(existingMetadata, errorState.version()) == false) {
+            logger.info(
+                () -> format(
+                    "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
+                    errorState.version(),
+                    existingMetadata.errorMetadata().version()
+                )
+            );
+
+            return;
+        }
+
         clusterService.submitStateUpdateTask(
-            "reserved cluster state update error for [ " + state.namespace() + "]",
-            new ReservedStateErrorTask(state, new ActionListener<>() {
+            "reserved cluster state update error for [ " + errorState.namespace() + "]",
+            new ReservedStateErrorTask(errorState, new ActionListener<>() {
                 @Override
                 public void onResponse(ActionResponse.Empty empty) {
-                    logger.info("Successfully applied new reserved error state for namespace [{}]", state.namespace());
+                    logger.info("Successfully applied new reserved error state for namespace [{}]", errorState.namespace());
                 }
 
                 @Override

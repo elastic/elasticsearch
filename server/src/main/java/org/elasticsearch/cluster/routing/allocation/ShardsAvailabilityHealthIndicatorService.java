@@ -71,7 +71,6 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAl
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 
 /**
  * This indicator reports health for shards.
@@ -103,11 +102,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public String component() {
-        return DATA;
     }
 
     @Override

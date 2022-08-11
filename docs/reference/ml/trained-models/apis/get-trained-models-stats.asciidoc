@@ -149,6 +149,16 @@ in the last minute.
 (integer)
 The number of errors when evaluating the trained model.
 
+`inference_cache_hit_count`:::
+(integer)
+The total number of inference calls made against this node for this
+model that were served from the inference cache.
+
+`inference_cache_hit_count_last_minute`:::
+(integer)
+The number of inference calls made against this node for this model
+in the last minute that were served from the inference cache.
+
 `inference_count`:::
 (integer)
 The total number of inference calls made against this node for this model.

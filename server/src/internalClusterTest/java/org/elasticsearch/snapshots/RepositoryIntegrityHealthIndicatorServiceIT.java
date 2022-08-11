@@ -22,7 +22,6 @@ import java.nio.file.Path;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,7 +68,7 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
 
     private void assertSnapshotRepositoryHealth(String message, Client client, HealthStatus status) {
         var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean())).actionGet();
-        assertThat(message, response.findComponent(SNAPSHOT).findIndicator(NAME).status(), equalTo(status));
+        assertThat(message, response.findIndicator(NAME).status(), equalTo(status));
     }
 
     private void corruptRepository(String name, Path location) throws IOException {

@@ -26,7 +26,6 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
@@ -46,7 +45,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
                     "Index Lifecycle Management is running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1)),
@@ -67,7 +65,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     YELLOW,
                     "Index Lifecycle Management is not running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
@@ -95,7 +92,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
                     "No Index Lifecycle Management policies configured",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0)),
@@ -115,7 +111,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
                     "No Index Lifecycle Management policies configured",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0)),

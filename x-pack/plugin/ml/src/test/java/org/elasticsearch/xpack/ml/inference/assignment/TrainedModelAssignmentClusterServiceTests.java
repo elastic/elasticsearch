@@ -913,6 +913,38 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
     }
 
+    public void testDetectReasonToRebalanceModels_GivenOutdatedAssignments() {
+        String modelId = "model-1";
+        String mlNodeId = "ml-node-1";
+        DiscoveryNode mlNode = buildNode(mlNodeId, true, ByteSizeValue.ofGb(4).getBytes(), 8);
+
+        TrainedModelAssignmentMetadata modelMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                modelId,
+                TrainedModelAssignment.Builder.empty(newParams(modelId, 100))
+                    .addRoutingEntry(mlNodeId, new RoutingInfo(0, 0, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        ClusterState previousState = ClusterState.builder(new ClusterName("test_cluster"))
+            .nodes(DiscoveryNodes.builder().add(mlNode))
+            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, modelMetadata).build())
+            .build();
+
+        // A non ML-node is added
+        ClusterState currentState = ClusterState.builder(new ClusterName("test_cluster"))
+            .nodes(DiscoveryNodes.builder().add(mlNode).add(buildNode("non-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 8)))
+            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, modelMetadata).build())
+            .build();
+
+        assertThat(
+            TrainedModelAssignmentClusterService.detectReasonToRebalanceModels(
+                new ClusterChangedEvent("test", currentState, previousState)
+            ),
+            equalTo(Optional.of("outdated assignments detected"))
+        );
+    }
+
     public void testDetectReasonToRebalanceModels_GivenMultipleMlJobsStopped() {
         String modelId = "model-1";
         String mlNodeId = "ml-node-1";

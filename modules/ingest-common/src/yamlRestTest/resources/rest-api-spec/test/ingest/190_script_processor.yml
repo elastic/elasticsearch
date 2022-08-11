@@ -317,10 +317,6 @@ teardown:
 
 ---
 "Test metadata":
-  - skip:
-      version: all
-      reason: https://github.com/elastic/elasticsearch/issues/88387
-
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -357,6 +353,7 @@ teardown:
       get:
         index: test2
         id: "1extra"
+        routing: "myRouting"
   - match: { _source.source_field: "bazqux" }
   - match: { _version: 5 }
   - match: { _routing: "myRouting" }

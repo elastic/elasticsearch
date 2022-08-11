@@ -623,7 +623,7 @@ sure that a branch is available and is up to date in the case of multiple runs.
 
 Example:
 
-Say you need to make a change to `master` and have a BWC layer in `5.x`. You
+Say you need to make a change to `main` and have a BWC layer in `5.x`. You
 will need to:
 . Create a branch called `index_req_change` off your remote `${remote}`. This
 will contain your change.

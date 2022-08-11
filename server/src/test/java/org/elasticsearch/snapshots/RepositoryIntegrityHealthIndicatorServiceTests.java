@@ -30,7 +30,6 @@ import java.util.Map;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.repositories.RepositoryData.CORRUPTED_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.CORRUPTED_REPOSITORY;
@@ -51,7 +50,6 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
                     RepositoryIntegrityHealthIndicatorService.NO_CORRUPT_REPOS,
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
@@ -76,7 +74,6 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     RED,
                     "Detected [1] corrupted snapshot repositories: [corrupted-repo].",
                     new SimpleHealthIndicatorDetails(
@@ -104,7 +101,6 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
                     RepositoryIntegrityHealthIndicatorService.NO_REPOS_CONFIGURED,
                     HealthIndicatorDetails.EMPTY,

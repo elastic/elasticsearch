@@ -11,7 +11,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,7 +62,18 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
-    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null, null);
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(
+        new ByteSizeValue(1),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
@@ -72,7 +82,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = MigrateAction.DISABLED;
-    private static final RollupILMAction TEST_ROLLUP_ACTION = new RollupILMAction(new RollupActionConfig(DateHistogramInterval.DAY), null);
+    private static final RollupILMAction TEST_ROLLUP_ACTION = new RollupILMAction(DateHistogramInterval.DAY);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -316,7 +326,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                 )
@@ -1092,7 +1102,12 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                     ByteSizeValue.parseBytesSizeValue("0b", "test"),
                     TimeValue.ZERO,
                     1L,
-                    1L
+                    1L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
                 );
                 case ShrinkAction.NAME -> new ShrinkAction(1, null);
                 case FreezeAction.NAME -> FreezeAction.INSTANCE;

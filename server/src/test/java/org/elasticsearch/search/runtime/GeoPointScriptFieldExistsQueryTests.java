@@ -31,9 +31,17 @@ public class GeoPointScriptFieldExistsQueryTests extends AbstractGeoPointScriptF
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance().matches(new long[] { 1L }, randomIntBetween(1, Integer.MAX_VALUE)));
-        assertFalse(createTestInstance().matches(new long[0], 0));
-        assertFalse(createTestInstance().matches(new long[1], 0));
+        assertTrue(
+            createTestInstance().matches(
+                new double[] { randomDouble() },
+                new double[] { randomDouble() },
+                randomIntBetween(1, Integer.MAX_VALUE)
+            )
+        );
+        assertFalse(createTestInstance().matches(new double[0], new double[0], 0));
+        assertFalse(createTestInstance().matches(new double[1], new double[0], 0));
+        assertFalse(createTestInstance().matches(new double[0], new double[1], 0));
+        assertFalse(createTestInstance().matches(new double[1], new double[1], 0));
     }
 
     @Override

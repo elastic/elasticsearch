@@ -70,7 +70,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // It removes the need to synchronize scheduling since at the event that there are two
     // monitoring tasks scheduled, one of them will be no-op.
     private final AtomicBoolean inProgress = new AtomicBoolean();
-    // Keeps the latest health state that was successfully reported.
+    // Keeps the latest health state that was successfully reported to the current health node.
     private final AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo = new AtomicReference<>();
 
     public LocalHealthMonitor(
@@ -127,6 +127,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
             DiscoveryNode previous = HealthNode.findHealthNode(event.previousState());
             DiscoveryNode current = HealthNode.findHealthNode(event.state());
             if (Objects.equals(previous, current) == false) {
+                // The new health node (probably) does not have any information yet, so the last
+                // reported health info gets reset to null.
                 lastReportedDiskHealthInfo.set(null);
                 maybeScheduleNow();
             }

@@ -172,7 +172,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                         currentHealth,
                         lastReportedDiskHealthInfo.get()
                     );
-                }, e -> logger.error(() -> format("Failed to send health info [{}] to health node, will try again.", currentHealth), e));
+                }, e -> logger.error(() -> format("Failed to send health info [%s] to health node, will try again.", currentHealth), e));
                 client.execute(
                     UpdateHealthInfoCacheAction.INSTANCE,
                     new UpdateHealthInfoCacheAction.Request(nodeId, currentHealth),

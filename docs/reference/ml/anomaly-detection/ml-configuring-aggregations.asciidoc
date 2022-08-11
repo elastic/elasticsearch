@@ -136,9 +136,9 @@ includes all the values of the field instead of the top values per bucket.
 [[aggs-using-composite]]
 === Using composite aggregations in {anomaly-jobs}
 
-For `composite` aggregation support, there must be exactly one `date_histogram` value
-source. That value source must not be sorted in descending order. Additional
-`composite` aggregation value sources are allowed, such as `terms`.
+For `composite` aggregation support, there must be exactly one `date_histogram` 
+value source. That value source must not be sorted in descending order. 
+Additional `composite` aggregation value sources are allowed, such as `terms`.
 
 NOTE: A {dfeed} that uses composite aggregations may not be as performant as
 {dfeeds} that use scrolling or date histogram aggregations. Composite

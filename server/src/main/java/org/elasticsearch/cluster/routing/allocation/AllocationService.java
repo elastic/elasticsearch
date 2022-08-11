@@ -394,8 +394,11 @@ public class AllocationService {
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
 
-        // TODO do not reroute if this is dry run as this will cause bogus desired balance calculation
-        reroute(allocation, rerouteListener);
+        if (dryRun == false) {
+            reroute(allocation, rerouteListener);
+        } else {
+            rerouteListener.onResponse(null);
+        }
         return buildResultAndLogHealthChange(clusterState, allocation, "reroute commands");
     }
 

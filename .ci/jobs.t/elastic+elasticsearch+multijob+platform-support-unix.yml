@@ -13,9 +13,9 @@
           type: label-expression
           name: os
           values:
-            - amazon
             - "centos-7&&immutable"
-            - "amazon&&immutable"
+            - "amazon-2&&immutable"
+            - "amazon-2022&&immutable"
             - "debian-9&&immutable"
             - "debian-10&&immutable"
             - "debian-11&&immutable"

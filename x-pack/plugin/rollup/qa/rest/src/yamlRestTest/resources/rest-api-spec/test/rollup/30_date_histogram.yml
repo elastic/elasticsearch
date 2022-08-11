@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
   - do:
       indices.create:
         index: test
@@ -39,6 +43,10 @@ setup:
 
 ---
 "Date aggregation with calendar_interval":
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
   - do:
       catch: bad_request
       search:
@@ -57,6 +65,10 @@ setup:
 
 ---
 "Date aggregation with non utc timezone":
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
   - do:
       catch: bad_request
       search:

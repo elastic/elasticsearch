@@ -435,7 +435,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
 
         final ZoneId tz = timeZone();
-        if (IndexMode.TIME_SERIES.getName().equals(indexMode) && ZoneId.of("UTC").equals(tz) == false) {
+        if (tz != null && IndexMode.TIME_SERIES.getName().equals(indexMode) && ZoneId.of("UTC").equals(tz) == false) {
             throw new UnsupportedAggregationOnDownsampledField(
                 config.getDescription() + " is not supported for aggregation [" + this.getName() + "] with timezone [" + tz + "]"
             );

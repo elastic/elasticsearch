@@ -2,9 +2,11 @@ ifeval::["{release-state}"=="unreleased"]
 [[downsampling]]
 === Downsampling a time series data stream
 
-The volume of metrics data collected in your <<tsds,time series data stream>> can grow rapidly over time. As well, as the time series data ages it become less relevant.
+IMPORTANT: {es-feature-flag}
 
-Downsampling reduces your metrics storage volume by replacing older time series data with data of a higher sampling time interval (lower granularity) together with statistical representations of the original data, including the `min`, `max`, `sum`, `value_count`, and `average` for each metric. Time series dimensions are stored unchanged.
+Metrics solutions collect large amounts of time series data that grow over time. Also, as time series data ages, it becomes less relevant to the current state of the system.
+
+Downsampling, in conjunction with a <<tsds,time series data stream>>, provides a method to reduce your metrics storage volume by replacing older time series data with data of a higher sampling time interval. The higher interval, lower granularity data is stored in a rollup index together with statistical representations of the original data, the `min`, `max`, `sum`, `value_count`, and `average` for each metric. <<time-series-dimension,Time series dimensions>> are stored unchanged.
 
 In effect, downsampling enables you to trade data resolution for storage size. Using downsampling with an <<index-lifecycle-management,{ilm} ({ilm-init})>> policy ensures that your older, less relevant, less frequently queried data is stored efficiently, allowing for a much lower metrics data volume and, as a result, a greatly reduced TCO.
 
@@ -22,16 +24,31 @@ In an Elasticsearch index, a single document is created for each timestamp, cont
 //.Metric anatomy
 image::images/data-streams/time-series-metric-anatomy.png[align="center"]
 
-For your most current and relevant data, the metrics series typically has a low sampling time interval, so it's optimized for queries that require very data resolution.
+For your most current and relevant data, the metrics series typically has a low sampling time interval, so it's optimized for queries that require a high data resolution.
 
 .Original metrics series
 image::images/data-streams/time-series-original.png[align="center"]
 
-Downsampling works on older, less relevant data by replacing the original time series with a data stream of a higher sampling interval, together with statistical representations based off of the original data. Where the original metrics samples may have been taken, for example, every ten seconds, as the data ages you may choose to reduce the sample granularity to hourly or daily. Or, for your `cold` archival data, you may choose to reduce the granularity to monthly or even less frequent, depending on your needs.
+Downsampling works on older, less frequently accessed data by replacing the original time series with both a data stream of a higher sampling interval and statistical representations of that data. Where the original metrics samples may have been taken, for example, every ten seconds, as the data ages you may choose to reduce the sample granularity to hourly or daily. You may choose to reduce the granularity of `cold` archival data to monthly or less.
 
 .Downsampled metrics series
 image::images/data-streams/time-series-downsampled.png[align="center"]
 
+[discrete]
+[[downsampling-limitations]]
+=== Restrictions and limitations
+
+Note the following restrictions and limitations for downsampling:
+
+* Only indices in a <<tsds,time series data stream>> are supported.
+* Data is rolled up on the time dimension only. All other dimensions are copied to the rollup index without any modification.
+* Within a data stream, a downsampled rollup index replaces the original index and the original index is deleted. Only one index can exist for a given time period.
+* Downsampling data for the same period many times (rollups of rollups) is supported.
+* Downsampling is provided as an ILM action. See <<ilm-rollup,Rollup>>.
+* The rollup index is created on the data tier of the original index and it inherits its settings (for example, the number of shards and replicas).
+* The Observability `gauge` and `counter` metric types are supported.
+* The downsampling configuration is extracted from the time series data stream index mapping. The only additional required setting is the rollup `time_interval`.
+* You can use either the <<search-search,`_search`>> or <<async-search,`_async_search`>> endpoint to query a downsampled index.
 
 [discrete]
 [[try-out-downsampling]]

@@ -4,7 +4,7 @@
 <titleabbrev>Example: Configure downsampling with ILM</titleabbrev>
 ++++
 
-preview::[]
+IMPORTANT: {es-feature-flag}
 
 This is a simplified example that allows you to see quickly how <<downsampling,downsampling>> works as part of an ILM policy to reduce the storage size of a sampled set of metrics. The example uses typical Kubernetes system monitoring data. To test out downsampling with ILM, follow these steps:
 

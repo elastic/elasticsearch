@@ -81,7 +81,7 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             List<SignificantLongTerms.Bucket> buckets = longTerms.getBuckets();
             SignificanceHeuristic significanceHeuristic = longTerms.significanceHeuristic;
             Map<String, Object> metadata = longTerms.getMetadata();
-            switch (between(0, 5)) {
+            switch (between(0, 6)) {
                 case 0 -> name += randomAlphaOfLength(5);
                 case 1 -> requiredSize += between(1, 100);
                 case 2 -> minDocCount += between(1, 100);
@@ -102,7 +102,7 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
                         )
                     );
                 }
-                case 8 -> {
+                case 6 -> {
                     if (metadata == null) {
                         metadata = Maps.newMapWithExpectedSize(1);
                     } else {

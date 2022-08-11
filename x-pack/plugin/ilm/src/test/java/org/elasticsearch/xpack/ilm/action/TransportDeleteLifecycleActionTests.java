@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 
 public class TransportDeleteLifecycleActionTests extends ESTestCase {
-    public void testImmutableHandler() {
+    public void testReservedStateHandler() {
         TransportDeleteLifecycleAction putAction = new TransportDeleteLifecycleAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -27,7 +27,7 @@ public class TransportDeleteLifecycleActionTests extends ESTestCase {
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );
-        assertEquals(ImmutableLifecycleAction.NAME, putAction.immutableStateHandlerName().get());
+        assertEquals(ReservedLifecycleAction.NAME, putAction.reservedStateHandlerName().get());
 
         DeleteLifecycleAction.Request request = new DeleteLifecycleAction.Request("my_timeseries_lifecycle2");
         assertThat(putAction.modifiedKeys(request), containsInAnyOrder("my_timeseries_lifecycle2"));

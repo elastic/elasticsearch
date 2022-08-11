@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,9 +52,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
+    private final Tracer tracer;
 
     @Nullable
-    private final HttpTracer tracerLog;
+    private final HttpTracer httpLogger;
 
     DefaultRestChannel(
         HttpChannel httpChannel,
@@ -63,7 +65,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         HttpHandlingSettings settings,
         ThreadContext threadContext,
         CorsHandler corsHandler,
-        @Nullable HttpTracer tracerLog
+        @Nullable HttpTracer httpLogger,
+        Tracer tracer
     ) {
         super(request, settings.detailedErrorsEnabled());
         this.httpChannel = httpChannel;
@@ -72,7 +75,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         this.settings = settings;
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
-        this.tracerLog = tracerLog;
+        this.httpLogger = httpLogger;
+        this.tracer = tracer;
     }
 
     @Override
@@ -85,14 +89,18 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         // We're sending a response so we know we won't be needing the request content again and release it
         httpRequest.release();
 
-        final ArrayList<Releasable> toClose = new ArrayList<>(3);
+        final String traceId = "rest-" + this.request.getRequestId();
+
+        final ArrayList<Releasable> toClose = new ArrayList<>(4);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
+        toClose.add(() -> tracer.stopTrace(traceId));
 
         boolean success = false;
         String opaque = null;
         String contentLength = null;
+
         try {
             final BytesReference content = restResponse.content();
             if (content instanceof Releasable) {
@@ -131,6 +139,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
+            tracer.setAttribute(traceId, "http.status_code", restResponse.status().getStatus());
+            restResponse.getHeaders()
+                .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
+
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 httpChannel.sendResponse(httpResponse, listener);
@@ -140,8 +152,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (success == false) {
                 Releasables.close(toClose);
             }
-            if (tracerLog != null) {
-                tracerLog.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+            if (httpLogger != null) {
+                httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
             }
         }
     }

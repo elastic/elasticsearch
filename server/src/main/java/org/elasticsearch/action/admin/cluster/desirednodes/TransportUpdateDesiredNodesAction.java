@@ -181,10 +181,19 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
             var desiredNodes = initialDesiredNodes;
             for (final var taskContext : taskContexts) {
-
+                final UpdateDesiredNodesRequest request = taskContext.getTask().request();
+                if (request.isDryRun()) {
+                    try {
+                        updateDesiredNodes(desiredNodes, request);
+                        taskContext.success(() -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(false, true)));
+                    } catch (Exception e) {
+                        taskContext.onFailure(e);
+                    }
+                    continue;
+                }
                 final var previousDesiredNodes = desiredNodes;
                 try {
-                    desiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());
+                    desiredNodes = updateDesiredNodes(desiredNodes, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                     continue;
@@ -192,7 +201,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 final var replacedExistingHistoryId = previousDesiredNodes != null
                     && previousDesiredNodes.hasSameHistoryId(desiredNodes) == false;
                 taskContext.success(
-                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId))
+                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId, false))
                 );
             }
 

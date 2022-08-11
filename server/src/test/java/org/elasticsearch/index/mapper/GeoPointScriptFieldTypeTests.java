@@ -65,7 +65,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 GeoPointScriptFieldType ft = build("fromLatLon", Map.of());
-                GeoPointScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                GeoPointScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -98,9 +98,29 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     public void testSort() throws IOException {
-        GeoPointScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+        GeoPointScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
         Exception e = expectThrows(IllegalArgumentException.class, () -> ifd.sortField(null, MultiValueMode.MIN, null, false));
         assertThat(e.getMessage(), equalTo("can't sort on geo_point field without using specific sorting feature, like geo_distance"));
+    }
+
+    public void testFetch() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("""
+                {"foo": {"lat": 45.0, "lon" : 45.0}}"""))));
+            try (DirectoryReader reader = iw.getReader()) {
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                searchContext.lookup().source().setSegmentAndDocument(reader.leaves().get(0), 0);
+                ValueFetcher fetcher = simpleMappedFieldType().valueFetcher(searchContext, randomBoolean() ? null : "geojson");
+                fetcher.setNextReader(reader.leaves().get(0));
+                assertThat(
+                    fetcher.fetchValues(searchContext.lookup().source(), null),
+                    equalTo(List.of(Map.of("type", "Point", "coordinates", List.of(45.0, 45.0))))
+                );
+                fetcher = simpleMappedFieldType().valueFetcher(searchContext, "wkt");
+                fetcher.setNextReader(reader.leaves().get(0));
+                assertThat(fetcher.fetchValues(searchContext.lookup().source(), null), equalTo(List.of("POINT (45.0 45.0)")));
+            }
+        }
     }
 
     @Override

@@ -343,6 +343,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             "_uuid",
             snapshot,
             RestoreInProgress.State.INIT,
+            false,
             Collections.singletonList(index),
             shardsBuilder
         );

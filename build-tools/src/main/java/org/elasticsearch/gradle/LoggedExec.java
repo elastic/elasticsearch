@@ -56,7 +56,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     protected FileSystemOperations fileSystemOperations;
     private ProjectLayout projectLayout;
     private ExecOperations execOperations;
-    private boolean spoolOutput;
 
     @Input
     @Optional
@@ -84,6 +83,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     @Input
     abstract public Property<File> getWorkingDir();
 
+    @Internal
+    abstract public Property<Boolean> getSpoolOutput();
+
     private String output;
 
     @Inject
@@ -95,14 +97,16 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         // For now mimic default behaviour of Gradle Exec task here
         getEnvironment().putAll(System.getenv());
         getCaptureOutput().convention(false);
+        getSpoolOutput().convention(false);
     }
 
     @TaskAction
     public void run() {
+        boolean spoolOutput = getSpoolOutput().get();
         if (spoolOutput && getCaptureOutput().get()) {
             throw new GradleException("Capturing output is not supported when spoolOutput is true.");
         }
-        if (getCaptureOutput().getOrElse(false) && getIndentingConsoleOutput().isPresent()) {
+        if (getCaptureOutput().get() && getIndentingConsoleOutput().isPresent()) {
             throw new GradleException("Capturing output is not supported when indentingConsoleOutput is configured.");
         }
         Consumer<Logger> outputLogger;
@@ -156,7 +160,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         if (getLogger().isInfoEnabled() == false) {
             if (exitValue != 0) {
                 try {
-                    getLogger().error("Output for " + getExecutable().get() + ":");
+                    if (getIndentingConsoleOutput().isPresent() == false) {
+                        getLogger().error("Output for " + getExecutable().get() + ":");
+                    }
                     outputLogger.accept(getLogger());
                 } catch (Exception e) {
                     throw new GradleException("Failed to read exec output", e);
@@ -171,10 +177,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     private String byteStreamToString(OutputStream out) {
         return ((ByteArrayOutputStream) out).toString(StandardCharsets.UTF_8);
-    }
-
-    public void setSpoolOutput(boolean spoolOutput) {
-        this.spoolOutput = spoolOutput;
     }
 
     public static ExecResult exec(ExecOperations execOperations, Action<ExecSpec> action) {

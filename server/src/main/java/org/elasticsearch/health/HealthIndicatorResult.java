@@ -16,32 +16,26 @@ import java.util.List;
 
 public record HealthIndicatorResult(
     String name,
-    String component,
     HealthStatus status,
-    String summary,
-    String helpURL,
+    String symptom,
     HealthIndicatorDetails details,
     List<HealthIndicatorImpact> impacts,
-    List<UserAction> userActions
+    List<Diagnosis> diagnosisList
 ) implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("status", status.xContentValue());
-        builder.field("summary", summary);
-        if (helpURL != null) {
-            builder.field("help_url", helpURL);
-        }
+        builder.field("symptom", symptom);
         if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
             builder.field("details", details, params);
         }
         if (impacts != null && impacts.isEmpty() == false) {
             builder.field("impacts", impacts);
         }
-        // TODO 83303: Add detail / documentation
-        if (userActions != null && userActions.isEmpty() == false) {
-            builder.field("user_actions", userActions);
+        if (diagnosisList != null && diagnosisList.isEmpty() == false) {
+            builder.field("diagnosis", diagnosisList);
         }
         return builder.endObject();
     }

@@ -63,7 +63,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      * determine if shards can remain on their current node.
      */
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return this.canAllocate(shardRouting, node, allocation);
     }
 

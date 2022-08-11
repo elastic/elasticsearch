@@ -12,13 +12,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
@@ -49,7 +49,7 @@ public final class IngestDocument {
 
     static final String TIMESTAMP = "timestamp";
 
-    private final IngestSourceAndMetadata sourceAndMetadata;
+    private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
 
     // Contains all pipelines that have been executed for this document
@@ -58,17 +58,9 @@ public final class IngestDocument {
     private boolean doNoSelfReferencesCheck = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
-        this.sourceAndMetadata = new IngestSourceAndMetadata(
-            index,
-            id,
-            version,
-            routing,
-            versionType,
-            ZonedDateTime.now(ZoneOffset.UTC),
-            source
-        );
+        this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getTimestamp());
+        this.ingestMetadata.put(TIMESTAMP, ctxMap.getMetadata().getNow());
     }
 
     /**
@@ -76,12 +68,7 @@ public final class IngestDocument {
      */
     public IngestDocument(IngestDocument other) {
         this(
-            new IngestSourceAndMetadata(
-                deepCopyMap(other.sourceAndMetadata.getSource()),
-                deepCopyMap(other.sourceAndMetadata.getMetadata()),
-                other.getIngestSourceAndMetadata().timestamp,
-                other.getIngestSourceAndMetadata().validators
-            ),
+            new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
     }
@@ -90,27 +77,29 @@ public final class IngestDocument {
      * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
-        this.sourceAndMetadata = new IngestSourceAndMetadata(
-            sm.v1(),
-            sm.v2(),
-            IngestSourceAndMetadata.getTimestamp(ingestMetadata),
-            IngestSourceAndMetadata.VALIDATORS
-        );
-        this.ingestMetadata = new HashMap<>(ingestMetadata);
-        this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> {
-            if (v instanceof String) {
-                return this.sourceAndMetadata.getTimestamp();
+        Map<String, Object> source;
+        Map<String, Object> metadata;
+        if (sourceAndMetadata instanceof IngestCtxMap ingestCtxMap) {
+            source = new HashMap<>(ingestCtxMap.getSource());
+            metadata = new HashMap<>(ingestCtxMap.getMetadata().getMap());
+        } else {
+            metadata = Maps.newHashMapWithExpectedSize(Metadata.METADATA_NAMES.size());
+            source = new HashMap<>(sourceAndMetadata);
+            for (String key : Metadata.METADATA_NAMES) {
+                if (sourceAndMetadata.containsKey(key)) {
+                    metadata.put(key, source.remove(key));
+                }
             }
-            return v;
-        });
+        }
+        this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.ctxMap = new IngestCtxMap(source, new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(ingestMetadata)));
     }
 
     /**
      * Constructor to create an IngestDocument from its constituent maps
      */
-    IngestDocument(IngestSourceAndMetadata sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        this.sourceAndMetadata = sourceAndMetadata;
+    IngestDocument(IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
+        this.ctxMap = ctxMap;
         this.ingestMetadata = ingestMetadata;
     }
 
@@ -714,8 +703,8 @@ public final class IngestDocument {
 
     private Map<String, Object> createTemplateModel() {
         return new LazyMap<>(() -> {
-            Map<String, Object> model = new HashMap<>(sourceAndMetadata);
-            model.put(SourceFieldMapper.NAME, sourceAndMetadata);
+            Map<String, Object> model = new HashMap<>(ctxMap);
+            model.put(SourceFieldMapper.NAME, ctxMap);
             // If there is a field in the source with the name '_ingest' it gets overwritten here,
             // if access to that field is required then it get accessed via '_source._ingest'
             model.put(INGEST_KEY, ingestMetadata);
@@ -727,35 +716,28 @@ public final class IngestDocument {
      * Get source and metadata map
      */
     public Map<String, Object> getSourceAndMetadata() {
-        return sourceAndMetadata;
+        return ctxMap;
     }
 
     /**
-     * Get source and metadata map as {@link IngestSourceAndMetadata}
+     * Get the CtxMap
      */
-    public IngestSourceAndMetadata getIngestSourceAndMetadata() {
-        return sourceAndMetadata;
-    }
-
-    /**
-     * Get all Metadata values in a Map
-     */
-    public Map<String, Object> getMetadataMap() {
-        return sourceAndMetadata.getMetadata();
+    public CtxMap<?> getCtxMap() {
+        return ctxMap;
     }
 
     /**
      * Get the strongly typed metadata
      */
     public org.elasticsearch.script.Metadata getMetadata() {
-        return sourceAndMetadata;
+        return ctxMap.getMetadata();
     }
 
     /**
      * Get all source values in a Map
      */
     public Map<String, Object> getSource() {
-        return sourceAndMetadata.getSource();
+        return ctxMap.getSource();
     }
 
     /**
@@ -777,7 +759,7 @@ public final class IngestDocument {
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }
-            // TODO(stu): should this check for IngestSourceAndMetadata in addition to Map?
+            // TODO(stu): should this check for IngestCtxMap in addition to Map?
             return copy;
         } else if (value instanceof List<?> listValue) {
             List<Object> copy = new ArrayList<>(listValue.size());
@@ -899,17 +881,17 @@ public final class IngestDocument {
         }
 
         IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(sourceAndMetadata, other.sourceAndMetadata) && Objects.equals(ingestMetadata, other.ingestMetadata);
+        return Objects.equals(ctxMap, other.ctxMap) && Objects.equals(ingestMetadata, other.ingestMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceAndMetadata, ingestMetadata);
+        return Objects.hash(ctxMap, ingestMetadata);
     }
 
     @Override
     public String toString() {
-        return "IngestDocument{" + " sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
+        return "IngestDocument{" + " sourceAndMetadata=" + ctxMap + ", ingestMetadata=" + ingestMetadata + '}';
     }
 
     public enum Metadata {
@@ -956,7 +938,7 @@ public final class IngestDocument {
                 initialContext = ingestMetadata;
                 newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
             } else {
-                initialContext = sourceAndMetadata;
+                initialContext = ctxMap;
                 if (path.startsWith(SOURCE_PREFIX)) {
                     newPath = path.substring(SOURCE_PREFIX.length(), path.length());
                 } else {

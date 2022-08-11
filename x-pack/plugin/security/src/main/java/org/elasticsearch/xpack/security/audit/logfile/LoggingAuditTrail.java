@@ -43,12 +43,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.Grant;
+import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -287,7 +292,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         DeleteServiceAccountTokenAction.NAME,
         ActivateProfileAction.NAME,
         UpdateProfileDataAction.NAME,
-        SetProfileEnabledAction.NAME
+        SetProfileEnabledAction.NAME,
+        UpdateApiKeyAction.NAME,
+        BulkUpdateApiKeyAction.NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -747,6 +754,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final SetProfileEnabledRequest setProfileEnabledRequest) {
                     assert SetProfileEnabledAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(setProfileEnabledRequest).build();
+                } else if (msg instanceof final UpdateApiKeyRequest updateApiKeyRequest) {
+                    assert UpdateApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateApiKeyRequest).build();
+                } else if (msg instanceof final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest) {
+                    assert BulkUpdateApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(bulkUpdateApiKeyRequest).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -1215,17 +1228,70 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "change_apikey");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            withRequestBody(builder, updateApiKeyRequest);
+            builder.endObject();
+            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "change_apikeys");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            withRequestBody(builder, bulkUpdateApiKeyRequest);
+            builder.endObject();
+            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         private void withRequestBody(XContentBuilder builder, CreateApiKeyRequest createApiKeyRequest) throws IOException {
             TimeValue expiration = createApiKeyRequest.getExpiration();
             builder.startObject("apikey")
+                .field("id", createApiKeyRequest.getId())
                 .field("name", createApiKeyRequest.getName())
                 .field("expiration", expiration != null ? expiration.toString() : null)
                 .startArray("role_descriptors");
             for (RoleDescriptor roleDescriptor : createApiKeyRequest.getRoleDescriptors()) {
                 withRoleDescriptor(builder, roleDescriptor);
             }
-            builder.endArray() // role_descriptors
-                .endObject(); // apikey
+            builder.endArray(); // role_descriptors
+            if (createApiKeyRequest.getMetadata() != null && createApiKeyRequest.getMetadata().isEmpty() == false) {
+                builder.field("metadata", createApiKeyRequest.getMetadata());
+            }
+            builder.endObject(); // apikey
+        }
+
+        private void withRequestBody(final XContentBuilder builder, final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
+            builder.startObject("apikey").field("id", updateApiKeyRequest.getId());
+            withBaseUpdateApiKeyFields(builder, updateApiKeyRequest);
+            builder.endObject();
+        }
+
+        private void withRequestBody(final XContentBuilder builder, final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest)
+            throws IOException {
+            builder.startObject("apikeys").stringListField("ids", bulkUpdateApiKeyRequest.getIds());
+            withBaseUpdateApiKeyFields(builder, bulkUpdateApiKeyRequest);
+            builder.endObject();
+        }
+
+        private void withBaseUpdateApiKeyFields(final XContentBuilder builder, final BaseUpdateApiKeyRequest baseUpdateApiKeyRequest)
+            throws IOException {
+            if (baseUpdateApiKeyRequest.getRoleDescriptors() != null) {
+                builder.startArray("role_descriptors");
+                for (RoleDescriptor roleDescriptor : baseUpdateApiKeyRequest.getRoleDescriptors()) {
+                    withRoleDescriptor(builder, roleDescriptor);
+                }
+                builder.endArray();
+            }
+            if (baseUpdateApiKeyRequest.getMetadata() != null) {
+                // Include in entry even if metadata is empty. It's meaningful to track an empty metadata request parameter
+                // because it replaces any metadata previously associated with the API key
+                builder.field("metadata", baseUpdateApiKeyRequest.getMetadata());
+            }
         }
 
         private void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {

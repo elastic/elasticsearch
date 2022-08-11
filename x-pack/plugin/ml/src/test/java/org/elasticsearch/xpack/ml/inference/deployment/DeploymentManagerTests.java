@@ -101,6 +101,7 @@ public class DeploymentManagerTests extends ESTestCase {
             Map.of(),
             false,
             TimeValue.timeValueMinutes(1),
+            null,
             ActionListener.wrap(result -> fail("unexpected success"), e -> assertThat(e, instanceOf(EsRejectedExecutionException.class)))
         );
 

@@ -432,7 +432,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
         final CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         final InternalCardinality cardinality = (InternalCardinality) aggregator.buildAggregation(0L);
@@ -642,7 +642,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         final CardinalityAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         final InternalCardinality cardinality = (InternalCardinality) aggregator.buildAggregation(0L);

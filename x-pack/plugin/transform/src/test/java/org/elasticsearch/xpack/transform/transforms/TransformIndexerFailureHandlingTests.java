@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -689,8 +690,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 "timed out during dbq",
                 Level.WARNING,
                 transformId,
-                "Transform encountered an exception: org.elasticsearch.ElasticsearchTimeoutException: timed out during dbq;"
-                    + " Will attempt again at next scheduled trigger."
+                "Transform encountered an exception: [org.elasticsearch.ElasticsearchTimeoutException: timed out during dbq];"
+                    + " Will automatically retry [1/10]"
             )
         );
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
@@ -835,28 +836,170 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         assertEquals(0, context.getFailureCount());
     }
 
+    // tests throttling of audits on logs based on repeated exception types
+    public void testHandleFailureAuditing() {
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig.Builder().setId(transformId)
+            .setSource(randomSourceConfig())
+            .setDest(randomDestConfig())
+            .setSyncConfig(new TimeSyncConfig("time", TimeSyncConfig.DEFAULT_DELAY))
+            .setPivotConfig(randomPivotConfig())
+            .build();
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = request -> mock(SearchResponse.class);
+        Function<BulkRequest, BulkResponse> bulkFunction = request -> mock(BulkResponse.class);
+
+        final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
+        final AtomicReference<String> failureMessage = new AtomicReference<>();
+        Consumer<String> failureConsumer = message -> {
+            failIndexerCalled.compareAndSet(false, true);
+            failureMessage.compareAndSet(null, message);
+        };
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "timeout_exception_1",
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*ElasticsearchTimeoutException: timeout_1]; Will automatically retry [1/"
+                    + Transform.DEFAULT_FAILURE_RETRIES
+                    + "]"
+            )
+        );
+
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "bulk_exception_1",
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*BulkIndexingException: bulk_exception_1*]; Will automatically retry [2/"
+                    + Transform.DEFAULT_FAILURE_RETRIES
+                    + "]"
+            )
+        );
+
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "timeout_exception_2",
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*ElasticsearchTimeoutException: timeout_2]; Will automatically retry [3/"
+                    + Transform.DEFAULT_FAILURE_RETRIES
+                    + "]"
+            )
+        );
+
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "bulk_exception_2",
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*BulkIndexingException: bulk_exception_2*]; Will automatically retry [6/"
+                    + Transform.DEFAULT_FAILURE_RETRIES
+                    + "]"
+            )
+        );
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            failureConsumer,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_1")) }
+            )
+        );
+
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] {
+                    new ShardSearchFailure(
+                        new BulkIndexingException("bulk_exception_1", new EsRejectedExecutionException("full queue"), false)
+                    ) }
+            )
+        );
+
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+            )
+        );
+
+        // not logged
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+            )
+        );
+
+        // not logged
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+            )
+        );
+
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] {
+                    new ShardSearchFailure(
+                        new BulkIndexingException("bulk_exception_2", new EsRejectedExecutionException("full queue"), false)
+                    ) }
+            )
+        );
+
+        auditor.assertAllExpectationsMatched();
+    }
+
     public void testHandleFailure() {
-        testHandleFailure(0, 5, 0);
-        testHandleFailure(5, 0, 5);
-        testHandleFailure(3, 5, 3);
-        testHandleFailure(5, 3, 5);
-        testHandleFailure(0, null, 0);
-        testHandleFailure(3, null, 3);
-        testHandleFailure(5, null, 5);
-        testHandleFailure(7, null, 7);
-        testHandleFailure(Transform.DEFAULT_FAILURE_RETRIES, null, Transform.DEFAULT_FAILURE_RETRIES);
-        testHandleFailure(null, 0, 0);
-        testHandleFailure(null, 3, 3);
-        testHandleFailure(null, 5, 5);
-        testHandleFailure(null, 7, 7);
-        testHandleFailure(null, Transform.DEFAULT_FAILURE_RETRIES, Transform.DEFAULT_FAILURE_RETRIES);
-        testHandleFailure(null, null, Transform.DEFAULT_FAILURE_RETRIES);
+        testHandleFailure(0, 5, 0, 0);
+        testHandleFailure(5, 0, 5, 2);
+        testHandleFailure(3, 5, 3, 2);
+        testHandleFailure(5, 3, 5, 2);
+        testHandleFailure(0, null, 0, 0);
+        testHandleFailure(3, null, 3, 2);
+        testHandleFailure(5, null, 5, 2);
+        testHandleFailure(7, null, 7, 2);
+        testHandleFailure(Transform.DEFAULT_FAILURE_RETRIES, null, Transform.DEFAULT_FAILURE_RETRIES, 2);
+        testHandleFailure(null, 0, 0, 0);
+        testHandleFailure(null, 3, 3, 2);
+        testHandleFailure(null, 5, 5, 2);
+        testHandleFailure(null, 7, 7, 2);
+        testHandleFailure(null, Transform.DEFAULT_FAILURE_RETRIES, Transform.DEFAULT_FAILURE_RETRIES, 2);
+        testHandleFailure(null, null, Transform.DEFAULT_FAILURE_RETRIES, 2);
     }
 
     private void testHandleFailure(
         Integer configNumFailureRetries,
         Integer contextNumFailureRetries,
-        int expectedEffectiveNumFailureRetries
+        int expectedEffectiveNumFailureRetries,
+        int expecedNumberOfRetryAudits
     ) {
         String transformId = randomAlphaOfLength(10);
         TransformConfig config = new TransformConfig.Builder().setId(transformId)
@@ -884,6 +1027,19 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         if (contextNumFailureRetries != null) {
             context.setNumFailureRetries(contextNumFailureRetries);
         }
+
+        int indexerRetries = configNumFailureRetries != null ? configNumFailureRetries
+            : contextNumFailureRetries != null ? contextNumFailureRetries
+            : Transform.DEFAULT_FAILURE_RETRIES;
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                getTestName(),
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*]; Will automatically retry [*/" + indexerRetries + "]",
+                expecedNumberOfRetryAudits
+            )
+        );
 
         MockedTransformIndexer indexer = createMockIndexer(
             config,

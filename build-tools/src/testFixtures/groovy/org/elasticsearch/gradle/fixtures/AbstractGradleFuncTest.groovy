@@ -188,6 +188,23 @@ abstract class AbstractGradleFuncTest extends Specification {
         dir
     }
 
+    void withVersionCatalogue() {
+        file('build.versions.toml') << '''\
+[libraries]
+checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
+'''
+        settingsFile << '''
+            dependencyResolutionManagement {
+              versionCatalogs {
+                buildLibs {
+                  from(files("build.versions.toml"))
+                }
+              }
+            }
+            '''
+
+    }
+
     static class ProjectConfigurer {
         private File projectDir
 

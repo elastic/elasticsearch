@@ -159,14 +159,6 @@ cluster with cluster alias `leader`.
     connected to.
 ====
 
-[[ccr-enable-soft-deletes]]
-==== Enable soft deletes on leader indices
-To follow an index, it must have been created with
-<<ccr-leader-requirements,soft deletes>> enabled. If the index doesn’t have
-soft deletes enabled, you must reindex it and use the new index as the leader
-index. Soft deletes are enabled by default on new indices
-created with {es} 7.0.0 and later.
-
 include::../../../x-pack/docs/en/security/authentication/remote-clusters-privileges.asciidoc[tag=configure-ccr-privileges]
 
 [[ccr-getting-started-follower-index]]

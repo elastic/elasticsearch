@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -71,7 +72,8 @@ public class MockTransport extends StubbableTransport {
             localNodeFactory,
             clusterSettings,
             connectionManager,
-            new TaskManager(settings, threadPool, taskHeaders)
+            new TaskManager(settings, threadPool, taskHeaders),
+            Tracer.NOOP
         );
     }
 

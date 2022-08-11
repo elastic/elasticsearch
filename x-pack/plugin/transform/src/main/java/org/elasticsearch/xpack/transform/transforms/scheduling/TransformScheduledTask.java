@@ -23,7 +23,7 @@ final class TransformScheduledTask {
     /**
      * Minimum delay that can be applied after a failure.
      */
-    private static final long MIN_DELAY_MILLIS = Duration.ofSeconds(1).toMillis();
+    private static final long MIN_DELAY_MILLIS = Duration.ofSeconds(5).toMillis();
     /**
      * Maximum delay that can be applied after a failure.
      */

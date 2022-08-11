@@ -52,11 +52,6 @@ import java.util.function.Supplier;
 public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }

@@ -16,17 +16,18 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.mockito.Mockito;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.RollupILMAction.ROLLUP_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -37,36 +38,44 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     public RollupStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        RollupActionConfig config = RollupActionConfigTests.randomConfig(random());
-        return new RollupStep(stepKey, nextStepKey, client, config);
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        return new RollupStep(stepKey, nextStepKey, client, fixedInterval);
     }
 
     @Override
     public RollupStep mutateInstance(RollupStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
+        DateHistogramInterval fixedInterval = instance.getFixedInterval();
 
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> fixedInterval = ConfigTestHelpers.randomInterval();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new RollupStep(key, nextKey, instance.getClient(), instance.getConfig());
+        return new RollupStep(key, nextKey, instance.getClient(), fixedInterval);
     }
 
     @Override
     public RollupStep copyInstance(RollupStep instance) {
-        return new RollupStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getConfig());
+        return new RollupStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getFixedInterval());
     }
 
-    private IndexMetadata getIndexMetadata(String index) {
-        Map<String, String> ilmCustom = Collections.singletonMap("rollup_index_name", "rollup-index");
+    private IndexMetadata getIndexMetadata(String index, String lifecycleName, RollupStep step) {
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(step.getKey().getPhase());
+        lifecycleState.setAction(step.getKey().getAction());
+        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+        lifecycleState.setRollupIndexName("rollup-index");
+
         return IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
-            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .build();
     }
 
@@ -77,11 +86,11 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     }
 
     public void testPerformAction() throws Exception {
-        String index = randomAlphaOfLength(5);
-        IndexMetadata indexMetadata = getIndexMetadata(index);
-
+        String lifecycleName = randomAlphaOfLength(5);
         RollupStep step = createRandomInstance();
+        String index = randomAlphaOfLength(5);
 
+        IndexMetadata indexMetadata = getIndexMetadata(index, lifecycleName, step);
         mockClientRollupCall(index);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
@@ -89,14 +98,24 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     }
 
     public void testPerformActionFailureInvalidExecutionState() {
+        String lifecycleName = randomAlphaOfLength(5);
+        RollupStep step = createRandomInstance();
+
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(step.getKey().getPhase());
+        lifecycleState.setAction(step.getKey().getAction());
+        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .build();
+
         String policyName = indexMetadata.getLifecyclePolicyName();
         String indexName = indexMetadata.getIndex().getName();
-        RollupStep step = createRandomInstance();
         step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
@@ -115,11 +134,11 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     }
 
     public void testPerformActionOnDataStream() throws Exception {
+        RollupStep step = createRandomInstance();
+        String lifecycleName = randomAlphaOfLength(5);
         String dataStreamName = "test-datastream";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        IndexMetadata indexMetadata = getIndexMetadata(backingIndexName);
-
-        RollupStep step = createRandomInstance();
+        IndexMetadata indexMetadata = getIndexMetadata(backingIndexName, lifecycleName, step);
 
         mockClientRollupCall(backingIndexName);
 
@@ -127,6 +146,101 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             .metadata(Metadata.builder().put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).put(indexMetadata, true))
             .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+    }
+
+    /**
+     * Test rollup step when a successfully completed rollup index already exists.
+     */
+    public void testPerformActionCompletedRollupIndexExists() {
+        String sourceIndexName = randomAlphaOfLength(10);
+        String lifecycleName = randomAlphaOfLength(5);
+        RollupStep step = createRandomInstance();
+
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(step.getKey().getPhase());
+        lifecycleState.setAction(step.getKey().getAction());
+        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+
+        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(ROLLUP_INDEX_PREFIX, sourceIndexName);
+        lifecycleState.setRollupIndexName(rollupIndex);
+
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        // Create a successfully completed rollup index (index.rollup.status: success)
+        IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.SUCCESS))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Map<String, IndexMetadata> indices = Map.of(rollupIndex, indexMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
+
+        Mockito.doThrow(new IllegalStateException("Rollup action should not be invoked"))
+            .when(client)
+            .execute(Mockito.any(), Mockito.any(), Mockito.any());
+
+        step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Test rollup step when an in-progress rollup index already exists.
+     */
+    public void testPerformActionRollupInProgressIndexExists() {
+        String sourceIndexName = randomAlphaOfLength(10);
+        String lifecycleName = randomAlphaOfLength(5);
+        RollupStep step = createRandomInstance();
+
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(step.getKey().getPhase());
+        lifecycleState.setAction(step.getKey().getAction());
+        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+
+        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(ROLLUP_INDEX_PREFIX, sourceIndexName);
+        lifecycleState.setRollupIndexName(rollupIndex);
+
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        // Create an in-progress rollup index (index.rollup.status: started)
+        IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.STARTED))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Map<String, IndexMetadata> indices = Map.of(rollupIndex, indexMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
+
+        step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                fail("onResponse should not be called in this test, because there's an in-progress rollup index");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof IllegalStateException);
+                assertTrue(e.getMessage().contains("already exists with rollup status [started]"));
+            }
+        });
     }
 
     private void mockClientRollupCall(String sourceIndex) {

@@ -355,39 +355,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         assertThat(createAllocationState(shardSizes, clusterState).maxNodeLockedSize(), equalTo(sourceSize * 2));
     }
 
-    public void testNodeSizeForDataBelowLowWatermark() {
-        final ClusterSettings emptyClusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final DiskThresholdSettings defaultSettings = new DiskThresholdSettings(Settings.EMPTY, emptyClusterSettings);
-        final long factor = between(1, 1000);
-        assertThat(ReactiveStorageDeciderService.nodeSizeForDataBelowLowWatermark(85 * factor, defaultSettings), equalTo(100L * factor));
-
-        // to make it easy, stay below high watermark.
-        final long percentage = between(1, 89);
-        final DiskThresholdSettings relativeSettings = new DiskThresholdSettings(
-            Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), percentage + "%")
-                .build(),
-            emptyClusterSettings
-        );
-        assertThat(
-            ReactiveStorageDeciderService.nodeSizeForDataBelowLowWatermark(percentage * factor, relativeSettings),
-            equalTo(100L * factor)
-        );
-
-        final long absolute = between(1, 1000);
-        final DiskThresholdSettings absoluteSettings = new DiskThresholdSettings(
-            Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), absolute + "b")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), absolute + "b")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), absolute + "b")
-                .build(),
-            emptyClusterSettings
-        );
-
-        long needed = between(0, 1000);
-        assertThat(ReactiveStorageDeciderService.nodeSizeForDataBelowLowWatermark(needed, absoluteSettings), equalTo(needed + absolute));
-    }
-
     private Settings.Builder addRandomNodeLockUsingAttributes(Settings.Builder settings) {
         String setting = randomFrom(
             IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
@@ -403,7 +370,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ReactiveStorageDeciderService.AllocationState createAllocationState(Map<String, Long> shardSize, ClusterState clusterState) {
-        ClusterInfo info = new ClusterInfo(null, null, shardSize, null, null, null);
+        ClusterInfo info = new ClusterInfo(Map.of(), Map.of(), shardSize, Map.of(), Map.of(), Map.of());
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
@@ -567,7 +534,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         if (shardsWithSizes.isEmpty() == false) {
             shardSize.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
         }
-        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, null, null, null);
+        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, Map.of(), Map.of(), Map.of());
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
@@ -615,7 +582,12 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         AllocationDecider no = new AllocationDecider() {
             @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
                 return Decision.NO;
             }
         };

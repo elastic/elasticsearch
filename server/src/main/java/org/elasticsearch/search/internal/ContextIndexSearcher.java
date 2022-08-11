@@ -245,6 +245,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                         return null;
                     }
                 }
+
+                @Override
+                public int count(LeafReaderContext context) throws IOException {
+                    return weight.count(context);
+                }
             };
         } else {
             return weight;

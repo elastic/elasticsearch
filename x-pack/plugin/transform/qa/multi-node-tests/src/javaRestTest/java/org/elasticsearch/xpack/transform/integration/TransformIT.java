@@ -322,6 +322,12 @@ public class TransformIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
+        // wait until transform has been triggered and indexed at least 1 document
+        assertBusy(() -> {
+            var stateAndStats = getTransformStats(config.getId());
+            assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), greaterThan(1));
+        });
+
         // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
         stopTransform(transformId, false, null, true);
 

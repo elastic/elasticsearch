@@ -1,0 +1,27 @@
+---
+"Diagnosis":
+  - skip:
+      version: "- 8.3.99"
+      reason: "diagnosis was only added in 8.4.0"
+
+  - do:
+      indices.create:
+        index: red_index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.routing.allocation.enable: none
+
+  - do:
+      _internal.health:
+        feature: shards_availability
+
+  - is_true: cluster_name
+  - match:   { indicators.shards_availability.status: "red" }
+  - match:   { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary." }
+  - is_true: indicators.shards_availability.diagnosis
+  - length:  { indicators.shards_availability.diagnosis: 1 }
+  - is_true: indicators.shards_availability.diagnosis.0.affected_resources
+  - length:  { indicators.shards_availability.diagnosis.0.affected_resources: 1 }
+  - match:   { indicators.shards_availability.diagnosis.0.affected_resources.0: "red_index" }

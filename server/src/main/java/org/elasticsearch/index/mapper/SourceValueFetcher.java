@@ -46,7 +46,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * @param sourcePaths   The paths to pull source values from
      * @param nullValue     An optional substitute value if the _source value is `null`
      */
-    private SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
     }

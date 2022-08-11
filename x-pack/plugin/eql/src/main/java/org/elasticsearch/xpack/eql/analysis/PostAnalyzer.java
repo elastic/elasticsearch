@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
@@ -46,29 +45,25 @@ public class PostAnalyzer {
 
             // implicit project + fetch size (if needed)
 
-            Holder<Boolean> hasJoin = new Holder<>(Boolean.FALSE);
-
             Source projectCtx = synthetic("<implicit-project>");
-            if (plan.anyMatch(Sequence.class::isInstance)) {
-                hasJoin.set(Boolean.TRUE);
+            final boolean isSequence = plan.anyMatch(Sequence.class::isInstance);
+            final boolean isSample = plan.anyMatch(Sample.class::isInstance);
+            if (isSequence || isSample) {
                 // first per KeyedFilter
                 plan = plan.transformUp(KeyedFilter.class, k -> {
-                    Project p = new Project(projectCtx, k.child(), k.extractionAttributes());
-
-                    // TODO: this could be incorporated into the query generation
-                    LogicalPlan fetchSize = new LimitWithOffset(
-                        synthetic("<fetch-size>"),
-                        new Literal(synthetic("<fetch-value>"), configuration.fetchSize(), DataTypes.INTEGER),
-                        p
-                    );
-
-                    return new KeyedFilter(k.source(), fetchSize, k.keys(), k.timestamp(), k.tiebreaker());
+                    LogicalPlan newPlan = new Project(projectCtx, k.child(), isSequence ? k.extractionAttributes() : k.keys());
+                    if (isSequence) {
+                        // TODO: this could be incorporated into the query generation
+                        newPlan = new LimitWithOffset(
+                            synthetic("<fetch-size>"),
+                            new Literal(synthetic("<fetch-value>"), configuration.fetchSize(), DataTypes.INTEGER),
+                            newPlan
+                        );
+                    }
+                    return new KeyedFilter(k.source(), newPlan, k.keys(), k.timestamp(), k.tiebreaker());
                 });
-            }
-
-            hasJoin.set(hasJoin.get() || plan.anyMatch(Sample.class::isInstance));
-            // in case of event queries, filter everything
-            if (hasJoin.get() == false) {
+            } else {
+                // in case of event queries, filter everything
                 plan = new Project(projectCtx, plan, emptyList());
             }
         }

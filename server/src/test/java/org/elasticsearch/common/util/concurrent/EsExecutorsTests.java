@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -437,7 +438,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testNodeProcessorsBound() {
-        final Setting<Integer> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
+        final Setting<Double> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
         final int available = Runtime.getRuntime().availableProcessors();
         final int processors = randomIntBetween(available + 1, Integer.MAX_VALUE);
         final Settings settings = Settings.builder().put(processorsSetting.getKey(), processors).build();
@@ -450,6 +451,52 @@ public class EsExecutorsTests extends ESTestCase {
             available
         );
         assertThat(e, hasToString(containsString(expected)));
+    }
+
+    public void testNodeProcessorsIsRoundedUpWhenUsingFloats() {
+        assertThat(
+            EsExecutors.allocatedProcessors(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), Double.MIN_VALUE).build()),
+            is(equalTo(1))
+        );
+
+        assertThat(
+            EsExecutors.allocatedProcessors(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build()),
+            is(equalTo(1))
+        );
+
+        assertThat(
+            EsExecutors.allocatedProcessors(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1.2).build()),
+            is(equalTo(2))
+        );
+
+        assertThat(
+            EsExecutors.allocatedProcessors(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 3).build()),
+            is(equalTo(3))
+        );
+    }
+
+    public void testNodeProcessorsFloatValidation() {
+        final Setting<Double> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), Double.NaN).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), Double.POSITIVE_INFINITY).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), Double.NEGATIVE_INFINITY).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), -1.5).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
     }
 
 }

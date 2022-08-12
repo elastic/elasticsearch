@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,7 +34,7 @@ public class RoleDescriptorsIntersectionTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final RoleDescriptorsIntersection roleDescriptorsIntersection = new RoleDescriptorsIntersection(
-            List.of(randomUniquelyNamedRoleDescriptors(1, 3), randomUniquelyNamedRoleDescriptors(1, 3))
+            randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 3)))
         );
 
         final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
@@ -63,8 +64,8 @@ public class RoleDescriptorsIntersectionTests extends ESTestCase {
     public void testXContent() throws IOException {
         final RoleDescriptorsIntersection roleDescriptorsIntersection = new RoleDescriptorsIntersection(
             List.of(
-                List.of(new RoleDescriptor("role_0", new String[] { "monitor" }, null, null)),
-                List.of(new RoleDescriptor("role_1", new String[] { "all" }, null, null))
+                Set.of(new RoleDescriptor("role_0", new String[] { "monitor" }, null, null)),
+                Set.of(new RoleDescriptor("role_1", new String[] { "all" }, null, null))
             )
         );
 

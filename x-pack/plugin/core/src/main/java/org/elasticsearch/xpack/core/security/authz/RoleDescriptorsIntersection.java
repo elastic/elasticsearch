@@ -17,27 +17,26 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
-public record RoleDescriptorsIntersection(List<List<RoleDescriptor>> roleDescriptorsList) implements ToXContentObject, Writeable {
+public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDescriptorsList) implements ToXContentObject, Writeable {
 
     public RoleDescriptorsIntersection(StreamInput in) throws IOException {
-        this(RoleDescriptorsIntersection.readRoleDescriptorsListFrom(in));
+        this(List.copyOf(in.readList(inner -> inner.readSet(RoleDescriptor::new))));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(roleDescriptorsList.size());
-        for (List<RoleDescriptor> roleDescriptors : roleDescriptorsList) {
-            out.writeList(roleDescriptors);
-        }
+        out.writeCollection(roleDescriptorsList, StreamOutput::writeCollection);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray();
         {
-            for (List<RoleDescriptor> roleDescriptors : roleDescriptorsList) {
+            for (Set<RoleDescriptor> roleDescriptors : roleDescriptorsList) {
                 builder.startObject();
                 for (RoleDescriptor roleDescriptor : roleDescriptors) {
                     builder.field(roleDescriptor.getName(), roleDescriptor);
@@ -49,14 +48,12 @@ public record RoleDescriptorsIntersection(List<List<RoleDescriptor>> roleDescrip
         return builder;
     }
 
-    public static RoleDescriptorsIntersection fromXContent(XContentParser p) throws IOException {
-        XContentParser.Token token = p.currentToken();
-        if (token == null) {
-            token = p.nextToken();
+    public static RoleDescriptorsIntersection fromXContent(XContentParser xContentParser) throws IOException {
+        if (xContentParser.currentToken() == null) {
+            xContentParser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, token, p);
-        final List<List<RoleDescriptor>> roleDescriptorsList = new ArrayList<>();
-        while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
+        final List<Set<RoleDescriptor>> roleDescriptorsList = XContentParserUtils.parseList(xContentParser, p -> {
+            XContentParser.Token token = p.currentToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, p);
             final List<RoleDescriptor> roleDescriptors = new ArrayList<>();
             while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -64,21 +61,8 @@ public record RoleDescriptorsIntersection(List<List<RoleDescriptor>> roleDescrip
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
                 roleDescriptors.add(RoleDescriptor.parse(p.currentName(), p, false));
             }
-            roleDescriptorsList.add(List.copyOf(roleDescriptors));
-        }
+            return Set.copyOf(roleDescriptors);
+        });
         return new RoleDescriptorsIntersection(List.copyOf(roleDescriptorsList));
-    }
-
-    private static List<List<RoleDescriptor>> readRoleDescriptorsListFrom(StreamInput in) throws IOException {
-        final List<List<RoleDescriptor>> roleDescriptorsList = new ArrayList<>();
-        final int size = in.readVInt();
-        assert size >= 0;
-        if (size < 0) {
-            throw new IllegalArgumentException("list of role descriptors size must be greater than 0");
-        }
-        for (int i = 0; i < size; i++) {
-            roleDescriptorsList.add(List.copyOf(in.readList(RoleDescriptor::new)));
-        }
-        return List.copyOf(roleDescriptorsList);
     }
 }

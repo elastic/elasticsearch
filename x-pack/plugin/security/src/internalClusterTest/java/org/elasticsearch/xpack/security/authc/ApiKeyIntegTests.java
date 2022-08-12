@@ -117,6 +117,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -658,13 +659,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             getApiKeyResponseListener
         );
         GetApiKeyResponse response = getApiKeyResponseListener.get();
-        verifyGetResponse(
+        verifyApiKeyInfos(
             2,
             responses,
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response,
+            response.getApiKeyInfos(),
             Collections.singleton(responses.get(0).getId()),
             Collections.singletonList(responses.get(1).getId())
         );
@@ -706,13 +707,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener
         );
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(
+        verifyApiKeyInfos(
             noOfApiKeys,
             responses,
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response,
+            response.getApiKeyInfos(),
             expectedValidKeyIds,
             invalidatedApiKeyIds
         );
@@ -733,13 +734,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener
         );
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(
+        verifyApiKeyInfos(
             noOfApiKeys,
             responses,
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response,
+            response.getApiKeyInfos(),
             responses.stream().map(o -> o.getId()).collect(Collectors.toSet()),
             null
         );
@@ -759,13 +760,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener
         );
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(
+        verifyApiKeyInfos(
             1,
             responses,
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response,
+            response.getApiKeyInfos(),
             Collections.singleton(responses.get(0).getId()),
             null
         );
@@ -785,13 +786,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener
         );
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(
+        verifyApiKeyInfos(
             1,
             responses,
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response,
+            response.getApiKeyInfos(),
             Collections.singleton(responses.get(0).getId()),
             null
         );
@@ -827,13 +828,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener
         );
         // role descriptors are the same between randomization
-        verifyGetResponse(
+        verifyApiKeyInfos(
             1,
             responses,
             metadatas,
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            listener.get(),
+            listener.get().getApiKeyInfos(),
             Collections.singleton(responses.get(0).getId()),
             null
         );
@@ -844,13 +845,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             GetApiKeyRequest.builder().apiKeyName("test-key*").withLimitedBy(withLimitedBy).build(),
             listener2
         );
-        verifyGetResponse(
+        verifyApiKeyInfos(
             noOfApiKeys,
             createApiKeyResponses1,
             tuple1.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            listener2.get(),
+            listener2.get().getApiKeyInfos(),
             createApiKeyResponses1.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
             null
         );
@@ -867,13 +868,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         responses = Stream.concat(createApiKeyResponses1.stream(), createApiKeyResponses2.stream()).collect(Collectors.toList());
         metadatas = Stream.concat(tuple1.v2().stream(), tuple2.v2().stream()).collect(Collectors.toList());
-        verifyGetResponse(
+        verifyApiKeyInfos(
             2 * noOfApiKeys,
             responses,
             metadatas,
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            listener3.get(),
+            listener3.get().getApiKeyInfos(),
             responses.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
             null
         );
@@ -884,7 +885,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             GetApiKeyRequest.builder().apiKeyName("does-not-exist*").withLimitedBy(withLimitedBy).build(),
             listener4
         );
-        verifyGetResponse(0, Collections.emptyList(), null, List.of(), List.of(), listener4.get(), Collections.emptySet(), null);
+        verifyApiKeyInfos(
+            0,
+            Collections.emptyList(),
+            null,
+            List.of(),
+            List.of(),
+            listener4.get().getApiKeyInfos(),
+            Collections.emptySet(),
+            null
+        );
 
         PlainActionFuture<GetApiKeyResponse> listener5 = new PlainActionFuture<>();
         client.execute(
@@ -892,13 +902,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             GetApiKeyRequest.builder().apiKeyName("another-test-key*").withLimitedBy(withLimitedBy).build(),
             listener5
         );
-        verifyGetResponse(
+        verifyApiKeyInfos(
             noOfApiKeys,
             createApiKeyResponses2,
             tuple2.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            listener5.get(),
+            listener5.get().getApiKeyInfos(),
             createApiKeyResponses2.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
             null
         );
@@ -943,14 +953,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener
         );
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(
+        verifyApiKeyInfos(
             userWithManageApiKeyRole,
             noOfApiKeysForUserWithManageApiKeyRole,
             userWithManageApiKeyRoleApiKeys,
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             expectedLimitedByRoleDescriptors,
-            response,
+            response.getApiKeyInfos(),
             userWithManageApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
             null
         );
@@ -977,7 +987,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener
         );
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(
+        verifyApiKeyInfos(
             "user_with_manage_own_api_key_role",
             noOfApiKeysForUserWithManageApiKeyRole,
             userWithManageOwnApiKeyRoleApiKeys,
@@ -986,7 +996,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             withLimitedBy
                 ? List.of(new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null))
                 : null,
-            response,
+            response.getApiKeyInfos(),
             userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
             null
         );
@@ -1013,7 +1023,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener
         );
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(
+        verifyApiKeyInfos(
             "user_with_manage_own_api_key_role",
             noOfApiKeysForUserWithManageApiKeyRole,
             userWithManageOwnApiKeyRoleApiKeys,
@@ -1022,7 +1032,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             withLimitedBy
                 ? List.of(new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null))
                 : null,
-            response,
+            response.getApiKeyInfos(),
             userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
             null
         );
@@ -1093,37 +1103,34 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<Map<String, Object>> metadatas = Stream.of(defaultUserTuple.v2(), userWithManageTuple.v2(), userWithManageOwnTuple.v2())
             .flatMap(List::stream)
             .collect(Collectors.toList());
-        verifyGetResponse(
+
+        final Function<String, List<RoleDescriptor>> expectedLimitedByRoleDescriptorsLookup = username -> {
+            if (withLimitedBy) {
+                return switch (username) {
+                    case ES_TEST_ROOT_USER -> List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR);
+                    case "user_with_manage_api_key_role" -> List.of(
+                        new RoleDescriptor("manage_api_key_role", new String[] { "manage_api_key" }, null, null)
+                    );
+                    case "user_with_manage_own_api_key_role" -> List.of(
+                        new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null)
+                    );
+                    default -> throw new IllegalStateException("unknown username: " + username);
+                };
+            } else {
+                return null;
+            }
+        };
+        verifyApiKeyInfos(
             new String[] { ES_TEST_ROOT_USER, "user_with_manage_api_key_role", "user_with_manage_own_api_key_role" },
             totalApiKeys,
             allApiKeys,
             metadatas,
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
-            null, // For multiple users, limited-by role descriptors are tested separately
-            response,
-            allApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
+            expectedLimitedByRoleDescriptorsLookup,
+            response.getApiKeyInfos(),
+            allApiKeys.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
             null
         );
-        // verify limited-by role descriptors here
-        if (withLimitedBy) {
-            Arrays.stream(response.getApiKeyInfos()).forEach(apiKeyInfo -> {
-                final List<RoleDescriptor> limitedByRoleDescriptors = apiKeyInfo.getLimitedBy().roleDescriptorsList().get(0);
-                switch (apiKeyInfo.getUsername()) {
-                    case ES_TEST_ROOT_USER -> assertThat(limitedByRoleDescriptors, equalTo(List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR)));
-                    case "user_with_manage_api_key_role" -> assertThat(
-                        limitedByRoleDescriptors,
-                        equalTo(List.of(new RoleDescriptor("manage_api_key_role", new String[] { "manage_api_key" }, null, null)))
-                    );
-                    case "user_with_manage_own_api_key_role" -> assertThat(
-                        limitedByRoleDescriptors,
-                        equalTo(List.of(new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null)))
-                    );
-                    default -> throw new IllegalStateException("unknown username");
-                }
-            });
-        } else {
-            Arrays.stream(response.getApiKeyInfos()).forEach(apiKeyInfo -> assertThat(apiKeyInfo.getLimitedBy(), nullValue()));
-        }
     }
 
     public void testGetAllApiKeysFailsForUserWithNoRoleOrRetrieveOwnApiKeyRole() throws InterruptedException, ExecutionException {
@@ -1266,13 +1273,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener
         );
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(
+        verifyApiKeyInfos(
             1,
             responses,
             tuple.v2(),
             List.of(new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), Strings.EMPTY_ARRAY, null, null)),
             null,
-            response,
+            response.getApiKeyInfos(),
             Collections.singleton(responses.get(0).getId()),
             null
         );
@@ -1323,24 +1330,21 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
 
         // Can view itself without limited-by
-        final PlainActionFuture<GetApiKeyResponse> future1 = new PlainActionFuture<>();
-        client1.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().apiKeyId(apiKeyId1).build(), future1);
-        verifyGetResponse(
+        verifyApiKeyInfos(
             1,
             responses1,
             tuple1.v2(),
             List.of(new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), new String[] { "manage_own_api_key" }, null, null)),
             null,
-            future1.actionGet(),
+            new ApiKey[] { getApiKeyInfo(client1, apiKeyId1, false, randomBoolean()) },
             Collections.singleton(apiKeyId1),
             null
         );
 
         // Cannot view itself with limited-by
-        final PlainActionFuture<GetApiKeyResponse> future2 = new PlainActionFuture<>();
-        client1.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().apiKeyId(apiKeyId1).withLimitedBy().build(), future2);
-        ElasticsearchSecurityException e2 = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);
-        assertErrorMessage(e2, "cluster:admin/xpack/security/api_key/get", ES_TEST_ROOT_USER, apiKeyId1);
+        final boolean useGetApiKey = randomBoolean();
+        final var e2 = expectThrows(ElasticsearchSecurityException.class, () -> getApiKeyInfo(client1, apiKeyId1, true, useGetApiKey));
+        assertErrorMessage(e2, "cluster:admin/xpack/security/api_key/" + (useGetApiKey ? "get" : "query"), ES_TEST_ROOT_USER, apiKeyId1);
 
         // 2. An API key with manage_api_key can view its own limited-by or any other key's limited-by
         final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple3 = createApiKeys(
@@ -1361,31 +1365,59 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
 
         // View its own limited-by
-        final PlainActionFuture<GetApiKeyResponse> future3 = new PlainActionFuture<>();
-        client3.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().apiKeyId(apiKeyId3).withLimitedBy().build(), future3);
-        verifyGetResponse(
+        verifyApiKeyInfos(
             1,
             responses3,
             tuple3.v2(),
             List.of(new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), new String[] { "manage_api_key" }, null, null)),
             List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR),
-            future3.actionGet(),
+            new ApiKey[] { getApiKeyInfo(client3, apiKeyId3, true, randomBoolean()) },
             Collections.singleton(apiKeyId3),
             null
         );
 
         // View other key's limited-by
-        final PlainActionFuture<GetApiKeyResponse> future4 = new PlainActionFuture<>();
-        client3.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().apiKeyId(apiKeyId1).withLimitedBy().build(), future4);
-        verifyGetResponse(
+        verifyApiKeyInfos(
             1,
             responses1,
             tuple1.v2(),
             List.of(new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), new String[] { "manage_own_api_key" }, null, null)),
             List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR),
-            future4.actionGet(),
+            new ApiKey[] { getApiKeyInfo(client3, apiKeyId1, true, randomBoolean()) },
             Collections.singleton(apiKeyId1),
             null
+        );
+    }
+
+    public void testLegacySuperuserLimitedByWillBeReturnedAsTransformed() throws Exception {
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
+        final var apiKeyId = createdApiKey.v1().getId();
+        final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User(TEST_USER_NAME, TEST_ROLE),
+            new Authentication.RealmRef("file", "file", serviceWithNodeName.nodeName())
+        );
+        // Force set user role descriptors to 7.x legacy superuser role descriptors
+        assertSingleUpdate(
+            apiKeyId,
+            updateApiKeys(
+                serviceWithNodeName.service(),
+                authentication,
+                BulkUpdateApiKeyRequest.usingApiKeyIds(apiKeyId),
+                Set.of(ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR)
+            )
+        );
+        // raw document has the legacy superuser role descriptor
+        expectRoleDescriptorsForApiKey(
+            "limited_by_role_descriptors",
+            Set.of(ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR),
+            getApiKeyDocument(apiKeyId)
+        );
+
+        final ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, randomBoolean());
+        assertThat(
+            apiKeyInfo.getLimitedBy().roleDescriptorsList().iterator().next(),
+            equalTo(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR))
         );
     }
 
@@ -1513,7 +1545,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(future.actionGet().getApiKeyInfos().length, equalTo(1));
         final RoleDescriptorsIntersection limitedBy = future.actionGet().getApiKeyInfos()[0].getLimitedBy();
         assertThat(limitedBy.roleDescriptorsList().size(), equalTo(1));
-        assertThat(limitedBy.roleDescriptorsList().get(0), emptyIterable());
+        assertThat(limitedBy.roleDescriptorsList().iterator().next(), emptyIterable());
 
         // Check at the end to allow sometime for the operation to happen. Since an erroneous creation is
         // asynchronous so that the document is not available immediately.
@@ -1776,7 +1808,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var expectedMetadata = request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2();
         final var expectedRoleDescriptors = nullRoleDescriptors ? List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR) : newRoleDescriptors;
 
-        expectAttributesForApiKey(
+        doTestApiKeyHasExpectedAttributes(
             apiKeyId,
             Map.of(
                 ApiKeyAttribute.CREATOR,
@@ -1839,7 +1871,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             )
         );
         for (String apiKeyId : apiKeyIds) {
-            expectAttributesForApiKey(
+            doTestApiKeyHasExpectedAttributes(
                 apiKeyId,
                 Map.of(
                     ApiKeyAttribute.METADATA,
@@ -1871,7 +1903,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(response.getNoops(), containsInAnyOrder(apiKeyIds.toArray()));
         assertThat(response.getErrorDetails().keySet(), containsInAnyOrder(notFoundIds.toArray()));
         for (String apiKeyId : apiKeyIds) {
-            expectAttributesForApiKey(
+            doTestApiKeyHasExpectedAttributes(
                 apiKeyId,
                 Map.of(
                     ApiKeyAttribute.METADATA,
@@ -2047,7 +2079,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             "all"
         ).v1().get(0);
         final String apiKeyId = createdApiKey.getId();
-        expectAttributesForApiKey(apiKeyId, Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, Set.of(roleDescriptorBeforeUpdate)));
+        doTestApiKeyHasExpectedAttributes(
+            apiKeyId,
+            Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, Set.of(roleDescriptorBeforeUpdate))
+        );
 
         final List<String> newClusterPrivileges = randomValueOtherThan(clusterPrivileges, () -> {
             final List<String> privs = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
@@ -2069,7 +2104,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
-        expectAttributesForApiKey(apiKeyId, Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, Set.of(roleDescriptorAfterUpdate)));
+        doTestApiKeyHasExpectedAttributes(apiKeyId, Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, Set.of(roleDescriptorAfterUpdate)));
 
         // Update user role name only
         final RoleDescriptor roleDescriptorWithNewName = putRoleWithClusterPrivileges(
@@ -2095,7 +2130,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectedCreator.put("metadata", updatedUser.metadata());
         expectedCreator.put("realm_type", "native");
         expectedCreator.put("realm", "index");
-        expectAttributesForApiKey(
+        doTestApiKeyHasExpectedAttributes(
             apiKeyId,
             Map.of(ApiKeyAttribute.CREATOR, expectedCreator, ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, Set.of(roleDescriptorWithNewName))
         );
@@ -2411,7 +2446,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 currentSuperuserRoleDescriptors
             )
         );
-        expectAttributesForApiKey(apiKeyId, Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, currentSuperuserRoleDescriptors));
+        doTestApiKeyHasExpectedAttributes(apiKeyId, Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, currentSuperuserRoleDescriptors));
         // Second update is noop because role descriptors were auto-updated by the previous request
         assertSingleNoop(
             apiKeyId,
@@ -2529,51 +2564,39 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     // Check attributes with both the raw document and the get api key response whenever possible
     @SuppressWarnings("unchecked")
-    private void expectAttributesForApiKey(String apiKeyId, Map<ApiKeyAttribute, Object> attributes) throws IOException {
+    private void doTestApiKeyHasExpectedAttributes(String apiKeyId, Map<ApiKeyAttribute, Object> attributes) throws IOException {
         final Map<String, Object> apiKeyDocMap = getApiKeyDocument(apiKeyId);
-        final ApiKey apiKeyInfo;
-        if (randomBoolean()) {
-            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
-            client().execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy().build(), future);
-            final GetApiKeyResponse getApiKeyResponse = future.actionGet();
-            assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
-            apiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
-        } else {
-            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
-            client().execute(
-                QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, true),
-                future
-            );
-            final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
-            assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-            apiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
-        }
-
+        final boolean useGetApiKey = randomBoolean();
+        final ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, useGetApiKey);
         for (Map.Entry<ApiKeyAttribute, Object> entry : attributes.entrySet()) {
             switch (entry.getKey()) {
                 case CREATOR -> {
                     final var creatorMap = (Map<String, Object>) entry.getValue();
                     expectCreatorForApiKey(creatorMap, apiKeyDocMap);
-                    assertThat(creatorMap.get("principal"), equalTo(apiKeyInfo.getUsername()));
-                    assertThat(creatorMap.get("realm"), equalTo(apiKeyInfo.getRealm()));
+                    assertThat("useGetApiKey: " + useGetApiKey, creatorMap.get("principal"), equalTo(apiKeyInfo.getUsername()));
+                    assertThat("useGetApiKey: " + useGetApiKey, creatorMap.get("realm"), equalTo(apiKeyInfo.getRealm()));
                 }
                 case METADATA -> {
                     final var metadata = (Map<String, Object>) entry.getValue();
                     expectMetadataForApiKey(metadata, apiKeyDocMap);
-                    assertThat(metadata, equalTo(apiKeyInfo.getMetadata()));
+                    assertThat("useGetApiKey: " + useGetApiKey, metadata, equalTo(apiKeyInfo.getMetadata()));
                 }
                 case ASSIGNED_ROLE_DESCRIPTORS -> {
                     final var expectedRoleDescriptors = (Collection<RoleDescriptor>) entry.getValue();
                     expectRoleDescriptorsForApiKey("role_descriptors", expectedRoleDescriptors, apiKeyDocMap);
-                    assertThat(expectedRoleDescriptors, containsInAnyOrder(apiKeyInfo.getRoleDescriptors().toArray(RoleDescriptor[]::new)));
+                    assertThat(
+                        "useGetApiKey: " + useGetApiKey,
+                        expectedRoleDescriptors,
+                        containsInAnyOrder(apiKeyInfo.getRoleDescriptors().toArray(RoleDescriptor[]::new))
+                    );
                 }
                 case LIMITED_BY_ROLE_DESCRIPTORS -> {
                     final var expectedRoleDescriptors = (Collection<RoleDescriptor>) entry.getValue();
                     expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedRoleDescriptors, apiKeyDocMap);
                     assertThat(
+                        "useGetApiKey: " + useGetApiKey,
                         expectedRoleDescriptors,
-                        containsInAnyOrder(apiKeyInfo.getLimitedBy().roleDescriptorsList().get(0).toArray(RoleDescriptor[]::new))
+                        containsInAnyOrder(apiKeyInfo.getLimitedBy().roleDescriptorsList().iterator().next().toArray(RoleDescriptor[]::new))
                     );
                 }
                 default -> throw new IllegalStateException("unexpected attribute name");
@@ -2583,7 +2606,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private void expectAttributesForApiKeys(List<String> apiKeyIds, Map<ApiKeyAttribute, Object> attributes) throws IOException {
         for (String apiKeyId : apiKeyIds) {
-            expectAttributesForApiKey(apiKeyId, attributes);
+            doTestApiKeyHasExpectedAttributes(apiKeyId, attributes);
         }
     }
 
@@ -2632,6 +2655,30 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {
         return client().execute(GetAction.INSTANCE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId)).actionGet().getSource();
+    }
+
+    private ApiKey getApiKeyInfo(Client client, String apiKeyId, boolean withLimitedBy, boolean useGetApiKey) {
+        if (useGetApiKey) {
+            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                GetApiKeyAction.INSTANCE,
+                GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(withLimitedBy).build(),
+                future
+            );
+            final GetApiKeyResponse getApiKeyResponse = future.actionGet();
+            assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
+            return getApiKeyResponse.getApiKeyInfos()[0];
+        } else {
+            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                QueryApiKeyAction.INSTANCE,
+                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, withLimitedBy),
+                future
+            );
+            final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
+            assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
+            return queryApiKeyResponse.getItems()[0].getApiKey();
+        }
     }
 
     private ServiceWithNodeName getServiceWithNodeName() {
@@ -2686,70 +2733,70 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private void verifyGetResponse(
+    private void verifyApiKeyInfos(
         int expectedNumberOfApiKeys,
         List<CreateApiKeyResponse> responses,
         List<Map<String, Object>> metadatas,
         List<RoleDescriptor> expectedRoleDescriptors,
-        List<RoleDescriptor> expectedLimitedRoleDescriptors,
-        GetApiKeyResponse response,
+        List<RoleDescriptor> expectedLimitedByRoleDescriptors,
+        ApiKey[] apiKeyInfos,
         Set<String> validApiKeyIds,
         List<String> invalidatedApiKeyIds
     ) {
-        verifyGetResponse(
+        verifyApiKeyInfos(
             ES_TEST_ROOT_USER,
             expectedNumberOfApiKeys,
             responses,
             metadatas,
             expectedRoleDescriptors,
-            expectedLimitedRoleDescriptors,
-            response,
+            expectedLimitedByRoleDescriptors,
+            apiKeyInfos,
             validApiKeyIds,
             invalidatedApiKeyIds
         );
     }
 
-    private void verifyGetResponse(
+    private void verifyApiKeyInfos(
         String user,
         int expectedNumberOfApiKeys,
         List<CreateApiKeyResponse> responses,
         List<Map<String, Object>> metadatas,
         List<RoleDescriptor> expectedRoleDescriptors,
-        List<RoleDescriptor> expectedLimitedRoleDescriptors,
-        GetApiKeyResponse response,
+        List<RoleDescriptor> expectedLimitedByRoleDescriptors,
+        ApiKey[] apiKeyInfos,
         Set<String> validApiKeyIds,
         List<String> invalidatedApiKeyIds
     ) {
-        verifyGetResponse(
+        verifyApiKeyInfos(
             new String[] { user },
             expectedNumberOfApiKeys,
             responses,
             metadatas,
             expectedRoleDescriptors,
-            expectedLimitedRoleDescriptors,
-            response,
+            (ignore) -> expectedLimitedByRoleDescriptors,
+            apiKeyInfos,
             validApiKeyIds,
             invalidatedApiKeyIds
         );
     }
 
-    private void verifyGetResponse(
+    private void verifyApiKeyInfos(
         String[] user,
         int expectedNumberOfApiKeys,
         List<CreateApiKeyResponse> responses,
         List<Map<String, Object>> metadatas,
         List<RoleDescriptor> expectedRoleDescriptors,
-        List<RoleDescriptor> expectedLimitedRoleDescriptors,
-        GetApiKeyResponse response,
+        Function<String, List<RoleDescriptor>> expectedLimitedByRoleDescriptorsLookup,
+        ApiKey[] apiKeyInfos,
         Set<String> validApiKeyIds,
         List<String> invalidatedApiKeyIds
     ) {
-        assertThat(response.getApiKeyInfos().length, equalTo(expectedNumberOfApiKeys));
+        assertThat(apiKeyInfos.length, equalTo(expectedNumberOfApiKeys));
         List<String> expectedIds = responses.stream()
             .filter(o -> validApiKeyIds.contains(o.getId()))
             .map(o -> o.getId())
             .collect(Collectors.toList());
-        List<String> actualIds = Arrays.stream(response.getApiKeyInfos())
+        List<String> actualIds = Arrays.stream(apiKeyInfos)
             .filter(o -> o.isInvalidated() == false)
             .map(o -> o.getId())
             .collect(Collectors.toList());
@@ -2758,19 +2805,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .filter(o -> validApiKeyIds.contains(o.getId()))
             .map(o -> o.getName())
             .collect(Collectors.toList());
-        List<String> actualNames = Arrays.stream(response.getApiKeyInfos())
+        List<String> actualNames = Arrays.stream(apiKeyInfos)
             .filter(o -> o.isInvalidated() == false)
             .map(o -> o.getName())
             .collect(Collectors.toList());
         assertThat(actualNames, containsInAnyOrder(expectedNames.toArray(Strings.EMPTY_ARRAY)));
         Set<String> expectedUsernames = (validApiKeyIds.isEmpty()) ? Collections.emptySet() : Set.of(user);
-        Set<String> actualUsernames = Arrays.stream(response.getApiKeyInfos())
+        Set<String> actualUsernames = Arrays.stream(apiKeyInfos)
             .filter(o -> o.isInvalidated() == false)
             .map(o -> o.getUsername())
             .collect(Collectors.toSet());
         assertThat(actualUsernames, containsInAnyOrder(expectedUsernames.toArray(Strings.EMPTY_ARRAY)));
         if (invalidatedApiKeyIds != null) {
-            List<String> actualInvalidatedApiKeyIds = Arrays.stream(response.getApiKeyInfos())
+            List<String> actualInvalidatedApiKeyIds = Arrays.stream(apiKeyInfos)
                 .filter(o -> o.isInvalidated())
                 .map(o -> o.getId())
                 .collect(Collectors.toList());
@@ -2783,24 +2830,23 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     (m, i) -> m.put(responses.get(i).getId(), metadatas.get(i)),
                     HashMap::putAll
                 );
-            for (ApiKey apiKey : response.getApiKeyInfos()) {
+            for (ApiKey apiKey : apiKeyInfos) {
                 final Map<String, Object> metadata = idToMetadata.get(apiKey.getId());
                 assertThat(apiKey.getMetadata(), equalTo(metadata == null ? Map.of() : metadata));
             }
         }
-        Arrays.stream(response.getApiKeyInfos()).forEach(apiKeyInfo -> {
+        Arrays.stream(apiKeyInfos).forEach(apiKeyInfo -> {
             assertThat(apiKeyInfo.getRoleDescriptors(), containsInAnyOrder(expectedRoleDescriptors.toArray(RoleDescriptor[]::new)));
-            // No good way to test different limited-by role descriptors for different users
-            // It will be tested separately
-            if (user.length == 1) {
-                if (expectedLimitedRoleDescriptors == null) {
-                    assertThat(apiKeyInfo.getLimitedBy(), nullValue());
-                } else {
-                    assertThat(
-                        apiKeyInfo.getLimitedBy().roleDescriptorsList().get(0),
-                        containsInAnyOrder(expectedLimitedRoleDescriptors.toArray(RoleDescriptor[]::new))
-                    );
-                }
+            final List<RoleDescriptor> expectedLimitedByRoleDescriptors = expectedLimitedByRoleDescriptorsLookup.apply(
+                apiKeyInfo.getUsername()
+            );
+            if (expectedLimitedByRoleDescriptors == null) {
+                assertThat(apiKeyInfo.getLimitedBy(), nullValue());
+            } else {
+                assertThat(
+                    apiKeyInfo.getLimitedBy().roleDescriptorsList().iterator().next(),
+                    containsInAnyOrder(expectedLimitedByRoleDescriptors.toArray(RoleDescriptor[]::new))
+                );
             }
         });
     }

@@ -152,10 +152,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             final Request getApiKeyRequest = new Request("GET", "_security/api_key");
             if (withLimitedBy) {
                 getApiKeyRequest.addParameter("with_limited_by", "true");
-            } else {
-                if (randomBoolean()) {
-                    getApiKeyRequest.addParameter("with_limited_by", "false");
-                }
+            } else if (randomBoolean()) {
+                getApiKeyRequest.addParameter("with_limited_by", "false");
             }
             final Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
             assertOK(getApiKeyResponse);
@@ -164,10 +162,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             final Request queryApiKeyRequest = new Request("POST", "_security/_query/api_key");
             if (withLimitedBy) {
                 queryApiKeyRequest.addParameter("with_limited_by", "true");
-            } else {
-                if (randomBoolean()) {
-                    queryApiKeyRequest.addParameter("with_limited_by", "false");
-                }
+            } else if (randomBoolean()) {
+                queryApiKeyRequest.addParameter("with_limited_by", "false");
             }
             final Response queryApiKeyResponse = adminClient().performRequest(queryApiKeyRequest);
             assertOK(queryApiKeyResponse);

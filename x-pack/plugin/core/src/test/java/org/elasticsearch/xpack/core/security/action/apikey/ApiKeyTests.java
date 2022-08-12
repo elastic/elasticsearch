@@ -101,6 +101,7 @@ public class ApiKeyTests extends ESTestCase {
         final var limitedByList = (List<Map<String, Object>>) map.get("limited_by");
         assertThat(limitedByList.size(), equalTo(1));
         final Map<String, Object> limitedByMap = limitedByList.get(0);
+        assertThat(limitedByMap.size(), equalTo(limitedByRoleDescriptors.size()));
         for (RoleDescriptor roleDescriptor : limitedByRoleDescriptors) {
             assertThat(limitedByMap, hasKey(roleDescriptor.getName()));
             assertThat(XContentTestUtils.convertToMap(roleDescriptor), equalTo(limitedByMap.get(roleDescriptor.getName())));

@@ -39,7 +39,7 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
-        "query_api_key_request",
+        "query_api_key_request_payload",
         a -> new Payload((QueryBuilder) a[0], (Integer) a[1], (Integer) a[2], (List<FieldSortBuilder>) a[3], (SearchAfterBuilder) a[4])
     );
 

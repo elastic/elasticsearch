@@ -107,7 +107,7 @@ public final class QueryApiKeyRequest extends ActionRequest {
         filterForCurrentUser = true;
     }
 
-    public boolean isWithLimitedBy() {
+    public boolean withLimitedBy() {
         return withLimitedBy;
     }
 

@@ -84,7 +84,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
                 assertThat(deserialized.getSize(), equalTo(request3.getSize()));
                 assertThat(deserialized.getFieldSortBuilders(), equalTo(request3.getFieldSortBuilders()));
                 assertThat(deserialized.getSearchAfterBuilder(), equalTo(request3.getSearchAfterBuilder()));
-                assertThat(deserialized.isWithLimitedBy(), equalTo(request3.isWithLimitedBy()));
+                assertThat(deserialized.withLimitedBy(), equalTo(request3.withLimitedBy()));
             }
         }
     }

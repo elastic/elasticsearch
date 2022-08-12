@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -70,7 +71,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             realm,
             metadata,
             roleDescriptors,
-            limitedByRoleDescriptors == null ? null : new RoleDescriptorsIntersection(List.of(limitedByRoleDescriptors))
+            limitedByRoleDescriptors == null ? null : new RoleDescriptorsIntersection(List.of(Set.copyOf(limitedByRoleDescriptors)))
         );
     }
 
@@ -97,9 +98,9 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.username = username;
         this.realm = realm;
         this.metadata = metadata == null ? Map.of() : metadata;
-        this.roleDescriptors = roleDescriptors;
+        this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
         // This assertion will need to be changed (or removed) when derived keys are properly supported
-        assert limitedBy == null || limitedBy.roleDescriptorsList().size() == 1 : "cannot only have one set of limited-by role descriptors";
+        assert limitedBy == null || limitedBy.roleDescriptorsList().size() == 1 : "can only have one set of limited-by role descriptors";
         this.limitedBy = limitedBy;
     }
 

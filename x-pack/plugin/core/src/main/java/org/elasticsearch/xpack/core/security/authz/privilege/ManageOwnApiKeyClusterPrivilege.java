@@ -70,7 +70,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 // Ownership of an API key, for regular users, is enforced at the service layer.
                 return true;
             } else if (request instanceof final GetApiKeyRequest getApiKeyRequest) {
-                // An API key with no manage_api_key privilege or higher is not allowed to view any limited-by role descriptors
+                // An API key requires manage_api_key privilege or higher to view any limited-by role descriptors
                 if (authentication.isApiKey() && getApiKeyRequest.withLimitedBy()) {
                     return false;
                 }
@@ -104,8 +104,8 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                         );
                 }
             } else if (request instanceof final QueryApiKeyRequest queryApiKeyRequest) {
-                // An API key with no manage_api_key privilege or higher is not allowed to view any limited-by role descriptors
-                if (authentication.isApiKey() && queryApiKeyRequest.isWithLimitedBy()) {
+                // An API key requires manage_api_key privilege or higher to view any limited-by role descriptors
+                if (authentication.isApiKey() && queryApiKeyRequest.withLimitedBy()) {
                     return false;
                 }
                 return queryApiKeyRequest.isFilterForCurrentUser();

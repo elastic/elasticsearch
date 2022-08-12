@@ -50,8 +50,14 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
         assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
+    }
 
-        // But it is not allowed to view any limited-by role descriptors including its own
+    public void testAuthenticationWithApiKeyAllowsDeniesGetApiKeyWithLimitedByWhenItIsItself() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final User userJoe = new User("joe");
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, apiKeyId);
         assertFalse(
             clusterPermission.check(
                 "cluster:admin/xpack/security/api_key/get",
@@ -247,28 +253,31 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
             .build();
 
-        final QueryApiKeyRequest queryApiKeyRequest1 = new QueryApiKeyRequest(null, null, null, null, null, randomBoolean());
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, randomBoolean());
         if (randomBoolean()) {
-            queryApiKeyRequest1.setFilterForCurrentUser();
+            queryApiKeyRequest.setFilterForCurrentUser();
         }
         assertThat(
             clusterPermission.check(
                 QueryApiKeyAction.NAME,
-                queryApiKeyRequest1,
+                queryApiKeyRequest,
                 randomValueOtherThanMany(Authentication::isApiKey, () -> AuthenticationTestHelper.builder().build())
             ),
-            is(queryApiKeyRequest1.isFilterForCurrentUser())
+            is(queryApiKeyRequest.isFilterForCurrentUser())
         );
+    }
 
-        // An API key cannot view limited-by role descriptors
+    public void testAuthenticationWithApiKeyAllowsDeniesQueryApiKeyWithLimitedBy() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+
         final boolean withLimitedBy = randomBoolean();
-        final QueryApiKeyRequest queryApiKeyRequest2 = new QueryApiKeyRequest(null, null, null, null, null, withLimitedBy);
-        queryApiKeyRequest2.setFilterForCurrentUser();
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, withLimitedBy);
+        queryApiKeyRequest.setFilterForCurrentUser();
         assertThat(
-            clusterPermission.check(QueryApiKeyAction.NAME, queryApiKeyRequest2, AuthenticationTestHelper.builder().apiKey().build(false)),
-            is(false == queryApiKeyRequest2.isWithLimitedBy())
+            clusterPermission.check(QueryApiKeyAction.NAME, queryApiKeyRequest, AuthenticationTestHelper.builder().apiKey().build(false)),
+            is(false == queryApiKeyRequest.withLimitedBy())
         );
-
     }
 
     public void testCheckGrantApiKeyRequestDenied() {

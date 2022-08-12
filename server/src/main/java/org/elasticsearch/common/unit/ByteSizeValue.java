@@ -334,19 +334,31 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     /**
      * @return Constructs a {@link ByteSizeValue} with the bytes resulting from the addition of the arguments' bytes. Note that the
      *         resulting {@link ByteSizeUnit} is bytes.
-     * @throws ArithmeticException if the resulting bytes overflow a long
+     * @throws IllegalArgumentException if any of the arguments have -1 bytes
      */
     public static ByteSizeValue add(ByteSizeValue x, ByteSizeValue y) {
+        if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("one of the arguments has -1 bytes");
+        }
         return ByteSizeValue.ofBytes(Math.addExact(x.getBytes(), y.getBytes()));
     }
 
     /**
      * @return Constructs a {@link ByteSizeValue} with the bytes resulting from the difference of the arguments' bytes. Note that the
      *         resulting {@link ByteSizeUnit} is bytes.
-     * @throws ArithmeticException if the resulting bytes overflow a long
+     * @throws IllegalArgumentException if any of the arguments have -1 bytes
+     * @throws ArithmeticException if result has -1 bytes
      */
     public static ByteSizeValue subtract(ByteSizeValue x, ByteSizeValue y) {
-        return ByteSizeValue.ofBytes(Math.subtractExact(x.getBytes(), y.getBytes()));
+        if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("one of the arguments has -1 bytes");
+        }
+        // No need to use Math.subtractExact here, since we know both arguments are >= 0.
+        ByteSizeValue res = ByteSizeValue.ofBytes(x.getBytes() - y.getBytes());
+        if (res.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new ArithmeticException("subtraction result has -1 bytes");
+        }
+        return res;
     }
 
     /**
@@ -355,7 +367,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
      */
     public static ByteSizeValue min(ByteSizeValue x, ByteSizeValue y) {
         if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
-            throw new IllegalArgumentException("one of the arguments of the min operation has -1 bytes");
+            throw new IllegalArgumentException("one of the arguments has -1 bytes");
         }
         return x.compareTo(y) <= 0 ? x : y;
     }

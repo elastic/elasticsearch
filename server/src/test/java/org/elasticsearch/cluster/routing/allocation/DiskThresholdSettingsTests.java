@@ -211,6 +211,42 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             Matchers.equalTo(ByteSizeValue.ofBytes(61300))
         );
 
+        // Test case for 90 used bytes & threshold 0.90. Should return 100 bytes.
+        newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .build();
+        nss.applySettings(newSettings);
+        assertThat(
+            diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(90L)),
+            Matchers.equalTo(ByteSizeValue.ofBytes(100L))
+        );
+
+        // Test case for 90 used bytes & threshold 0.90 & max headroom of 1 byte. Should return 91 bytes.
+        newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "1b")
+            .build();
+        nss.applySettings(newSettings);
+        assertThat(
+            diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(90L)),
+            Matchers.equalTo(ByteSizeValue.ofBytes(91L))
+        );
+
+        // Test case for 90 used bytes & threshold 0.90 & max headroom of 0 bytes. Should return 90 bytes.
+        newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "0b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "0b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "0b")
+            .build();
+        nss.applySettings(newSettings);
+        assertThat(
+            diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(90L)),
+            Matchers.equalTo(ByteSizeValue.ofBytes(90L))
+        );
+
         // Test random absolute values
 
         final long absolute = between(1, 1000);

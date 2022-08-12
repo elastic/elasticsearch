@@ -268,7 +268,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
         RelativeByteSizeValue relativeCacheSize = FrozenCacheService.SHARED_CACHE_SIZE_SETTING.get(settings);
         assertThat(relativeCacheSize.isAbsolute(), is(false));
         assertThat(relativeCacheSize.isNonZeroSize(), is(true));
-        assertThat(relativeCacheSize.calculateValueWithCeil(ByteSizeValue.ofBytes(10000), null), equalTo(ByteSizeValue.ofBytes(9000)));
+        assertThat(relativeCacheSize.calculateValue(ByteSizeValue.ofBytes(10000), null), equalTo(ByteSizeValue.ofBytes(9000)));
         assertThat(FrozenCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofGb(100)));
     }
 

@@ -458,4 +458,58 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         );
         assertThat(e.getMessage(), containsString("long overflow"));
     }
+
+    public void testMinimum() {
+        assertThat(ByteSizeValue.min(ByteSizeValue.ZERO, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ZERO, ByteSizeValue.ONE), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.ONE), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ofBytes(100L), ByteSizeValue.ONE), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.ofBytes(100L)), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(2L)), is(ByteSizeValue.ofBytes(2L)));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ofBytes(2L), ByteSizeValue.ofBytes(100L)), is(ByteSizeValue.ofBytes(2L)));
+
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(8, ByteSizeUnit.KB), new ByteSizeValue(4, ByteSizeUnit.KB)),
+            is(new ByteSizeValue(4, ByteSizeUnit.KB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(4, ByteSizeUnit.MB), new ByteSizeValue(8, ByteSizeUnit.MB)),
+            is(new ByteSizeValue(4, ByteSizeUnit.MB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(16, ByteSizeUnit.GB), new ByteSizeValue(15, ByteSizeUnit.GB)),
+            is(new ByteSizeValue(15, ByteSizeUnit.GB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(90, ByteSizeUnit.TB), new ByteSizeValue(91, ByteSizeUnit.TB)),
+            is(new ByteSizeValue(90, ByteSizeUnit.TB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(2, ByteSizeUnit.PB), new ByteSizeValue(1, ByteSizeUnit.PB)),
+            is(new ByteSizeValue(1, ByteSizeUnit.PB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(1, ByteSizeUnit.PB), new ByteSizeValue(1, ByteSizeUnit.GB)),
+            is(new ByteSizeValue(1, ByteSizeUnit.GB))
+        );
+
+        ByteSizeValue equalityResult = ByteSizeValue.min(new ByteSizeValue(1024, ByteSizeUnit.MB), new ByteSizeValue(1, ByteSizeUnit.GB));
+        assertThat(equalityResult, is(new ByteSizeValue(1024, ByteSizeUnit.MB)));
+        assertThat(equalityResult.getUnit(), is(ByteSizeUnit.MB));
+
+        equalityResult = ByteSizeValue.min(new ByteSizeValue(1, ByteSizeUnit.GB), new ByteSizeValue(1024, ByteSizeUnit.MB));
+        assertThat(equalityResult, is(new ByteSizeValue(1, ByteSizeUnit.GB)));
+        assertThat(equalityResult.getUnit(), is(ByteSizeUnit.GB));
+
+        String exceptionMessage = "one of the arguments of the min operation has -1 bytes";
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+    }
 }

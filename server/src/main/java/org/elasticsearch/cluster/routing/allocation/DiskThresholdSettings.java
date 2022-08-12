@@ -423,7 +423,7 @@ public class DiskThresholdSettings {
         if (watermark.isAbsolute()) {
             return watermark.getAbsolute();
         }
-        return ByteSizeValue.subtract(total, watermark.calculateValueWithCeil(total, maxHeadroom));
+        return ByteSizeValue.subtract(total, watermark.calculateValue(total, maxHeadroom));
     }
 
     public ByteSizeValue getFreeBytesThresholdLowStage(ByteSizeValue total) {
@@ -458,17 +458,13 @@ public class DiskThresholdSettings {
             // Use percentage instead of ratio, and multiply bytes with 100, to make division with double more accurate (issue #88791).
             ByteSizeValue totalBytes = ByteSizeValue.ofBytes((long) Math.ceil((100 * used.getBytes()) / percentThreshold));
 
-            // So far, we calculated the totalBytes by only considering the percentage watermark, ignoring the possible max headroom
-            // value which can cap the free disk space required. This means that the resulting total size may not be the minimum.
-            // For this reason, we calculate the minimum free disk space required, by taking into account the possible max headroom
-            // value as well which can cap the free disk space required. The following calculation is similar to the
-            // getFreeBytesThreshold() method, with the difference of getting the floor instead of the ceiling in the watermark
-            // calculation function, exactly because we would like to calculate the minimum allowed free disk space to stay below
-            // the watermark rather than above it.
-            ByteSizeValue cappedFreeBytes = ByteSizeValue.subtract(totalBytes, watermark.calculateValueWithFloor(totalBytes, maxHeadroom));
+            if (maxHeadroom.compareTo(ByteSizeValue.MINUS_ONE) > 0) {
+                // If a max headroom is applicable, it can potentially require a smaller total size (used + maxHeadroom) to be stay below
+                // the watermark.
+                totalBytes = ByteSizeValue.min(totalBytes, ByteSizeValue.add(used, maxHeadroom));
+            }
 
-            // Add the capped free bytes to the provided used space in order to return the final minimum total size.
-            return ByteSizeValue.add(cappedFreeBytes, used);
+            return totalBytes;
         } else {
             return used;
         }
@@ -496,7 +492,7 @@ public class DiskThresholdSettings {
     ) {
         if (watermark.isAbsolute()) {
             return includeSettingKey ? watermarkSettingKey + "=" + watermark.getStringRep() : watermark.getStringRep();
-        } else if (watermark.calculateValueWithCeil(total, maxHeadroom).equals(watermark.calculateValueWithCeil(total, null))) {
+        } else if (watermark.calculateValue(total, maxHeadroom).equals(watermark.calculateValue(total, null))) {
             String value = watermark.getStringRep();
             return includeSettingKey ? watermarkSettingKey + "=" + value : value;
         } else {

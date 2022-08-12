@@ -323,9 +323,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public int compareTo(ByteSizeValue other) {
-        long thisValue = size * unit.toBytes(1);
-        long otherValue = other.size * other.unit.toBytes(1);
-        return Long.compare(thisValue, otherValue);
+        return Long.compare(getBytes(), other.getBytes());
     }
 
     @Override
@@ -349,5 +347,16 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
      */
     public static ByteSizeValue subtract(ByteSizeValue x, ByteSizeValue y) {
         return ByteSizeValue.ofBytes(Math.subtractExact(x.getBytes(), y.getBytes()));
+    }
+
+    /**
+     * @return Returns the lesser of the two given {@link ByteSizeValue} arguments. In case of equality, the first argument is returned.
+     * @throws IllegalArgumentException if any of the arguments have -1 bytes
+     */
+    public static ByteSizeValue min(ByteSizeValue x, ByteSizeValue y) {
+        if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("one of the arguments of the min operation has -1 bytes");
+        }
+        return x.compareTo(y) <= 0 ? x : y;
     }
 }

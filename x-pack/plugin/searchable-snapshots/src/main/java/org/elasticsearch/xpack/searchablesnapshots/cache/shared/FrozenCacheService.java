@@ -303,7 +303,7 @@ public class FrozenCacheService implements Releasable {
 
     static long calculateCacheSize(Settings settings, long totalFsSize) {
         return SHARED_CACHE_SIZE_SETTING.get(settings)
-            .calculateValueWithCeil(ByteSizeValue.ofBytes(totalFsSize), SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
+            .calculateValue(ByteSizeValue.ofBytes(totalFsSize), SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
             .getBytes();
     }
 

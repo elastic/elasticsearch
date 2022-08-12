@@ -136,6 +136,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             refresh();
         }
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), equalTo(0L));
+        assertThat(capacity().results().get("warm").requiredCapacity().node().storage().getBytes(), equalTo(0L));
 
         assertAcked(
             client().admin()
@@ -150,6 +151,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         }
 
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
+        assertThat(
+            capacity().results().get("warm").requiredCapacity().node().storage().getBytes(),
+            Matchers.greaterThan(ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
+        );
 
     }
 
@@ -197,7 +202,9 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
         refresh(indexName);
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), equalTo(0L));
+        assertThat(capacity().results().get("warm").requiredCapacity().node().storage().getBytes(), equalTo(0L));
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), equalTo(0L));
+        assertThat(capacity().results().get("cold").requiredCapacity().node().storage().getBytes(), equalTo(0L));
 
         assertAcked(
             client().admin()
@@ -211,8 +218,16 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
 
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
+        assertThat(
+            capacity().results().get("warm").requiredCapacity().node().storage().getBytes(),
+            Matchers.greaterThan(ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
+        );
         // this is not desirable, but one of the caveats of not using data tiers in the ILM policy.
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
+        assertThat(
+            capacity().results().get("cold").requiredCapacity().node().storage().getBytes(),
+            Matchers.greaterThan(ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
+        );
     }
 
     public void testScaleWhileShrinking() throws Exception {

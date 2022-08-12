@@ -30,15 +30,16 @@ support `run_as` delegation.
 
 `run_as` user::
 --
-For the `run_as` user, the the following realms support delegated
-`run_as` lookups by username: `native`, `file`, Active Directory, LDAP.
+{es} supports `run_as` for any realm that supports user lookup.
+Not all realms support user lookup. Refer to the list of <<user-lookup,supported realms>>
+and ensure that the realm you wish to use is configured in a manner that
+supports user lookup.
 
-NOTE: To support `run_as` in the LDAP realm, you have to run in
-<<ldap-realm-configuration,_user search_ mode>>. For Active Directory, you need
-to <<ref-ad-settings,configure a `bind_dn` and `secure_bind_password`>>.
-
-Service tokens, the {es} Token Service, PKI, SAML 2.0, OIDC 1.0, Kerberos, JWT,
-and API keys do not support delegated `run_as` lookups.
+The `run_as` user must be retrieved from a <<realms,realm>> - it is not
+possible to run as a
+<<service-accounts,service account>>,
+<<token-authentication-api-key,API key>> or 
+<<token-authentication-access-token,access token>>.
 --
 
 To submit requests on behalf of other users, you need to have the `run_as`

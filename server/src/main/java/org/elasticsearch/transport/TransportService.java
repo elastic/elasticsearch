@@ -90,14 +90,12 @@ public class TransportService extends AbstractLifecycleComponent
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
-    final Map<Long, TimeoutInfoHolder> timeoutInfoHandlers = Collections.synchronizedMap(
-        new LinkedHashMap<>(100, .75F, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<Long, TimeoutInfoHolder> eldest) {
-                return size() > 100;
-            }
+    final Map<Long, TimeoutInfoHolder> timeoutInfoHandlers = Collections.synchronizedMap(new LinkedHashMap<>(100, .75F, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Long, TimeoutInfoHolder> eldest) {
+            return size() > 100;
         }
-    );
+    });
 
     public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {
     };
@@ -1321,7 +1319,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
-    record TimeoutInfoHolder(DiscoveryNode node, String action, long sentTime, long timeoutTime) { }
+    record TimeoutInfoHolder(DiscoveryNode node, String action, long sentTime, long timeoutTime) {}
 
     /**
      * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the handle methods

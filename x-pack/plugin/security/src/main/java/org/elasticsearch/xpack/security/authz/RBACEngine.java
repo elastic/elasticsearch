@@ -207,7 +207,8 @@ public class RBACEngine implements AuthorizationEngine {
                     // if the authentication is an API key then the request must also contain same API key id
                     String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
-                        return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);
+                        // An API key requires manage_api_key privilege or higher to view any limited-by role descriptors
+                        return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId) && false == getApiKeyRequest.withLimitedBy();
                     } else {
                         return false;
                     }

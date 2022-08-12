@@ -1330,9 +1330,8 @@ public class IndexNameExpressionResolver {
             Consumer<String> expandConsumer
         ) {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
-            final boolean includeHidden = context.getOptions().expandWildcardsHidden();
+            final boolean implicitlyIncludeHidden = expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
             for (IndexAbstraction indexAbstraction : matches) {
-
                 if (indexAbstraction.isSystem()
                     && (indexAbstraction.getType() == Type.DATA_STREAM
                         || indexAbstraction.getParentDataStream() != null
@@ -1340,13 +1339,11 @@ public class IndexNameExpressionResolver {
                     && context.systemIndexAccessPredicate.test(indexAbstraction.getName()) == false) {
                     continue;
                 }
-
                 if (indexAbstraction.isHidden()
-                    && includeHidden == false
-                    && implicitHiddenMatch(indexAbstraction.getName(), expression) == false) {
+                    && context.getOptions().expandWildcardsHidden() == false
+                    && (indexAbstraction.getName().startsWith(".") && implicitlyIncludeHidden) == false) {
                     continue;
                 }
-
                 if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                     expandConsumer.accept(indexAbstraction.getName());
                 } else {
@@ -1361,10 +1358,6 @@ public class IndexNameExpressionResolver {
                     }
                 }
             }
-        }
-
-        private static boolean implicitHiddenMatch(String itemName, String expression) {
-            return itemName.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
         }
 
         private static boolean isEmptyOrTrivialWildcard(List<String> expressions) {

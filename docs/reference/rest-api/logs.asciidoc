@@ -49,7 +49,7 @@ But you can still add any top-level fields and use them in searches and aggregat
 <<dynamic-mapping-runtime-fields, maps dynamic fields as runtime fields>>.
 
 For custom fields that are frequently used in searches or aggregations, you might want to leverage the speed benefits of indexing the field.
-This comes at the expense of a larger index size more processing at ingest time.
+This comes at the expense of a larger index size and more processing at ingest time.
 To index a custom field, <<create-index-template, create an index template>> for your dataset `logs-<dataset>-*` based on the built-in index template for `logs-*-*` and add your custom field to the mappings.
 To immediately apply the setting, <<manually-roll-over-a-data-stream, roll over the data stream>>
 This affects any new data added to the stream after the rollover.
@@ -251,7 +251,7 @@ POST _logs/myapp
 
 '''
 
-Ingests a two log events into the `logs-myapp-default` and `logs-my_other_app-default` data stream, respectively.
+Ingests two log events into the `logs-myapp-default` and `logs-my_other_app-default` data stream, respectively.
 Provides metadata via local metadata events.
 
 [source,console]

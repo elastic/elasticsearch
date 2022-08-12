@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -163,12 +164,18 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         submitUnbatchedTask(
             TASK_SOURCE,
-            new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, threadPool, request, listener.map(response -> {
-                if (request.dryRun() == false) {
-                    response.getExplanations().getYesDecisionMessages().forEach(logger::info);
-                }
-                return response;
-            }))
+            new ClusterRerouteResponseAckedClusterStateUpdateTask(
+                logger,
+                allocationService,
+                threadPool.getThreadContext(),
+                request,
+                listener.map(response -> {
+                    if (request.dryRun() == false) {
+                        response.getExplanations().getYesDecisionMessages().forEach(logger::info);
+                    }
+                    return response;
+                })
+            )
         );
     }
 
@@ -189,13 +196,13 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         ClusterRerouteResponseAckedClusterStateUpdateTask(
             Logger logger,
             AllocationService allocationService,
-            ThreadPool threadPool,
+            ThreadContext context,
             ClusterRerouteRequest request,
             ActionListener<ClusterRerouteResponse> listener
         ) {
             super(Priority.IMMEDIATE);
             this.request = request;
-            this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
+            this.listener = new AllocationActionListener<>(listener, context);
             this.logger = logger;
             this.allocationService = allocationService;
         }

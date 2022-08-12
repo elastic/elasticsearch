@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -76,6 +77,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
+
         ClusterState clusterState = createInitialClusterState(allocationService);
 
         var responseRef = new AtomicReference<ClusterRerouteResponse>();
@@ -88,6 +90,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         var task = new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
             logger,
             allocationService,
+            new ThreadContext(Settings.EMPTY),
             request,
             responseActionListener
         );
@@ -112,6 +115,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         var task = new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
             logger,
             allocationService,
+            new ThreadContext(Settings.EMPTY),
             req,
             ActionListener.noop()
         );

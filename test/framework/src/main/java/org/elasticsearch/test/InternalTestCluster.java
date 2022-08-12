@@ -67,6 +67,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -425,6 +426,9 @@ public final class InternalTestCluster extends TestCluster {
             RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.getKey(),
             RandomNumbers.randomIntBetween(random, 1, 4)
         );
+        // TODO: #89275 interferes with after cluster checks, we disable the health node temporarily so we won't block other development
+        // It's not meant to be merged with master
+        builder.put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false);
         // TODO: currently we only randomize "cluster.no_master_block" between "write" and "metadata_write", as "all" is fragile
         // and fails shards when a master abdicates, which breaks many tests.
         builder.put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));

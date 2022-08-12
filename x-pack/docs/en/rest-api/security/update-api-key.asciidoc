@@ -211,7 +211,7 @@ Which returns the response:
 }
 ----
 
-The API key's effective permissions after the update will the same as the <<security-api-update-api-key-examples-user-permissions, owner user's>>:
+The API key's effective permissions after the update will be the same as the owner user's:
 
 [source,js]
 --------------------------------------------------

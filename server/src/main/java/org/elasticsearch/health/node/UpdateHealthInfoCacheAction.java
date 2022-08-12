@@ -11,9 +11,9 @@ package org.elasticsearch.health.node;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -26,7 +26,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class UpdateHealthInfoCacheAction extends ActionType<UpdateHealthInfoCacheAction.Response> {
+public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends ActionRequest {
         private final String nodeId;
@@ -64,25 +64,14 @@ public class UpdateHealthInfoCacheAction extends ActionType<UpdateHealthInfoCach
         }
     }
 
-    public static class Response extends ActionResponse {
-        public Response(StreamInput input) {
-
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-
-        }
-    }
-
     public static final UpdateHealthInfoCacheAction INSTANCE = new UpdateHealthInfoCacheAction();
     public static final String NAME = "cluster:monitor/update/health/info";
 
     private UpdateHealthInfoCacheAction() {
-        super(NAME, UpdateHealthInfoCacheAction.Response::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class TransportAction extends TransportHealthNodeAction<Request, Response> {
+    public static class TransportAction extends TransportHealthNodeAction<Request, AcknowledgedResponse> {
         private final HealthInfoCache nodeHealthOverview;
 
         @Inject
@@ -100,16 +89,21 @@ public class UpdateHealthInfoCacheAction extends ActionType<UpdateHealthInfoCach
                 threadPool,
                 actionFilters,
                 UpdateHealthInfoCacheAction.Request::new,
-                UpdateHealthInfoCacheAction.Response::new,
+                AcknowledgedResponse::readFrom,
                 ThreadPool.Names.MANAGEMENT
             );
             this.nodeHealthOverview = nodeHealthOverview;
         }
 
         @Override
-        protected void healthOperation(Task task, Request request, ClusterState clusterState, ActionListener<Response> listener) {
+        protected void healthOperation(
+            Task task,
+            Request request,
+            ClusterState clusterState,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
             nodeHealthOverview.updateNodeHealth(request.getNodeId(), request.getDiskHealthInfo());
-            listener.onResponse(null);
+            listener.onResponse(AcknowledgedResponse.of(true));
         }
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -170,7 +171,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             DiskHealthInfo currentHealth = diskCheck.getHealth(healthMetadata, clusterState);
             if (currentHealth.equals(previousHealth) == false) {
                 String nodeId = clusterService.localNode().getId();
-                ActionListener<UpdateHealthInfoCacheAction.Response> listener = ActionListener.wrap(response -> {
+                ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
                     // Update the last reported value if there was no change, that would mean that there
                     // is a new health node that might have not received the value, so we should retry.
                     lastReportedDiskHealthInfo.compareAndSet(previousHealth, currentHealth);

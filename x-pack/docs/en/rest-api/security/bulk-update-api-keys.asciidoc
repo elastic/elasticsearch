@@ -25,7 +25,7 @@ To update API keys, the owner user's credentials are required.
 [[security-api-bulk-update-api-keys-desc]]
 ==== {api-description-title}
 
-This API is similar to <<security-api-update-api-key,update single API Key>> but allows you to apply the same update to multiple API keys in one API call.
+This API is similar to <<security-api-update-api-key,update single API Key>> but allows you to apply the *same update* to multiple API keys in one API call.
 This can greatly improve performance over making individual updates.
 
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
@@ -51,9 +51,9 @@ You can specify the following parameters in the request body.
 `role_descriptors`::
 (Optional, object) The role descriptors to assign to the API keys.
 An API key's effective permissions are an intersection of its assigned privileges and the point in time snapshot of permissions of the owner user.
-If no privileges are assigned, the API key inherits the owner user's full permissions.
 You can assign new privileges by specifying them in this parameter.
-To remove assigned privileges, you can supply an empty `role_descriptors` parameter.
+To remove assigned privileges, you can supply an empty `role_descriptors` parameter, i.e., an empty object `{}`.
+If an API key has no assigned privileges, it inherits the owner user's full permissions.
 The snapshot of the owner's permissions is always updated, whether you supply the `role_descriptors` parameter or not.
 The structure of a role descriptor is the same as the request for the <<security-api-put-role, create or update roles API>>.
 
@@ -225,7 +225,7 @@ Both API keys' effective permissions after the update will be the intersection o
 --------------------------------------------------
 // NOTCONSOLE
 
-The following example removes the API keys' previously assigned permissions.
+The following example removes the API keys' previously assigned permissions, making them inherit the owner user's full permissions.
 
 [source,console]
 ----
@@ -362,7 +362,6 @@ For example:
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> Details about any errors encountered.
-This field is not present in the response when `count` is 0.
+<1> This field is not present in the response when `count` is 0.
 <2> The ID of the API key for which the error occurred.
 <3> The error details may also include a `caused_by` field.

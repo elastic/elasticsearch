@@ -66,9 +66,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_
 public class MlAutoscalingDeciderService implements AutoscalingDeciderService, LocalNodeMasterListener {
 
     private static final Logger logger = LogManager.getLogger(MlAutoscalingDeciderService.class);
-    private static final Duration DEFAULT_MEMORY_REFRESH_RATE = Duration.ofMinutes(15);
     private static final String MEMORY_STALE = "unable to make scaling decision as job memory requirements are stale";
-    private static final long NO_SCALE_DOWN_POSSIBLE = -1L;
     // If ensureScaleDown changes the calculation by more than this much, log the error
     private static final long ACCEPTABLE_DIFFERENCE = ByteSizeValue.ofMb(1).getBytes();
 
@@ -80,15 +78,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     private final NodeLoadDetector nodeLoadDetector;
     private final MlMemoryTracker mlMemoryTracker;
     private final NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
-    private final LongSupplier timeSupplier;
+    private final ScaleTimer scaleTimer;
 
     private volatile boolean isMaster;
     private volatile int maxMachineMemoryPercent;
     private volatile int maxOpenJobs;
     private volatile boolean useAuto;
     private volatile long mlNativeMemoryForLargestMlNode;
-    private volatile long lastTimeToScale;
-    private volatile long scaleDownDetected;
 
     public MlAutoscalingDeciderService(
         MlMemoryTracker memoryTracker,
@@ -113,8 +109,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         setMaxMlNodeSize(MachineLearning.MAX_ML_NODE_SIZE.get(settings));
-        this.timeSupplier = timeSupplier;
-        this.scaleDownDetected = NO_SCALE_DOWN_POSSIBLE;
+        this.scaleTimer = new ScaleTimer(timeSupplier);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
@@ -287,14 +282,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         isMaster = true;
     }
 
-    private void resetScaleDownCoolDown() {
-        this.scaleDownDetected = NO_SCALE_DOWN_POSSIBLE;
-    }
-
-    private boolean newScaleDownCheck() {
-        return scaleDownDetected == NO_SCALE_DOWN_POSSIBLE;
-    }
-
     NativeMemoryCapacity currentScale(final List<DiscoveryNode> machineLearningNodes) {
         return NativeMemoryCapacity.currentScale(machineLearningNodes, maxMachineMemoryPercent, useAuto);
     }
@@ -309,11 +296,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         if (isMaster == false) {
             throw new IllegalArgumentException("request for scaling information is only allowed on the master node");
         }
-        long previousTimeStamp = lastTimeToScale;
-        lastTimeToScale = timeSupplier.getAsLong();
-        if (previousTimeStamp > 0L && lastTimeToScale > previousTimeStamp) {
-            mlMemoryTracker.setAutoscalingCheckInterval(Duration.ofMillis(lastTimeToScale - previousTimeStamp));
-        }
+        scaleTimer.markScale();
+        scaleTimer.lastScaleToScaleIntervalMillis()
+            .ifPresent(scaleInterval -> mlMemoryTracker.setAutoscalingCheckInterval(Duration.ofMillis(scaleInterval)));
 
         final ClusterState clusterState = context.state();
 
@@ -401,7 +386,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             reasonBuilder
         );
         if (scaleUpDecision.isPresent()) {
-            resetScaleDownCoolDown();
+            scaleTimer.resetScaleDownCoolDown();
             return scaleUpDecision.get();
         }
 
@@ -414,7 +399,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             || mlContext.waitingAnomalyJobs.isEmpty() == false
             || partiallyAllocatedModels.isEmpty() == false) {
             // We don't want to continue to consider a scale down if there are now waiting jobs
-            resetScaleDownCoolDown();
+            scaleTimer.resetScaleDownCoolDown();
             return new AutoscalingDeciderResult(
                 context.currentCapacity(),
                 reasonBuilder.setSimpleReason(
@@ -517,7 +502,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 }
             }
 
-            long msLeftToScale = msLeftToDownScale(configuration);
+            long msLeftToScale = scaleTimer.markDownScaleAndGetMillisLeftFromDelay(configuration);
             if (msLeftToScale <= 0) {
                 return scaleDownDecisionResult;
             }
@@ -527,7 +512,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     "not scaling down as the current scale down delay [%s] is not satisfied."
                         + " The last time scale down was detected [%s]. Calculated scaled down capacity [%s] ",
                     downScaleDelay.getStringRep(),
-                    DEFAULT_FORMATTER.format(ofEpochMilli(scaleDownDetected)),
+                    DEFAULT_FORMATTER.format(ofEpochMilli(scaleTimer.downScaleDetectedMillis())),
                     scaleDownDecisionResult.requiredCapacity()
                 )
             );
@@ -539,7 +524,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s] "
                             + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
                         downScaleDelay.getStringRep(),
-                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleDownDetected)),
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleTimer.downScaleDetectedMillis())),
                         TimeValue.timeValueMillis(msLeftToScale).getStringRep()
                     )
                 ).build()
@@ -566,7 +551,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 reasonBuilder.setSimpleReason("Passing currently perceived capacity as no scaling changes are necessary").build()
             );
         }
-        long msLeftToScale = msLeftToDownScale(configuration);
+        long msLeftToScale = scaleTimer.markDownScaleAndGetMillisLeftFromDelay(configuration);
         if (msLeftToScale > 0) {
             return new AutoscalingDeciderResult(
                 context.currentCapacity(),
@@ -576,7 +561,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s] "
                             + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
                         DOWN_SCALE_DELAY.get(configuration).getStringRep(),
-                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleDownDetected)),
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleTimer.downScaleDetectedMillis())),
                         TimeValue.timeValueMillis(msLeftToScale).getStringRep()
                     )
                 ).build()
@@ -1123,15 +1108,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         }
 
         return Optional.empty();
-    }
-
-    private long msLeftToDownScale(Settings configuration) {
-        final long now = timeSupplier.getAsLong();
-        if (newScaleDownCheck()) {
-            scaleDownDetected = now;
-        }
-        TimeValue downScaleDelay = DOWN_SCALE_DELAY.get(configuration);
-        return downScaleDelay.millis() - (now - scaleDownDetected);
     }
 
     @Override

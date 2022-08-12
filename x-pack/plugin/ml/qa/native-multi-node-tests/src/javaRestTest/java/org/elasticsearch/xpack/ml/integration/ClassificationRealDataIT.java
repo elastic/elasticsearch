@@ -1579,7 +1579,6 @@ public class ClassificationRealDataIT extends MlNativeDataFrameAnalyticsIntegTes
         for (String row : DATA) {
             String[] values = row.split(",");
             List<Object> source = List.of(
-                "@timestamp", "2020-12-12",
                 "1stFlrSF",
                 Integer.valueOf(values[0]),
                 "CentralAir",
@@ -1621,9 +1620,6 @@ public class ClassificationRealDataIT extends MlNativeDataFrameAnalyticsIntegTes
         String mapping = """
             {
               "properties": {
-                   "@timestamp": {
-                    "type": "date"
-                   },
                    "1stFlrSF": {
                      "type": "integer"
                    },
@@ -1656,7 +1652,7 @@ public class ClassificationRealDataIT extends MlNativeDataFrameAnalyticsIntegTes
 
     @Override
     boolean supportsInference() {
-        return false;
+        return true;
     }
 
     private static Map<String, Object> getDestDoc(DataFrameAnalyticsConfig config, SearchHit hit) {

@@ -539,51 +539,28 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
 
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
-                indicesAndAliasesContext,
-                state.getMetadata(),
-                "*"
-            ).keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext, "*").keySet();
             assertEquals(newHashSet("bar_bar", "foo_foo", "foo_index", "bar_index", "foo_alias"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
-                onlyIndicesContext,
-                state.getMetadata(),
-                "*"
-            ).keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext, "*").keySet();
             assertEquals(newHashSet("bar_bar", "foo_foo", "foo_index", "bar_index"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
-                indicesAndAliasesContext,
-                state.getMetadata(),
-                "foo*"
-            ).keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext, "foo*").keySet();
             assertEquals(newHashSet("foo_foo", "foo_index", "foo_alias"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
-                onlyIndicesContext,
-                state.getMetadata(),
-                "foo*"
-            ).keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext, "foo*").keySet();
             assertEquals(newHashSet("foo_foo", "foo_index"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
-                indicesAndAliasesContext,
-                state.getMetadata(),
-                "foo_alias"
-            ).keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext, "foo_alias")
+                .keySet();
             assertEquals(newHashSet("foo_alias"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
-                onlyIndicesContext,
-                state.getMetadata(),
-                "foo_alias"
-            ).keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext, "foo_alias").keySet();
             assertEquals(newHashSet(), matches);
         }
     }

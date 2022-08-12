@@ -21,6 +21,7 @@ public class AuthenticateRequest extends ActionRequest {
     public AuthenticateRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().before(Version.V_8_4_0)) {
+            // Older versions included the username as a field
             in.readString();
         }
     }

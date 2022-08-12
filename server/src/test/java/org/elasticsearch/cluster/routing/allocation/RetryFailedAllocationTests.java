@@ -77,7 +77,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         assertThat("reroute should be a no-op", strategy.reroute(clusterState, "test"), sameInstance(clusterState));
 
         // Now allocate replica with retry_failed flag set
-        clusterState = strategy.reroute(
+        AllocationService.CommandsResult result = strategy.reroute(
             clusterState,
             new AllocationCommands(
                 new AllocateReplicaAllocationCommand(INDEX_NAME, 0, getPrimary().currentNodeId().equals("node1") ? "node2" : "node1")
@@ -85,9 +85,9 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
             false,
             true,
             false,
-            ActionListener.noop(),
             ActionListener.noop()
         );
+        clusterState = result.clusterState();
 
         assertEquals(ShardRoutingState.INITIALIZING, getReplica().state());
         clusterState = startShardsAndReroute(strategy, clusterState, getReplica());

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(ExpectedShardSizeAllocationTests.class);
@@ -123,15 +124,16 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         } else {
             toNodeId = "node1";
         }
-        clusterState = allocation.reroute(
+        AllocationService.CommandsResult commandsResult = allocation.reroute(
             clusterState,
             new AllocationCommands(new MoveAllocationCommand("test", 0, existingNodeId, toNodeId)),
             false,
             false,
             false,
-            ActionListener.noop(),
             ActionListener.noop()
         );
+        assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
+        clusterState = commandsResult.clusterState();
         assertEquals(clusterState.getRoutingNodes().node(existingNodeId).iterator().next().state(), ShardRoutingState.RELOCATING);
         assertEquals(clusterState.getRoutingNodes().node(toNodeId).iterator().next().state(), ShardRoutingState.INITIALIZING);
 

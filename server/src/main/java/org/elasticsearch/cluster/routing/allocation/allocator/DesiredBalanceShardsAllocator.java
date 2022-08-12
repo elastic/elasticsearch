@@ -157,20 +157,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     }
 
     @Override
-    public void execute(
-        RoutingAllocation allocation,
-        AllocationCommands commands,
-        boolean explain,
-        boolean retryFailed,
-        ActionListener<RoutingExplanations> listener
-    ) {
-        try {
-            ShardsAllocator.super.execute(allocation, commands, explain, retryFailed, listener);
-            PendingAllocationCommandsService.INSTANCE.addCommands(commands);
-            // TODO enqueue moves to be used in desired balance
-        } catch (RuntimeException e) {
-            logger.warn("Failed to execute allocation commands", e);
-        }
+    public RoutingExplanations execute(RoutingAllocation allocation, AllocationCommands commands, boolean explain, boolean retryFailed) {
+        var explanations = ShardsAllocator.super.execute(allocation, commands, explain, retryFailed);
+        PendingAllocationCommandsService.INSTANCE.addCommands(commands);
+        return explanations;
     }
 
     @Override

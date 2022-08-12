@@ -378,28 +378,24 @@ public class AllocationService {
         }
     }
 
-    public ClusterState reroute(
+    public CommandsResult reroute(
         ClusterState clusterState,
         AllocationCommands commands,
         boolean explain,
         boolean retryFailed,
         boolean dryRun,
-        ActionListener<RoutingExplanations> explanationsListener,
-        ActionListener<Void> rerouteListener
+        ActionListener<Void> reroute
     ) {
         RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
-
-        shardsAllocator.execute(allocation, commands, explain, retryFailed, explanationsListener);
-
+        var explanations = shardsAllocator.execute(allocation, commands, explain, retryFailed);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
-
         if (dryRun == false) {
-            reroute(allocation, rerouteListener);
+            reroute(allocation, reroute);
         } else {
-            rerouteListener.onResponse(null);
+            reroute.onResponse(null);
         }
-        return buildResultAndLogHealthChange(clusterState, allocation, "reroute commands");
+        return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 
     // TODO remove

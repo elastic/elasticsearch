@@ -389,7 +389,7 @@ public class RoutingAllocation {
                     unassignedInfo.getUnassignedTimeInMillis(),
                     unassignedInfo.isDelayed(),
                     unassignedInfo.getLastAllocationStatus(),
-                    Collections.emptySet(),
+                    Set.of(),
                     unassignedInfo.getLastAllocatedNodeId()
                 ),
                 shardRouting.recoverySource(),

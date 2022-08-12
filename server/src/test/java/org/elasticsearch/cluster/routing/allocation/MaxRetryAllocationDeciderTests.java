@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -117,7 +118,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(routingTable.index("idx").shard(0).shard(0).unassignedInfo().getMessage(), containsString("boom"));
 
         // manual resetting of retry count
-        newState = strategy.reroute(clusterState, new AllocationCommands(), false, true).clusterState();
+        newState = strategy.reroute(clusterState, new AllocationCommands(), false, true, false, ActionListener.noop()).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();

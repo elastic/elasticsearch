@@ -2,4 +2,4 @@ pr: 89321
 summary: Handle snapshot restore in file settings
 area: Infra/Core
 type: bug
-issues: []
+issues: [89183]

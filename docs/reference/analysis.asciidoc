@@ -1,7 +1,7 @@
 [[analysis]]
 = Text analysis
 
-:lucene-analysis-docs:  https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis
+:lucene-analysis-docs:  https://lucene.apache.org/core/{lucene_version_path}/analysis/common/org/apache/lucene/analysis
 :lucene-gh-main-link:   https://github.com/apache/lucene/blob/main/lucene
 :lucene-stop-word-link: {lucene-gh-main-link}/analysis/common/src/resources/org/apache/lucene/analysis
 

@@ -95,15 +95,20 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasResponse()) {
-            response.toXContent(builder, params);
+            response.innerToXContent(builder, params);
         } else {
-            builder.startObject();
             // we can assume the template is always json as we convert it before compiling it
             try (InputStream stream = source.streamInput()) {
                 builder.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, XContentType.JSON);
             }
-            builder.endObject();
         }
         return builder;
     }

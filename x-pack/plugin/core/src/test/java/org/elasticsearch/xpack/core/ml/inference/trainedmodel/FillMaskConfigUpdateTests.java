@@ -7,47 +7,61 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.cloneWithNewTruncation;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<FillMaskConfigUpdate> {
+public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<FillMaskConfigUpdate> {
 
-    public void testFromMap() {
-        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(3, "ml-results", new BertTokenizationUpdate(Tokenization.Truncate.FIRST));
+    public static FillMaskConfigUpdate randomUpdate() {
+        FillMaskConfigUpdate.Builder builder = new FillMaskConfigUpdate.Builder();
+        if (randomBoolean()) {
+            builder.setNumTopClasses(randomIntBetween(1, 4));
+        }
+        if (randomBoolean()) {
+            builder.setResultsField(randomAlphaOfLength(8));
+        }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
+        }
+        return builder.build();
+    }
+
+    public static FillMaskConfigUpdate mutateForVersion(FillMaskConfigUpdate instance, Version version) {
+        if (version.before(Version.V_8_1_0)) {
+            return new FillMaskConfigUpdate(instance.getNumTopClasses(), instance.getResultsField(), null);
+        }
+        return instance;
+    }
+
+    @Override
+    Tuple<Map<String, Object>, FillMaskConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
+        int topClasses = randomIntBetween(1, 10);
+        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(topClasses, "ml-results", expectedTokenization);
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-                put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
-                Map<String, Object> truncate = new HashMap<>();
-                truncate.put("truncate", "first");
-                Map<String, Object> bert = new HashMap<>();
-                bert.put("bert", truncate);
-                put("tokenization", bert);
+                put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), topClasses);
             }
         };
-        var pp = FillMaskConfigUpdate.fromMap(config);
-        assertThat(pp, equalTo(expected));
+        return Tuple.tuple(config, expected);
     }
 
-    public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> FillMaskConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
-        );
-        assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
+    @Override
+    FillMaskConfigUpdate fromMap(Map<String, Object> map) {
+        return FillMaskConfigUpdate.fromMap(map);
     }
 
     public void testIsNoop() {
@@ -60,7 +74,7 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
         );
 
         assertFalse(
-            new FillMaskConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(Tokenization.Truncate.SECOND))
+            new FillMaskConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(Tokenization.Truncate.SECOND, null))
                 .build()
                 .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build())
         );
@@ -87,16 +101,13 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
-        Tokenization tokenization = new BertTokenization(
-            originalConfig.getTokenization().doLowerCase(),
-            originalConfig.getTokenization().withSpecialTokens(),
-            originalConfig.getTokenization().maxSequenceLength(),
-            truncate
-        );
+        Tokenization tokenization = cloneWithNewTruncation(originalConfig.getTokenization(), truncate);
         assertThat(
             new FillMaskConfig.Builder(originalConfig).setTokenization(tokenization).build(),
             equalTo(
-                new FillMaskConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(truncate)).build().apply(originalConfig)
+                new FillMaskConfigUpdate.Builder().setTokenizationUpdate(
+                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                ).build().apply(originalConfig)
             )
         );
     }
@@ -113,25 +124,12 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
 
     @Override
     protected FillMaskConfigUpdate createTestInstance() {
-        FillMaskConfigUpdate.Builder builder = new FillMaskConfigUpdate.Builder();
-        if (randomBoolean()) {
-            builder.setNumTopClasses(randomIntBetween(1, 4));
-        }
-        if (randomBoolean()) {
-            builder.setResultsField(randomAlphaOfLength(8));
-        }
-        if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values())));
-        }
-        return builder.build();
+        return randomUpdate();
     }
 
     @Override
     protected FillMaskConfigUpdate mutateInstanceForVersion(FillMaskConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new FillMaskConfigUpdate(instance.getNumTopClasses(), instance.getResultsField(), null);
-        }
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     @Override

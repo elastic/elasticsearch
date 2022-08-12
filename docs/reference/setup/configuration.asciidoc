@@ -113,10 +113,16 @@ Cluster and node settings can be categorized based on how they are configured:
 Dynamic::
 +
 --
+// tag::cluster-setting-precedence[]
 You can configure and update dynamic settings on a running cluster using the
-<<cluster-update-settings,cluster update settings API>>. You can also configure
-dynamic settings locally on an unstarted or shut down node using
-`elasticsearch.yml`.
+ifdef::strip-api-link[]
+cluster update settings API.
+endif::strip-api-link[]
+ifndef::strip-api-link[]
+<<cluster-update-settings,cluster update settings API>>.
+endif::strip-api-link[]
+You can also configure dynamic settings locally on an unstarted or shut down
+node using `elasticsearch.yml`.
 
 Updates made using the cluster update settings API can be _persistent_, which
 apply across cluster restarts, or _transient_, which reset after a cluster
@@ -141,14 +147,20 @@ If you use {ess}, use the {cloud}/ec-add-user-settings.html[user settings]
 feature to configure all cluster settings. This method lets {ess} automatically
 reject unsafe settings that could break your cluster.
 
-If you run {es} on your own hardware, use the <<cluster-update-settings,cluster
-update settings API>> to configure dynamic cluster settings. Only use
-`elasticsearch.yml` for static cluster settings and node settings. The API
-doesn't require a restart and ensures a setting's value is the same on all
-nodes.
+If you run {es} on your own hardware, use the
+ifdef::strip-api-link[]
+cluster update settings API
+endif::strip-api-link[]
+ifndef::strip-api-link[]
+<<cluster-update-settings,cluster update settings API>>
+endif::strip-api-link[]
+to configure dynamic cluster settings. Only use `elasticsearch.yml` for static
+cluster settings and node settings. The API doesn't require a restart and
+ensures a setting's value is the same on all nodes.
 ====
 
 include::{es-repo-dir}/cluster/update-settings.asciidoc[tag=transient-settings-warning]
+// end::cluster-setting-precedence[]
 --
 
 [[static-cluster-setting]]

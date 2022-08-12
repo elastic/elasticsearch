@@ -14,31 +14,9 @@ import org.elasticsearch.env.Environment;
 /**
  * Context that is passed to every bootstrap check to make decisions on.
  */
-public class BootstrapContext {
-    /**
-     * The node's environment
-     */
-    private final Environment environment;
-
-    /**
-     * The node's local state metadata loaded on startup
-     */
-    private final Metadata metadata;
-
-    public BootstrapContext(Environment environment, Metadata metadata) {
-        this.environment = environment;
-        this.metadata = metadata;
-    }
-
-    public Environment environment() {
-        return environment;
-    }
+public record BootstrapContext(Environment environment, Metadata metadata) {
 
     public Settings settings() {
         return environment.settings();
-    }
-
-    public Metadata metadata() {
-        return metadata;
     }
 }

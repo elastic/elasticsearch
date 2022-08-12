@@ -106,8 +106,9 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public HttpRequest removeHeader(String header) {
-            headers.remove(header);
-            return this;
+            final var filteredHeaders = new HashMap<>(headers);
+            filteredHeaders.remove(header);
+            return new FakeHttpRequest(method, uri, content, filteredHeaders, inboundException);
         }
 
         @Override

@@ -10,7 +10,6 @@ package org.elasticsearch.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -25,10 +24,13 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -37,8 +39,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -77,6 +79,8 @@ import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Holder class for several ingest related services.
  */
@@ -87,8 +91,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static final String INGEST_ORIGIN = "ingest";
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
-    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_EXPRESSION_RESOLVER =
-        new IndexNameExpressionResolver.DateMathExpressionResolver();
 
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -102,6 +104,52 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
+
+    /**
+     * Cluster state task executor for ingest pipeline operations
+     */
+    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (currentState, taskContexts) -> {
+        final var allIndexMetadata = currentState.metadata().indices().values();
+        final IngestMetadata initialIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+        var currentIngestMetadata = initialIngestMetadata;
+        for (final var taskContext : taskContexts) {
+            try {
+                final var task = taskContext.getTask();
+                currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
+            } catch (Exception e) {
+                taskContext.onFailure(e);
+            }
+        }
+        final var finalIngestMetadata = currentIngestMetadata;
+        return finalIngestMetadata == initialIngestMetadata
+            ? currentState
+            : currentState.copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
+    };
+
+    /**
+     * Specialized cluster state update task specifically for ingest pipeline operations.
+     * These operations all receive an AcknowledgedResponse.
+     */
+    abstract static class PipelineClusterStateUpdateTask implements ClusterStateTaskListener {
+        final ActionListener<AcknowledgedResponse> listener;
+
+        PipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener) {
+            this.listener = listener;
+        }
+
+        public abstract IngestMetadata execute(IngestMetadata currentIngestMetadata, Collection<IndexMetadata> allIndexMetadata);
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "should not be called";
+        }
+    }
 
     public IngestService(
         ClusterService clusterService,
@@ -263,7 +311,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
-        List<String> resolvedNames = DATE_MATH_EXPRESSION_RESOLVER.resolve(
+        List<String> resolvedNames = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(
             new IndexNameExpressionResolver.ResolverContext(epochMillis),
             List.of(unresolvedIndexName)
         );
@@ -283,48 +331,53 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return innerDelete(request, currentState);
-            }
-        });
-    }
-
-    static ClusterState innerDelete(DeletePipelineRequest request, ClusterState currentState) {
-        IngestMetadata currentIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
-        if (currentIngestMetadata == null) {
-            return currentState;
-        }
-        Map<String, PipelineConfiguration> pipelines = currentIngestMetadata.getPipelines();
-        Set<String> toRemove = new HashSet<>();
-        for (String pipelineKey : pipelines.keySet()) {
-            if (Regex.simpleMatch(request.getId(), pipelineKey)) {
-                toRemove.add(pipelineKey);
-            }
-        }
-        if (toRemove.isEmpty() && Regex.isMatchAllPattern(request.getId()) == false) {
-            throw new ResourceNotFoundException("pipeline [{}] is missing", request.getId());
-        } else if (toRemove.isEmpty()) {
-            return currentState;
-        }
-        final Map<String, PipelineConfiguration> pipelinesCopy = new HashMap<>(pipelines);
-        ImmutableOpenMap<String, IndexMetadata> indices = currentState.metadata().indices();
-        for (String key : toRemove) {
-            validateNotInUse(key, indices);
-            pipelinesCopy.remove(key);
-        }
-        ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metadata(
-            Metadata.builder(currentState.getMetadata()).putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelinesCopy)).build()
+        clusterService.submitStateUpdateTask(
+            "delete-pipeline-" + request.getId(),
+            new DeletePipelineClusterStateUpdateTask(listener, request),
+            ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
+            PIPELINE_TASK_EXECUTOR
         );
-        return newState.build();
     }
 
-    static void validateNotInUse(String pipeline, ImmutableOpenMap<String, IndexMetadata> indices) {
+    // visible for testing
+    static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
+        private final DeletePipelineRequest request;
+
+        DeletePipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, DeletePipelineRequest request) {
+            super(listener);
+            this.request = request;
+        }
+
+        @Override
+        public IngestMetadata execute(IngestMetadata currentIngestMetadata, Collection<IndexMetadata> allIndexMetadata) {
+            if (currentIngestMetadata == null) {
+                return null;
+            }
+            Map<String, PipelineConfiguration> pipelines = currentIngestMetadata.getPipelines();
+            Set<String> toRemove = new HashSet<>();
+            for (String pipelineKey : pipelines.keySet()) {
+                if (Regex.simpleMatch(request.getId(), pipelineKey)) {
+                    toRemove.add(pipelineKey);
+                }
+            }
+            if (toRemove.isEmpty() && Regex.isMatchAllPattern(request.getId()) == false) {
+                throw new ResourceNotFoundException("pipeline [{}] is missing", request.getId());
+            } else if (toRemove.isEmpty()) {
+                return currentIngestMetadata;
+            }
+            final Map<String, PipelineConfiguration> pipelinesCopy = new HashMap<>(pipelines);
+            for (String key : toRemove) {
+                validateNotInUse(key, allIndexMetadata);
+                pipelinesCopy.remove(key);
+            }
+            return new IngestMetadata(pipelinesCopy);
+        }
+    }
+
+    static void validateNotInUse(String pipeline, Collection<IndexMetadata> allIndexMetadata) {
         List<String> defaultPipelineIndices = new ArrayList<>();
         List<String> finalPipelineIndices = new ArrayList<>();
-        for (IndexMetadata indexMetadata : indices.values()) {
+        for (IndexMetadata indexMetadata : allIndexMetadata) {
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
             if (pipeline.equals(defaultPipeline)) {
@@ -436,12 +489,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             validatePipeline(ingestInfos, request.getId(), config);
-            clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return innerPut(request, currentState);
-                }
-            });
+            clusterService.submitStateUpdateTask(
+                "put-pipeline-" + request.getId(),
+                new PutPipelineClusterStateUpdateTask(listener, request),
+                ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
+                PIPELINE_TASK_EXECUTOR
+            );
         }, listener::onFailure));
     }
 
@@ -504,74 +557,78 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     // visible for testing
-    static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {
-        IngestMetadata currentIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+    static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
+        private final PutPipelineRequest request;
 
-        BytesReference pipelineSource = request.getSource();
-        if (request.getVersion() != null) {
-            var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
-            if (currentPipeline == null) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "version conflict, required version [%s] for pipeline [%s] but no pipeline was found",
-                        request.getVersion(),
-                        request.getId()
-                    )
-                );
-            }
+        PutPipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, PutPipelineRequest request) {
+            super(listener);
+            this.request = request;
+        }
 
-            final Integer currentVersion = currentPipeline.getVersion();
-            if (Objects.equals(request.getVersion(), currentVersion) == false) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "version conflict, required version [%s] for pipeline [%s] but current version is [%s]",
-                        request.getVersion(),
-                        request.getId(),
-                        currentVersion
-                    )
-                );
-            }
+        @Override
+        public IngestMetadata execute(IngestMetadata currentIngestMetadata, Collection<IndexMetadata> allIndexMetadata) {
+            BytesReference pipelineSource = request.getSource();
+            if (request.getVersion() != null) {
+                var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
+                if (currentPipeline == null) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "version conflict, required version [%s] for pipeline [%s] but no pipeline was found",
+                            request.getVersion(),
+                            request.getId()
+                        )
+                    );
+                }
 
-            var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-            final Integer specifiedVersion = (Integer) pipelineConfig.get("version");
-            if (pipelineConfig.containsKey("version") && Objects.equals(specifiedVersion, currentVersion)) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "cannot update pipeline [%s] with the same version [%s]",
-                        request.getId(),
-                        request.getVersion()
-                    )
-                );
-            }
+                final Integer currentVersion = currentPipeline.getVersion();
+                if (Objects.equals(request.getVersion(), currentVersion) == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "version conflict, required version [%s] for pipeline [%s] but current version is [%s]",
+                            request.getVersion(),
+                            request.getId(),
+                            currentVersion
+                        )
+                    );
+                }
 
-            // if no version specified in the pipeline definition, inject a version of [request.getVersion() + 1]
-            if (specifiedVersion == null) {
-                pipelineConfig.put("version", request.getVersion() == null ? 1 : request.getVersion() + 1);
-                try {
-                    var builder = XContentBuilder.builder(request.getXContentType().xContent()).map(pipelineConfig);
-                    pipelineSource = BytesReference.bytes(builder);
-                } catch (IOException e) {
-                    throw new IllegalStateException(e);
+                var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+                final Integer specifiedVersion = (Integer) pipelineConfig.get("version");
+                if (pipelineConfig.containsKey("version") && Objects.equals(specifiedVersion, currentVersion)) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "cannot update pipeline [%s] with the same version [%s]",
+                            request.getId(),
+                            request.getVersion()
+                        )
+                    );
+                }
+
+                // if no version specified in the pipeline definition, inject a version of [request.getVersion() + 1]
+                if (specifiedVersion == null) {
+                    pipelineConfig.put("version", request.getVersion() == null ? 1 : request.getVersion() + 1);
+                    try {
+                        var builder = XContentBuilder.builder(request.getXContentType().xContent()).map(pipelineConfig);
+                        pipelineSource = BytesReference.bytes(builder);
+                    } catch (IOException e) {
+                        throw new IllegalStateException(e);
+                    }
                 }
             }
-        }
 
-        Map<String, PipelineConfiguration> pipelines;
-        if (currentIngestMetadata != null) {
-            pipelines = new HashMap<>(currentIngestMetadata.getPipelines());
-        } else {
-            pipelines = new HashMap<>();
-        }
+            Map<String, PipelineConfiguration> pipelines;
+            if (currentIngestMetadata != null) {
+                pipelines = new HashMap<>(currentIngestMetadata.getPipelines());
+            } else {
+                pipelines = new HashMap<>();
+            }
 
-        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), pipelineSource, request.getXContentType()));
-        ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metadata(
-            Metadata.builder(currentState.getMetadata()).putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines)).build()
-        );
-        return newState.build();
+            pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), pipelineSource, request.getXContentType()));
+            return new IngestMetadata(pipelines);
+        }
     }
 
     void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, String pipelineId, Map<String, Object> pipelineConfig)
@@ -690,8 +747,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
                 if (e != null) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "failed to execute pipeline [{}] for document [{}/{}]",
+                        () -> format(
+                            "failed to execute pipeline [%s] for document [%s/%s]",
                             pipelineId,
                             indexRequest.index(),
                             indexRequest.id()
@@ -745,12 +802,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             });
         } catch (Exception e) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "failed to execute pipeline [{}] for document [{}/{}]",
-                    pipelineId,
-                    indexRequest.index(),
-                    indexRequest.id()
-                ),
+                () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
             onFailure.accept(slot, e);
@@ -831,10 +883,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         String index = indexRequest.index();
         String id = indexRequest.id();
         String routing = indexRequest.routing();
-        Long version = indexRequest.version();
+        long version = indexRequest.version();
         VersionType versionType = indexRequest.versionType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
+        IngestDocument ingestDocument = new IngestDocument(index, id, version, routing, versionType, sourceAsMap);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
             totalMetrics.postIngest(ingestTimeInNanos);
@@ -845,35 +897,60 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
+                org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
 
-                String newIndex = (String) metadataMap.get(IngestDocument.Metadata.INDEX);
                 // it's fine to set all metadata fields all the time, as ingest document holds their starting values
                 // before ingestion, which might also get modified during ingestion.
-                indexRequest.index(newIndex);
-                indexRequest.id((String) metadataMap.get(IngestDocument.Metadata.ID));
-                indexRequest.routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
-                indexRequest.version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
-                if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
-                    indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
+                indexRequest.index(metadata.getIndex());
+                indexRequest.id(metadata.getId());
+                indexRequest.routing(metadata.getRouting());
+                indexRequest.version(metadata.getVersion());
+                if (metadata.getVersionType() != null) {
+                    indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
                 }
-                if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
-                    indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
+                Number number;
+                if ((number = metadata.getIfSeqNo()) != null) {
+                    indexRequest.setIfSeqNo(number.longValue());
                 }
-                if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
-                    indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
+                if ((number = metadata.getIfPrimaryTerm()) != null) {
+                    indexRequest.setIfPrimaryTerm(number.longValue());
                 }
-                indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
-                if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
+                try {
+                    boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
+                    indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
+                } catch (IllegalArgumentException ex) {
+                    // An IllegalArgumentException can be thrown when an ingest
+                    // processor creates a source map that is self-referencing.
+                    // In that case, we catch and wrap the exception so we can
+                    // include which pipeline failed.
+                    totalMetrics.ingestFailed();
+                    handler.accept(
+                        new IllegalArgumentException(
+                            "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
+                            ex
+                        )
+                    );
+                    return;
+                }
+                Map<String, String> map;
+                if ((map = metadata.getDynamicTemplates()) != null) {
                     Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    @SuppressWarnings("unchecked")
-                    Map<String, String> map = (Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES);
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
+                postIngest(ingestDocument, indexRequest);
+
                 handler.accept(null);
             }
         });
+    }
+
+    private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {
+        // cache timestamp from ingest source map
+        Object rawTimestamp = ingestDocument.getSourceAndMetadata().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (rawTimestamp != null && indexRequest.getRawTimestamp() == null) {
+            indexRequest.setRawTimestamp(rawTimestamp);
+        }
     }
 
     @Override

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -28,7 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
@@ -59,6 +56,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.core.ml.job.results.Influencer;
+import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -185,14 +187,25 @@ public class JobDataDeleter {
     }
 
     /**
-     * Asynchronously delete all result types (Buckets, Records, Influencers) from {@code cutOffTime}
+     * Asynchronously delete all result types (Buckets, Records, Influencers) from {@code cutOffTime}.
+     * Forecasts are <em>not</em> deleted, as they will not be automatically regenerated after
+     * restarting a datafeed following a model snapshot reversion.
      *
      * @param cutoffEpochMs Results at and after this time will be deleted
      * @param listener Response listener
      */
     public void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener) {
         QueryBuilder query = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
+            .filter(
+                QueryBuilders.termsQuery(
+                    Result.RESULT_TYPE.getPreferredName(),
+                    AnomalyRecord.RESULT_TYPE_VALUE,
+                    Bucket.RESULT_TYPE_VALUE,
+                    BucketInfluencer.RESULT_TYPE_VALUE,
+                    Influencer.RESULT_TYPE_VALUE,
+                    ModelPlot.RESULT_TYPE_VALUE
+                )
+            )
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -395,7 +408,7 @@ public class JobDataDeleter {
 
         // Step 5. Get the job as the initial result index name is required
         ActionListener<Boolean> deleteAnnotationsHandler = ActionListener.wrap(
-            response -> jobConfigProvider.getJob(jobId, getJobHandler),
+            response -> jobConfigProvider.getJob(jobId, null, getJobHandler),
             failureHandler
         );
 
@@ -481,20 +494,18 @@ public class JobDataDeleter {
     private IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
         Set<String> aliases = new HashSet<>();
         List<String> indices = new ArrayList<>();
-        for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
+        for (var entry : getAliasesResponse.getAliases().entrySet()) {
             // The response includes _all_ indices, but only those associated with
             // the aliases we asked about will have associated AliasMetadata
-            if (entry.value.isEmpty() == false) {
-                indices.add(entry.key);
-                entry.value.forEach(metadata -> aliases.add(metadata.getAlias()));
+            if (entry.getValue().isEmpty() == false) {
+                indices.add(entry.getKey());
+                entry.getValue().forEach(metadata -> aliases.add(metadata.getAlias()));
             }
         }
         return aliases.isEmpty()
             ? null
             : new IndicesAliasesRequest().addAliasAction(
-                IndicesAliasesRequest.AliasActions.remove()
-                    .aliases(aliases.toArray(new String[aliases.size()]))
-                    .indices(indices.toArray(new String[indices.size()]))
+                IndicesAliasesRequest.AliasActions.remove().aliases(aliases.toArray(new String[0])).indices(indices.toArray(new String[0]))
             );
     }
 

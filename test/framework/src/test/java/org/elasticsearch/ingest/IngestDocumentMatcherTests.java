@@ -22,44 +22,43 @@ public class IngestDocumentMatcherTests extends ESTestCase {
     public void testDifferentMapData() {
         Map<String, Object> sourceAndMetadata1 = new HashMap<>();
         sourceAndMetadata1.put("foo", "bar");
-        IngestDocument document1 = new IngestDocument(sourceAndMetadata1, new HashMap<>());
-        IngestDocument document2 = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(sourceAndMetadata1);
+        IngestDocument document2 = TestIngestDocument.emptyIngestDocument();
         assertThrowsOnComparision(document1, document2);
     }
 
     public void testDifferentLengthListData() {
         String rootKey = "foo";
-        IngestDocument document1 = new IngestDocument(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")), new HashMap<>());
-        IngestDocument document2 = new IngestDocument(Collections.singletonMap(rootKey, Collections.emptyList()), new HashMap<>());
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")));
+        IngestDocument document2 = TestIngestDocument.withDefaultVersion(Collections.singletonMap(rootKey, Collections.emptyList()));
         assertThrowsOnComparision(document1, document2);
     }
 
     public void testDifferentNestedListFieldData() {
         String rootKey = "foo";
-        IngestDocument document1 = new IngestDocument(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")), new HashMap<>());
-        IngestDocument document2 = new IngestDocument(Collections.singletonMap(rootKey, Arrays.asList("bar", "blub")), new HashMap<>());
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")));
+        IngestDocument document2 = TestIngestDocument.withDefaultVersion(Collections.singletonMap(rootKey, Arrays.asList("bar", "blub")));
         assertThrowsOnComparision(document1, document2);
     }
 
     public void testDifferentNestedMapFieldData() {
         String rootKey = "foo";
-        IngestDocument document1 = new IngestDocument(
-            Collections.singletonMap(rootKey, Collections.singletonMap("bar", "baz")),
-            new HashMap<>()
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(
+            Collections.singletonMap(rootKey, Collections.singletonMap("bar", "baz"))
         );
-        IngestDocument document2 = new IngestDocument(
-            Collections.singletonMap(rootKey, Collections.singletonMap("bar", "blub")),
-            new HashMap<>()
+        IngestDocument document2 = TestIngestDocument.withDefaultVersion(
+            Collections.singletonMap(rootKey, Collections.singletonMap("bar", "blub"))
         );
         assertThrowsOnComparision(document1, document2);
     }
 
     public void testOnTypeConflict() {
         String rootKey = "foo";
-        IngestDocument document1 = new IngestDocument(Collections.singletonMap(rootKey, Collections.singletonList("baz")), new HashMap<>());
-        IngestDocument document2 = new IngestDocument(
-            Collections.singletonMap(rootKey, Collections.singletonMap("blub", "blab")),
-            new HashMap<>()
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(
+            Collections.singletonMap(rootKey, Collections.singletonList("baz"))
+        );
+        IngestDocument document2 = TestIngestDocument.withDefaultVersion(
+            Collections.singletonMap(rootKey, Collections.singletonMap("blub", "blab"))
         );
         assertThrowsOnComparision(document1, document2);
     }

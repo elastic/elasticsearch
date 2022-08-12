@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -16,12 +15,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
@@ -35,6 +33,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Reads state documents of a stream, splits them and persists to an index via a bulk request.
@@ -154,7 +154,7 @@ public class IndexingStateProcessor implements StateProcessor {
                 );
             } catch (Exception ex) {
                 String msg = "failed indexing updated state docs";
-                LOGGER.error(() -> new ParameterizedMessage("[{}] {}", jobId, msg), ex);
+                LOGGER.error(() -> format("[%s] %s", jobId, msg), ex);
                 auditor.error(jobId, msg + " error: " + ex.getMessage());
             }
         }
@@ -170,13 +170,7 @@ public class IndexingStateProcessor implements StateProcessor {
      * Only first non-blank line is parsed and document id is assumed to be a nested "index._id" field of type String.
      */
     static String extractDocId(String firstNonBlankLine) throws IOException {
-        try (
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE,
-                firstNonBlankLine
-            )
-        ) {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, firstNonBlankLine)) {
             Map<String, Object> map = parser.map();
             if ((map.get("index") instanceof Map) == false) {
                 throw new IllegalStateException("Could not extract \"index\" field out of [" + firstNonBlankLine + "]");
@@ -224,6 +218,7 @@ public class IndexingStateProcessor implements StateProcessor {
         SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).allowPartialSearchResults(false)
             .source(
                 new SearchSourceBuilder().size(1)
+                    .fetchSource(false)
                     .trackTotalHits(false)
                     .query(new BoolQueryBuilder().filter(new IdsQueryBuilder().addIds(documentId)))
             );

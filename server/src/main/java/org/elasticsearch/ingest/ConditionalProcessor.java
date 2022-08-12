@@ -87,7 +87,29 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     }
 
     @Override
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        assert isAsync() == false;
+
+        final boolean matches = evaluate(ingestDocument);
+        if (matches) {
+            long startTimeInNanos = relativeTimeProvider.getAsLong();
+            try {
+                metric.preIngest();
+                return processor.execute(ingestDocument);
+            } catch (Exception e) {
+                metric.ingestFailed();
+                throw e;
+            } finally {
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
+            }
+        }
+        return ingestDocument;
+    }
+
+    @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        assert isAsync();
         final boolean matches;
         try {
             matches = evaluate(ingestDocument);
@@ -112,11 +134,6 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         } else {
             handler.accept(ingestDocument, null);
         }
-    }
-
-    @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     boolean evaluate(IngestDocument ingestDocument) {

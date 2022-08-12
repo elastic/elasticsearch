@@ -155,7 +155,8 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             request.fieldMultiValueLeniency(),
             request.indexIncludeFrozen(),
             new TaskId(clusterService.localNode().getId(), task.getId()),
-            task
+            task,
+            request.allowPartialSearchResults()
         );
 
         if (Strings.hasText(request.cursor()) == false) {
@@ -177,7 +178,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 log
             );
         } else {
-            Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
+            Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor(), planExecutor.writeableRegistry());
             planExecutor.nextPage(
                 cfg,
                 decoded.v1(),

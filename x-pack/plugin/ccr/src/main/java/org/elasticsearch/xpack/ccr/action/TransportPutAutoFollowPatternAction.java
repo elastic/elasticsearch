@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -94,13 +96,16 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             return;
         }
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
-        final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
             ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
                 if (e == null) {
-                    clusterService.submitStateUpdateTask(
+                    submitUnbatchedTask(
                         "put-auto-follow-pattern-" + request.getRemoteCluster(),
                         new AckedClusterStateUpdateTask(request, listener) {
                             @Override
@@ -119,7 +124,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         clusterStateRequest.clear();
         clusterStateRequest.metadata(true);
 
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+        CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
             client,
             request.getRemoteCluster(),
             clusterStateRequest,
@@ -127,6 +132,11 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             consumer
         );
 
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState innerPut(
@@ -201,13 +211,10 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             request.getParameters().getReadPollTimeout()
         );
         patterns.put(request.getName(), autoFollowPattern);
-        ClusterState.Builder newState = ClusterState.builder(localState);
-        newState.metadata(
-            Metadata.builder(localState.getMetadata())
-                .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
-                .build()
+
+        return localState.copyAndUpdateMetadata(
+            metadata -> metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
         );
-        return newState.build();
     }
 
     private static void markExistingIndicesAsAutoFollowedForNewPatterns(

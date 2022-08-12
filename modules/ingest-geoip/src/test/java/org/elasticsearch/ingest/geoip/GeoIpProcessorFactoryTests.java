@@ -305,7 +305,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         }
 
         final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
-        final IngestDocument document = new IngestDocument("index", "id", "routing", 1L, VersionType.EXTERNAL, field);
+        final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -368,7 +368,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         }
 
         final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
-        final IngestDocument document = new IngestDocument("index", "id", "routing", 1L, VersionType.EXTERNAL, field);
+        final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

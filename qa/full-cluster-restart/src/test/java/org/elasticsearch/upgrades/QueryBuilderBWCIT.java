@@ -8,7 +8,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -18,11 +17,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -34,10 +33,8 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -63,35 +60,35 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
 
     static {
         addCandidate("""
-            "match": { "keyword_field": "value"}
-            """, new MatchQueryBuilder("keyword_field", "value"));
+            "match": { "text_field": "value"}
+            """, new MatchQueryBuilder("text_field", "value"));
         addCandidate("""
-            "match": { "keyword_field": {"query": "value", "operator": "and"} }
-            """, new MatchQueryBuilder("keyword_field", "value").operator(Operator.AND));
+            "match": { "text_field": {"query": "value", "operator": "and"} }
+            """, new MatchQueryBuilder("text_field", "value").operator(Operator.AND));
         addCandidate("""
-            "match": { "keyword_field": {"query": "value", "analyzer": "english"} }
-            """, new MatchQueryBuilder("keyword_field", "value").analyzer("english"));
+            "match": { "text_field": {"query": "value", "analyzer": "english"} }
+            """, new MatchQueryBuilder("text_field", "value").analyzer("english"));
         addCandidate("""
-            "match": { "keyword_field": {"query": "value", "minimum_should_match": 3} }
-            """, new MatchQueryBuilder("keyword_field", "value").minimumShouldMatch("3"));
+            "match": { "text_field": {"query": "value", "minimum_should_match": 3} }
+            """, new MatchQueryBuilder("text_field", "value").minimumShouldMatch("3"));
         addCandidate("""
-            "match": { "keyword_field": {"query": "value", "fuzziness": "auto"} }
-            """, new MatchQueryBuilder("keyword_field", "value").fuzziness(Fuzziness.AUTO));
+            "match": { "text_field": {"query": "value", "fuzziness": "auto"} }
+            """, new MatchQueryBuilder("text_field", "value").fuzziness(Fuzziness.AUTO));
         addCandidate("""
-            "match_phrase": { "keyword_field": "value"}
-            """, new MatchPhraseQueryBuilder("keyword_field", "value"));
+            "match_phrase": { "text_field": "value"}
+            """, new MatchPhraseQueryBuilder("text_field", "value"));
         addCandidate("""
-            "match_phrase": { "keyword_field": {"query": "value", "slop": 3}}
-            """, new MatchPhraseQueryBuilder("keyword_field", "value").slop(3));
+            "match_phrase": { "text_field": {"query": "value", "slop": 3}}
+            """, new MatchPhraseQueryBuilder("text_field", "value").slop(3));
         addCandidate("""
             "range": { "long_field": {"gte": 1, "lte": 9}}
             """, new RangeQueryBuilder("long_field").from(1).to(9));
         addCandidate(
             """
-                "bool": { "must_not": [{"match_all": {}}], "must": [{"match_all": {}}], "filter": [{"match_all": {}}], \
+                "bool": { "must_not": [{"match_none": {}}], "must": [{"match_all": {}}], "filter": [{"match_all": {}}], \
                 "should": [{"match_all": {}}]}
                 """,
-            new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder())
+            new BoolQueryBuilder().mustNot(new MatchNoneQueryBuilder())
                 .must(new MatchAllQueryBuilder())
                 .filter(new MatchAllQueryBuilder())
                 .should(new MatchAllQueryBuilder())
@@ -180,6 +177,11 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                     mappingsAndSettings.endObject();
                 }
                 {
+                    mappingsAndSettings.startObject("text_field");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                {
                     mappingsAndSettings.startObject("long_field");
                     mappingsAndSettings.field("type", "long");
                     mappingsAndSettings.endObject();
@@ -212,7 +214,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                     """.formatted(i));
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
-                Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) toMap(rsp).get("hits")).get("hits")).get(0);
+                var hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) responseAsMap(rsp).get("hits")).get("hits")).get(0);
                 String queryBuilderStr = (String) ((List<?>) ((Map<?, ?>) hitRsp.get("fields")).get("query.query_builder_field")).get(0);
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
                 try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {
@@ -225,13 +227,5 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 }
             }
         }
-    }
-
-    private static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    private static Map<String, Object> toMap(String response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 }

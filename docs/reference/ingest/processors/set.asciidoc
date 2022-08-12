@@ -72,6 +72,7 @@ Result:
       "doc" : {
         "_index" : "_index",
         "_id" : "_id",
+        "_version" : "-3",
         "_source" : {
           "host" : {
             "os" : {
@@ -127,6 +128,7 @@ Result:
       "doc" : {
         "_index" : "_index",
         "_id" : "_id",
+        "_version" : "-3",
         "_source" : {
           "bar": ["foo1", "foo2"],
           "foo": ["foo1", "foo2"]

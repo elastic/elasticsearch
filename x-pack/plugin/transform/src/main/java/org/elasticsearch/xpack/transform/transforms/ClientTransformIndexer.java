@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -65,6 +64,8 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.core.Strings.format;
 
 class ClientTransformIndexer extends TransformIndexer {
 
@@ -286,6 +287,7 @@ class ClientTransformIndexer extends TransformIndexer {
             seqNoPrimaryTermAndIndex,
             ActionListener.wrap(r -> {
                 updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
+                context.resetStatePersistenceFailureCount();
 
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
@@ -310,12 +312,14 @@ class ClientTransformIndexer extends TransformIndexer {
                 if (org.elasticsearch.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
                     // this should never happen, but indicates a race condition in state persistence:
                     // - there should be only 1 save persistence at a time
-                    // - this is not a catastrophic failure, if 2 state persistence calls run at the same time, 1 should succeed and update
-                    // seqNoPrimaryTermAndIndex
-                    // - for tests fail(assert), so we can debug the problem
-                    logger.error(
-                        new ParameterizedMessage(
-                            "[{}] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
+                    // - there are reasons the seq_id, primary_term changes without user intervention, e.g. an internal
+                    // retry (seq_id) or an unexpected node failure (primary_term), these are rare
+                    // - in case re-get the versions and retry on the next persistence
+                    // - the transform can (extremely unlikely) fail if state persistence fails in a row
+                    // - for tests the number of allowed retries is set to 0 and therefore causes the transform to fail
+                    logger.warn(
+                        () -> format(
+                            "[%s] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
                             transformConfig.getId()
                         ),
                         statsExc
@@ -325,10 +329,24 @@ class ClientTransformIndexer extends TransformIndexer {
                         "Failure updating stats of transform, unexpected version conflict of internal state, resetting to recover: "
                             + statsExc.getMessage()
                     );
-                    assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
+
+                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings()) == false) {
+                        // get the current seqNo and primary term, however ignore the stored state
+                        transformsConfigManager.getTransformStoredDoc(
+                            transformConfig.getId(),
+                            false,
+                            ActionListener.wrap(storedDocAndSeqNoPrimaryTerm -> {
+                                updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, storedDocAndSeqNoPrimaryTerm.v2());
+                                listener.onFailure(statsExc);
+                            }, e2 -> listener.onFailure(statsExc))
+                        );
+                        // wrapped listener gets called
+                        return;
+                    }
                 } else {
-                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
+                    logger.warn(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
+                    failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings());
                 }
                 listener.onFailure(statsExc);
             })
@@ -336,14 +354,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
-        logger.debug(
-            () -> new ParameterizedMessage(
-                "[{}] Updated state document from [{}] to [{}]",
-                transformConfig.getId(),
-                expectedValue,
-                newValue
-            )
-        );
+        logger.debug(() -> format("[%s] Updated state document from [%s] to [%s]", transformConfig.getId(), expectedValue, newValue));
         boolean updated = seqNoPrimaryTermAndIndexHolder.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
         // famous last words...
@@ -399,7 +410,7 @@ class ClientTransformIndexer extends TransformIndexer {
             closePitRequest,
             ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
-                logger.error(new ParameterizedMessage("[{}] Failed to close point in time reader", getJobId()), e);
+                logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
             })
         );
     }
@@ -458,10 +469,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     disablePit = true;
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Failed to create a point in time reader, falling back to normal search.",
-                            getJobId()
-                        ),
+                        () -> format("[%s] Failed to create a point in time reader, falling back to normal search.", getJobId()),
                         e
                     );
                 }
@@ -504,11 +512,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
                 if (unwrappedException instanceof SearchContextMissingException) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Search context missing, falling back to normal search; request [{}]",
-                            getJobId(),
-                            name
-                        ),
+                        () -> format("[%s] Search context missing, falling back to normal search; request [%s]", getJobId(), name),
                         e
                     );
                     namedPits.remove(name);

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -273,7 +272,7 @@ public final class DestinationIndex {
         assert getIndexResponse.indices().length == 1;
 
         // Fetch mappings from destination index
-        Map<String, Object> destMappingsAsMap = getIndexResponse.mappings().valuesIt().next().sourceAsMap();
+        Map<String, Object> destMappingsAsMap = getIndexResponse.mappings().values().iterator().next().sourceAsMap();
         Map<String, Object> destPropertiesAsMap = (Map<String, Object>) destMappingsAsMap.getOrDefault(PROPERTIES, Collections.emptyMap());
 
         // Verify that the results field does not exist in the dest index
@@ -335,7 +334,7 @@ public final class DestinationIndex {
             String createdVersionString = (String) version.get(CREATED);
             return Version.fromString(createdVersionString);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("[{}] Could not retrieve destination index version", jobId), e);
+            logger.error(() -> "[" + jobId + "] Could not retrieve destination index version", e);
             return null;
         }
     }

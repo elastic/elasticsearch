@@ -30,16 +30,13 @@ public class StringMatcherTests extends ESTestCase {
     public void testMatchAllWildcard() throws Exception {
         Supplier<String> randomPattern = () -> {
             final String s = randomAlphaOfLengthBetween(3, 5);
-            switch (randomIntBetween(1, 4)) {
-                case 1:
-                    return s;
-                case 2:
-                    return s + "*";
-                case 3:
-                    return "*" + s;
-                default:
-                    return "*" + s + "*";
-            }
+            return switch (randomIntBetween(1, 4)) {
+                case 1 -> s;
+                case 2 -> s + "*";
+                case 3 -> "*" + s;
+                case 4 -> "*" + s + "*";
+                default -> throw new AssertionError();
+            };
         };
         final List<String> patterns = Stream.of(randomList(0, 3, randomPattern), List.of("*"), randomList(0, 3, randomPattern))
             .flatMap(List::stream)
@@ -111,8 +108,8 @@ public class StringMatcherTests extends ESTestCase {
 
     public void testMultiplePatterns() throws Exception {
         final String prefix1 = randomAlphaOfLengthBetween(3, 5);
-        final String prefix2 = randomAlphaOfLengthBetween(5, 8);
-        final String prefix3 = randomAlphaOfLengthBetween(10, 12);
+        final String prefix2 = randomValueOtherThanMany(s -> s.startsWith(prefix1), () -> randomAlphaOfLengthBetween(5, 8));
+        final String prefix3 = randomValueOtherThanMany(s -> s.startsWith(prefix1), () -> randomAlphaOfLengthBetween(10, 12));
         final String suffix1 = randomAlphaOfLengthBetween(5, 10);
         final String suffix2 = randomAlphaOfLengthBetween(8, 12);
         final String exact1 = randomValueOtherThanMany(
@@ -132,19 +129,32 @@ public class StringMatcherTests extends ESTestCase {
             List.of(prefix1 + "*", prefix2 + "?", "/" + prefix3 + "@/", "*" + suffix1, "/@" + suffix2 + "/", exact1, exact2, exact3)
         );
 
+        final List<Character> nonAlpha = "@/#$0123456789()[]{}<>;:%&".chars()
+            .mapToObj(c -> Character.valueOf((char) c))
+            .collect(Collectors.toList());
+
         assertMatch(matcher, exact1);
         assertMatch(matcher, exact2);
         assertMatch(matcher, exact3);
         assertMatch(matcher, randomAlphaOfLength(3) + suffix1);
         assertMatch(matcher, randomAlphaOfLength(3) + suffix2);
+
+        // Prefix 1 uses '*', it should match any number of trailing chars.
         assertMatch(matcher, prefix1 + randomAlphaOfLengthBetween(1, 5));
+        assertMatch(matcher, prefix1 + randomFrom(nonAlpha));
+        assertMatch(matcher, prefix1 + randomFrom(nonAlpha) + randomFrom(nonAlpha));
+
+        // Prefix 2 uses a `?`, it should match any single trailing char, but not 2 chars.
+        // (We don't test with a trailing alpha because it might match one of the matched suffixes)
         assertMatch(matcher, prefix2 + randomAlphaOfLength(1));
+        assertMatch(matcher, prefix2 + randomFrom(nonAlpha));
+        assertNoMatch(matcher, prefix2 + randomFrom(nonAlpha) + randomFrom(nonAlpha));
+        assertNoMatch(matcher, prefix2 + randomAlphaOfLength(1) + randomFrom(nonAlpha));
+
+        // Prefix 3 uses a regex with '@', it should match any number of trailing chars.
         assertMatch(matcher, prefix3 + randomAlphaOfLengthBetween(1, 5));
-
-        final char[] nonAlpha = "@/#$0123456789()[]{}<>;:%&".toCharArray();
-
-        // Prefix 2 uses a `?`
-        assertNoMatch(matcher, prefix2 + randomFrom(nonAlpha));
+        assertMatch(matcher, prefix3 + randomFrom(nonAlpha));
+        assertMatch(matcher, prefix3 + randomFrom(nonAlpha) + randomFrom(nonAlpha));
 
         for (String pattern : List.of(exact1, exact2, exact3, suffix1, suffix2, exact1, exact2, exact3)) {
             assertNoMatch(matcher, randomFrom(nonAlpha) + pattern + randomFrom(nonAlpha));

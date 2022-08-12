@@ -39,30 +39,27 @@ public class KibanaEnrollmentResponseTests extends AbstractWireSerializingTestCa
 
     @Override
     protected KibanaEnrollmentResponse mutateInstance(KibanaEnrollmentResponse instance) throws IOException {
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                return new KibanaEnrollmentResponse(
-                    randomAlphaOfLengthBetween(14, 20),
-                    new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
-                    randomAlphaOfLength(52)
-                );
-            case 1:
-                return new KibanaEnrollmentResponse(
-                    instance.getTokenName(),
-                    new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
-                    randomAlphaOfLength(52)
-                );
-            case 2:
-                return new KibanaEnrollmentResponse(randomAlphaOfLengthBetween(14, 20), instance.getTokenValue(), randomAlphaOfLength(52));
-            case 3:
-                return new KibanaEnrollmentResponse(
-                    randomAlphaOfLengthBetween(14, 20),
-                    new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
-                    instance.getHttpCa()
-                );
-        }
-        // we never reach here
-        return null;
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new KibanaEnrollmentResponse(
+                randomAlphaOfLengthBetween(14, 20),
+                new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
+                randomAlphaOfLength(52)
+            );
+            case 1 -> new KibanaEnrollmentResponse(
+                instance.getTokenName(),
+                new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
+                randomAlphaOfLength(52)
+            );
+            case 2 -> new KibanaEnrollmentResponse(randomAlphaOfLengthBetween(14, 20), instance.getTokenValue(), randomAlphaOfLength(52));
+            case 3 -> new KibanaEnrollmentResponse(
+                randomAlphaOfLengthBetween(14, 20),
+                new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
+                instance.getHttpCa()
+            );
+            default ->
+                // we never reach here
+                null;
+        };
     }
 
     public void testToXContent() throws IOException {

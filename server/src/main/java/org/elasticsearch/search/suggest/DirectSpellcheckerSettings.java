@@ -130,17 +130,10 @@ public class DirectSpellcheckerSettings {
 
         DirectSpellChecker directSpellChecker = new DirectSpellChecker();
         directSpellChecker.setAccuracy(accuracy());
-        Comparator<SuggestWord> comparator;
-        switch (sort()) {
-            case SCORE:
-                comparator = SCORE_COMPARATOR;
-                break;
-            case FREQUENCY:
-                comparator = LUCENE_FREQUENCY;
-                break;
-            default:
-                throw new IllegalArgumentException("Illegal suggest sort: " + sort());
-        }
+        Comparator<SuggestWord> comparator = switch (sort()) {
+            case SCORE -> SCORE_COMPARATOR;
+            case FREQUENCY -> LUCENE_FREQUENCY;
+        };
         directSpellChecker.setComparator(comparator);
         directSpellChecker.setDistance(stringDistance());
         directSpellChecker.setMaxEdits(maxEdits());

@@ -29,13 +29,6 @@
     </button>
     <button role="tab"
             aria-selected="false"
-            aria-controls="brew-tab-logs"
-            id="brew-logs"
-            tabindex="-1">
-      Brew
-    </button>
-    <button role="tab"
-            aria-selected="false"
             aria-controls="linux-tab-logs"
             id="linux-logs"
             tabindex="-1">
@@ -89,17 +82,6 @@ include::logging.asciidoc[tag=rpm]
 ++++
 
 include::logging.asciidoc[tag=mac]
-
-++++
-  </div>
-  <div tabindex="0"
-       role="tabpanel"
-       id="brew-tab-logs"
-       aria-labelledby="brew-logs"
-       hidden="">
-++++
-
-include::logging.asciidoc[tag=brew]
 
 ++++
   </div>

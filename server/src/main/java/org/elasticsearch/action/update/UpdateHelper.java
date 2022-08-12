@@ -31,14 +31,15 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateCtxMap;
 import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.script.UpsertCtxMap;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
@@ -58,7 +59,7 @@ public class UpdateHelper {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
+    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) throws IOException {
         final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
@@ -87,25 +88,16 @@ public class UpdateHelper {
      * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
      * Tuple of operation and updated {@code _source} is returned.
      */
-    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
-        Map<String, Object> ctx = new HashMap<>(3);
-        // Tell the script that this is a create and not an update
-        ctx.put(ContextFields.OP, UpdateOpType.CREATE.toString());
-        ctx.put(ContextFields.SOURCE, upsertDoc);
-        ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
-        ctx = executeScript(script, ctx);
-
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
-
+    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Script script, UpsertCtxMap ctxMap) {
+        ctxMap = executeScript(script, ctxMap);
+        UpdateOpType operation = UpdateOpType.lenientFromString(ctxMap.getMetadata().getOp(), logger, script.getIdOrCode());
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
             logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
             operation = UpdateOpType.NONE;
         }
 
-        return new Tuple<>(operation, newSource);
+        return new Tuple<>(operation, ctxMap.getSource());
     }
 
     /**
@@ -120,16 +112,17 @@ public class UpdateHelper {
         if (request.scriptedUpsert() && request.script() != null) {
             // Run the script to perform the create logic
             IndexRequest upsert = request.upsertRequest();
-            Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(
-                upsert.sourceAsMap(),
-                request.script,
-                nowInMillis
+            UpsertCtxMap ctxMap = new UpsertCtxMap(
+                getResult.getIndex(),
+                getResult.getId(),
+                UpdateOpType.CREATE.toString(),
+                nowInMillis.getAsLong(),
+                upsert.sourceAsMap()
             );
+            Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(request.script, ctxMap);
             switch (upsertResult.v1()) {
-                case CREATE:
-                    indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
-                    break;
-                case NONE:
+                case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
+                case NONE -> {
                     UpdateResponse update = new UpdateResponse(
                         shardId,
                         getResult.getId(),
@@ -140,7 +133,8 @@ public class UpdateHelper {
                     );
                     update.setGetResult(getResult);
                     return new Result(update, DocWriteResponse.Result.NOOP, upsertResult.v2(), XContentType.JSON);
-                default:
+                }
+                default ->
                     // It's fine to throw an exception here, the leniency is handled/logged by `executeScriptedUpsert`
                     throw new IllegalArgumentException("unknown upsert operation, got: " + upsertResult.v1());
             }
@@ -181,7 +175,7 @@ public class UpdateHelper {
      * Prepare the request for merging the existing document with a new one, can optionally detect a noop change. Returns a {@code Result}
      * containing a new {@code IndexRequest} to be executed on the primary and replicas.
      */
-    Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
+    static Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
@@ -238,27 +232,25 @@ public class UpdateHelper {
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
-        final Map<String, Object> sourceAsMap = sourceAndContent.v2();
 
-        Map<String, Object> ctx = new HashMap<>(16);
-        ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is "index"
-        ctx.put(ContextFields.INDEX, getResult.getIndex());
-        ctx.put(ContextFields.TYPE, MapperService.SINGLE_MAPPING_NAME);
-        ctx.put(ContextFields.ID, getResult.getId());
-        ctx.put(ContextFields.VERSION, getResult.getVersion());
-        ctx.put(ContextFields.ROUTING, routing);
-        ctx.put(ContextFields.SOURCE, sourceAsMap);
-        ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
-
-        ctx = executeScript(request.script, ctx);
-
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
-
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
+        UpdateCtxMap ctxMap = executeScript(
+            request.script,
+            new UpdateCtxMap(
+                getResult.getIndex(),
+                getResult.getId(),
+                getResult.getVersion(),
+                routing,
+                MapperService.SINGLE_MAPPING_NAME,
+                UpdateOpType.INDEX.toString(), // The default operation is "index"
+                nowInMillis.getAsLong(),
+                sourceAndContent.v2()
+            )
+        );
+        UpdateOpType operation = UpdateOpType.lenientFromString(ctxMap.getMetadata().getOp(), logger, request.script.getIdOrCode());
+        final Map<String, Object> updatedSourceAsMap = ctxMap.getSource();
 
         switch (operation) {
-            case INDEX:
+            case INDEX -> {
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
                     .id(request.id())
                     .routing(routing)
@@ -269,7 +261,8 @@ public class UpdateHelper {
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
-            case DELETE:
+            }
+            case DELETE -> {
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
                     .id(request.id())
                     .routing(routing)
@@ -279,7 +272,8 @@ public class UpdateHelper {
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
-            default:
+            }
+            default -> {
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(
                     shardId,
@@ -302,20 +296,21 @@ public class UpdateHelper {
                     )
                 );
                 return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
+            }
         }
     }
 
-    private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
+    private <T extends UpdateCtxMap> T executeScript(Script script, T ctxMap) {
         try {
             if (scriptService != null) {
                 UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-                UpdateScript executableScript = factory.newInstance(script.getParams(), ctx);
+                UpdateScript executableScript = factory.newInstance(script.getParams(), ctxMap);
                 executableScript.execute();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);
         }
-        return ctx;
+        return ctxMap;
     }
 
     /**
@@ -427,6 +422,7 @@ public class UpdateHelper {
                     return UpdateOpType.INDEX;
                 case "delete":
                     return UpdateOpType.DELETE;
+                case "noop":
                 case "none":
                     return UpdateOpType.NONE;
                 default:

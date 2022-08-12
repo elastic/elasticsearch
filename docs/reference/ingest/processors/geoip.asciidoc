@@ -11,7 +11,7 @@ IPv4 or IPv6 address.
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
 ASN GeoIP2 databases from
 http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
-CCA-ShareAlike 4.0 license. {es} automatically downloads updates for
+CC BY-SA 4.0 license. {es} automatically downloads updates for
 these databases from the Elastic GeoIP endpoint:
 https://geoip.elastic.co/v1/database. To get download statistics for these
 updates, use the <<geoip-stats-api,GeoIP stats API>>.
@@ -326,6 +326,12 @@ If you can't connect directly to the Elastic GeoIP endpoint, consider setting up
 a secure proxy. You can then specify the proxy endpoint URL in the
 <<ingest-geoip-downloader-endpoint,`ingest.geoip.downloader.endpoint`>> setting
 of each node’s `elasticsearch.yml` file.
+
+In a strict setup the following domains may need to be added to the allowed
+domains list:
+
+* `geoip.elastic.co`
+* `storage.googleapis.com`
 
 [[use-custom-geoip-endpoint]]
 **Use a custom endpoint**

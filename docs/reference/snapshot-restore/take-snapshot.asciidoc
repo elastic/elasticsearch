@@ -330,15 +330,6 @@ GET _snapshot/_status
 [[check-slm-history]]
 ==== Check {slm-init} history
 
-Use the <<slm-api-get-policy,get {slm-init} policy API>> to check when an
-{slm-init} policy last successfully started the snapshot process. A successful
-start doesn't guarantee the snapshot completed.
-
-[source,console]
-----
-GET _slm/policy/nightly-snapshots
-----
-
 To get more information about a cluster's {slm-init} execution history,
 including stats for each {slm-init} policy, use the <<slm-api-get-stats,get
 {slm-init} stats API>>. The API also returns information about the cluster's
@@ -347,6 +338,20 @@ snapshot retention task history.
 [source,console]
 ----
 GET _slm/stats
+----
+
+To get information about a specific {slm-init} policy's execution history, use
+the <<slm-api-get-policy,get {slm-init} policy API>>. The response includes:
+
+* The next scheduled policy execution.
+* The last time the policy successfully started the snapshot process, if
+  applicable. A successful start doesn't guarantee the snapshot completed.
+* The last time policy execution failed, if applicable, and the associated
+  error.
+
+[source,console]
+----
+GET _slm/policy/nightly-snapshots
 ----
 
 [discrete]
@@ -372,12 +377,15 @@ snapshot doesn't delete files used by other snapshots.
 === Back up configuration files
 
 If you run {es} on your own hardware, we recommend that, in addition to backups,
-you take regular backups of the files in each node's `$ES_PATH_CONF` directory
-using the file backup software of your choice. Snapshots don't back up these
-files.
+you take regular backups of the files in each node's
+<<config-files-location,`$ES_PATH_CONF` directory>> using the file backup software
+of your choice. Snapshots don't back up these files. Also note that these files will
+differ on each node, so each node's files should be backed up individually.
 
-Depending on your setup, some of these configuration files may contain sensitive
-data, such as passwords or keys. If so, consider encrypting your file backups.
+IMPORTANT: The `elasticsearch.keystore`, TLS keys, and <<ref-saml-settings, SAML>>,
+<<ref-oidc-settings, OIDC>>, and <<ref-kerberos-settings, Kerberos>>
+realms private key files contain sensitive information. Consider encrypting
+your backups of these files.
 
 [discrete]
 [[back-up-specific-feature-state]]
@@ -462,7 +470,11 @@ API>>'s response under both `indices` and `feature_states`.
 
 Some feature states contain sensitive data. For example, the `security` feature
 state includes system indices that may contain user names and encrypted password
-hashes.
+hashes. Because passwords are stored using <<hashing-settings, cryptographic hashes>>,
+the disclosure of a snapshot would not automatically enable a third party to
+authenticate as one of your users or use API keys. However, it would disclose
+confidential information, and if a third party can modify snapshots, they could
+install a back door.
 
 To better protect this data, consider creating a dedicated repository and
 {slm-init} policy for snapshots of the cluster state. This lets you strictly

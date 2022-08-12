@@ -606,7 +606,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
             .setAnalysis(regression)
-            .setAnalyzedFields(new FetchSourceContext(true, null, new String[] { "field_1" }))
+            .setAnalyzedFields(FetchSourceContext.of(true, null, new String[] { "field_1" }))
             .build();
         putAnalytics(config);
 
@@ -763,7 +763,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, runtimeFields))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
-            .setAnalyzedFields(new FetchSourceContext(true, new String[] { numericRuntimeField, dependentVariableRuntimeField }, null))
+            .setAnalyzedFields(FetchSourceContext.of(true, new String[] { numericRuntimeField, dependentVariableRuntimeField }, null))
             .setAnalysis(
                 new Regression(
                     dependentVariableRuntimeField,

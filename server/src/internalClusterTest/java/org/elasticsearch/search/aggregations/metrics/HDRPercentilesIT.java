@@ -61,15 +61,9 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         final Set<Double> uniquedPercentiles = new HashSet<>();
         while (uniquedPercentiles.size() < length) {
             switch (randomInt(20)) {
-                case 0:
-                    uniquedPercentiles.add(0.0);
-                    break;
-                case 1:
-                    uniquedPercentiles.add(100.0);
-                    break;
-                default:
-                    uniquedPercentiles.add(randomDouble() * 100);
-                    break;
+                case 0 -> uniquedPercentiles.add(0.0);
+                case 1 -> uniquedPercentiles.add(100.0);
+                default -> uniquedPercentiles.add(randomDouble() * 100);
             }
         }
         double[] percentiles = uniquedPercentiles.stream().mapToDouble(Double::doubleValue).sorted().toArray();

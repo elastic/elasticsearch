@@ -94,7 +94,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
 
         but we get many NaN if we do not take case of the 0s */
 
-    double getMITerm(double Nxy, double Nx_, double N_y, double N) {
+    static double getMITerm(double Nxy, double Nx_, double N_y, double N) {
         double numerator = Math.abs(N * Nxy);
         double denominator = Math.abs(Nx_ * N_y);
         double factor = Math.abs(Nxy / N);

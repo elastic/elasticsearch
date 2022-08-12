@@ -38,6 +38,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.EOFException;
@@ -49,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -329,15 +329,12 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
             if (format > VERSION_74) {
                 byte marker = input.readByte();
                 switch (marker) {
-                    case 1:
+                    case 1 -> {
                         sciId = new byte[StringHelper.ID_LENGTH];
                         input.readBytes(sciId, 0, sciId.length);
-                        break;
-                    case 0:
-                        sciId = null;
-                        break;
-                    default:
-                        throw new CorruptIndexException("invalid SegmentCommitInfo ID marker: " + marker, input);
+                    }
+                    case 0 -> sciId = null;
+                    default -> throw new CorruptIndexException("invalid SegmentCommitInfo ID marker: " + marker, input);
                 }
             } else {
                 sciId = null;
@@ -349,7 +346,7 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
             if (numDVFields == 0) {
                 dvUpdateFiles = Collections.emptyMap();
             } else {
-                Map<Integer, Set<String>> map = new HashMap<>(numDVFields);
+                Map<Integer, Set<String>> map = Maps.newMapWithExpectedSize(numDVFields);
                 for (int i = 0; i < numDVFields; i++) {
                     map.put(CodecUtil.readBEInt(input), input.readSetOfStrings());
                 }

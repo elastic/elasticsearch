@@ -49,7 +49,6 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -291,19 +290,19 @@ public class TransportBulkActionTests extends ESTestCase {
             new ConcreteIndex(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
         );
         SystemIndices systemIndices = new SystemIndices(
-            Map.of("plugin", new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(".test*", ""))))
+            List.of(new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(".test*", ""))))
         );
         List<String> onlySystem = List.of(".foo", ".bar");
-        assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
         onlySystem = List.of(".foo", ".bar", ".test");
-        assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
         List<String> nonSystem = List.of("foo", "bar");
-        assertFalse(bulkAction.isOnlySystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
 
         List<String> mixed = List.of(".foo", ".test", "other");
-        assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
     public void testRejectCoordination() throws Exception {
@@ -337,20 +336,12 @@ public class TransportBulkActionTests extends ESTestCase {
     private BulkRequest buildBulkRequest(List<String> indices) {
         BulkRequest request = new BulkRequest();
         for (String index : indices) {
-            final DocWriteRequest<?> subRequest;
-            switch (randomIntBetween(1, 3)) {
-                case 1:
-                    subRequest = new IndexRequest(index);
-                    break;
-                case 2:
-                    subRequest = new DeleteRequest(index).id("0");
-                    break;
-                case 3:
-                    subRequest = new UpdateRequest(index, "0");
-                    break;
-                default:
-                    throw new IllegalStateException("only have 3 cases");
-            }
+            final DocWriteRequest<?> subRequest = switch (randomIntBetween(1, 3)) {
+                case 1 -> new IndexRequest(index);
+                case 2 -> new DeleteRequest(index).id("0");
+                case 3 -> new UpdateRequest(index, "0");
+                default -> throw new IllegalStateException("only have 3 cases");
+            };
             request.add(subRequest);
         }
         return request;

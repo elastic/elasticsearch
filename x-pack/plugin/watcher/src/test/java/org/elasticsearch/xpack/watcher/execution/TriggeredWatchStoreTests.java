@@ -181,7 +181,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                         state,
                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
                     )
-                ).build()
+                )
             );
             indexRoutingTableBuilder.addReplica();
         }
@@ -206,7 +206,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(shardId).addShard(
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
@@ -255,7 +255,16 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             null,
             null
         );
-        SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null, null);
+        SearchResponse searchResponse3 = new SearchResponse(
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+            "_scrollId2",
+            1,
+            1,
+            0,
+            1,
+            null,
+            null
+        );
 
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];
@@ -329,7 +338,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(shardId).addShard(
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
@@ -363,15 +372,15 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
                 TestShardRouting.newShardRouting("triggered-watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
         indexRoutingTableBuilder.addReplica();
         final Index otherIndex = metadataBuilder.get("whatever").getIndex();
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(
-            new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
+            new IndexShardRoutingTable.Builder(new ShardId(otherIndex, 0)).addShard(
                 TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
 
         csBuilder.metadata(metadataBuilder);
@@ -379,7 +388,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> TriggeredWatchStore.validate(cs));
-        assertThat(e.getMessage(), is("Alias [.triggered_watches] points to more than one index"));
+        assertThat(e.getMessage(), is("Alias [.triggered_watches] points to 2 indices, and does not have a designated write index"));
     }
 
     // this is a special condition that could lead to an NPE in earlier versions

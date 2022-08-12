@@ -1,3 +1,6 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -39,4 +42,14 @@ tasks.named("yamlRestTestV7CompatTest").configure {
         '50_script_values/Script query',
         '50_script_values/script_score query'
     ].join(',')
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}
+
+testClusters.configureEach {
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }

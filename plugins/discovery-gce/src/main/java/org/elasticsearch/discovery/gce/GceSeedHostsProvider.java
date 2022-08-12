@@ -14,8 +14,6 @@ import com.google.api.services.compute.model.NetworkInterface;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -36,6 +34,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.core.Strings.format;
 
 public class GceSeedHostsProvider implements SeedHostsProvider {
 
@@ -231,8 +230,8 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                         if (instance.getMetadata() != null && instance.getMetadata().containsKey("es_port")) {
                             Object es_port = instance.getMetadata().get("es_port");
                             logger.trace("es_port is defined with {}", es_port);
-                            if (es_port instanceof String) {
-                                address = address.concat(":").concat((String) es_port);
+                            if (es_port instanceof String string) {
+                                address = address.concat(":").concat(string);
                             } else {
                                 // Ignoring other values
                                 logger.trace("es_port is instance of {}. Ignoring...", es_port.getClass().getName());
@@ -257,7 +256,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                     }
                 } catch (Exception e) {
                     final String finalIpPrivate = ip_private;
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to add {}, address {}", name, finalIpPrivate), e);
+                    logger.warn(() -> format("failed to add %s, address %s", name, finalIpPrivate), e);
                 }
 
             }

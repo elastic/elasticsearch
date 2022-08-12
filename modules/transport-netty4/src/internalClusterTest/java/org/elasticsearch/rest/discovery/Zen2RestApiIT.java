@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -28,7 +29,6 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -59,7 +59,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         ensureGreen("test");
 
         final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
-        final Map<String, String> nodeIdsByName = new HashMap<>(discoveryNodes.getSize());
+        final Map<String, String> nodeIdsByName = Maps.newMapWithExpectedSize(discoveryNodes.getSize());
         discoveryNodes.forEach(n -> nodeIdsByName.put(n.getName(), n.getId()));
 
         RestClient restClient = getRestClient();
@@ -151,7 +151,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToWithdraw));
+        internalCluster().stopNode(nodeToWithdraw);
         Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/voting_config_exclusions"));
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
@@ -167,8 +167,8 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(2)));
+        internalCluster().stopNode(nodes.get(0));
+        internalCluster().stopNode(nodes.get(2));
         ensureStableCluster(1);
     }
 }

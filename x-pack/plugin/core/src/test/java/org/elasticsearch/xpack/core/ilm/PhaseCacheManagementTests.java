@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.isIndexPhaseDefinitionUpdatable;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.readStepKeys;
@@ -81,7 +82,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         String indexName = meta.getIndex().getName();
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -95,7 +96,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         ClusterState changedState = refreshPhaseDefinition(existingState, indexName, policyMetadata);
 
         IndexMetadata newIdxMeta = changedState.metadata().index(indexName);
-        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
         beforeState.remove("phase_definition");
         Map<String, String> afterState = new HashMap<>(afterExState.asMap());
@@ -104,7 +105,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(afterExState.getPhaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+        assertThat(afterExState.phaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
             {
               "policy": "my-policy",
               "phase_definition": {
@@ -278,6 +279,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 new Step.StepKey("phase", "allocate", AllocationRoutedStep.NAME),
                 new Step.StepKey("phase", "forcemerge", ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP),
                 new Step.StepKey("phase", "forcemerge", CheckNotDataStreamWriteIndexStep.NAME),
+                // This read-only key is now a noop step but we preserved it for backwards compatibility
                 new Step.StepKey("phase", "forcemerge", ReadOnlyAction.NAME),
                 new Step.StepKey("phase", "forcemerge", ForceMergeAction.NAME),
                 new Step.StepKey("phase", "forcemerge", SegmentCountStep.NAME)
@@ -316,7 +318,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, null, 1L));
+            actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -389,7 +391,10 @@ public class PhaseCacheManagementTests extends ESTestCase {
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, TimeValue.timeValueSeconds(5), null));
+            actions.put(
+                "rollover",
+                new RolloverAction(null, null, TimeValue.timeValueSeconds(5), null, null, null, null, null, null, null)
+            );
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
@@ -420,7 +425,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, null, 1L));
+            actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -441,7 +446,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, null, 1L));
+            actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -480,14 +485,14 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertTrue(eligibleToCheckForRefresh(meta));
 
         Map<String, LifecycleAction> oldActions = new HashMap<>();
-        oldActions.put("rollover", new RolloverAction(null, null, null, 1L));
+        oldActions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         oldActions.put("set_priority", new SetPriorityAction(100));
         Phase oldHotPhase = new Phase("hot", TimeValue.ZERO, oldActions);
         Map<String, Phase> oldPhases = Collections.singletonMap("hot", oldHotPhase);
         LifecyclePolicy oldPolicy = new LifecyclePolicy("my-policy", oldPhases);
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -507,7 +512,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(updatedState, equalTo(existingState));
 
         actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 2L));
+        actions.put("rollover", new RolloverAction(null, null, null, 2L, null, null, null, null, null, null));
         actions.put("set_priority", new SetPriorityAction(150));
         hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         phases = Collections.singletonMap("hot", hotPhase);
@@ -539,7 +544,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         IndexMetadata newIdxMeta = updatedState.metadata().index(index);
-        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.asMap());
         beforeState.remove("phase_definition");
         Map<String, String> afterState = new HashMap<>(afterExState.asMap());
@@ -548,7 +553,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(afterExState.getPhaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+        assertThat(afterExState.phaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
             {
               "policy": "my-policy",
               "phase_definition": {

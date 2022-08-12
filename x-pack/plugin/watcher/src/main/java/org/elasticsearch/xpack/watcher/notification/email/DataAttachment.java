@@ -63,14 +63,11 @@ public enum DataAttachment implements ToXContentObject {
     public abstract Attachment create(String id, Map<String, Object> data);
 
     public static DataAttachment resolve(String format) {
-        switch (format.toLowerCase(Locale.ROOT)) {
-            case "yaml":
-                return YAML;
-            case "json":
-                return JSON;
-            default:
-                throw illegalArgument("unknown data attachment format [{}]", format);
-        }
+        return switch (format.toLowerCase(Locale.ROOT)) {
+            case "yaml" -> YAML;
+            case "json" -> JSON;
+            default -> throw illegalArgument("unknown data attachment format [{}]", format);
+        };
     }
 
     public static DataAttachment parse(XContentParser parser) throws IOException {

@@ -7,23 +7,19 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
-import java.util.Collection;
-import java.util.Collections;
+public abstract class AbstractLeafGeoPointFieldData extends LeafGeoPointFieldData {
 
-public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointFieldData {
+    protected final ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory;
 
-    protected final ToScriptField<MultiGeoPointValues> toScriptField;
-
-    public AbstractLeafGeoPointFieldData(ToScriptField<MultiGeoPointValues> toScriptField) {
-        this.toScriptField = toScriptField;
+    public AbstractLeafGeoPointFieldData(ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory) {
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -32,30 +28,7 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
     }
 
     @Override
-    public DocValuesField<?> getScriptField(String name) {
-        return toScriptField.getScriptField(getGeoPointValues(), name);
-    }
-
-    public static LeafGeoPointFieldData empty(final int maxDoc, ToScriptField<MultiGeoPointValues> toScriptField) {
-        return new AbstractLeafGeoPointFieldData(toScriptField) {
-
-            @Override
-            public long ramBytesUsed() {
-                return 0;
-            }
-
-            @Override
-            public Collection<Accountable> getChildResources() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public void close() {}
-
-            @Override
-            public MultiGeoPointValues getGeoPointValues() {
-                return FieldData.emptyMultiGeoPoints();
-            }
-        };
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getGeoPointValues(), name);
     }
 }

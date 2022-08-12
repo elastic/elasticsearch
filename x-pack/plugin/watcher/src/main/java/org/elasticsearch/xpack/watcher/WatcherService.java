@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -59,7 +58,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -136,13 +134,6 @@ public class WatcherService {
      * @return true if everything is good to go, so that the service can be started
      */
     public boolean validate(ClusterState state) {
-        // template check makes only sense for non existing indices, we could refine this
-        boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
-        if (hasValidWatcherTemplates == false) {
-            logger.debug("missing watcher index templates, not starting watcher service");
-            return false;
-        }
-
         IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metadata());
         IndexMetadata triggeredWatchesIndexMetadata = WatchStoreUtils.getConcreteIndex(
             TriggeredWatchStoreField.INDEX_NAME,
@@ -171,7 +162,7 @@ public class WatcherService {
                 || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN
                     && state.routingTable().index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
-            logger.debug("error validating to start watcher", e);
+            logger.warn("Validation error: cannot start watcher", e);
             return false;
         }
     }
@@ -211,8 +202,12 @@ public class WatcherService {
      * @param state cluster state, which is needed to find out about local shards
      */
     void reload(ClusterState state, String reason) {
+        boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
+        if (hasValidWatcherTemplates == false) {
+            logger.warn("missing watcher index templates");
+        }
         // this method contains the only async code block, being called by the cluster state listener
-        // the reason for this is, that loading he watches is done in a sync manner and thus cannot be done on the cluster state listener
+        // the reason for this is that loading the watches is done in a sync manner and thus cannot be done on the cluster state listener
         // thread
         //
         // this method itself is called by the cluster state listener, so will never be called in parallel
@@ -349,7 +344,7 @@ public class WatcherService {
                 return Collections.emptyList();
             }
 
-            Map<Integer, List<String>> sortedShards = new HashMap<>(localShards.size());
+            Map<Integer, List<String>> sortedShards = Maps.newMapWithExpectedSize(localShards.size());
             for (ShardRouting localShardRouting : localShards) {
                 List<String> sortedAllocationIds = watchIndexShardRoutings.stream()
                     .filter(sr -> localShardRouting.getId() == sr.getId())
@@ -358,7 +353,7 @@ public class WatcherService {
                     .map(AllocationId::getId)
                     .filter(Objects::nonNull)
                     .sorted()
-                    .collect(Collectors.toList());
+                    .toList();
 
                 sortedShards.put(localShardRouting.getId(), sortedAllocationIds);
             }
@@ -388,13 +383,7 @@ public class WatcherService {
                             watches.add(watch);
                         }
                     } catch (Exception e) {
-                        logger.error(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                "couldn't load watch [{}], ignoring it...",
-                                id
-                            ),
-                            e
-                        );
+                        logger.error(() -> "couldn't load watch [" + id + "], ignoring it...", e);
                     }
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());

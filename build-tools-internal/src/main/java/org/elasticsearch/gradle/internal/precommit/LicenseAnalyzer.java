@@ -147,53 +147,16 @@ public class LicenseAnalyzer {
         for (LicenseMatcher matcher : matchers) {
             boolean matches = matcher.matches(licenseFile);
             if (matches) {
-                return new LicenseInfo(matcher.getIdentifier(), matcher.spdxLicense, matcher.sourceRedistributionRequired);
+                return new LicenseInfo(matcher.identifier(), matcher.spdxLicense, matcher.sourceRedistributionRequired);
             }
         }
 
         throw new IllegalStateException("Unknown license for license file: " + licenseFile);
     }
 
-    public static class LicenseInfo {
-        private final String identifier;
-        private final boolean spdxLicense;
-        private final boolean sourceRedistributionRequired;
+    public record LicenseInfo(String identifier, boolean spdxLicense, boolean sourceRedistributionRequired) {}
 
-        public LicenseInfo(String identifier, boolean spdxLicense, boolean sourceRedistributionRequired) {
-            this.identifier = identifier;
-            this.spdxLicense = spdxLicense;
-            this.sourceRedistributionRequired = sourceRedistributionRequired;
-        }
-
-        public String getIdentifier() {
-            return identifier;
-        }
-
-        public boolean isSpdxLicense() {
-            return spdxLicense;
-        }
-
-        public boolean isSourceRedistributionRequired() {
-            return sourceRedistributionRequired;
-        }
-    }
-
-    private static class LicenseMatcher {
-        private final String identifier;
-        private final boolean spdxLicense;
-        private final boolean sourceRedistributionRequired;
-        private final Pattern pattern;
-
-        LicenseMatcher(String identifier, boolean spdxLicense, boolean sourceRedistributionRequired, Pattern pattern) {
-            this.identifier = identifier;
-            this.spdxLicense = spdxLicense;
-            this.sourceRedistributionRequired = sourceRedistributionRequired;
-            this.pattern = pattern;
-        }
-
-        public String getIdentifier() {
-            return identifier;
-        }
+    private record LicenseMatcher(String identifier, boolean spdxLicense, boolean sourceRedistributionRequired, Pattern pattern) {
 
         public boolean matches(File licenseFile) {
             try {

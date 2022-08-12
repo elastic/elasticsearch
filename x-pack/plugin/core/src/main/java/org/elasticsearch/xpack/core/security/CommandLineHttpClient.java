@@ -157,7 +157,7 @@ public class CommandLineHttpClient {
                     final SslConfiguration sslConfiguration = sslService.getHttpTransportSSLConfiguration();
                     // Requires permission java.lang.RuntimePermission "setFactory";
                     httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslConfiguration));
-                    final boolean isHostnameVerificationEnabled = sslConfiguration.getVerificationMode().isHostnameVerificationEnabled();
+                    final boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
                     if (isHostnameVerificationEnabled == false) {
                         httpsConn.setHostnameVerifier((hostname, session) -> true);
                     }
@@ -343,7 +343,7 @@ public class CommandLineHttpClient {
      * Returns a TrustManager to be used in a client SSLContext, which trusts all certificates that are signed
      * by a specific CA certificate ( identified by its SHA256 fingerprint, {@code pinnedCaCertFingerPrint} )
      */
-    private TrustManager fingerprintTrustingTrustManager(String caCertFingerprint) {
+    private static TrustManager fingerprintTrustingTrustManager(String caCertFingerprint) {
         final TrustManager trustManager = new X509TrustManager() {
             public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {}
 

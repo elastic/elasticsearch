@@ -32,6 +32,6 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
                 .registerIfAbsent("versions", VersionPropertiesBuildService.class, spec -> {
             spec.getParameters().getInfoPath().set(infoPath);
         });
-        project.getExtensions().add("versions", serviceProvider.forUseAtConfigurationTime().get().getProperties());
+        project.getExtensions().add("versions", serviceProvider.get().getProperties());
     }
 }

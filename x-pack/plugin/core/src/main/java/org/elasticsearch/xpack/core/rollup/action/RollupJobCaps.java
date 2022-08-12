@@ -228,7 +228,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(aggs.size());
             for (Map<String, Object> agg : aggs) {
-                out.writeMap(agg);
+                out.writeGenericMap(agg);
             }
         }
 

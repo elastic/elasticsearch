@@ -33,14 +33,11 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
     }
 
     private BucketOrder getRandomOrder() {
-        switch (randomInt(2)) {
-            case 0:
-                return BucketOrder.key(randomBoolean());
-            case 1:
-                return BucketOrder.count(randomBoolean());
-            default:
-                return BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
-        }
+        return switch (randomInt(2)) {
+            case 0 -> BucketOrder.key(randomBoolean());
+            case 1 -> BucketOrder.count(randomBoolean());
+            default -> BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
+        };
     }
 
     @Override

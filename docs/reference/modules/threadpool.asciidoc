@@ -79,7 +79,8 @@ There are several thread pools, but the important ones include:
 
 `force_merge`::
     For <<indices-forcemerge,force merge>> operations.
-    Thread pool type is `fixed` with a size of 1 and an unbounded queue size.
+    Thread pool type is `fixed` with a size of `max(1, (`<<node.processors,
+`# of allocated processors`>>`) / 8)` and an unbounded queue size.
 
 `management`::
     For cluster management.

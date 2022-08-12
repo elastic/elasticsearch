@@ -55,9 +55,9 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -321,8 +321,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
     public void testDeleteToken() {
         final AtomicBoolean cacheCleared = new AtomicBoolean(false);
         responseProviderHolder.set((r, l) -> {
-            if (r instanceof DeleteRequest) {
-                final DeleteRequest dr = (DeleteRequest) r;
+            if (r instanceof final DeleteRequest dr) {
                 final boolean found = dr.id().equals(SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-elastic/fleet-server/token1");
                 l.onResponse(
                     new DeleteResponse(
@@ -433,22 +432,20 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
     }
 
     private Authentication createAuthentication() {
-        return new Authentication(
-            new User(randomAlphaOfLengthBetween(3, 8)),
+        final Authentication.RealmRef lookedUpBy = randomFrom(
             new Authentication.RealmRef(
                 randomAlphaOfLengthBetween(3, 8),
                 randomAlphaOfLengthBetween(3, 8),
                 randomAlphaOfLengthBetween(3, 8)
             ),
-            randomFrom(
-                new Authentication.RealmRef(
-                    randomAlphaOfLengthBetween(3, 8),
-                    randomAlphaOfLengthBetween(3, 8),
-                    randomAlphaOfLengthBetween(3, 8)
-                ),
-                null
-            )
+            null
         );
+
+        if (lookedUpBy == null) {
+            return AuthenticationTestHelper.builder().realm().build(false);
+        } else {
+            return AuthenticationTestHelper.builder().realm().runAs().realmRef(lookedUpBy).build();
+        }
     }
 
     private BulkResponse createSingleBulkResponse() {

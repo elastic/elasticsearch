@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.client.StringUtils;
 
 import java.net.URI;
 import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.sql.DriverPropertyInfo;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -148,8 +147,8 @@ public class JdbcConfiguration extends ConnectionConfiguration {
                     if (args.size() != 2) {
                         throw new JdbcSQLException("Invalid parameter [" + param + "], format needs to be key=value");
                     }
-                    final String key = URLDecoder.decode(args.get(0), StandardCharsets.UTF_8).trim();
-                    final String val = URLDecoder.decode(args.get(1), StandardCharsets.UTF_8);
+                    final String key = URLDecoder.decode(args.get(0), "UTF-8").trim();
+                    final String val = URLDecoder.decode(args.get(1), "UTF-8");
                     // further validation happens in the constructor (since extra properties might be specified either way)
                     props.setProperty(key, val);
                 }

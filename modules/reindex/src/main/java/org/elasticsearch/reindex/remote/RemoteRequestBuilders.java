@@ -27,8 +27,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
@@ -75,8 +75,7 @@ final class RemoteRequestBuilders {
             // Detect if we should use search_type=scan rather than a sort
             if (remoteVersion.before(Version.fromId(2010099))) {
                 for (SortBuilder<?> sort : searchRequest.source().sorts()) {
-                    if (sort instanceof FieldSortBuilder) {
-                        FieldSortBuilder f = (FieldSortBuilder) sort;
+                    if (sort instanceof FieldSortBuilder f) {
                         if (f.getFieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
                             useScan = true;
                             break;
@@ -166,16 +165,11 @@ final class RemoteRequestBuilders {
     }
 
     private static String encodeIndex(String s) {
-        try {
-            return URLEncoder.encode(s, "utf-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
-        }
+        return URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 
     private static String sortToUri(SortBuilder<?> sort) {
-        if (sort instanceof FieldSortBuilder) {
-            FieldSortBuilder f = (FieldSortBuilder) sort;
+        if (sort instanceof FieldSortBuilder f) {
             return f.getFieldName() + ":" + f.order();
         }
         throw new IllegalArgumentException("Unsupported sort [" + sort + "]");

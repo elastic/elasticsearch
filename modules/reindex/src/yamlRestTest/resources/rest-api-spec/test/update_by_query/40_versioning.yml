@@ -3,7 +3,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    {"text": "test"}
   - do:
       indices.refresh: {}
@@ -17,7 +17,7 @@
   - do:
       get:
         index: test
-        id:    1
+        id:    "1"
   - match: {_version: 2}
 
 ---
@@ -28,7 +28,7 @@
   - do:
       index:
         index:        index1
-        id:           1
+        id:           "1"
         version:      0 # Starting version is zero
         version_type: external
         body:    {"update": 0}
@@ -45,5 +45,5 @@
   - do:
       get:
         index: index1
-        id:    1
+        id:    "1"
   - match: {_version: 0}

@@ -10,6 +10,8 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
@@ -18,15 +20,13 @@ import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
-import java.util.Objects;
-
-public class AggregationDataExtractorFactory implements DataExtractorFactory {
-
-    private final Client client;
-    private final DatafeedConfig datafeedConfig;
-    private final Job job;
-    private final NamedXContentRegistry xContentRegistry;
-    private final DatafeedTimingStatsReporter timingStatsReporter;
+public record AggregationDataExtractorFactory(
+    Client client,
+    DatafeedConfig datafeedConfig,
+    Job job,
+    NamedXContentRegistry xContentRegistry,
+    DatafeedTimingStatsReporter timingStatsReporter
+) implements DataExtractorFactory {
 
     public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices, IndicesOptions indicesOptions) {
         return (searchSourceBuilder) -> new SearchRequestBuilder(client, SearchAction.INSTANCE).setSource(searchSourceBuilder)
@@ -35,29 +35,28 @@ public class AggregationDataExtractorFactory implements DataExtractorFactory {
             .setIndices(indices);
     }
 
-    public AggregationDataExtractorFactory(
-        Client client,
-        DatafeedConfig datafeedConfig,
-        Job job,
-        NamedXContentRegistry xContentRegistry,
-        DatafeedTimingStatsReporter timingStatsReporter
-    ) {
-        this.client = Objects.requireNonNull(client);
-        this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
-        this.job = Objects.requireNonNull(job);
-        this.xContentRegistry = xContentRegistry;
-        this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+    @Override
+    public DataExtractor newExtractor(long start, long end) {
+        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
     }
 
     @Override
-    public DataExtractor newExtractor(long start, long end) {
+    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
+        return buildExtractor(
+            start,
+            end,
+            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
+        );
+    }
+
+    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
         long histogramInterval = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
         AggregationDataExtractorContext dataExtractorContext = new AggregationDataExtractorContext(
             job.getId(),
             job.getDataDescription().getTimeField(),
             job.getAnalysisConfig().analysisFields(),
             datafeedConfig.getIndices(),
-            datafeedConfig.getParsedQuery(xContentRegistry),
+            queryBuilder,
             datafeedConfig.getParsedAggregations(xContentRegistry),
             Intervals.alignToCeil(start, histogramInterval),
             Intervals.alignToFloor(end, histogramInterval),

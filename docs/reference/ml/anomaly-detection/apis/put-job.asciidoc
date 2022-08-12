@@ -249,7 +249,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
-`daily_model_snapshot_retention_after_days`::
+[[put-dailymodelsnapshotretentionafterdays]]`daily_model_snapshot_retention_after_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
 
@@ -259,7 +259,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
 //End data_description
 
-`datafeed_config`::
+[[put-datafeedconfig]]`datafeed_config`::
 (Optional, object) The {ml-docs}/ml-dfeeds.html[{dfeed}], which retrieves data
 from {es} for analysis by the job. You can associate only one {dfeed} with each
 {anomaly-job}.
@@ -375,83 +375,165 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
 ====
 //End model_plot_config
 
-`model_snapshot_retention_days`::
+[[put-modelsnapshotretentiondays]]`model_snapshot_retention_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
 
-`renormalization_window_days`::
+[[put-renormalizationwindowdays]]`renormalization_window_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=renormalization-window-days]
 
-`results_index_name`::
+[[put-resultsindexname]]`results_index_name`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-index-name]
 
-`results_retention_days`::
+[[put-resultsretentiondays]]`results_retention_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
 [[ml-put-job-example]]
 == {api-examples-title}
 
+Create an {anomaly-job} and {dfeed}:
+
 [source,console]
 --------------------------------------------------
-PUT _ml/anomaly_detectors/total-requests
+PUT _ml/anomaly_detectors/test-job1?pretty
 {
-  "description" : "Total sum of requests",
-  "analysis_config" : {
-    "bucket_span":"10m",
+  "analysis_config": {
+    "bucket_span": "15m",
     "detectors": [
       {
-        "detector_description": "Sum of total",
+        "detector_description": "Sum of bytes",
         "function": "sum",
-        "field_name": "total"
+        "field_name": "bytes"
       }
     ]
   },
-  "data_description" : {
-    "time_field":"timestamp",
+  "data_description": {
+    "time_field": "timestamp",
     "time_format": "epoch_ms"
+  },
+  "analysis_limits": {
+    "model_memory_limit": "11MB"
+  },
+  "model_plot_config": {
+    "enabled": true,
+    "annotations_enabled": true
+  },
+  "results_index_name": "test-job1",
+  "datafeed_config":
+  {
+    "indices": [
+    "kibana_sample_data_logs"
+    ],
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "match_all": {}
+          }
+        ]
+      }
+    },
+    "runtime_mappings": {
+      "hour_of_day": {
+        "type": "long",
+        "script": {
+          "source": "emit(doc['timestamp'].value.getHour());"
+        }
+      }
+    },
+    "datafeed_id": "datafeed-test-job1"
   }
 }
 --------------------------------------------------
 
-When the job is created, you receive the following results:
+The API returns the following results:
 
-[source,console-result]
+[source,js]
 ----
 {
-  "job_id" : "total-requests",
+  "job_id" : "test-job1",
   "job_type" : "anomaly_detector",
-  "job_version" : "8.0.0",
-  "description" : "Total sum of requests",
-  "create_time" : 1562352500629,
+  "job_version" : "8.4.0",
+  "create_time" : 1656087283340,
+  "datafeed_config" : {
+    "datafeed_id" : "datafeed-test-job1",
+    "job_id" : "test-job1",
+    "authorization" : {
+      "roles" : [
+        "superuser"
+      ]
+    },
+    "query_delay" : "61499ms",
+    "chunking_config" : {
+      "mode" : "auto"
+    },
+    "indices_options" : {
+      "expand_wildcards" : [
+        "open"
+      ],
+      "ignore_unavailable" : false,
+      "allow_no_indices" : true,
+      "ignore_throttled" : true
+    },
+    "query" : {
+      "bool" : {
+        "must" : [
+          {
+            "match_all" : { }
+          }
+        ]
+      }
+    },
+    "indices" : [
+      "kibana_sample_data_logs"
+    ],
+    "scroll_size" : 1000,
+    "delayed_data_check_config" : {
+      "enabled" : true
+    },
+    "runtime_mappings" : {
+      "hour_of_day" : {
+        "type" : "long",
+        "script" : {
+          "source" : "emit(doc['timestamp'].value.getHour());"
+        }
+      }
+    }
+  },
   "analysis_config" : {
-    "bucket_span" : "10m",
+    "bucket_span" : "15m",
     "detectors" : [
       {
-        "detector_description" : "Sum of total",
+        "detector_description" : "Sum of bytes",
         "function" : "sum",
-        "field_name" : "total",
+        "field_name" : "bytes",
         "detector_index" : 0
       }
     ],
     "influencers" : [ ],
-    "model_prune_window": "30d"
+    "model_prune_window" : "30d"
   },
   "analysis_limits" : {
-    "model_memory_limit" : "1024mb",
+    "model_memory_limit" : "11mb",
     "categorization_examples_limit" : 4
   },
   "data_description" : {
     "time_field" : "timestamp",
     "time_format" : "epoch_ms"
   },
+  "model_plot_config" : {
+    "enabled" : true,
+    "annotations_enabled" : true
+  },
   "model_snapshot_retention_days" : 10,
   "daily_model_snapshot_retention_after_days" : 1,
-  "results_index_name" : "shared",
+  "results_index_name" : "custom-test-job1",
   "allow_lazy_open" : false
 }
 ----
-// TESTRESPONSE[s/"job_version" : "8.0.0"/"job_version" : $body.job_version/]
-// TESTRESPONSE[s/1562352500629/$body.$_path/]
+// TESTRESPONSE[s/"job_version" : "8.4.0"/"job_version" : $body.job_version/]
+// TESTRESPONSE[s/1656087283340/$body.$_path/]
+// TESTRESPONSE[s/"authorization" : \{[^}]*\},//]

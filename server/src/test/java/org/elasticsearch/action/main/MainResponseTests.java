@@ -33,14 +33,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Build build = new Build(
-            Build.Flavor.UNKNOWN,
-            Build.Type.UNKNOWN,
-            randomAlphaOfLength(8),
-            date,
-            randomBoolean(),
-            version.toString()
-        );
+        Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }
 
@@ -57,14 +50,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
     public void testToXContent() throws IOException {
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Build current = Build.CURRENT;
-        Build build = new Build(
-            current.flavor(),
-            current.type(),
-            current.hash(),
-            current.date(),
-            current.isSnapshot(),
-            current.getQualifiedVersion()
-        );
+        Build build = new Build(current.type(), current.hash(), current.date(), current.isSnapshot(), current.qualifiedVersion());
         Version version = Version.CURRENT;
         MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build);
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -78,7 +64,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                         "cluster_uuid": "%s",
                         "version": {
                             "number": "%s",
-                            "build_flavor": "%s",
+                            "build_flavor": "default",
                             "build_type": "%s",
                             "build_hash": "%s",
                             "build_date": "%s",
@@ -91,8 +77,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                     }
                     """.formatted(
                     clusterUUID,
-                    build.getQualifiedVersion(),
-                    current.flavor().displayName(),
+                    build.qualifiedVersion(),
                     current.type().displayName(),
                     current.hash(),
                     current.date(),
@@ -114,29 +99,13 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         String nodeName = mutateInstance.getNodeName();
         ClusterName clusterName = mutateInstance.getClusterName();
         switch (randomIntBetween(0, 4)) {
-            case 0:
-                clusterUuid = clusterUuid + randomAlphaOfLength(5);
-                break;
-            case 1:
-                nodeName = nodeName + randomAlphaOfLength(5);
-                break;
-            case 2:
+            case 0 -> clusterUuid = clusterUuid + randomAlphaOfLength(5);
+            case 1 -> nodeName = nodeName + randomAlphaOfLength(5);
+            case 2 ->
                 // toggle the snapshot flag of the original Build parameter
-                build = new Build(
-                    Build.Flavor.UNKNOWN,
-                    Build.Type.UNKNOWN,
-                    build.hash(),
-                    build.date(),
-                    build.isSnapshot() == false,
-                    build.getQualifiedVersion()
-                );
-                break;
-            case 3:
-                version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
-                break;
-            case 4:
-                clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
-                break;
+                build = new Build(Build.Type.UNKNOWN, build.hash(), build.date(), build.isSnapshot() == false, build.qualifiedVersion());
+            case 3 -> version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
+            case 4 -> clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
         }
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -290,7 +291,10 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      */
     public Map<String, Object> asMap(NamedXContentRegistry xContentRegistry) throws IOException {
         String strRep = Strings.toString(this);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, strRep);
+        XContentParser parser = JsonXContent.jsonXContent.createParser(
+            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+            strRep
+        );
         return parser.mapOrdered();
     }
 

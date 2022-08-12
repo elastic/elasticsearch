@@ -163,28 +163,12 @@ public abstract class AbstractHttpFixture {
     /**
      * Represents an HTTP Response.
      */
-    protected static class Response {
+    protected record Response(int status, Map<String, String> headers, byte[] body) {
 
-        private final int status;
-        private final Map<String, String> headers;
-        private final byte[] body;
-
-        public Response(final int status, final Map<String, String> headers, final byte[] body) {
+        public Response(int status, Map<String, String> headers, byte[] body) {
             this.status = status;
             this.headers = Objects.requireNonNull(headers);
             this.body = Objects.requireNonNull(body);
-        }
-
-        public int getStatus() {
-            return status;
-        }
-
-        public Map<String, String> getHeaders() {
-            return headers;
-        }
-
-        public byte[] getBody() {
-            return body;
         }
 
         public String getContentType() {
@@ -194,11 +178,6 @@ public abstract class AbstractHttpFixture {
                 }
             }
             return null;
-        }
-
-        @Override
-        public String toString() {
-            return "Response{" + "status=" + status + ", headers=" + headers + ", body=" + new String(body, UTF_8) + '}';
         }
     }
 

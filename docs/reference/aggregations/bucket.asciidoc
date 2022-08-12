@@ -36,15 +36,21 @@ include::bucket/filter-aggregation.asciidoc[]
 
 include::bucket/filters-aggregation.asciidoc[]
 
+include::bucket/frequent-items-aggregation.asciidoc[]
+
 include::bucket/geodistance-aggregation.asciidoc[]
 
 include::bucket/geohashgrid-aggregation.asciidoc[]
+
+include::bucket/geohexgrid-aggregation.asciidoc[]
 
 include::bucket/geotilegrid-aggregation.asciidoc[]
 
 include::bucket/global-aggregation.asciidoc[]
 
 include::bucket/histogram-aggregation.asciidoc[]
+
+include::bucket/ipprefix-aggregation.asciidoc[]
 
 include::bucket/iprange-aggregation.asciidoc[]
 
@@ -55,6 +61,8 @@ include::bucket/multi-terms-aggregation.asciidoc[]
 include::bucket/nested-aggregation.asciidoc[]
 
 include::bucket/parent-aggregation.asciidoc[]
+
+include::bucket/random-sampler-aggregation.asciidoc[]
 
 include::bucket/range-aggregation.asciidoc[]
 

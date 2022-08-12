@@ -109,7 +109,7 @@ to a local Java truststore and pass the location to the script as follows:
 +
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
+sudo CLI_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
 -----------------------------------
 --
 
@@ -126,12 +126,11 @@ sudo bin/elasticsearch-plugin install [plugin_id] [plugin_id] ... [plugin_id]
 Each `plugin_id` can be any valid form for installing a single plugin (e.g., the
 name of a core plugin, or a custom URL).
 
-For instance, to install the core <<analysis-icu,ICU plugin>>, and
-<<repository-s3,S3 repository plugin>> run the following command:
+For instance, to install the core <<analysis-icu,ICU plugin>>, run the following command:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install analysis-icu repository-s3
+sudo bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 This command will install the versions of the plugins that matches your
@@ -262,19 +261,19 @@ sudo ES_PATH_CONF=/path/to/conf/dir bin/elasticsearch-plugin install <plugin nam
 === Proxy settings
 
 To install a plugin via a proxy, you can add the proxy details to the
-`ES_JAVA_OPTS` environment variable with the Java settings `http.proxyHost`
+`CLI_JAVA_OPTS` environment variable with the Java settings `http.proxyHost`
 and `http.proxyPort` (or `https.proxyHost` and `https.proxyPort`):
 
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
+sudo CLI_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 Or on Windows:
 
 [source,shell]
 ------------------------------------
-set ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
+set CLI_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
 bin\elasticsearch-plugin install analysis-icu
 ------------------------------------
 
@@ -302,7 +301,7 @@ plugin configuration file.
 If you run {es} using Docker, you can manage plugins using a declarative configuration file.
 When {es} starts up, it will compare the plugins in the file with those
 that are currently installed, and add or remove plugins as required. {es}
-will also upgrade offical plugins when you upgrade {es} itself.
+will also upgrade official plugins when you upgrade {es} itself.
 
 The file is called `elasticsearch-plugins.yml`, and must be placed in the
 Elasticsearch configuration directory, alongside `elasticsearch.yml`. Here

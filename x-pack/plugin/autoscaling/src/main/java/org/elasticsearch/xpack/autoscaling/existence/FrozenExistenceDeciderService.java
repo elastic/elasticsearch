@@ -19,14 +19,12 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * This decider looks at all indices and ensures a minimum capacity is available if any indices are in the frozen ILM phase, since that
@@ -46,24 +44,26 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
 
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
-        List<String> indicesNeedingFrozen = StreamSupport.stream(context.state().metadata().spliterator(), false)
+        List<String> indicesNeedingFrozen = context.state()
+            .metadata()
+            .stream()
             .filter(this::needsTier)
             .map(imd -> imd.getIndex().getName())
             .limit(10)
             .collect(Collectors.toList());
         AutoscalingCapacity.Builder builder = AutoscalingCapacity.builder();
         if (indicesNeedingFrozen.size() > 0) {
-            builder.total(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY);
-            builder.node(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY);
+            builder.total(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY, null);
+            builder.node(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY, null);
         } else {
-            builder.total(0L, 0L);
+            builder.total(0L, 0L, 0f);
         }
 
         return new AutoscalingDeciderResult(builder.build(), new FrozenExistenceReason(indicesNeedingFrozen));
     }
 
     boolean needsTier(IndexMetadata idxMeta) {
-        return LifecycleExecutionState.isFrozenPhase(idxMeta);
+        return isFrozenPhase(idxMeta);
     }
 
     @Override
@@ -128,4 +128,16 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
         }
     }
 
+    // this is only here to support isFrozenPhase, TimeseriesLifecycleType.FROZEN_PHASE is the canonical source for this
+    static String FROZEN_PHASE = "frozen"; // visible for testing
+
+    /**
+     * Return true if this index is in the frozen phase, false if not controlled by ILM or not in frozen.
+     * @param indexMetadata the metadata of the index to retrieve phase from.
+     * @return true if frozen phase, false otherwise.
+     */
+    // visible for testing
+    static boolean isFrozenPhase(IndexMetadata indexMetadata) {
+        return FROZEN_PHASE.equals(indexMetadata.getLifecycleExecutionState().phase());
+    }
 }

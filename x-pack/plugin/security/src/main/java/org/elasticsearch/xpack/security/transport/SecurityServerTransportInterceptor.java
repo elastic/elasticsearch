@@ -11,13 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
@@ -34,14 +33,12 @@ import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandle
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
@@ -58,8 +55,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
 
-    private volatile boolean isStateNotRecovered = true;
-
     public SecurityServerTransportInterceptor(
         Settings settings,
         ThreadPool threadPool,
@@ -67,8 +62,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         AuthorizationService authzService,
         SSLService sslService,
         SecurityContext securityContext,
-        DestructiveOperations destructiveOperations,
-        ClusterService clusterService
+        DestructiveOperations destructiveOperations
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -77,7 +71,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        clusterService.addListener(e -> isStateNotRecovered = e.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
     }
 
     @Override
@@ -98,22 +91,22 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                    securityContext.executeAsUser(
-                        SystemUser.INSTANCE,
-                        (original) -> sendWithUser(
+                    securityContext.executeAsSystemUser(
+                        minVersion,
+                        original -> sendWithUser(
                             connection,
                             action,
                             request,
                             options,
                             new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
                             sender
-                        ),
-                        minVersion
+                        )
                     );
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
                     AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
                         threadPool.getThreadContext(),
                         securityContext,
+                        minVersion,
                         (original) -> sendWithUser(
                             connection,
                             action,
@@ -178,28 +171,19 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         boolean forceExecution,
         TransportRequestHandler<T> actualHandler
     ) {
-        return new ProfileSecuredRequestHandler<>(
-            logger,
-            action,
-            forceExecution,
-            executor,
-            actualHandler,
-            profileFilters,
-            settings,
-            threadPool
-        );
+        return new ProfileSecuredRequestHandler<>(logger, action, forceExecution, executor, actualHandler, profileFilters, threadPool);
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
         final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, sslConfiguration);
 
-        Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileConfigurations.size() + 1);
+        Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
-            final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
+            final boolean extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
             profileFilters.put(
                 entry.getKey(),
                 new ServerTransportFilter(
@@ -234,7 +218,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             String executorName,
             TransportRequestHandler<T> handler,
             Map<String, ServerTransportFilter> profileFilters,
-            Settings settings,
             ThreadPool threadPool
         ) {
             this.logger = logger;

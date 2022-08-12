@@ -37,7 +37,7 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
@@ -99,7 +99,8 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 
     if (bwcVersion.onOrAfter('7.12.0')) {
-      setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
+      setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+      setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
     }
   }
 

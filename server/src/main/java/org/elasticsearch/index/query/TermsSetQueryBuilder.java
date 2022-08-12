@@ -18,6 +18,7 @@ import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
 
@@ -62,7 +62,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         this.fieldName = Objects.requireNonNull(fieldName);
         Objects.requireNonNull(values);
         if (convert) {
-            this.values = values.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).collect(Collectors.toList());
+            this.values = values.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).toList();
         } else {
             this.values = values;
         }
@@ -266,7 +266,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
                 throw new QueryShardException(context, "failed to find minimum_should_match field [" + minimumShouldMatchField + "]");
             }
 
-            IndexNumericFieldData fieldData = context.getForField(msmFieldType);
+            IndexNumericFieldData fieldData = context.getForField(msmFieldType, MappedFieldType.FielddataOperation.SEARCH);
             longValuesSource = new FieldValuesSource(fieldData);
         } else if (minimumShouldMatchScript != null) {
             TermsSetQueryScript.Factory factory = context.compile(minimumShouldMatchScript, TermsSetQueryScript.CONTEXT);
@@ -437,4 +437,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         }
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

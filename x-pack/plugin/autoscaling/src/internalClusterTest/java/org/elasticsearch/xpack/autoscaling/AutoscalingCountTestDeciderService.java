@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 public class AutoscalingCountTestDeciderService implements AutoscalingDeciderService {
 
@@ -46,7 +45,7 @@ public class AutoscalingCountTestDeciderService implements AutoscalingDeciderSer
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return DiscoveryNodeRole.roles().stream().collect(Collectors.toUnmodifiableList());
+        return DiscoveryNodeRole.roles().stream().toList();
     }
 
     @Override

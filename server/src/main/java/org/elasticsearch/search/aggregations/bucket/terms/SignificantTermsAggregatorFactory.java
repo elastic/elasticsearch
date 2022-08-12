@@ -9,9 +9,11 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -25,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.Bucket
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -59,60 +62,56 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * including those that need global ordinals
      */
     private static SignificantTermsAggregatorSupplier bytesSupplier() {
-        return new SignificantTermsAggregatorSupplier() {
-            @Override
-            public Aggregator build(
-                String name,
-                AggregatorFactories factories,
-                ValuesSourceConfig valuesSourceConfig,
-                DocValueFormat format,
-                TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                IncludeExclude includeExclude,
-                String executionHint,
-                AggregationContext context,
-                Aggregator parent,
-                SignificanceHeuristic significanceHeuristic,
-                SignificanceLookup lookup,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
+        return (
+            name,
+            factories,
+            valuesSourceConfig,
+            format,
+            bucketCountThresholds,
+            includeExclude,
+            executionHint,
+            context,
+            parent,
+            significanceHeuristic,
+            lookup,
+            cardinality,
+            metadata) -> {
 
-                ExecutionMode execution = null;
-                if (executionHint != null) {
-                    execution = ExecutionMode.fromString(executionHint, deprecationLogger);
-                }
-                if (valuesSourceConfig.hasOrdinals() == false) {
-                    execution = ExecutionMode.MAP;
-                }
-                if (execution == null) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
-                }
+            ExecutionMode execution = null;
+            if (executionHint != null) {
+                execution = ExecutionMode.fromString(executionHint, deprecationLogger);
+            }
+            if (valuesSourceConfig.hasOrdinals() == false) {
+                execution = ExecutionMode.MAP;
+            }
+            if (execution == null) {
+                execution = ExecutionMode.GLOBAL_ORDINALS;
+            }
 
-                if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
-                    throw new IllegalArgumentException(
-                        "Aggregation ["
-                            + name
-                            + "] cannot support regular expression style "
-                            + "include/exclude settings as they can only be applied to string fields. Use an array of values for "
-                            + "include/exclude clauses"
-                    );
-                }
-
-                return execution.create(
-                    name,
-                    factories,
-                    valuesSourceConfig,
-                    format,
-                    bucketCountThresholds,
-                    includeExclude,
-                    context,
-                    parent,
-                    significanceHeuristic,
-                    lookup,
-                    cardinality,
-                    metadata
+            if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + name
+                        + "] cannot support regular expression style "
+                        + "include/exclude settings as they can only be applied to string fields. Use an array of values for "
+                        + "include/exclude clauses"
                 );
             }
+
+            return execution.create(
+                name,
+                factories,
+                valuesSourceConfig,
+                format,
+                bucketCountThresholds,
+                includeExclude,
+                context,
+                parent,
+                significanceHeuristic,
+                lookup,
+                cardinality,
+                metadata
+            );
         };
     }
 
@@ -121,60 +120,56 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * This includes floating points, and formatted types that use numerics internally for storage (date, boolean, etc)
      */
     private static SignificantTermsAggregatorSupplier numericSupplier() {
-        return new SignificantTermsAggregatorSupplier() {
-            @Override
-            public Aggregator build(
-                String name,
-                AggregatorFactories factories,
-                ValuesSourceConfig valuesSourceConfig,
-                DocValueFormat format,
-                TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                IncludeExclude includeExclude,
-                String executionHint,
-                AggregationContext context,
-                Aggregator parent,
-                SignificanceHeuristic significanceHeuristic,
-                SignificanceLookup lookup,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
+        return (
+            name,
+            factories,
+            valuesSourceConfig,
+            format,
+            bucketCountThresholds,
+            includeExclude,
+            executionHint,
+            context,
+            parent,
+            significanceHeuristic,
+            lookup,
+            cardinality,
+            metadata) -> {
 
-                if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-                    throw new IllegalArgumentException(
-                        "Aggregation ["
-                            + name
-                            + "] cannot support regular expression style include/exclude "
-                            + "settings as they can only be applied to string fields. Use an array of numeric "
-                            + "values for include/exclude clauses used to filter numeric fields"
-                    );
-                }
-
-                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
-                if (numericValuesSource.isFloatingPoint()) {
-                    throw new UnsupportedOperationException("No support for examining floating point numerics");
-                }
-
-                IncludeExclude.LongFilter longFilter = null;
-                if (includeExclude != null) {
-                    longFilter = includeExclude.convertToLongFilter(format);
-                }
-
-                return new NumericTermsAggregator(
-                    name,
-                    factories,
-                    agg -> agg.new SignificantLongTermsResults(lookup, significanceHeuristic, cardinality),
-                    numericValuesSource,
-                    format,
-                    null,
-                    bucketCountThresholds,
-                    context,
-                    parent,
-                    SubAggCollectionMode.BREADTH_FIRST,
-                    longFilter,
-                    cardinality,
-                    metadata
+            if ((includeExclude != null) && (includeExclude.isRegexBased())) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + name
+                        + "] cannot support regular expression style include/exclude "
+                        + "settings as they can only be applied to string fields. Use an array of numeric "
+                        + "values for include/exclude clauses used to filter numeric fields"
                 );
             }
+
+            ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
+            if (numericValuesSource.isFloatingPoint()) {
+                throw new UnsupportedOperationException("No support for examining floating point numerics");
+            }
+
+            IncludeExclude.LongFilter longFilter = null;
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter(format);
+            }
+
+            return new NumericTermsAggregator(
+                name,
+                factories,
+                agg -> agg.new SignificantLongTermsResults(lookup, significanceHeuristic, cardinality),
+                numericValuesSource,
+                format,
+                null,
+                bucketCountThresholds,
+                context,
+                parent,
+                SubAggCollectionMode.BREADTH_FIRST,
+                longFilter,
+                cardinality,
+                metadata
+            );
         };
     }
 
@@ -254,8 +249,32 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             // at that early stage.
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
+        SamplingContext samplingContext = getSamplingContext().orElse(SamplingContext.NONE);
+        // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
+        // This is because we cannot be sure about their relative scale when sampled
+        if (samplingContext.isSampled()) {
+            if ((bucketCountThresholds.getMinDocCount() != SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
+                .getMinDocCount() && bucketCountThresholds.getMinDocCount() > 1)
+                || (bucketCountThresholds.getShardMinDocCount() != SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
+                    .getMinDocCount() && bucketCountThresholds.getShardMinDocCount() > 1)) {
+                throw new ElasticsearchStatusException(
+                    "aggregation [{}] is within a sampling context; "
+                        + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",
+                    RestStatus.BAD_REQUEST,
+                    name(),
+                    bucketCountThresholds.getMinDocCount(),
+                    bucketCountThresholds.getShardMinDocCount()
+                );
+            }
+        }
 
-        SignificanceLookup lookup = new SignificanceLookup(context, config.fieldContext().fieldType(), config.format(), backgroundFilter);
+        SignificanceLookup lookup = new SignificanceLookup(
+            context,
+            samplingContext,
+            config.fieldContext().fieldType(),
+            config.format(),
+            backgroundFilter
+        );
 
         return aggregatorSupplier.build(
             name,

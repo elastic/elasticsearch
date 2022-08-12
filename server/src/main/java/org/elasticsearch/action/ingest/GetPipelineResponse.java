@@ -64,10 +64,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(pipelines.size());
-        for (PipelineConfiguration pipeline : pipelines) {
-            pipeline.writeTo(out);
-        }
+        out.writeCollection(pipelines);
         out.writeBoolean(summary);
     }
 
@@ -124,8 +121,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     public boolean equals(Object other) {
         if (other == null) {
             return false;
-        } else if (other instanceof GetPipelineResponse) {
-            GetPipelineResponse otherResponse = (GetPipelineResponse) other;
+        } else if (other instanceof GetPipelineResponse otherResponse) {
             if (pipelines == null) {
                 return otherResponse.pipelines == null;
             } else {

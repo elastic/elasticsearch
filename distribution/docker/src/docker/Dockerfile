@@ -22,34 +22,8 @@
 <% if (docker_base == 'iron_bank') { %>
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.5
+ARG BASE_TAG=8.6
 <% } %>
-
-################################################################################
-# Build stage 0 `zlib`:
-# Compile zlib for the current architecture
-################################################################################
-
-FROM ${base_image} AS zlib
-
-<% if (docker_base == 'default' || docker_base == 'cloud') { %>
-RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl gcc make") %>
-<% } else { %>
-RUN <%= retry.loop(package_manager, "${package_manager} install -y curl gcc make tar gzip") %>
-<% } %>
-
-<%
-// Fetch the zlib source.  Keep this command on one line - it is replaced
-// with a `COPY` during local builds.
-%>
-WORKDIR /tmp
-RUN curl --retry 10 -S -L -o zlib-${zlib_version}.tar.gz https://github.com/cloudflare/zlib/archive/refs/tags/v${zlib_version}.tar.gz
-RUN echo "7e393976368975446b263ae4143fb404bc33bf3b436e72007700b5b88e5be332cd461cdec42d31a4b6dffdca2368550f01b9fa1165d81c0aa818bbf2b1ac191e zlib-${zlib_version}.tar.gz" \\
-      | sha512sum --check -
-RUN tar xf zlib-${zlib_version}.tar.gz
-
-WORKDIR /tmp/zlib-${zlib_version}
-RUN ./configure --prefix=/usr/local/cloudflare-zlib && make && make install
 
 ################################################################################
 # Build stage 1 `builder`:
@@ -99,13 +73,15 @@ RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
 <% if (docker_base == "iron_bank") {
-  // Iron Bank always copies the local artifact
+  // Iron Bank always copies the local artifact. It uses `arch` from the
+  // template context variables.
 %>
-COPY elasticsearch-${version}-linux-x86_64.tar.gz /tmp/elasticsearch.tar.gz
+COPY elasticsearch-${version}-linux-${arch}.tar.gz /tmp/elasticsearch.tar.gz
 <% } else {
   // Fetch the appropriate Elasticsearch distribution for this architecture.
   // Keep this command on one line - it is replaced with a `COPY` during local builds.
-  // It uses the `arch` command to fetch the correct distro for the build machine.
+  // It uses the `arch` shell command to fetch the correct distro for the build machine,
+  // which is needed for Docker Hub builds.
 %>
 RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 <% } %>
@@ -137,18 +113,6 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find config -type f -exec chmod 0664 {} +
 
 <% if (docker_base == "cloud") { %>
-# Preinstall common plugins. Note that these are installed as root, meaning the `elasticsearch` user cannot delete them.
-COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
-RUN bin/elasticsearch-plugin install --batch --verbose \\
-    file:/tmp/repository-s3-${version}.zip \\
-    file:/tmp/repository-gcs-${version}.zip \\
-    file:/tmp/repository-azure-${version}.zip
-# Generate a replacement example plugins config that reflects what is actually installed
-RUN echo "plugins:" > config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-azure" >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-gcs"   >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-s3"    >> config/elasticsearch-plugins.example.yml
-
 COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
 RUN set -eux ; \\
     for beat in filebeat metricbeat ; do \\
@@ -172,7 +136,6 @@ RUN chmod -R 0555 /opt/plugins
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
 #
-# Copy zlib from stage 2
 # Copy elasticsearch from stage 1
 # Add entrypoint
 ################################################################################
@@ -199,7 +162,7 @@ RUN yes no | dpkg-reconfigure dash && \\
       "      ${package_manager} update && \n" +
       "      ${package_manager} upgrade -y && \n" +
       "      ${package_manager} install -y --no-install-recommends \n" +
-      "        ca-certificates curl netcat p11-kit unzip vim-tiny zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
+      "        ca-certificates curl netcat p11-kit unzip zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
       "      ${package_manager} clean && \n" +
       "      rm -rf /var/lib/apt/lists/*"
   ) %>
@@ -234,14 +197,12 @@ WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
-COPY --from=zlib --chown=0:0 /usr/local/cloudflare-zlib /usr/local/cloudflare-zlib
 
 <% if (docker_base == 'cloud') { %>
 COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
-ENV ES_ZLIB_PATH /usr/local/cloudflare-zlib/lib
 
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 

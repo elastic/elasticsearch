@@ -177,8 +177,9 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     private void assertPrimaryTerm(String index) {
         final long[] terms = primaryTermsPerIndex.get(index);
         final IndexMetadata indexMetadata = clusterState.metadata().index(index);
-        for (IndexShardRoutingTable shardRoutingTable : this.clusterState.routingTable().index(index)) {
-            final int shard = shardRoutingTable.shardId().id();
+        final IndexRoutingTable indexRoutingTable = this.clusterState.routingTable().index(index);
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            final int shard = indexRoutingTable.shard(i).shardId().id();
             assertThat(
                 "primary term mismatch between indexMetadata of [" + index + "] and shard [" + shard + "]'s routing",
                 indexMetadata.primaryTerm(shard),

@@ -14,12 +14,13 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -69,14 +70,15 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -95,14 +97,15 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -121,14 +124,15 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -147,14 +151,15 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -168,14 +173,15 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -190,14 +196,15 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         handler = transport.configureServerChannelHandler();
         ch = new EmbeddedChannel(handler);
@@ -221,14 +228,15 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         assertNotNull(transport.configureServerChannelHandler());
     }

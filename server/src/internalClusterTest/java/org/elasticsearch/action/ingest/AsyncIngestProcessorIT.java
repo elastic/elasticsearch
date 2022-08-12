@@ -29,6 +29,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -95,7 +96,8 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer
         ) {
             this.threadPool = threadPool;
             return List.of();
@@ -103,51 +105,47 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            return Map.of("test-async", (factories, tag, description, config) -> {
-                return new AbstractProcessor(tag, description) {
+            return Map.of("test-async", (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
 
-                    @Override
-                    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                        threadPool.generic().execute(() -> {
-                            String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
-                            if (usually()) {
-                                try {
-                                    Thread.sleep(10);
-                                } catch (InterruptedException e) {
-                                    // ignore
-                                }
-                            }
-                            ingestDocument.setFieldValue("foo", "bar-" + id);
-                            handler.accept(ingestDocument, null);
-                        });
-                    }
-
-                    @Override
-                    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public String getType() {
-                        return "test-async";
-                    }
-                };
-            }, "test", (processorFactories, tag, description, config) -> {
-                return new AbstractProcessor(tag, description) {
-                    @Override
-                    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                @Override
+                public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                    threadPool.generic().execute(() -> {
                         String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
-                        ingestDocument.setFieldValue("bar", "baz-" + id);
-                        return ingestDocument;
-                    }
+                        if (usually()) {
+                            try {
+                                Thread.sleep(10);
+                            } catch (InterruptedException e) {
+                                // ignore
+                            }
+                        }
+                        ingestDocument.setFieldValue("foo", "bar-" + id);
+                        handler.accept(ingestDocument, null);
+                    });
+                }
 
-                    @Override
-                    public String getType() {
-                        return "test";
-                    }
-                };
+                @Override
+                public String getType() {
+                    return "test-async";
+                }
+
+                @Override
+                public boolean isAsync() {
+                    return true;
+                }
+
+            }, "test", (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                @Override
+                public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                    String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
+                    ingestDocument.setFieldValue("bar", "baz-" + id);
+                    return ingestDocument;
+                }
+
+                @Override
+                public String getType() {
+                    return "test";
+                }
             });
         }
     }
-
 }

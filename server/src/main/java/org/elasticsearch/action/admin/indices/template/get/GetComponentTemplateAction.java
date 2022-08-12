@@ -127,7 +127,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             for (Map.Entry<String, ComponentTemplate> componentTemplate : this.componentTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
-                builder.field(COMPONENT_TEMPLATE.getPreferredName(), componentTemplate.getValue());
+                builder.field(COMPONENT_TEMPLATE.getPreferredName(), componentTemplate.getValue(), params);
                 builder.endObject();
             }
             builder.endArray();

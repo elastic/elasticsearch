@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptContextInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -50,22 +51,19 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
             names = new HashSet<>();
             names.add(instance.name);
         }
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new ScriptContextInfo(
-                    randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)),
-                    instance.execute,
-                    instance.getters
-                );
-            case 1:
-                return new ScriptContextInfo(instance.name, ScriptMethodInfoSerializingTests.mutate(instance.execute), instance.getters);
-            default:
-                return new ScriptContextInfo(
-                    instance.name,
-                    instance.execute,
-                    ScriptMethodInfoSerializingTests.mutateOneGetter(instance.getters)
-                );
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new ScriptContextInfo(
+                randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)),
+                instance.execute,
+                instance.getters
+            );
+            case 1 -> new ScriptContextInfo(instance.name, ScriptMethodInfoSerializingTests.mutate(instance.execute), instance.getters);
+            default -> new ScriptContextInfo(
+                instance.name,
+                instance.execute,
+                ScriptMethodInfoSerializingTests.mutateOneGetter(instance.getters)
+            );
+        };
     }
 
     static Set<ScriptContextInfo> mutateOne(Collection<ScriptContextInfo> instances) {
@@ -89,7 +87,7 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
     static Set<ScriptContextInfo> randomInstances() {
         Set<String> names = new HashSet<>();
         int size = randomIntBetween(0, MAX_LENGTH);
-        HashSet<ScriptContextInfo> instances = new HashSet<>(size);
+        Set<ScriptContextInfo> instances = Sets.newHashSetWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String name = randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
             names.add(name);

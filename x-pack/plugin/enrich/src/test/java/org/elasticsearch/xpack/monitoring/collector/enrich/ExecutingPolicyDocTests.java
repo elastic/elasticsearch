@@ -73,7 +73,7 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
 
         final ExecutingPolicyDoc document = new ExecutingPolicyDoc("_cluster", timestamp, intervalMillis, node, executingPolicy);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        Optional<Map.Entry<String, String>> header = executingPolicy.getTaskInfo().getHeaders().entrySet().stream().findAny();
+        Optional<Map.Entry<String, String>> header = executingPolicy.getTaskInfo().headers().entrySet().stream().findAny();
         assertThat(
             xContent.utf8ToString(),
             equalTo(
@@ -112,16 +112,16 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
                         intervalMillis,
                         DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
                         executingPolicy.getName(),
-                        executingPolicy.getTaskInfo().getTaskId().getNodeId(),
-                        executingPolicy.getTaskInfo().getTaskId().getId(),
-                        executingPolicy.getTaskInfo().getType(),
-                        executingPolicy.getTaskInfo().getAction(),
-                        executingPolicy.getTaskInfo().getDescription(),
-                        executingPolicy.getTaskInfo().getStartTime(),
-                        executingPolicy.getTaskInfo().getRunningTimeNanos(),
-                        executingPolicy.getTaskInfo().isCancellable(),
-                        executingPolicy.getTaskInfo().isCancellable()
-                            ? "\"cancelled\": %s,".formatted(executingPolicy.getTaskInfo().isCancelled())
+                        executingPolicy.getTaskInfo().taskId().getNodeId(),
+                        executingPolicy.getTaskInfo().taskId().getId(),
+                        executingPolicy.getTaskInfo().type(),
+                        executingPolicy.getTaskInfo().action(),
+                        executingPolicy.getTaskInfo().description(),
+                        executingPolicy.getTaskInfo().startTime(),
+                        executingPolicy.getTaskInfo().runningTimeNanos(),
+                        executingPolicy.getTaskInfo().cancellable(),
+                        executingPolicy.getTaskInfo().cancellable()
+                            ? "\"cancelled\": %s,".formatted(executingPolicy.getTaskInfo().cancelled())
                             : "",
                         header.map(entry -> String.format(Locale.ROOT, """
                             {"%s":"%s"}""", entry.getKey(), entry.getValue())).orElse("{}")

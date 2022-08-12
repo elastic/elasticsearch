@@ -183,7 +183,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 lookup,
                 null,
                 scriptService,
-                xContentRegistry(),
+                parserConfig(),
                 namedWriteableRegistry,
                 null,
                 null,
@@ -239,7 +239,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             MappingLookup.EMPTY,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             namedWriteableRegistry,
             null,
             null,
@@ -266,7 +266,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
     protected MappedFieldType mockFieldType(String fieldName) {
         MappedFieldType fieldType = mock(MappedFieldType.class);
-        when(fieldType.name()).thenReturn(fieldName);
+        when(fieldType.name()).thenReturn(fieldName.intern()); // intern field name to not trip assertions that ensure all field names are
+                                                               // interned
         NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
         TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer);
         when(fieldType.getTextSearchInfo()).thenReturn(tsi);
@@ -287,24 +288,12 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         // change ither one of the shared SuggestionBuilder parameters, or delegate to the specific tests mutate method
         if (randomBoolean()) {
             switch (randomIntBetween(0, 5)) {
-                case 0:
-                    mutation.text(randomValueOtherThan(mutation.text(), () -> randomAlphaOfLengthBetween(2, 20)));
-                    break;
-                case 1:
-                    mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAlphaOfLengthBetween(2, 20)));
-                    break;
-                case 2:
-                    mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAlphaOfLengthBetween(2, 20)));
-                    break;
-                case 3:
-                    mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAlphaOfLengthBetween(2, 20)));
-                    break;
-                case 4:
-                    mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));
-                    break;
-                case 5:
-                    mutation.shardSize(randomValueOtherThan(mutation.shardSize(), () -> randomIntBetween(1, 20)));
-                    break;
+                case 0 -> mutation.text(randomValueOtherThan(mutation.text(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 1 -> mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 2 -> mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 3 -> mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 4 -> mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));
+                case 5 -> mutation.shardSize(randomValueOtherThan(mutation.shardSize(), () -> randomIntBetween(1, 20)));
             }
         } else {
             mutateSpecificParameters(firstBuilder);

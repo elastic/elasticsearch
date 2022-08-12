@@ -10,7 +10,6 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeersResponse;
@@ -37,9 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class PeerFinder {
 
@@ -134,7 +133,7 @@ public abstract class PeerFinder {
         synchronized (mutex) {
             logger.trace("deactivating and setting leader to {}", leader);
             active = false;
-            connectionReferences = peersByAddress.values().stream().map(Peer::getConnectionReference).collect(Collectors.toList());
+            connectionReferences = peersByAddress.values().stream().map(Peer::getConnectionReference).toList();
             peersRemoved = handleWakeUp();
             this.leader = Optional.of(leader);
             assert assertInactiveWithNoKnownPeers();
@@ -242,12 +241,7 @@ public abstract class PeerFinder {
 
     private List<DiscoveryNode> getFoundPeersUnderLock() {
         assert holdsLock() : "PeerFinder mutex not held";
-        return peersByAddress.values()
-            .stream()
-            .map(Peer::getDiscoveryNode)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
+        return peersByAddress.values().stream().map(Peer::getDiscoveryNode).filter(Objects::nonNull).distinct().toList();
     }
 
     /**
@@ -413,7 +407,7 @@ public abstract class PeerFinder {
                     if (verboseFailureLogging) {
                         if (logger.isDebugEnabled()) {
                             // log message at level WARN, but since DEBUG logging is enabled we include the full stack trace
-                            logger.warn(new ParameterizedMessage("{} connection failed", Peer.this), e);
+                            logger.warn(() -> format("%s discovery result", Peer.this), e);
                         } else {
                             final StringBuilder messageBuilder = new StringBuilder();
                             Throwable cause = e;
@@ -424,10 +418,10 @@ public abstract class PeerFinder {
                             final String message = messageBuilder.length() < 1024
                                 ? messageBuilder.toString()
                                 : (messageBuilder.substring(0, 1023) + "...");
-                            logger.warn("{} connection failed{}", Peer.this, message);
+                            logger.warn("{} discovery result{}", Peer.this, message);
                         }
                     } else {
-                        logger.debug(new ParameterizedMessage("{} connection failed", Peer.this), e);
+                        logger.debug(() -> format("%s discovery result", Peer.this), e);
                     }
                     synchronized (mutex) {
                         assert probeConnectionResult.get() == null
@@ -489,7 +483,7 @@ public abstract class PeerFinder {
                 @Override
                 public void handleException(TransportException exp) {
                     peersRequestInFlight = false;
-                    logger.warn(new ParameterizedMessage("{} peers request failed", Peer.this), exp);
+                    logger.warn(() -> format("%s peers request failed", Peer.this), exp);
                 }
 
                 @Override

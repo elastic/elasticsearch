@@ -1,0 +1,254 @@
+[[repository-azure]]
+=== Azure repository
+
+You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for
+{ref}/modules-snapshots.html[Snapshot/Restore].
+
+[[repository-azure-usage]]
+==== Setup
+
+To enable Azure repositories, you have first to define your azure storage settings as
+{ref}/secure-settings.html[secure settings], before starting up the node:
+
+[source,sh]
+----------------------------------------------------------------
+bin/elasticsearch-keystore add azure.client.default.account
+bin/elasticsearch-keystore add azure.client.default.key
+----------------------------------------------------------------
+
+Note that you can also define more than one account:
+
+[source,sh]
+----------------------------------------------------------------
+bin/elasticsearch-keystore add azure.client.default.account
+bin/elasticsearch-keystore add azure.client.default.key
+bin/elasticsearch-keystore add azure.client.secondary.account
+bin/elasticsearch-keystore add azure.client.secondary.sas_token
+----------------------------------------------------------------
+
+For more information about these settings, see
+<<repository-azure-client-settings>>.
+
+[IMPORTANT]
+.Supported Azure Storage Account types
+===============================================
+The Azure repository type works with all Standard storage accounts
+
+* Standard Locally Redundant Storage - `Standard_LRS`
+* Standard Zone-Redundant Storage - `Standard_ZRS`
+* Standard Geo-Redundant Storage - `Standard_GRS`
+* Standard Read Access Geo-Redundant Storage - `Standard_RAGRS`
+
+https://azure.microsoft.com/en-gb/documentation/articles/storage-premium-storage[Premium Locally Redundant Storage] (`Premium_LRS`) is **not supported** as it is only usable as VM disk storage, not as general storage.
+===============================================
+
+[[repository-azure-client-settings]]
+==== Client settings
+
+The client that you use to connect to Azure has a number of settings available.
+The settings have the form `azure.client.CLIENT_NAME.SETTING_NAME`. By default,
+`azure` repositories use a client named `default`, but this can be modified using
+the <<repository-azure-repository-settings,repository setting>> `client`.
+For example:
+
+[source,console]
+----
+PUT _snapshot/my_backup
+{
+  "type": "azure",
+  "settings": {
+    "client": "secondary"
+  }
+}
+----
+// TEST[skip:we don't have azure setup while testing this]
+
+Most client settings can be added to the `elasticsearch.yml` configuration file.
+For example:
+
+[source,yaml]
+----
+azure.client.default.timeout: 10s
+azure.client.default.max_retries: 7
+azure.client.default.endpoint_suffix: core.chinacloudapi.cn
+azure.client.secondary.timeout: 30s
+----
+
+In this example, the client side timeout is `10s` per try for the `default`
+account with `7` retries before failing. The endpoint suffix is
+`core.chinacloudapi.cn` and `30s` per try for the `secondary` account with `3`
+retries.
+
+The `account`, `key`, and `sas_token` storage settings are reloadable secure
+settings, which you add to the {es} keystore. For more information about
+creating and updating the {es} keystore, see
+{ref}/secure-settings.html[Secure settings]. After you reload the settings, the
+internal Azure clients, which are used to transfer the snapshot, utilize the
+latest settings from the keystore.
+
+NOTE: In progress snapshot or restore jobs will not be preempted by a *reload*
+of the storage secure settings. They will complete using the client as it was
+built when the operation started.
+
+The following list contains the available client settings. Those that must be
+stored in the keystore are marked as "secure"; the other settings belong in the
+`elasticsearch.yml` file.
+
+`account` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
+  The Azure account name, which is used by the repository's internal Azure client.
+
+`endpoint_suffix`::
+  The Azure endpoint suffix to connect to. The default value is
+  `core.windows.net`.
+
+`key` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
+  The Azure secret key, which is used by the repository's internal Azure client. Alternatively, use `sas_token`.
+
+`max_retries`::
+    The number of retries to use when an Azure request fails. This setting helps
+    control the exponential backoff policy. It specifies the number of retries
+    that must occur before the snapshot fails. The default value is `3`. The
+    initial backoff period is defined by Azure SDK as `30s`. Thus there is `30s`
+    of wait time before retrying after a first timeout or failure. The maximum
+    backoff period is defined by Azure SDK as `90s`.
+
+`proxy.host`::
+  The host name of a proxy to connect to Azure through. For example: `azure.client.default.proxy.host: proxy.host`.
+
+`proxy.port`::
+  The port of a proxy to connect to Azure through. For example, `azure.client.default.proxy.port: 8888`.
+
+`proxy.type`::
+ Register a proxy type for the client. Supported values are `direct`, `http`,
+ and `socks`. For example: `azure.client.default.proxy.type: http`. When
+ `proxy.type` is set to `http` or `socks`, `proxy.host` and `proxy.port` must
+ also be provided. The default value is `direct`.
+
+`sas_token` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
+  A shared access signatures (SAS) token, which the repository's internal Azure
+  client uses for authentication. The SAS token must have read (r), write (w),
+  list (l), and delete (d) permissions for the repository base path and all its
+  contents. These permissions must be granted for the blob service (b) and apply
+  to resource types service (s), container (c), and object (o). Alternatively,
+  use `key`.
+
+`timeout`::
+  The client side timeout for any single request to Azure. The value should
+  specify the time unit. For example, a value of `5s` specifies a 5 second
+  timeout. There is no default value, which means that {es} uses the
+  https://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
+  set by the Azure client (known as 5 minutes). This setting can be defined
+  globally, per account, or both.
+
+[[repository-azure-repository-settings]]
+==== Repository settings
+
+The Azure repository supports following settings:
+
+`client`::
+
+    Azure named client to use. Defaults to `default`.
+
+`container`::
+
+    Container name. You must create the azure container before creating the repository.
+    Defaults to `elasticsearch-snapshots`.
+
+`base_path`::
+
+    Specifies the path within container to repository data. Defaults to empty
+    (root directory).
++
+NOTE: Don't set `base_path` when configuring a snapshot repository for {ECE}.
+{ECE} automatically generates the `base_path` for each deployment so that
+multiple deployments may share the same bucket.
+
+`chunk_size`::
+
+    Big files can be broken down into multiple smaller blobs in the blob store during snapshotting.
+    It is not recommended to change this value from its default unless there is an explicit reason for limiting the
+    size of blobs in the repository. Setting a value lower than the default can result in an increased number of API
+    calls to the Azure blob store during snapshot create as well as restore operations compared to using the default
+    value and thus make both operations slower as well as more costly.
+    Specify the chunk size as a value and unit, for example:
+    `10MB`, `5KB`, `500B`. Defaults to the maximum size of a blob in the Azure blob store which is `5TB`.
+
+`compress`::
+
+    When set to `true` metadata files are stored in compressed format. This
+    setting doesn't affect index files that are already compressed by default.
+    Defaults to `true`.
+
+include::repository-shared-settings.asciidoc[]
+
+`location_mode`::
+
+    `primary_only` or `secondary_only`. Defaults to `primary_only`. Note that if you set it
+    to `secondary_only`, it will force `readonly` to true.
+
+Some examples, using scripts:
+
+[source,console]
+----
+# The simplest one
+PUT _snapshot/my_backup1
+{
+  "type": "azure"
+}
+
+# With some settings
+PUT _snapshot/my_backup2
+{
+  "type": "azure",
+  "settings": {
+    "container": "backup-container",
+    "base_path": "backups",
+    "chunk_size": "32MB",
+    "compress": true
+  }
+}
+
+
+# With two accounts defined in elasticsearch.yml (my_account1 and my_account2)
+PUT _snapshot/my_backup3
+{
+  "type": "azure",
+  "settings": {
+    "client": "secondary"
+  }
+}
+PUT _snapshot/my_backup4
+{
+  "type": "azure",
+  "settings": {
+    "client": "secondary",
+    "location_mode": "primary_only"
+  }
+}
+----
+// TEST[skip:we don't have azure setup while testing this]
+
+Example using Java:
+
+[source,java]
+----
+client.admin().cluster().preparePutRepository("my_backup_java1")
+    .setType("azure").setSettings(Settings.builder()
+        .put(Storage.CONTAINER, "backup-container")
+        .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
+    ).get();
+----
+
+[[repository-azure-validation]]
+==== Repository validation rules
+
+According to the
+https://docs.microsoft.com/en-us/rest/api/storageservices/Naming-and-Referencing-Containers--Blobs--and-Metadata[containers
+naming guide], a container name must be a valid DNS name, conforming to the
+following naming rules:
+
+* Container names must start with a letter or number, and can contain only letters, numbers, and the dash (-) character.
+* Every dash (-) character must be immediately preceded and followed by a letter or number; consecutive dashes are not
+permitted in container names.
+* All letters in a container name must be lowercase.
+* Container names must be from 3 through 63 characters long.

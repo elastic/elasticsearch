@@ -13,7 +13,7 @@ deletion during an upgrade.
 
 In production, we strongly recommend you set the `path.data` and `path.logs` in
 `elasticsearch.yml` to locations outside of `$ES_HOME`. <<docker,Docker>>,
-<<deb,Debian>>, <<rpm,RPM>>, and <<brew,macOS Homebrew>> installations write
+<<deb,Debian>>, and <<rpm,RPM>> installations write
 data and log to locations outside of `$ES_HOME` by default.
 
 Supported `path.data` and `path.logs` values vary by platform:

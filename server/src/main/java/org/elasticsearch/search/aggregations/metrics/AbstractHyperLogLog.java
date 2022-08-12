@@ -714,18 +714,11 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
     public AbstractHyperLogLog(int precision) {
         super(precision);
         m = 1 << p;
-        final double alpha;
-        switch (p) {
-            case 4:
-                alpha = 0.673;
-                break;
-            case 5:
-                alpha = 0.697;
-                break;
-            default:
-                alpha = 0.7213 / (1 + 1.079 / m);
-                break;
-        }
+        final double alpha = switch (p) {
+            case 4 -> 0.673;
+            case 5 -> 0.697;
+            default -> 0.7213 / (1 + 1.079 / m);
+        };
         alphaMM = alpha * m * m;
     }
 

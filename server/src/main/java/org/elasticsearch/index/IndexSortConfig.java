@@ -100,6 +100,14 @@ public final class IndexSortConfig {
         Setting.Property.Final
     );
 
+    public static final FieldSortSpec[] TIME_SERIES_SORT;
+
+    static {
+        FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        timeStampSpec.order = SortOrder.DESC;
+        TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
+    }
+
     private static String validateMissingValue(String missing) {
         if ("_last".equals(missing) == false && "_first".equals(missing) == false) {
             throw new IllegalArgumentException("Illegal missing value:[" + missing + "], " + "must be one of [_last, _first]");
@@ -138,9 +146,7 @@ public final class IndexSortConfig {
         this.indexMode = indexSettings.getMode();
 
         if (this.indexMode == IndexMode.TIME_SERIES) {
-            this.sortSpecs = new FieldSortSpec[] {
-                new FieldSortSpec(TimeSeriesIdFieldMapper.NAME),
-                new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
+            this.sortSpecs = TIME_SERIES_SORT;
             return;
         }
 
@@ -257,14 +263,14 @@ public final class IndexSortConfig {
         return new Sort(sortFields);
     }
 
-    private void validateIndexSortField(SortField sortField) {
+    private static void validateIndexSortField(SortField sortField) {
         SortField.Type type = getSortFieldType(sortField);
         if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false) {
             throw new IllegalArgumentException("invalid index sort field:[" + sortField.getField() + "]");
         }
     }
 
-    static class FieldSortSpec {
+    public static class FieldSortSpec {
         final String field;
         SortOrder order;
         MultiValueMode mode;
@@ -272,6 +278,14 @@ public final class IndexSortConfig {
 
         FieldSortSpec(String field) {
             this.field = field;
+        }
+
+        public String getField() {
+            return field;
+        }
+
+        public SortOrder getOrder() {
+            return order;
         }
     }
 

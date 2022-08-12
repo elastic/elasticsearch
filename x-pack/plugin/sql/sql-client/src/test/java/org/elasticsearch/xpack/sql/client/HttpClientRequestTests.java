@@ -13,8 +13,6 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -41,13 +39,13 @@ import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.FETCH_SIZE_NAME;
@@ -77,22 +75,24 @@ public class HttpClientRequestTests extends ESTestCase {
     }
 
     public void testBinaryRequestForCLIEnabled() throws URISyntaxException {
-        assertBinaryRequestForCLI(true, XContentType.CBOR);
+        assertBinaryRequestForCLI(XContentType.CBOR);
     }
 
     public void testBinaryRequestForCLIDisabled() throws URISyntaxException {
-        assertBinaryRequestForCLI(false, XContentType.JSON);
+        assertBinaryRequestForCLI(XContentType.JSON);
     }
 
     public void testBinaryRequestForDriversEnabled() throws URISyntaxException {
-        assertBinaryRequestForDrivers(true, XContentType.CBOR);
+        assertBinaryRequestForDrivers(XContentType.CBOR);
     }
 
     public void testBinaryRequestForDriversDisabled() throws URISyntaxException {
-        assertBinaryRequestForDrivers(false, XContentType.JSON);
+        assertBinaryRequestForDrivers(XContentType.JSON);
     }
 
-    private void assertBinaryRequestForCLI(boolean isBinary, XContentType xContentType) throws URISyntaxException {
+    private void assertBinaryRequestForCLI(XContentType xContentType) throws URISyntaxException {
+        boolean isBinary = XContentType.CBOR == xContentType;
+
         String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
         String query = randomAlphaOfLength(256);
         int fetchSize = randomIntBetween(1, 100);
@@ -105,7 +105,7 @@ public class HttpClientRequestTests extends ESTestCase {
 
         prepareMockResponse();
         try {
-            httpClient.basicQuery(query, fetchSize);
+            httpClient.basicQuery(query, fetchSize, randomBoolean(), randomBoolean());
         } catch (SQLException e) {
             logger.info("Ignored SQLException", e);
         }
@@ -148,7 +148,9 @@ public class HttpClientRequestTests extends ESTestCase {
         assertEquals("45000ms", reqContent.get(PAGE_TIMEOUT_NAME));
     }
 
-    private void assertBinaryRequestForDrivers(boolean isBinary, XContentType xContentType) throws URISyntaxException {
+    private void assertBinaryRequestForDrivers(XContentType xContentType) throws URISyntaxException {
+        boolean isBinary = XContentType.CBOR == xContentType;
+
         String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
         String query = randomAlphaOfLength(256);
         Properties props = new Properties();
@@ -167,14 +169,13 @@ public class HttpClientRequestTests extends ESTestCase {
             randomIntBetween(1, 100),
             TimeValue.timeValueMillis(randomNonNegativeLong()),
             TimeValue.timeValueMillis(randomNonNegativeLong()),
-            null,
             randomBoolean(),
             randomAlphaOfLength(128),
             new RequestInfo(mode, ClientVersion.CURRENT),
             randomBoolean(),
             randomBoolean(),
             isBinary,
-            Collections.emptyMap()
+            randomBoolean()
         );
 
         prepareMockResponse();
@@ -238,14 +239,7 @@ public class HttpClientRequestTests extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to respond to request [{} {}]",
-                            s.getRequestMethod(),
-                            s.getRequestURI()
-                        ),
-                        e
-                    );
+                    logger.error(() -> format("failed to respond to request [%s %s]", s.getRequestMethod(), s.getRequestURI()), e);
                 } finally {
                     s.close();
                 }

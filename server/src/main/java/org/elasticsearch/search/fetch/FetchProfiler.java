@@ -105,6 +105,16 @@ public class FetchProfiler implements FetchPhase.Profiler {
     }
 
     @Override
+    public void startLoadingSource() {
+        current.getTimer(FetchPhaseTiming.LOAD_SOURCE).start();
+    }
+
+    @Override
+    public void stopLoadingSource() {
+        current.getTimer(FetchPhaseTiming.LOAD_SOURCE).stop();
+    }
+
+    @Override
     public void startNextReader() {
         current.getTimer(FetchPhaseTiming.NEXT_READER).start();
     }
@@ -138,9 +148,28 @@ public class FetchProfiler implements FetchPhase.Profiler {
         }
     }
 
+    /**
+     * Actions within the "main" fetch phase that are explicitly profiled.
+     * See also {@link FetchSubPhaseProfileBreakdown}.
+     */
     enum FetchPhaseTiming {
+        /**
+         * Time spent setting up infrastructure for each segment. This is
+         * called once per segment that has a matching document.
+         */
         NEXT_READER,
-        LOAD_STORED_FIELDS;
+        /**
+         * Time spent loading stored fields for each document. This is called
+         * once per document if the fetch needs stored fields. Most do.
+         */
+        LOAD_STORED_FIELDS,
+        /**
+         * Time spent computing the {@code _source}. This is called once per
+         * document that needs to fetch source. This may be as fast as reading
+         * {@code _source} from the stored fields or as slow as loading doc
+         * values for all fields.
+         */
+        LOAD_SOURCE;
 
         @Override
         public String toString() {
@@ -148,6 +177,9 @@ public class FetchProfiler implements FetchPhase.Profiler {
         }
     }
 
+    /**
+     * Timings from an optional sub-phase of fetch.
+     */
     static class FetchSubPhaseProfileBreakdown extends AbstractProfileBreakdown<FetchSubPhaseTiming> {
         private final String type;
         private final String description;

@@ -89,28 +89,15 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 if (i > 0) {
                     clusterState = builder.build();
                 }
-                switch (randomInt(5)) {
-                    case 0:
-                        builder = randomNodes(clusterState);
-                        break;
-                    case 1:
-                        builder = randomRoutingTable(clusterState);
-                        break;
-                    case 2:
-                        builder = randomBlocks(clusterState);
-                        break;
-                    case 3:
-                        builder = randomClusterStateCustoms(clusterState);
-                        break;
-                    case 4:
-                        builder = randomMetadataChanges(clusterState);
-                        break;
-                    case 5:
-                        builder = randomCoordinationMetadata(clusterState);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Shouldn't be here");
-                }
+                builder = switch (randomInt(5)) {
+                    case 0 -> randomNodes(clusterState);
+                    case 1 -> randomRoutingTable(clusterState);
+                    case 2 -> randomBlocks(clusterState);
+                    case 3 -> randomClusterStateCustoms(clusterState);
+                    case 4 -> randomMetadataChanges(clusterState);
+                    case 5 -> randomCoordinationMetadata(clusterState);
+                    default -> throw new IllegalArgumentException("Shouldn't be here");
+                };
             }
             clusterState = builder.incrementVersion().build();
 
@@ -228,7 +215,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         List<String> nodeIds = randomSubsetOf(
             randomInt(clusterState.nodes().getNodes().size() - 1),
-            clusterState.nodes().getNodes().keys().toArray(String.class)
+            clusterState.nodes().getNodes().keySet().toArray(new String[0])
         );
         for (String nodeId : nodeIds) {
             if (nodeId.startsWith("node-")) {
@@ -254,7 +241,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         if (numberOfIndices > 0) {
             List<String> randomIndices = randomSubsetOf(
                 randomInt(numberOfIndices - 1),
-                clusterState.routingTable().indicesRouting().keys().toArray(String.class)
+                clusterState.routingTable().indicesRouting().keySet().toArray(new String[0])
             );
             for (String index : randomIndices) {
                 if (randomBoolean()) {
@@ -263,7 +250,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     builder.add(
                         randomChangeToIndexRoutingTable(
                             clusterState.routingTable().indicesRouting().get(index),
-                            clusterState.nodes().getNodes().keys().toArray(String.class)
+                            clusterState.nodes().getNodes().keySet().toArray(new String[0])
                         )
                     );
                 }
@@ -271,7 +258,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         }
         int additionalIndexCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalIndexCount; i++) {
-            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keys().toArray(String.class)));
+            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keySet().toArray(new String[0])));
         }
         return ClusterState.builder(clusterState).routingTable(builder.build());
     }
@@ -309,7 +296,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     )
                 );
             }
-            builder.addIndexShard(indexShard.build());
+            builder.addIndexShard(indexShard);
         }
         return builder.build();
     }
@@ -319,16 +306,19 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private IndexRoutingTable randomChangeToIndexRoutingTable(IndexRoutingTable original, String[] nodes) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
-        for (Map.Entry<Integer, IndexShardRoutingTable> indexShardRoutingTable : original.shards().entrySet()) {
+        for (int i = 0; i < original.size(); i++) {
+            IndexShardRoutingTable indexShardRoutingTable = original.shard(i);
             Set<String> availableNodes = Sets.newHashSet(nodes);
-            for (ShardRouting shardRouting : indexShardRoutingTable.getValue().shards()) {
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                 availableNodes.remove(shardRouting.currentNodeId());
                 if (shardRouting.relocating()) {
                     availableNodes.remove(shardRouting.relocatingNodeId());
                 }
             }
 
-            for (ShardRouting shardRouting : indexShardRoutingTable.getValue().shards()) {
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                 final ShardRouting updatedShardRouting = randomChange(shardRouting, availableNodes);
                 availableNodes.remove(updatedShardRouting.currentNodeId());
                 if (shardRouting.relocating()) {
@@ -366,14 +356,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      * Returns a random global block
      */
     private ClusterBlock randomGlobalBlock() {
-        switch (randomInt(2)) {
-            case 0:
-                return NoMasterBlockService.NO_MASTER_BLOCK_ALL;
-            case 1:
-                return NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
-            default:
-                return GatewayService.STATE_NOT_RECOVERED_BLOCK;
-        }
+        return switch (randomInt(2)) {
+            case 0 -> NoMasterBlockService.NO_MASTER_BLOCK_ALL;
+            case 1 -> NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
+            default -> GatewayService.STATE_NOT_RECOVERED_BLOCK;
+        };
     }
 
     /**
@@ -384,7 +371,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         /**
          * Returns list of parts from metadata
          */
-        ImmutableOpenMap<String, T> parts(ClusterState clusterState);
+        Map<String, T> parts(ClusterState clusterState);
 
         /**
          * Puts the part back into metadata
@@ -414,12 +401,12 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private <T> ClusterState randomClusterStateParts(ClusterState clusterState, String prefix, RandomClusterPart<T> randomPart) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        ImmutableOpenMap<String, T> parts = randomPart.parts(clusterState);
+        Map<String, T> parts = randomPart.parts(clusterState);
         int partCount = parts.size();
         if (partCount > 0) {
             List<String> randomParts = randomSubsetOf(
                 randomInt(partCount - 1),
-                randomPart.parts(clusterState).keys().toArray(String.class)
+                randomPart.parts(clusterState).keySet().toArray(new String[0])
             );
             for (String part : randomParts) {
                 if (randomBoolean()) {
@@ -444,22 +431,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         Metadata metadata = clusterState.metadata();
         int changesCount = randomIntBetween(1, 10);
         for (int i = 0; i < changesCount; i++) {
-            switch (randomInt(3)) {
-                case 0:
-                    metadata = randomMetadataSettings(metadata);
-                    break;
-                case 1:
-                    metadata = randomIndices(metadata);
-                    break;
-                case 2:
-                    metadata = randomTemplates(metadata);
-                    break;
-                case 3:
-                    metadata = randomMetadataCustoms(metadata);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Shouldn't be here");
-            }
+            metadata = switch (randomInt(3)) {
+                case 0 -> randomMetadataSettings(metadata);
+                case 1 -> randomIndices(metadata);
+                case 2 -> randomTemplates(metadata);
+                case 3 -> randomMetadataCustoms(metadata);
+                default -> throw new IllegalArgumentException("Shouldn't be here");
+            };
         }
         return ClusterState.builder(clusterState).metadata(Metadata.builder(metadata).version(metadata.version() + 1).build());
     }
@@ -494,7 +472,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         /**
          * Returns list of parts from metadata
          */
-        ImmutableOpenMap<String, T> parts(Metadata metadata);
+        Map<String, T> parts(Metadata metadata);
 
         /**
          * Puts the part back into metadata
@@ -524,10 +502,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private <T> Metadata randomParts(Metadata metadata, String prefix, RandomPart<T> randomPart) {
         Metadata.Builder builder = Metadata.builder(metadata);
-        ImmutableOpenMap<String, T> parts = randomPart.parts(metadata);
+        Map<String, T> parts = randomPart.parts(metadata);
         int partCount = parts.size();
         if (partCount > 0) {
-            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(metadata).keys().toArray(String.class));
+            List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(metadata).keySet().toArray(new String[0]));
             for (String part : randomParts) {
                 if (randomBoolean()) {
                     randomPart.remove(builder, part);
@@ -551,7 +529,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return randomParts(metadata, "index", new RandomPart<IndexMetadata>() {
 
             @Override
-            public ImmutableOpenMap<String, IndexMetadata> parts(Metadata metadata) {
+            public Map<String, IndexMetadata> parts(Metadata metadata) {
                 return metadata.indices();
             }
 
@@ -589,15 +567,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         break;
                     case 1:
                         if (randomBoolean() && part.getAliases().isEmpty() == false) {
-                            builder.removeAlias(randomFrom(part.getAliases().keys().toArray(String.class)));
+                            builder.removeAlias(randomFrom(part.getAliases().keySet().toArray(new String[0])));
                         } else {
                             builder.putAlias(AliasMetadata.builder(randomAlphaOfLength(10)));
                         }
                         break;
                     case 2:
-                        builder.settings(
-                            Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                        );
+                        builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
@@ -613,7 +589,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     private Metadata randomTemplates(Metadata metadata) {
         return randomParts(metadata, "template", new RandomPart<IndexTemplateMetadata>() {
             @Override
-            public ImmutableOpenMap<String, IndexTemplateMetadata> parts(Metadata metadata) {
+            public Map<String, IndexTemplateMetadata> parts(Metadata metadata) {
                 return metadata.templates();
             }
 
@@ -670,7 +646,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return randomParts(metadata, "custom", new RandomPart<Metadata.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, Metadata.Custom> parts(Metadata metadata) {
+            public Map<String, Metadata.Custom> parts(Metadata metadata) {
                 return metadata.customs();
             }
 
@@ -712,7 +688,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return ClusterState.builder(randomClusterStateParts(clusterState, "custom", new RandomClusterPart<ClusterState.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, ClusterState.Custom> parts(ClusterState clusterState) {
+            public Map<String, ClusterState.Custom> parts(ClusterState clusterState) {
                 return clusterState.customs();
             }
 
@@ -728,38 +704,36 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public ClusterState.Custom randomCreate(String name) {
-                switch (randomIntBetween(0, 1)) {
-                    case 0:
-                        return SnapshotsInProgress.EMPTY.withAddedEntry(
-                            new SnapshotsInProgress.Entry(
-                                new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
-                                randomBoolean(),
-                                randomBoolean(),
-                                SnapshotsInProgressSerializationTests.randomState(ImmutableOpenMap.of()),
-                                Collections.emptyMap(),
-                                Collections.emptyList(),
-                                Collections.emptyList(),
-                                Math.abs(randomLong()),
-                                randomIntBetween(0, 1000),
-                                ImmutableOpenMap.of(),
-                                null,
-                                SnapshotInfoTestUtils.randomUserMetadata(),
-                                randomVersion(random())
-                            )
-                        );
-                    case 1:
-                        return new RestoreInProgress.Builder().add(
-                            new RestoreInProgress.Entry(
-                                UUIDs.randomBase64UUID(),
-                                new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
-                                RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
-                                emptyList(),
-                                ImmutableOpenMap.of()
-                            )
-                        ).build();
-                    default:
-                        throw new IllegalArgumentException("Shouldn't be here");
-                }
+                return switch (randomIntBetween(0, 1)) {
+                    case 0 -> SnapshotsInProgress.EMPTY.withAddedEntry(
+                        new SnapshotsInProgress.Entry(
+                            new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
+                            randomBoolean(),
+                            randomBoolean(),
+                            SnapshotsInProgressSerializationTests.randomState(ImmutableOpenMap.of()),
+                            Collections.emptyMap(),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            Math.abs(randomLong()),
+                            randomIntBetween(0, 1000),
+                            ImmutableOpenMap.of(),
+                            null,
+                            SnapshotInfoTestUtils.randomUserMetadata(),
+                            randomVersion(random())
+                        )
+                    );
+                    case 1 -> new RestoreInProgress.Builder().add(
+                        new RestoreInProgress.Entry(
+                            UUIDs.randomBase64UUID(),
+                            new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
+                            RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
+                            randomBoolean(),
+                            emptyList(),
+                            ImmutableOpenMap.of()
+                        )
+                    ).build();
+                    default -> throw new IllegalArgumentException("Shouldn't be here");
+                };
             }
 
             @Override

@@ -25,6 +25,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -56,6 +57,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -74,8 +76,7 @@ public class ScriptScoreBenchmark {
         Settings.EMPTY,
         null,
         null,
-        Path.of(System.getProperty("plugins.dir")),
-        List.of()
+        Path.of(System.getProperty("plugins.dir"))
     );
     private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class));
 
@@ -83,10 +84,11 @@ public class ScriptScoreBenchmark {
         Map.entry("n", new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null))
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();
+    private final Map<String, Set<String>> sourcePaths = Map.of("n", Set.of("n"));
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-    private SearchLookup lookup = new SearchLookup(
+    private final SearchLookup lookup = new SearchLookup(
         fieldTypes::get,
-        (mft, lookup) -> mft.fielddataBuilder("test", lookup).build(fieldDataCache, breakerService)
+        (mft, lookup, fdo) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(fieldDataCache, breakerService)
     );
 
     @Param({ "expression", "metal", "painless_cast", "painless_def" })
@@ -101,28 +103,19 @@ public class ScriptScoreBenchmark {
 
     @Setup
     public void setupScript() {
-        switch (script) {
-            case "expression":
-                factory = scriptModule.engines.get("expression").compile("test", "doc['n'].value", ScoreScript.CONTEXT, Map.of());
-                break;
-            case "metal":
-                factory = bareMetalScript();
-                break;
-            case "painless_cast":
-                factory = scriptModule.engines.get("painless")
-                    .compile(
-                        "test",
-                        "((org.elasticsearch.index.fielddata.ScriptDocValues.Longs)doc['n']).value",
-                        ScoreScript.CONTEXT,
-                        Map.of()
-                    );
-                break;
-            case "painless_def":
-                factory = scriptModule.engines.get("painless").compile("test", "doc['n'].value", ScoreScript.CONTEXT, Map.of());
-                break;
-            default:
-                throw new IllegalArgumentException("Don't know how to implement script [" + script + "]");
-        }
+        factory = switch (script) {
+            case "expression" -> scriptModule.engines.get("expression").compile("test", "doc['n'].value", ScoreScript.CONTEXT, Map.of());
+            case "metal" -> bareMetalScript();
+            case "painless_cast" -> scriptModule.engines.get("painless")
+                .compile(
+                    "test",
+                    "((org.elasticsearch.index.fielddata.ScriptDocValues.Longs)doc['n']).value",
+                    ScoreScript.CONTEXT,
+                    Map.of()
+                );
+            case "painless_def" -> scriptModule.engines.get("painless").compile("test", "doc['n'].value", ScoreScript.CONTEXT, Map.of());
+            default -> throw new IllegalArgumentException("Don't know how to implement script [" + script + "]");
+        };
     }
 
     @Setup
@@ -161,7 +154,7 @@ public class ScriptScoreBenchmark {
     private ScoreScript.Factory bareMetalScript() {
         return (params, lookup) -> {
             MappedFieldType type = fieldTypes.get("n");
-            IndexNumericFieldData ifd = (IndexNumericFieldData) lookup.getForField(type);
+            IndexNumericFieldData ifd = (IndexNumericFieldData) lookup.getForField(type, MappedFieldType.FielddataOperation.SEARCH);
             return new ScoreScript.LeafFactory() {
                 @Override
                 public ScoreScript newInstance(DocReader docReader) throws IOException {

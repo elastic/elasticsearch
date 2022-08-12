@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -14,12 +15,18 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -34,7 +41,7 @@ import java.util.stream.Collectors;
  */
 public final class ClientHelper {
 
-    private static Pattern authorizationHeaderPattern = Pattern.compile(
+    private static final Pattern authorizationHeaderPattern = Pattern.compile(
         "\\s*" + Pattern.quote("Authorization") + "\\s*",
         Pattern.CASE_INSENSITIVE
     );
@@ -52,7 +59,7 @@ public final class ClientHelper {
     /**
      * List of headers that are related to security
      */
-    public static final Set<String> SECURITY_HEADER_FILTERS = Sets.newHashSet(
+    public static final Set<String> SECURITY_HEADER_FILTERS = Set.of(
         AuthenticationServiceField.RUN_AS_USER_HEADER,
         AuthenticationField.AUTHENTICATION_KEY,
         SecondaryAuthentication.THREAD_CTX_KEY
@@ -78,12 +85,96 @@ public final class ClientHelper {
     }
 
     /**
+     * In addition to {@link #filterSecurityHeaders}, also check the version of Authentication objects
+     * and rewrite them using minNodeVersion so that they are safe to be persisted as index data
+     * and loaded by all nodes in the cluster.
+     */
+    public static Map<String, String> getPersistableSafeSecurityHeaders(ThreadContext threadContext, ClusterState clusterState) {
+        return maybeRewriteAuthenticationHeadersForVersion(
+            filterSecurityHeaders(threadContext.getHeaders()),
+            key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
+            clusterState.nodes().getMinNodeVersion()
+        );
+    }
+
+    /**
+     * Similar to {@link #getPersistableSafeSecurityHeaders(ThreadContext, ClusterState)},
+     * but works on a Map of headers instead of ThreadContext.
+     */
+    public static Map<String, String> getPersistableSafeSecurityHeaders(Map<String, String> headers, ClusterState clusterState) {
+        final CheckedFunction<String, Authentication, IOException> authenticationReader = key -> {
+            final String authHeader = headers.get(key);
+            return authHeader == null ? null : AuthenticationContextSerializer.decode(authHeader);
+        };
+        return maybeRewriteAuthenticationHeadersForVersion(
+            filterSecurityHeaders(headers),
+            authenticationReader,
+            clusterState.nodes().getMinNodeVersion()
+        );
+    }
+
+    private static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(
+        Map<String, String> filteredHeaders,
+        CheckedFunction<String, Authentication, IOException> authenticationReader,
+        Version minNodeVersion
+    ) {
+        Map<String, String> newHeaders = null;
+
+        final String authHeader = maybeRewriteSingleAuthenticationHeaderForVersion(
+            authenticationReader,
+            AuthenticationField.AUTHENTICATION_KEY,
+            minNodeVersion
+        );
+        if (authHeader != null) {
+            newHeaders = new HashMap<>();
+            newHeaders.put(AuthenticationField.AUTHENTICATION_KEY, authHeader);
+        }
+
+        final String secondaryHeader = maybeRewriteSingleAuthenticationHeaderForVersion(
+            authenticationReader,
+            SecondaryAuthentication.THREAD_CTX_KEY,
+            minNodeVersion
+        );
+        if (secondaryHeader != null) {
+            if (newHeaders == null) {
+                newHeaders = new HashMap<>();
+            }
+            newHeaders.put(SecondaryAuthentication.THREAD_CTX_KEY, secondaryHeader);
+        }
+
+        if (newHeaders != null) {
+            final HashMap<String, String> mutableHeaders = new HashMap<>(filteredHeaders);
+            mutableHeaders.putAll(newHeaders);
+            return Map.copyOf(mutableHeaders);
+        } else {
+            return filteredHeaders;
+        }
+    }
+
+    private static String maybeRewriteSingleAuthenticationHeaderForVersion(
+        CheckedFunction<String, Authentication, IOException> authenticationReader,
+        String authenticationHeaderKey,
+        Version minNodeVersion
+    ) {
+        try {
+            final Authentication authentication = authenticationReader.apply(authenticationHeaderKey);
+            if (authentication != null && authentication.getVersion().after(minNodeVersion)) {
+                return authentication.maybeRewriteForOlderVersion(minNodeVersion).encode();
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to read authentication with key [" + authenticationHeaderKey + "]", e);
+        }
+        return null;
+    }
+
+    /**
      * .
      * @deprecated use ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME
      */
     @Deprecated
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
     public static final String SECURITY_ORIGIN = "security";
+    public static final String SECURITY_PROFILE_ORIGIN = "security_profile";
     public static final String WATCHER_ORIGIN = "watcher";
     public static final String ML_ORIGIN = "ml";
     public static final String INDEX_LIFECYCLE_ORIGIN = "index_lifecycle";
@@ -167,6 +258,7 @@ public final class ClientHelper {
         Client client,
         Supplier<T> supplier
     ) {
+        // No need to rewrite authentication header because it will be handled by Security Interceptor
         Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
 
         // no security headers, we will have to use the xpack internal user for
@@ -206,6 +298,7 @@ public final class ClientHelper {
         Request request,
         ActionListener<Response> listener
     ) {
+        // No need to rewrite authentication header because it will be handled by Security Interceptor
         final Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         // No headers (e.g. security not installed/in use) so execute as origin

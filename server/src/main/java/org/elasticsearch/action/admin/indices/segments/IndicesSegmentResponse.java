@@ -87,7 +87,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
 
             builder.startObject(Fields.SHARDS);
             for (IndexShardSegments indexSegment : indexSegments) {
-                builder.startArray(Integer.toString(indexSegment.getShardId().id()));
+                builder.startArray(Integer.toString(indexSegment.shardId().id()));
                 for (ShardSegments shardSegments : indexSegment) {
                     builder.startObject();
 

@@ -10,7 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rollup.RollupV2;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,29 +56,30 @@ public class TimeseriesLifecycleType implements LifecycleType {
         UnfollowAction.NAME,
         RolloverAction.NAME,
         ReadOnlyAction.NAME,
-        RollupV2.isEnabled() ? RollupILMAction.NAME : null,
+        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
     ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(
+    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Stream.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
+        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
         AllocateAction.NAME,
         MigrateAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME
-    );
+    ).filter(Objects::nonNull).toList();
     public static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
+        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
         SearchableSnapshotAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
-        FreezeAction.NAME,
-        RollupV2.isEnabled() ? RollupILMAction.NAME : null
+        FreezeAction.NAME
     ).filter(Objects::nonNull).toList();
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
@@ -102,7 +103,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         VALID_FROZEN_ACTIONS
     );
 
-    static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(
+    static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Set.of(
         ReadOnlyAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
@@ -210,44 +211,26 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public List<LifecycleAction> getOrderedActions(Phase phase) {
         Map<String, LifecycleAction> actions = phase.getActions();
-        switch (phase.getName()) {
-            case HOT_PHASE:
-                return ORDERED_VALID_HOT_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case WARM_PHASE:
-                return ORDERED_VALID_WARM_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case COLD_PHASE:
-                return ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case FROZEN_PHASE:
-                return ORDERED_VALID_FROZEN_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case DELETE_PHASE:
-                return ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            default:
-                throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
-        }
+        return switch (phase.getName()) {
+            case HOT_PHASE -> ORDERED_VALID_HOT_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            case WARM_PHASE -> ORDERED_VALID_WARM_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            case COLD_PHASE -> ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            case FROZEN_PHASE -> ORDERED_VALID_FROZEN_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
+        };
     }
 
     @Override
     public String getNextActionName(String currentActionName, Phase phase) {
-        List<String> orderedActionNames;
-        switch (phase.getName()) {
-            case HOT_PHASE:
-                orderedActionNames = ORDERED_VALID_HOT_ACTIONS;
-                break;
-            case WARM_PHASE:
-                orderedActionNames = ORDERED_VALID_WARM_ACTIONS;
-                break;
-            case COLD_PHASE:
-                orderedActionNames = ORDERED_VALID_COLD_ACTIONS;
-                break;
-            case FROZEN_PHASE:
-                orderedActionNames = ORDERED_VALID_FROZEN_ACTIONS;
-                break;
-            case DELETE_PHASE:
-                orderedActionNames = ORDERED_VALID_DELETE_ACTIONS;
-                break;
-            default:
-                throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
-        }
+        List<String> orderedActionNames = switch (phase.getName()) {
+            case HOT_PHASE -> ORDERED_VALID_HOT_ACTIONS;
+            case WARM_PHASE -> ORDERED_VALID_WARM_ACTIONS;
+            case COLD_PHASE -> ORDERED_VALID_COLD_ACTIONS;
+            case FROZEN_PHASE -> ORDERED_VALID_FROZEN_ACTIONS;
+            case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS;
+            default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
+        };
 
         int index = orderedActionNames.indexOf(currentActionName);
         if (index < 0) {

@@ -143,7 +143,7 @@ public class SecureSM extends SecurityManager {
     }
 
     @SuppressForbidden(reason = "java.security.debug messages go to standard error")
-    private void debugThreadGroups(final ThreadGroup caller, final ThreadGroup target) {
+    private static void debugThreadGroups(final ThreadGroup caller, final ThreadGroup target) {
         System.err.println("access: caller group=" + caller);
         System.err.println("access: target group=" + target);
     }

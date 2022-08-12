@@ -14,18 +14,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -159,29 +155,6 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
             .endObject();
         e = expectThrows(IllegalArgumentException.class, () -> new CreateIndexRequest().source(aliases2));
         assertThat(e.getMessage(), containsString("Unknown token [START_ARRAY] in alias [filtered-data]"));
-    }
-
-    public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {
-        assertEquals(expected.keySet(), actual.keySet());
-
-        for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
-            String expectedValue = expectedEntry.getValue();
-            String actualValue = actual.get(expectedEntry.getKey());
-            try (
-                XContentParser expectedJson = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    expectedValue
-                );
-                XContentParser actualJson = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    actualValue
-                )
-            ) {
-                assertEquals(expectedJson.map(), actualJson.map());
-            }
-        }
     }
 
     public static void assertAliasesEqual(Set<Alias> expected, Set<Alias> actual) throws IOException {

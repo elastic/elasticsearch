@@ -95,17 +95,10 @@ public final class CircleProcessor extends AbstractProcessor {
             if (ShapeType.CIRCLE.equals(geometry.type())) {
                 Circle circle = (Circle) geometry;
                 int numSides = numSides(circle.getRadiusMeters());
-                final Geometry polygonizedCircle;
-                switch (circleShapeFieldType) {
-                    case GEO_SHAPE:
-                        polygonizedCircle = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
-                        break;
-                    case SHAPE:
-                        polygonizedCircle = SpatialUtils.createRegularShapePolygon(circle, numSides);
-                        break;
-                    default:
-                        throw new IllegalStateException("invalid shape_type [" + circleShapeFieldType + "]");
-                }
+                final Geometry polygonizedCircle = switch (circleShapeFieldType) {
+                    case GEO_SHAPE -> SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
+                    case SHAPE -> SpatialUtils.createRegularShapePolygon(circle, numSides);
+                };
                 XContentBuilder newValueBuilder = XContentFactory.jsonBuilder().startObject().field("val");
                 geometryFormat.toXContent(polygonizedCircle, newValueBuilder, ToXContent.EMPTY_PARAMS);
                 newValueBuilder.endObject();

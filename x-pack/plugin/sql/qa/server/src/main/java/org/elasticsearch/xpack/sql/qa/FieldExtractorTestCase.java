@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,8 +37,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertResponse;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.expectBadRequest;
-import static org.hamcrest.Matchers.containsString;
 
 /**
  * Test class covering parameters/settings that can be used in the mapping of an index
@@ -44,6 +44,30 @@ import static org.hamcrest.Matchers.containsString;
  * values from Elasticsearch.
  */
 public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
+
+    boolean explicitSourceSetting;
+    boolean enableSource;
+    Map<String, Object> indexProps;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
+        enableSource = randomBoolean(); // enable _source at index level
+        indexProps = Maps.newMapWithExpectedSize(1);
+        indexProps.put("_source", enableSource);
+    }
+
+    private Object getExpectedValueFromSource(Object value) {
+        if (explicitSourceSetting && enableSource == false) {
+            return null;
+        }
+        return value;
+    }
+
+    private Map<String, Object> getIndexProps() {
+        return explicitSourceSetting ? indexProps : null;
+    }
 
     /*
      *    "text_field": {
@@ -53,23 +77,14 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testTextField() throws IOException {
         String query = "SELECT text_field FROM test";
         String text = randomAlphaOfLength(20);
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
 
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
-
-        createIndexWithFieldTypeAndProperties("text", null, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties("text", null, getIndexProps());
         index("{\"text_field\":\"" + text + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", "text_field", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(text)));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "text_field", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(text))));
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -81,32 +96,23 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testKeywordField() throws IOException {
         String query = "SELECT keyword_field FROM test";
         String keyword = randomAlphaOfLength(20);
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreAbove = randomBoolean();
-
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreAbove) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_above", 10);
             fieldProps.put("keyword_field", fieldProp);
         }
 
-        createIndexWithFieldTypeAndProperties("keyword", fieldProps, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties("keyword", fieldProps, getIndexProps());
         index("{\"keyword_field\":\"" + keyword + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(ignoreAbove ? null : keyword)));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(ignoreAbove ? null : keyword))));
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -118,31 +124,22 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testConstantKeywordField() throws IOException {
         String query = "SELECT constant_keyword_field FROM test";
         String value = randomAlphaOfLength(20);
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
-
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (randomBoolean()) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("value", value);
             fieldProps.put("constant_keyword_field", fieldProp);
         }
 
-        createIndexWithFieldTypeAndProperties("constant_keyword", fieldProps, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties("constant_keyword", fieldProps, getIndexProps());
         index("{\"constant_keyword_field\":\"" + value + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", "constant_keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(value)));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "constant_keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(value)));
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -154,38 +151,30 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testWildcardField() throws IOException {
         String query = "SELECT wildcard_field FROM test";
         String wildcard = randomAlphaOfLength(20);
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreAbove = randomBoolean();
-
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreAbove) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_above", 10);
             fieldProps.put("wildcard_field", fieldProp);
         }
 
-        createIndexWithFieldTypeAndProperties("wildcard", fieldProps, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties("wildcard", fieldProps, getIndexProps());
         index("{\"wildcard_field\":\"" + wildcard + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", "wildcard_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(ignoreAbove ? null : wildcard)));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "wildcard_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(ignoreAbove ? null : wildcard))));
+        assertResponse(expected, runSql(query));
     }
 
     /*
      *    "long/integer/short/byte_field": {
      *       "type": "long/integer/short/byte"
      *    }
+     *    Note: no unsigned_long tested -- the mapper for it won't accept float formats.
      */
     public void testFractionsForNonFloatingPointTypes() throws IOException {
         String floatingPointNumber = "123.456";
@@ -215,8 +204,8 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (isScaledFloat) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("scaling_factor", 10);            // scaling_factor is required for "scaled_float"
             fieldProps.put(fieldType + "_field", fieldProp);
         }
@@ -280,38 +269,40 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         testField("byte", ((Number) randomByte()).intValue());
     }
 
+    /*
+     *    "unsigned_long_field": {
+     *       "type": "unsigned_long",
+     *       "ignore_malformed": true/false
+     *    }
+     */
+    public void testUnsignedLongFieldType() throws IOException {
+        // randomBigInteger() can produce a value that fits into a Long, which is what testField() will then recover
+        testField("unsigned_long", BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomNonNegativeLong())));
+    }
+
     private void testField(String fieldType, Object value) throws IOException {
         String fieldName = fieldType + "_field";
         String query = "SELECT " + fieldName + " FROM test";
         Object actualValue = value;
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreMalformed = randomBoolean();       // ignore_malformed is true, thus test a non-number value
-
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a string instead of a number and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
             actualValue = "\"foo\"";
         }
 
-        createIndexWithFieldTypeAndProperties(fieldType, fieldProps, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties(fieldType, fieldProps, getIndexProps());
         index("{\"" + fieldName + "\":" + actualValue + "}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", fieldName, fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : actualValue)));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", fieldName, fieldType, jdbcTypeFor(fieldType), Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : actualValue))));
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -322,29 +313,20 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testBooleanField() throws IOException {
         String query = "SELECT boolean_field FROM test";
         boolean booleanField = randomBoolean();
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
         boolean asString = randomBoolean();              // pass true or false as string "true" or "false
 
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
-
-        createIndexWithFieldTypeAndProperties("boolean", null, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties("boolean", null, getIndexProps());
         if (asString) {
             index("{\"boolean_field\":\"" + booleanField + "\"}");
         } else {
             index("{\"boolean_field\":" + booleanField + "}");
         }
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", "boolean_field", "boolean", JDBCType.BOOLEAN, Integer.MAX_VALUE)));
-            // adding the boolean as a String here because parsing the response will yield a "true"/"false" String
-            expected.put("rows", singletonList(singletonList(booleanField)));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "boolean_field", "boolean", JDBCType.BOOLEAN, Integer.MAX_VALUE)));
+        // adding the boolean as a String here because parsing the response will yield a "true"/"false" String
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(booleanField))));
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -355,35 +337,44 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testIpField() throws IOException {
         String query = "SELECT ip_field FROM test";
-        String ipField = "192.168.1.1";
-        String actualValue = ipField;
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
+        String actualValue = "192.168.1.1";
         boolean ignoreMalformed = randomBoolean();
-
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-IP and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put("ip_field", fieldProp);
             actualValue = "foo";
         }
-        createIndexWithFieldTypeAndProperties("ip", fieldProps, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties("ip", fieldProps, getIndexProps());
         index("{\"ip_field\":\"" + actualValue + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", "ip_field", "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : actualValue)));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "ip_field", "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : actualValue))));
+        assertResponse(expected, runSql(query));
+    }
+
+    /*
+     *    "version_field": {
+     *       "type": "version",
+     *    }
+     */
+    public void testVersionField() throws IOException {
+        String query = "SELECT version_field FROM test";
+        String actualValue = "2.11.4";
+
+        Map<String, Map<String, Object>> fieldProps = null;
+        createIndexWithFieldTypeAndProperties("version", fieldProps, getIndexProps());
+        index("{\"version_field\":\"" + actualValue + "\"}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "version_field", "version", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(actualValue))));
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -396,33 +387,24 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String query = "SELECT geo_point_field FROM test";
         String geoPointField = "41.12,-71.34";
         String actualValue = geoPointField;
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreMalformed = randomBoolean();
-
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-geo-point and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put("geo_point_field", fieldProp);
             actualValue = "foo";
         }
-        createIndexWithFieldTypeAndProperties("geo_point", fieldProps, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties("geo_point", fieldProps, getIndexProps());
         index("{\"geo_point_field\":\"" + actualValue + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", "geo_point_field", "geo_point", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : "POINT (-71.34 41.12)")));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "geo_point_field", "geo_point", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : "POINT (-71.34 41.12)"))));
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -434,35 +416,29 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testGeoShapeField() throws IOException {
         String query = "SELECT geo_shape_field FROM test";
         String actualValue = "[-77.03653, 38.897676]";
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreMalformed = randomBoolean();
-
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-geo-shape and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put("geo_shape_field", fieldProp);
             actualValue = "\"foo\"";
         }
-        createIndexWithFieldTypeAndProperties("geo_shape", fieldProps, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties("geo_shape", fieldProps, getIndexProps());
         index("""
             {"geo_shape_field":{"type":"point","coordinates":%s}}
             """.formatted(actualValue));
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", "geo_shape_field", "geo_shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : "POINT (-77.03653 38.897676)")));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "geo_shape_field", "geo_shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put(
+            "rows",
+            singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : "POINT (-77.03653 38.897676)")))
+        );
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -475,33 +451,24 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String query = "SELECT shape_field FROM test";
         String shapeField = "POINT (-377.03653 389.897676)";
         String actualValue = shapeField;
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreMalformed = randomBoolean();
-
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-geo-point and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put("shape_field", fieldProp);
             actualValue = "foo";
         }
-        createIndexWithFieldTypeAndProperties("shape", fieldProps, explicitSourceSetting ? indexProps : null);
+        createIndexWithFieldTypeAndProperties("shape", fieldProps, getIndexProps());
         index("{\"shape_field\":\"" + actualValue + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("columns", asList(columnInfo("plain", "shape_field", "shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : shapeField)));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "shape_field", "shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(ignoreMalformed ? null : shapeField))));
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -613,43 +580,36 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testTextFieldWithKeywordSubfield() throws IOException {
         String text = randomAlphaOfLength(10) + " " + randomAlphaOfLength(10);
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreAbove = randomBoolean();
         String fieldName = "text_field";
         String subFieldName = "text_field.keyword_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
-
         Map<String, Map<String, Object>> subFieldsProps = null;
         if (ignoreAbove) {
-            subFieldsProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldsProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_above", 10);
             subFieldsProps.put(subFieldName, fieldProp);
         }
 
-        createIndexWithFieldTypeAndSubFields("text", null, explicitSourceSetting ? indexProps : null, subFieldsProps, "keyword");
+        createIndexWithFieldTypeAndSubFields("text", null, getIndexProps(), subFieldsProps, "keyword");
         index("{\"" + fieldName + "\":\"" + text + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put(
-                "columns",
-                asList(
-                    columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
-                    columnInfo("plain", subFieldName, "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)
-                )
-            );
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            asList(
+                columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo("plain", subFieldName, "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)
+            )
+        );
 
-            expected.put("rows", singletonList(asList(text, ignoreAbove ? null : text)));
-            assertResponse(expected, runSql(query));
-        } else {
-            expectSourceDisabledError(query);
-            expectSourceDisabledError("SELECT " + subFieldName + " FROM test");
-        }
+        expected.put(
+            "rows",
+            singletonList(asList(getExpectedValueFromSource(text), getExpectedValueFromSource(ignoreAbove ? null : text)))
+        );
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -667,8 +627,8 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String function = randomFrom("FIRST", "LAST");
         String query = "select keyword_field from test group by keyword_field order by " + function + "(date)";
 
-        Map<String, Map<String, Object>> fieldProps = new HashMap<>(1);
-        Map<String, Object> fieldProp = new HashMap<>(1);
+        Map<String, Map<String, Object>> fieldProps = Maps.newMapWithExpectedSize(1);
+        Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
         fieldProp.put("ignore_above", 10);
         fieldProps.put("keyword_field", fieldProp);
 
@@ -695,50 +655,43 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testTextFieldWithIntegerNumberSubfield() throws IOException {
         Integer number = randomInt();
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreMalformed = randomBoolean();       // ignore_malformed is true, thus test a non-number value
         Object actualValue = number;
         String fieldName = "text_field";
         String subFieldName = "text_field.integer_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
-
         Map<String, Map<String, Object>> subFieldsProps = null;
         if (ignoreMalformed) {
-            subFieldsProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldsProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a string instead of a number and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             subFieldsProps.put(subFieldName, fieldProp);
             actualValue = "foo";
         }
 
-        createIndexWithFieldTypeAndSubFields("text", null, explicitSourceSetting ? indexProps : null, subFieldsProps, "integer");
+        createIndexWithFieldTypeAndSubFields("text", null, getIndexProps(), subFieldsProps, "integer");
         index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put(
-                "columns",
-                asList(
-                    columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
-                    columnInfo("plain", subFieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
-                )
-            );
-            if (ignoreMalformed) {
-                expected.put("rows", singletonList(asList("foo", null)));
-            } else {
-                expected.put("rows", singletonList(asList(String.valueOf(number), number)));
-            }
-            assertResponse(expected, runSql(query));
+        // (explicitSourceSetting && enableSource == false)
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            asList(
+                columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo("plain", subFieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
+            )
+        );
+        if (ignoreMalformed) {
+            expected.put("rows", singletonList(asList(getExpectedValueFromSource("foo"), null)));
         } else {
-            expectSourceDisabledError(query);
-            // if the _source is disabled, selecting only the integer sub-field shouldn't work as well
-            expectSourceDisabledError("SELECT " + subFieldName + " FROM test");
+            expected.put(
+                "rows",
+                singletonList(asList(getExpectedValueFromSource(String.valueOf(number)), getExpectedValueFromSource(number)))
+            );
         }
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -754,50 +707,40 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testTextFieldWithIpSubfield() throws IOException {
         String ip = "123.123.123.123";
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreMalformed = randomBoolean();       // ignore_malformed is true, thus test a non-IP value
         String actualValue = ip;
         String fieldName = "text_field";
         String subFieldName = "text_field.ip_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
-
         Map<String, Map<String, Object>> subFieldsProps = null;
         if (ignoreMalformed) {
-            subFieldsProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldsProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-IP value instead of an IP and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             subFieldsProps.put(subFieldName, fieldProp);
             actualValue = "foo";
         }
 
-        createIndexWithFieldTypeAndSubFields("text", null, explicitSourceSetting ? indexProps : null, subFieldsProps, "ip");
+        createIndexWithFieldTypeAndSubFields("text", null, getIndexProps(), subFieldsProps, "ip");
         index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put(
-                "columns",
-                asList(
-                    columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
-                    columnInfo("plain", subFieldName, "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)
-                )
-            );
-            if (ignoreMalformed) {
-                expected.put("rows", singletonList(asList("foo", null)));
-            } else {
-                expected.put("rows", singletonList(asList(ip, ip)));
-            }
-            assertResponse(expected, runSql(query));
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            asList(
+                columnInfo("plain", fieldName, "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo("plain", subFieldName, "ip", JDBCType.VARCHAR, Integer.MAX_VALUE)
+            )
+        );
+        if (ignoreMalformed) {
+            expected.put("rows", singletonList(asList(getExpectedValueFromSource("foo"), null)));
         } else {
-            expectSourceDisabledError(query);
-            // if the _source is disabled, selecting only the ip sub-field shouldn't work as well
-            expectSourceDisabledError("SELECT " + subFieldName + " FROM test");
+            Object expectedValueFromSource = getExpectedValueFromSource(ip);
+            expected.put("rows", singletonList(asList(expectedValueFromSource, expectedValueFromSource)));
         }
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -813,8 +756,6 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testNumberFieldWithTextOrKeywordSubfield() throws IOException {
         Integer number = randomInt();
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreMalformed = randomBoolean();       // ignore_malformed is true, thus test a non-number value
         boolean isKeyword = randomBoolean();             // text or keyword subfield
         Object actualValue = number;
@@ -822,52 +763,36 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String subFieldName = "integer_field." + (isKeyword ? "keyword_subfield" : "text_subfield");
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
-
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a string instead of a number and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
             actualValue = "foo";
         }
 
-        createIndexWithFieldTypeAndSubFields(
-            "integer",
-            fieldProps,
-            explicitSourceSetting ? indexProps : null,
-            null,
-            isKeyword ? "keyword" : "text"
-        );
+        createIndexWithFieldTypeAndSubFields("integer", fieldProps, getIndexProps(), null, isKeyword ? "keyword" : "text");
         index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put(
-                "columns",
-                asList(
-                    columnInfo("plain", fieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
-                    columnInfo("plain", subFieldName, isKeyword ? "keyword" : "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
-                )
-            );
-            if (ignoreMalformed) {
-                expected.put("rows", singletonList(asList(null, "foo")));
-            } else {
-                expected.put("rows", singletonList(asList(number, String.valueOf(number))));
-            }
-            assertResponse(expected, runSql(query));
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            asList(
+                columnInfo("plain", fieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE),
+                columnInfo("plain", subFieldName, isKeyword ? "keyword" : "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
+            )
+        );
+        if (ignoreMalformed) {
+            expected.put("rows", singletonList(asList(null, getExpectedValueFromSource("foo"))));
         } else {
-            // disabling the _source means that nothing should be retrieved by the "fields" API
-            if (isKeyword) {
-                expectSourceDisabledError("SELECT integer_field.keyword_subfield FROM test");
-            } else {
-                expectSourceDisabledError(query);
-            }
-            expectSourceDisabledError("SELECT " + fieldName + " FROM test");
+            expected.put(
+                "rows",
+                singletonList(asList(getExpectedValueFromSource(number), getExpectedValueFromSource(String.valueOf(number))))
+            );
         }
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -883,8 +808,6 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      */
     public void testIpFieldWithTextOrKeywordSubfield() throws IOException {
         String ip = "123.123.123.123";
-        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreMalformed = randomBoolean();       // ignore_malformed is true, thus test a non-number value
         boolean isKeyword = randomBoolean();             // text or keyword subfield
         String actualValue = ip;
@@ -892,48 +815,34 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String subFieldName = "ip_field." + (isKeyword ? "keyword_subfield" : "text_subfield");
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
-
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-IP instead of an ip and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
             actualValue = "foo";
         }
 
-        createIndexWithFieldTypeAndSubFields(
-            "ip",
-            fieldProps,
-            explicitSourceSetting ? indexProps : null,
-            null,
-            isKeyword ? "keyword" : "text"
-        );
+        createIndexWithFieldTypeAndSubFields("ip", fieldProps, getIndexProps(), null, isKeyword ? "keyword" : "text");
         index("{\"" + fieldName + "\":\"" + actualValue + "\"}");
 
-        if (explicitSourceSetting == false || enableSource) {
-            Map<String, Object> expected = new HashMap<>();
-            expected.put(
-                "columns",
-                asList(
-                    columnInfo("plain", fieldName, "ip", JDBCType.VARCHAR, Integer.MAX_VALUE),
-                    columnInfo("plain", subFieldName, isKeyword ? "keyword" : "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
-                )
-            );
-            if (ignoreMalformed) {
-                expected.put("rows", singletonList(asList(null, "foo")));
-            } else {
-                expected.put("rows", singletonList(asList(ip, ip)));
-            }
-            assertResponse(expected, runSql(query));
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            asList(
+                columnInfo("plain", fieldName, "ip", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo("plain", subFieldName, isKeyword ? "keyword" : "text", JDBCType.VARCHAR, Integer.MAX_VALUE)
+            )
+        );
+        if (ignoreMalformed) {
+            expected.put("rows", singletonList(asList(null, getExpectedValueFromSource("foo"))));
         } else {
-            expectSourceDisabledError(query);
-            expectSourceDisabledError("SELECT " + fieldName + " FROM test");
-            expectSourceDisabledError("SELECT " + subFieldName + " FROM test");
+            Object expectedValueFromSource = getExpectedValueFromSource(ip);
+            expected.put("rows", singletonList(asList(expectedValueFromSource, expectedValueFromSource)));
         }
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -951,33 +860,28 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testIntegerFieldWithByteSubfield() throws IOException {
         boolean isByte = randomBoolean();
         Integer number = isByte ? randomByte() : randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
-        boolean explicitSourceSetting = randomBoolean();   // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
         boolean rootIgnoreMalformed = randomBoolean();     // root field ignore_malformed
         boolean subFieldIgnoreMalformed = randomBoolean(); // sub-field ignore_malformed
         String fieldName = "integer_field";
         String subFieldName = "integer_field.byte_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
-
         Map<String, Map<String, Object>> fieldProps = null;
         if (rootIgnoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
         }
         Map<String, Map<String, Object>> subFieldProps = null;
         if (subFieldIgnoreMalformed) {
-            subFieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_malformed", true);
             subFieldProps.put(subFieldName, fieldProp);
         }
 
-        createIndexWithFieldTypeAndSubFields("integer", fieldProps, explicitSourceSetting ? indexProps : null, subFieldProps, "byte");
+        createIndexWithFieldTypeAndSubFields("integer", fieldProps, getIndexProps(), subFieldProps, "byte");
         index("{\"" + fieldName + "\":" + number + "}");
 
         Map<String, Object> expected = new HashMap<>();
@@ -988,21 +892,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                 columnInfo("plain", subFieldName, "byte", JDBCType.TINYINT, Integer.MAX_VALUE)
             )
         );
-        if (explicitSourceSetting == false || enableSource) {
-            if (isByte || subFieldIgnoreMalformed) {
-                expected.put("rows", singletonList(asList(number, isByte ? number : null)));
-            } else {
-                expected.put("rows", Collections.emptyList());
-            }
-            assertResponse(expected, runSql(query));
+        if (isByte || subFieldIgnoreMalformed) {
+            Object expectedValueFromSource = getExpectedValueFromSource(number);
+            expected.put("rows", singletonList(asList(expectedValueFromSource, isByte ? expectedValueFromSource : null)));
         } else {
-            if (isByte || subFieldIgnoreMalformed) {
-                expectSourceDisabledError(query);
-            } else {
-                expected.put("rows", Collections.emptyList());
-                assertResponse(expected, runSql(query));
-            }
+            expected.put("rows", Collections.emptyList());
         }
+        assertResponse(expected, runSql(query));
     }
 
     /*
@@ -1020,33 +916,28 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testByteFieldWithIntegerSubfield() throws IOException {
         boolean isByte = randomBoolean();
         Integer number = isByte ? randomByte() : randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
-        boolean explicitSourceSetting = randomBoolean();   // default (no _source setting) or explicit setting
-        boolean enableSource = randomBoolean(); // enable _source at index level
         boolean rootIgnoreMalformed = randomBoolean();     // root field ignore_malformed
         boolean subFieldIgnoreMalformed = randomBoolean(); // sub-field ignore_malformed
         String fieldName = "byte_field";
         String subFieldName = "byte_field.integer_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
-        indexProps.put("_source", enableSource);
-
         Map<String, Map<String, Object>> fieldProps = null;
         if (rootIgnoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
         }
         Map<String, Map<String, Object>> subFieldProps = null;
         if (subFieldIgnoreMalformed) {
-            subFieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_malformed", true);
             subFieldProps.put(subFieldName, fieldProp);
         }
 
-        createIndexWithFieldTypeAndSubFields("byte", fieldProps, explicitSourceSetting ? indexProps : null, subFieldProps, "integer");
+        createIndexWithFieldTypeAndSubFields("byte", fieldProps, getIndexProps(), subFieldProps, "integer");
         index("{\"" + fieldName + "\":" + number + "}");
 
         Map<String, Object> expected = new HashMap<>();
@@ -1057,21 +948,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                 columnInfo("plain", subFieldName, "integer", JDBCType.INTEGER, Integer.MAX_VALUE)
             )
         );
-        if (explicitSourceSetting == false || enableSource) {
-            if (isByte || rootIgnoreMalformed) {
-                expected.put("rows", singletonList(asList(isByte ? number : null, number)));
-            } else {
-                expected.put("rows", Collections.emptyList());
-            }
-            assertResponse(expected, runSql(query));
+        if (isByte || rootIgnoreMalformed) {
+            Object expectedValueFromSource = getExpectedValueFromSource(number);
+            expected.put("rows", singletonList(asList(isByte ? expectedValueFromSource : null, expectedValueFromSource)));
         } else {
-            if (isByte || rootIgnoreMalformed) {
-                expectSourceDisabledError(query);
-            } else {
-                expected.put("rows", Collections.emptyList());
-                assertResponse(expected, runSql(query));
-            }
+            expected.put("rows", Collections.emptyList());
         }
+        assertResponse(expected, runSql(query));
     }
 
     public void testNestedFieldsHierarchyWithMultiNestedValues() throws IOException {
@@ -1463,13 +1346,6 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         return randomBoolean();
     }
 
-    private void expectSourceDisabledError(String query) {
-        expectBadRequest(() -> {
-            client().performRequest(buildRequest(query));
-            return Collections.emptyMap();
-        }, containsString("Unable to retrieve the requested [fields] since _source is disabled in the mappings for index [test]"));
-    }
-
     private void createIndexWithFieldTypeAndAlias(String type, Map<String, Map<String, Object>> fieldProps, Map<String, Object> indexProps)
         throws IOException {
         createIndexWithFieldTypeAndProperties(type, fieldProps, indexProps, true, false, null);
@@ -1591,27 +1467,18 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     private JDBCType jdbcTypeFor(String esType) {
-        switch (esType) {
-            case "long":
-                return JDBCType.BIGINT;
-            case "integer":
-                return JDBCType.INTEGER;
-            case "short":
-                return JDBCType.SMALLINT;
-            case "byte":
-                return JDBCType.TINYINT;
-            case "float":
-                return JDBCType.REAL;
-            case "double":
-                return JDBCType.DOUBLE;
-            case "half_float":
-                return JDBCType.FLOAT;
-            case "scaled_float":
-                return JDBCType.DOUBLE;
-            case "ip":
-                return JDBCType.VARCHAR;
-            default:
-                throw new AssertionError("Illegal value [" + esType + "] for data type");
-        }
+        return switch (esType) {
+            case "long" -> JDBCType.BIGINT;
+            case "integer" -> JDBCType.INTEGER;
+            case "short" -> JDBCType.SMALLINT;
+            case "byte" -> JDBCType.TINYINT;
+            case "float" -> JDBCType.REAL;
+            case "double" -> JDBCType.DOUBLE;
+            case "half_float" -> JDBCType.FLOAT;
+            case "scaled_float" -> JDBCType.DOUBLE;
+            case "ip" -> JDBCType.VARCHAR;
+            case "unsigned_long" -> JDBCType.BIGINT;
+            default -> throw new AssertionError("Illegal value [" + esType + "] for data type");
+        };
     }
 }

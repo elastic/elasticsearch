@@ -127,7 +127,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
-        id: 1
+        id: "1"
         index: can_write_1
         body: >
           {
@@ -137,7 +137,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
-        id: 2
+        id: "2"
         index: can_write_2
         body: >
           {
@@ -195,7 +195,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
         refresh: true
-        id: 7
+        id: "7"
         index: can_read_1
         body: >
           {
@@ -207,7 +207,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
         refresh: true
-        id: 8
+        id: "8"
         index: can_read_2
         body: >
           {

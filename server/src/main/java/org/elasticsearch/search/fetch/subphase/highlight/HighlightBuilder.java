@@ -13,6 +13,7 @@ import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -29,7 +30,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -207,16 +207,15 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
      */
     public HighlightBuilder tagsSchema(String schemaName) {
         switch (schemaName) {
-            case "default":
+            case "default" -> {
                 preTags(DEFAULT_PRE_TAGS);
                 postTags(DEFAULT_POST_TAGS);
-                break;
-            case "styled":
+            }
+            case "styled" -> {
                 preTags(DEFAULT_STYLED_PRE_TAG);
                 postTags(DEFAULT_STYLED_POST_TAGS);
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown tag schema [" + schemaName + "]");
+            }
+            default -> throw new IllegalArgumentException("Unknown tag schema [" + schemaName + "]");
         }
         return this;
     }
@@ -296,7 +295,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             final SearchHighlightContext.FieldOptions.Builder fieldOptionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
             fieldOptionsBuilder.fragmentOffset(field.fragmentOffset);
             if (field.matchedFields != null) {
-                Set<String> matchedFields = new HashSet<>(field.matchedFields.length);
+                Set<String> matchedFields = Sets.newHashSetWithExpectedSize(field.matchedFields.length);
                 Collections.addAll(matchedFields, field.matchedFields);
                 fieldOptionsBuilder.matchedFields(matchedFields);
             }

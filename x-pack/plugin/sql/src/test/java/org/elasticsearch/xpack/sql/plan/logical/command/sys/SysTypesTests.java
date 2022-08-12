@@ -28,10 +28,18 @@ import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.JDBCType;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
@@ -55,7 +63,8 @@ public class SysTypesTests extends ESTestCase {
             false,
             false,
             null,
-            null
+            null,
+            false
         );
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
         Analyzer analyzer = new Analyzer(configuration, new FunctionRegistry(), IndexResolution.valid(test), null);
@@ -78,6 +87,7 @@ public class SysTypesTests extends ESTestCase {
             "LONG",
             "BINARY",
             "NULL",
+            "UNSIGNED_LONG",
             "INTEGER",
             "SHORT",
             "HALF_FLOAT",
@@ -87,6 +97,7 @@ public class SysTypesTests extends ESTestCase {
             "IP",
             "KEYWORD",
             "TEXT",
+            "VERSION",
             "BOOLEAN",
             "DATE",
             "TIME",
@@ -132,6 +143,46 @@ public class SysTypesTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 
+    public void testUnsignedLongFiltering() {
+        Set<SqlVersion> versions = new HashSet<>(UNSIGNED_LONG_TEST_VERSIONS);
+        versions.add(null);
+        for (SqlVersion version : versions) {
+            for (Mode mode : Mode.values()) {
+                Tuple<Command, SqlSession> cmd = sql("SYS TYPES", mode, version);
+
+                cmd.v1().execute(cmd.v2(), wrap(p -> {
+                    SchemaRowSet r = (SchemaRowSet) p.rowSet();
+                    List<String> types = new ArrayList<>();
+                    r.forEachRow(rv -> types.add((String) rv.column(0)));
+                    assertEquals(
+                        isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(cmd.v2().configuration().version().id)),
+                        types.contains(UNSIGNED_LONG.toString())
+                    );
+                }, ex -> fail(ex.getMessage())));
+            }
+        }
+    }
+
+    public void testVersionTypeFiltering() {
+        Set<SqlVersion> versions = new HashSet<>(VERSION_FIELD_TEST_VERSIONS);
+        versions.add(null);
+        for (SqlVersion version : versions) {
+            for (Mode mode : Mode.values()) {
+                Tuple<Command, SqlSession> cmd = sql("SYS TYPES", mode, version);
+
+                cmd.v1().execute(cmd.v2(), wrap(p -> {
+                    SchemaRowSet r = (SchemaRowSet) p.rowSet();
+                    List<String> types = new ArrayList<>();
+                    r.forEachRow(rv -> types.add((String) rv.column(0)));
+                    assertEquals(
+                        isTypeSupportedInVersion(VERSION, Version.fromId(cmd.v2().configuration().version().id)),
+                        types.contains(VERSION.toString())
+                    );
+                }, ex -> fail(ex.getMessage())));
+            }
+        }
+    }
+
     public void testSysTypesDefaultFiltering() {
         Tuple<Command, SqlSession> cmd = sql("SYS TYPES 0");
 
@@ -167,12 +218,14 @@ public class SysTypesTests extends ESTestCase {
 
         cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
-            assertEquals(3, r.size());
+            assertEquals(4, r.size());
             assertEquals("IP", r.column(0));
             assertTrue(r.advanceRow());
             assertEquals("KEYWORD", r.column(0));
             assertTrue(r.advanceRow());
             assertEquals("TEXT", r.column(0));
+            assertTrue(r.advanceRow());
+            assertEquals("VERSION", r.column(0));
         }, ex -> fail(ex.getMessage())));
     }
 }

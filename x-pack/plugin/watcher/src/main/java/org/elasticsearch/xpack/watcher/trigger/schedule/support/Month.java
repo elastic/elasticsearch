@@ -44,90 +44,39 @@ public enum Month {
     }
 
     public static Month resolve(int month) {
-        switch (month) {
-            case 1:
-                return JANUARY;
-            case 2:
-                return FEBRUARY;
-            case 3:
-                return MARCH;
-            case 4:
-                return APRIL;
-            case 5:
-                return MAY;
-            case 6:
-                return JUNE;
-            case 7:
-                return JULY;
-            case 8:
-                return AUGUST;
-            case 9:
-                return SEPTEMBER;
-            case 10:
-                return OCTOBER;
-            case 11:
-                return NOVEMBER;
-            case 12:
-                return DECEMBER;
-            default:
-                throw new ElasticsearchParseException("unknown month number [{}]", month);
-        }
+        return switch (month) {
+            case 1 -> JANUARY;
+            case 2 -> FEBRUARY;
+            case 3 -> MARCH;
+            case 4 -> APRIL;
+            case 5 -> MAY;
+            case 6 -> JUNE;
+            case 7 -> JULY;
+            case 8 -> AUGUST;
+            case 9 -> SEPTEMBER;
+            case 10 -> OCTOBER;
+            case 11 -> NOVEMBER;
+            case 12 -> DECEMBER;
+            default -> throw new ElasticsearchParseException("unknown month number [{}]", month);
+        };
     }
 
     public static Month resolve(String day) {
-        switch (day.toLowerCase(Locale.ROOT)) {
-            case "1":
-            case "jan":
-            case "first":
-            case "january":
-                return JANUARY;
-            case "2":
-            case "feb":
-            case "february":
-                return FEBRUARY;
-            case "3":
-            case "mar":
-            case "march":
-                return MARCH;
-            case "4":
-            case "apr":
-            case "april":
-                return APRIL;
-            case "5":
-            case "may":
-                return MAY;
-            case "6":
-            case "jun":
-            case "june":
-                return JUNE;
-            case "7":
-            case "jul":
-            case "july":
-                return JULY;
-            case "8":
-            case "aug":
-            case "august":
-                return AUGUST;
-            case "9":
-            case "sep":
-            case "september":
-                return SEPTEMBER;
-            case "10":
-            case "oct":
-            case "october":
-                return OCTOBER;
-            case "11":
-            case "nov":
-            case "november":
-                return NOVEMBER;
-            case "12":
-            case "dec":
-            case "last":
-            case "december":
-                return DECEMBER;
-            default:
-                throw new ElasticsearchParseException("unknown month [{}]", day);
-        }
+        return switch (day.toLowerCase(Locale.ROOT)) {
+            case "1", "jan", "first", "january" -> JANUARY;
+            case "2", "feb", "february" -> FEBRUARY;
+            case "3", "mar", "march" -> MARCH;
+            case "4", "apr", "april" -> APRIL;
+            case "5", "may" -> MAY;
+            case "6", "jun", "june" -> JUNE;
+            case "7", "jul", "july" -> JULY;
+            case "8", "aug", "august" -> AUGUST;
+            case "9", "sep", "september" -> SEPTEMBER;
+            case "10", "oct", "october" -> OCTOBER;
+            case "11", "nov", "november" -> NOVEMBER;
+            case "12", "dec", "last", "december" -> DECEMBER;
+            default -> throw new ElasticsearchParseException("unknown month [{}]", day);
+        };
     }
 
     @Override

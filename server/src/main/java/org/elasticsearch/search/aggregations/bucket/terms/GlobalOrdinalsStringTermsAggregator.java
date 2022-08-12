@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -107,8 +107,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(aggCtx.getLeafReaderContext());
         collectionStrategy.globalOrdsReady(globalOrds);
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
@@ -299,12 +299,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
             if (mapping != null) {
                 mapSegmentCountsToGlobalCounts(mapping);
             }
-            final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
-            mapping = valuesSource.globalOrdinalsMapping(ctx);
+            final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(aggCtx.getLeafReaderContext());
+            mapping = valuesSource.globalOrdinalsMapping(aggCtx.getLeafReaderContext());
             if (segmentOrds.getValueCount() == 0) {
                 segmentsWithoutValues++;
                 return LeafBucketCollector.NO_OP_COLLECTOR;
@@ -387,7 +387,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * that it hits and then calling {@link CollectionStrategy#forEach}
      * once to iterate on the results.
      */
-    abstract class CollectionStrategy implements Releasable {
+    abstract static class CollectionStrategy implements Releasable {
         /**
          * Short description of the collection mechanism added to the profile
          * output to help with debugging.
@@ -947,7 +947,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * oversizing the destination bytes helps to keep from allocating
          * a bunch of little arrays over and over and over again.
          */
-        private void oversizedCopy(BytesRef from, BytesRef to) {
+        private static void oversizedCopy(BytesRef from, BytesRef to) {
             if (to.bytes.length < from.length) {
                 to.bytes = new byte[ArrayUtil.oversize(from.length, 1)];
             }

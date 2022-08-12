@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -50,7 +51,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class holds the configuration details of a data frame transform
  */
-public class TransformConfig extends AbstractDiffable<TransformConfig> implements Writeable, ToXContentObject {
+public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
 
     /**
      * Version of the last time the config defaults have been changed.
@@ -452,7 +453,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             settings.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeMap(metadata);
+            out.writeGenericMap(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);
@@ -468,8 +469,12 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
         if (excludeGenerated == false) {
-            if (headers.isEmpty() == false && forInternalStorage) {
-                builder.field(HEADERS.getPreferredName(), headers);
+            if (headers.isEmpty() == false) {
+                if (forInternalStorage) {
+                    builder.field(HEADERS.getPreferredName(), headers);
+                } else {
+                    XContentUtils.addAuthorizationInfo(builder, headers);
+                }
             }
             if (transformVersion != null) {
                 builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
@@ -622,7 +627,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
                     builder.getSettings().getAlignCheckpoints(),
-                    builder.getSettings().getUsePit()
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries(),
+                    builder.getSettings().getUnattended()
                 )
             );
         }
@@ -635,7 +643,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getDocsPerSecond(),
                     true,
                     builder.getSettings().getAlignCheckpoints(),
-                    builder.getSettings().getUsePit()
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries(),
+                    builder.getSettings().getUnattended()
                 )
             );
         }
@@ -648,12 +659,19 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
                     false,
-                    builder.getSettings().getUsePit()
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries(),
+                    builder.getSettings().getUnattended()
                 )
             );
         }
 
         return builder.setVersion(Version.CURRENT).build();
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static class Builder {

@@ -1303,30 +1303,16 @@ public class Cron implements ToXContentFragment {
         // type, and using modulus max to determine the value being added.
         int max = -1;
         if (stopAt < startAt) {
-            switch (type) {
-                case SECOND:
-                    max = 60;
-                    break;
-                case MINUTE:
-                    max = 60;
-                    break;
-                case HOUR:
-                    max = 24;
-                    break;
-                case MONTH:
-                    max = 12;
-                    break;
-                case DAY_OF_WEEK:
-                    max = 7;
-                    break;
-                case DAY_OF_MONTH:
-                    max = 31;
-                    break;
-                case YEAR:
-                    throw new IllegalArgumentException("Start year must be less than stop year");
-                default:
-                    throw new IllegalArgumentException("Unexpected type encountered");
-            }
+            max = switch (type) {
+                case SECOND -> 60;
+                case MINUTE -> 60;
+                case HOUR -> 24;
+                case MONTH -> 12;
+                case DAY_OF_WEEK -> 7;
+                case DAY_OF_MONTH -> 31;
+                case YEAR -> throw new IllegalArgumentException("Start year must be less than stop year");
+                default -> throw new IllegalArgumentException("Unexpected type encountered");
+            };
             stopAt += max;
         }
 
@@ -1349,24 +1335,16 @@ public class Cron implements ToXContentFragment {
     }
 
     private TreeSet<Integer> getSet(int type) {
-        switch (type) {
-            case SECOND:
-                return seconds;
-            case MINUTE:
-                return minutes;
-            case HOUR:
-                return hours;
-            case DAY_OF_MONTH:
-                return daysOfMonth;
-            case MONTH:
-                return months;
-            case DAY_OF_WEEK:
-                return daysOfWeek;
-            case YEAR:
-                return years;
-            default:
-                return null;
-        }
+        return switch (type) {
+            case SECOND -> seconds;
+            case MINUTE -> minutes;
+            case HOUR -> hours;
+            case DAY_OF_MONTH -> daysOfMonth;
+            case MONTH -> months;
+            case DAY_OF_WEEK -> daysOfWeek;
+            case YEAR -> years;
+            default -> null;
+        };
     }
 
     private ValueSet getValue(int v, String s, int i) {
@@ -1433,34 +1411,21 @@ public class Cron implements ToXContentFragment {
 
     private int getLastDayOfMonth(int monthNum, int year) {
 
-        switch (monthNum) {
-            case 1:
-                return 31;
-            case 2:
-                return (isLeapYear(year)) ? 29 : 28;
-            case 3:
-                return 31;
-            case 4:
-                return 30;
-            case 5:
-                return 31;
-            case 6:
-                return 30;
-            case 7:
-                return 31;
-            case 8:
-                return 31;
-            case 9:
-                return 30;
-            case 10:
-                return 31;
-            case 11:
-                return 30;
-            case 12:
-                return 31;
-            default:
-                throw new IllegalArgumentException("Illegal month number: " + monthNum);
-        }
+        return switch (monthNum) {
+            case 1 -> 31;
+            case 2 -> (isLeapYear(year)) ? 29 : 28;
+            case 3 -> 31;
+            case 4 -> 30;
+            case 5 -> 31;
+            case 6 -> 30;
+            case 7 -> 31;
+            case 8 -> 31;
+            case 9 -> 30;
+            case 10 -> 31;
+            case 11 -> 30;
+            case 12 -> 31;
+            default -> throw new IllegalArgumentException("Illegal month number: " + monthNum);
+        };
     }
 
     @Override

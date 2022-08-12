@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.RBACEngine;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
@@ -58,11 +59,25 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                     final IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
                     boolean incompatibleLicense = false;
                     if (dlsFlsUsage.hasFieldLevelSecurity()) {
+                        logger.debug(
+                            () -> format(
+                                "User [%s] has field level security on [%s]",
+                                requestInfo.getAuthentication(),
+                                indicesAccessControl.getIndicesWithFieldLevelSecurity()
+                            )
+                        );
                         if (false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
                             incompatibleLicense = true;
                         }
                     }
                     if (dlsFlsUsage.hasDocumentLevelSecurity()) {
+                        logger.debug(
+                            () -> format(
+                                "User [%s] has document level security on [%s]",
+                                requestInfo.getAuthentication(),
+                                indicesAccessControl.getIndicesWithDocumentLevelSecurity()
+                            )
+                        );
                         if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
                             incompatibleLicense = true;
                         }

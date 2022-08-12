@@ -17,6 +17,8 @@
  * under the License.
  */
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
 
 apply plugin: 'elasticsearch.build'
@@ -48,7 +50,9 @@ dependencies {
 }
 
 tasks.named("processResources").configure {
-  expand versions: versions
+  expand versions: [
+    elasticsearch: VersionProperties.getElasticsearch()
+  ]
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {
@@ -72,13 +76,8 @@ tasks.named("jarHell").configure {
   enabled = false
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'org.elasticsearch.client.RestClientTestCase'
-    }
-  }
+tasks.named('testTestingConventions').configure {
+  baseClass 'org.elasticsearch.client.RestClientTestCase'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -87,7 +86,6 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
-          'org.apache.log4j.Category',
           'org.apache.log4j.Level',
           'org.apache.log4j.Logger',
           'org.apache.log4j.Priority',

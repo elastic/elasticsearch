@@ -28,22 +28,25 @@ public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTe
     @Override
     protected Request createTestInstance() {
         String jobId = randomAlphaOfLength(10);
-        switch (randomInt(2)) {
-            case 0:
-                return new Request(randomAlphaOfLength(10));
-            case 1:
-                return new Request(
-                    DatafeedConfigTests.createRandomizedDatafeedConfig(jobId),
-                    randomBoolean() ? JobTests.buildJobBuilder(jobId) : null
-                );
-            case 2:
-                return new Request.Builder().setJobBuilder(
-                    JobTests.buildJobBuilder(jobId)
-                        .setDatafeed(DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder(null, null, 3600000))
-                ).build();
-            default:
-                throw new IllegalArgumentException("Unexpected test state");
-        }
+        long start = randomLongBetween(0, Long.MAX_VALUE / 4);
+        return switch (randomInt(2)) {
+            case 0 -> new Request(
+                randomAlphaOfLength(10),
+                randomBoolean() ? null : start,
+                randomBoolean() ? null : randomLongBetween(start + 1, Long.MAX_VALUE)
+            );
+            case 1 -> new Request(
+                DatafeedConfigTests.createRandomizedDatafeedConfig(jobId),
+                randomBoolean() ? JobTests.buildJobBuilder(jobId) : null,
+                randomBoolean() ? null : start,
+                randomBoolean() ? null : randomLongBetween(start + 1, Long.MAX_VALUE)
+            );
+            case 2 -> new Request.Builder().setJobBuilder(
+                JobTests.buildJobBuilder(jobId)
+                    .setDatafeed(DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder(null, null, 3600000))
+            ).build();
+            default -> throw new IllegalArgumentException("Unexpected test state");
+        };
     }
 
     @Override
@@ -52,7 +55,7 @@ public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTe
     }
 
     public void testCtor() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new Request((String) null));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new Request(null, randomLong(), null));
         assertThat(ex.getMessage(), equalTo("[datafeed_id] must not be null."));
     }
 

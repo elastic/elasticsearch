@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -65,7 +66,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
             if (shardList == null || shardList.isEmpty()) {
                 shards = emptyMap();
             } else {
-                shards = new HashMap<>(shardList.size());
+                shards = Maps.newMapWithExpectedSize(shardList.size());
                 for (ClusterShardHealth shardHealth : shardList) {
                     shards.put(shardHealth.getShardId(), shardHealth);
                 }
@@ -120,7 +121,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
 
         shards = new HashMap<>();
-        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
             int shardId = shardRoutingTable.shardId().id();
             shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
         }
@@ -170,13 +172,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         status = ClusterHealthStatus.readFrom(in);
-
-        int size = in.readVInt();
-        shards = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            ClusterShardHealth shardHealth = new ClusterShardHealth(in);
-            shards.put(shardHealth.getShardId(), shardHealth);
-        }
+        shards = in.readMapValues(ClusterShardHealth::new, ClusterShardHealth::getShardId);
     }
 
     /**
@@ -262,7 +258,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeByte(status.value());
-        out.writeCollection(shards.values());
+        out.writeMapValues(shards);
     }
 
     @Override

@@ -1,0 +1,28 @@
+{
+  "security.oidc_logout":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-oidc-logout.html",
+      "description":"Invalidates a refresh token and access token that was generated from the OpenID Connect Authenticate API"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/oidc/logout",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"Access token and refresh token to invalidate",
+      "required":true
+    }
+  }
+}

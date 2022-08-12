@@ -11,14 +11,11 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
-apply plugin: 'elasticsearch.rest-resources'
 
-ext.cloudflareZlibVersion = '1.2.8'
-
-String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
+String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
 
 repositories {
@@ -34,15 +31,6 @@ repositories {
     }
     metadataSources { artifact() }
     content { includeGroup 'krallin' }
-  }
-
-  ivy {
-    url 'https://github.com/'
-    patternLayout {
-      artifact '/[organisation]/[module]/archive/refs/tags/v[revision].[ext]'
-    }
-    metadataSources { artifact() }
-    content { includeGroup 'cloudflare' }
   }
 
   // Cloud builds bundle some beats
@@ -70,11 +58,9 @@ configurations {
   dockerSource
   log4jConfig
   tini
-  repositoryPlugins
-  nonRepositoryPlugins
+  allPlugins
   filebeat
   metricbeat
-  cloudflareZlib
 }
 
 String beatsArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'x86_64'
@@ -85,11 +71,9 @@ dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
-  repositoryPlugins project(path: ':plugins', configuration: 'repositoryPlugins')
-  nonRepositoryPlugins project(path: ':plugins', configuration: 'nonRepositoryPlugins')
+  allPlugins project(path: ':plugins', configuration: 'allPlugins')
   filebeat "beats:filebeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
   metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
-  cloudflareZlib "cloudflare:zlib:${cloudflareZlibVersion}@tar.gz"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -103,6 +87,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
   def buildDate = BuildParams.isCi() ? BuildParams.buildDate : BuildParams.buildDate.truncatedTo(ChronoUnit.DAYS)
 
   return [
+    'arch'               : architecture.classifier,
     'base_image'         : base.image,
     'bin_dir'            : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
     'build_date'         : buildDate,
@@ -113,8 +98,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'docker_base'        : base.name().toLowerCase(),
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",
-    'retry'              : ShellRetry,
-    'zlib_version'       : cloudflareZlibVersion
+    'retry'              : ShellRetry
   ]
 }
 
@@ -218,7 +202,7 @@ tasks.named("preProcessFixture").configure {
   }
 }
 
-tasks.named("processTestResources").configure {
+tasks.named("processYamlRestTestResources").configure {
   from project(':x-pack:plugin:core')
     .files(
       'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
@@ -226,14 +210,14 @@ tasks.named("processTestResources").configure {
     )
 }
 
-tasks.register("integTest", Test) {
+tasks.named("yamlRestTest").configure {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
 }
 
 tasks.named("check").configure {
-  dependsOn "integTest"
+  dependsOn "yamlRestTest"
 }
 
 // We build the images used in compose locally, but the pull command insists on using a repository
@@ -272,8 +256,6 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
         boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null
 
-        from configurations.repositoryPlugins
-
         if (includeBeats) {
           from configurations.filebeat
           from configurations.metricbeat
@@ -304,9 +286,8 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
         if (details.name.equals("Dockerfile")) {
-          filter { String filename ->
-            String result = filename.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz")
-            return result.replaceAll('^RUN curl.*cloudflare/zlib.*$', "COPY zlib-${cloudflareZlibVersion}.tar.gz /tmp")
+          filter { String contents ->
+            return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz")
           }
         }
       }
@@ -319,8 +300,6 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     } else {
       from configurations.dockerSource
     }
-
-    from configurations.cloudflareZlib
 
     if (base == DockerBase.IRON_BANK) {
       from (configurations.tini) {
@@ -366,6 +345,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       noCache = BuildParams.isCi
       tags = generateTags(base)
 
+      // We don't build the Iron Bank image when we release Elasticsearch, as there's
+      // separate process for submitting new releases. However, for testing we do a
+      // "test build" so that we can check that the Docker build at least works and
+      // is functional.
       if (base == DockerBase.IRON_BANK) {
         Map<String, String> buildArgsMap = [
           'BASE_REGISTRY': 'docker.elastic.co',
@@ -407,7 +390,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
       final Path projectDir = project.projectDir.toPath()
 
       into("plugins") {
-        from configurations.nonRepositoryPlugins
+        from configurations.allPlugins
       }
 
       from(projectDir.resolve("src/docker/Dockerfile.cloud-ess")) {
@@ -486,7 +469,7 @@ subprojects { Project subProject ->
 
     tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
-      executable 'docker'
+      executable = 'docker'
       outputs.file(tarFile)
       args "save",
         "-o",
@@ -503,4 +486,9 @@ subprojects { Project subProject ->
       builtBy exportTaskName
     }
   }
+}
+
+tasks.named('resolveAllDependencies') {
+  // Don't try and resolve filebeat or metricbeat snapshots as they may not always be available
+  configs = configurations.matching { it.name.endsWith('beat') == false }
 }

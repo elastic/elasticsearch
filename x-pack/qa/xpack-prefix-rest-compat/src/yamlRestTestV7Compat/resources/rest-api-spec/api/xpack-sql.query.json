@@ -1,0 +1,35 @@
+{
+  "xpack-sql.query":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-search-api.html",
+      "description":"Executes a SQL request"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/sql",
+          "methods":[
+            "POST",
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      }
+    },
+    "body":{
+      "description":"Use the `query` element to start a query. Use the `cursor` element to continue a query.",
+      "required":true
+    }
+  }
+}

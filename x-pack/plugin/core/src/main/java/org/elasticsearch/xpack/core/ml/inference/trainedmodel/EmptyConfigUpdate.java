@@ -65,6 +65,11 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
         return EmptyConfigUpdate.class.hashCode();
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_9_0;
+    }
+
     public static class Builder implements InferenceConfigUpdate.Builder<Builder, EmptyConfigUpdate> {
 
         @Override
@@ -72,6 +77,7 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
             return this;
         }
 
+        @Override
         public EmptyConfigUpdate build() {
             return new EmptyConfigUpdate();
         }

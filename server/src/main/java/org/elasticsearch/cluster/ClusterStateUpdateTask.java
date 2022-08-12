@@ -8,20 +8,17 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.List;
-
 /**
  * A task that can update the cluster state.
  */
-public abstract class ClusterStateUpdateTask
-    implements
-        ClusterStateTaskConfig,
-        ClusterStateTaskExecutor<ClusterStateUpdateTask>,
-        ClusterStateTaskListener {
+public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskListener {
 
     private final Priority priority;
 
@@ -45,42 +42,32 @@ public abstract class ClusterStateUpdateTask
         this.timeout = timeout;
     }
 
-    @Override
-    public final ClusterTasksResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks)
-        throws Exception {
-        ClusterState result = execute(currentState);
-        return ClusterTasksResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
-    }
-
-    @Override
-    public String describeTasks(List<ClusterStateUpdateTask> tasks) {
-        return ""; // one of task, source is enough
-    }
-
     /**
-     * Update the cluster state based on the current state. Return the *same instance* if no state
-     * should be changed.
+     * Computes the cluster state that results from executing this task on the given state. Returns the *same instance* if no change is
+     * required, which is an important and valuable optimisation since it short-circuits the whole publication process and saves a bunch of
+     * time and effort.
      */
     public abstract ClusterState execute(ClusterState currentState) throws Exception;
 
     /**
-     * A callback for when task execution fails.
-     *
+     * A callback for when task execution fails. May receive a {@link NotMasterException} if this node stopped being the master before this
+     * task was executed or a {@link ProcessClusterEventTimeoutException} if the task timed out before it was executed. If the task fails
+     * during execution then this method receives the corresponding exception. If the task executes successfully but the resulting cluster
+     * state publication fails then this method receives a {@link FailedToCommitClusterStateException}. If publication fails then a new
+     * master is elected and the update might or might not take effect, depending on whether or not the newly-elected master accepted the
+     * published state that failed to be committed.
+     * <p>
+     * Use {@link MasterService#isPublishFailureException} to detect the "expected" master failure cases if needed.
+     * <p>
      * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the master service at {@code
      * ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so themselves, typically
      * using a more specific logger and at a less dramatic log level.
      */
-    public abstract void onFailure(String source, Exception e);
-
-    @Override
-    public final void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
-        // final, empty implementation here as this method should only be defined in combination
-        // with a batching executor as it will always be executed within the system context.
-    }
+    public abstract void onFailure(Exception e);
 
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link ClusterStateTaskListener#onFailure(String, Exception)}. May return null to indicate no timeout is needed (default).
+     * {@link ClusterStateTaskListener#onFailure(Exception)}. May return null to indicate no timeout is needed (default).
      */
     @Nullable
     public final TimeValue timeout() {
@@ -90,14 +77,5 @@ public abstract class ClusterStateUpdateTask
     @Override
     public final Priority priority() {
         return priority;
-    }
-
-    /**
-     * Marked as final as cluster state update tasks should only run on master.
-     * For local requests, use {@link LocalClusterUpdateTask} instead.
-     */
-    @Override
-    public final boolean runOnlyOnMaster() {
-        return true;
     }
 }

@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -126,7 +125,7 @@ public class IndexGraveyardTests extends ESTestCase {
         final int numPurged = graveyardBuilder.getNumPurged();
         assertThat(numPurged, equalTo(numToPurge));
         final IndexGraveyard.IndexGraveyardDiff diff = new IndexGraveyard.IndexGraveyardDiff(graveyard1, graveyard2);
-        final List<Index> actualAdded = diff.getAdded().stream().map(t -> t.getIndex()).collect(Collectors.toList());
+        final List<Index> actualAdded = diff.getAdded().stream().map(t -> t.getIndex()).toList();
         assertThat(new HashSet<>(actualAdded), equalTo(new HashSet<>(additions)));
         assertThat(diff.getRemovedCount(), equalTo(removals.size()));
     }

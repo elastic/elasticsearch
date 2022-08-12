@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.List;
@@ -26,17 +25,21 @@ public class DocumentMapper {
      * @return the newly created document mapper
      */
     public static DocumentMapper createEmpty(MapperService mapperService) {
-        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(MapperBuilderContext.ROOT);
+        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
+            MapperBuilderContext.ROOT
+        );
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
-        return new DocumentMapper(mapperService.documentParser(), mapping);
+        return new DocumentMapper(mapperService.documentParser(), mapping, mapping.toCompressedXContent());
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping) {
+    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
-        this.mappingSource = mapping.toCompressedXContent();
+        this.mappingSource = source;
+        assert mapping.toCompressedXContent().equals(source)
+            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
     public Mapping mapping() {
@@ -57,10 +60,6 @@ public class DocumentMapper {
 
     public SourceFieldMapper sourceMapper() {
         return metadataMapper(SourceFieldMapper.class);
-    }
-
-    public IdFieldMapper idFieldMapper() {
-        return metadataMapper(IdFieldMapper.class);
     }
 
     public RoutingFieldMapper routingFieldMapper() {
@@ -93,7 +92,15 @@ public class DocumentMapper {
                 );
             }
         }
-        if (settings.getIndexSortConfig().hasIndexSort() && mappers().hasNested()) {
+
+        /*
+         * Build an empty source loader to validate that the mapping is compatible
+         * with the source loading strategy declared on the source field mapper.
+         */
+        sourceMapper().newSourceLoader(mapping());
+
+        settings.getMode().validateMapping(mappingLookup);
+        if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
@@ -102,7 +109,8 @@ public class DocumentMapper {
                 mappingLookup.getFieldType(match).validateMatchedRoutingPath();
             }
             for (String objectName : mappingLookup.objectMappers().keySet()) {
-                if (Regex.simpleMatch(path, objectName)) {
+                // object type is not allowed in the routing paths
+                if (path.equals(objectName)) {
                     throw new IllegalArgumentException(
                         "All fields that match routing_path must be keywords with [time_series_dimension: true] "
                             + "and without the [script] parameter. ["
@@ -115,6 +123,5 @@ public class DocumentMapper {
         if (checkLimits) {
             this.mappingLookup.checkLimits(settings);
         }
-        settings.getMode().validateMapping(mappingLookup);
     }
 }

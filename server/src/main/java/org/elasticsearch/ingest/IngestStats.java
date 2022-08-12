@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,8 +38,18 @@ public class IngestStats implements Writeable, ToXContentFragment {
      */
     public IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats) {
         this.totalStats = totalStats;
-        this.pipelineStats = pipelineStats;
+        this.pipelineStats = pipelineStats.stream().sorted((p1, p2) -> {
+            final IngestStats.Stats p2Stats = p2.stats;
+            final IngestStats.Stats p1Stats = p1.stats;
+            final int ingestTimeCompare = Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
+            if (ingestTimeCompare == 0) {
+                return Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
+            } else {
+                return ingestTimeCompare;
+            }
+        }).toList();
         this.processorStats = processorStats;
+
     }
 
     /**
@@ -48,7 +59,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
         this.totalStats = new Stats(in);
         int size = in.readVInt();
         this.pipelineStats = new ArrayList<>(size);
-        this.processorStats = new HashMap<>(size);
+        this.processorStats = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String pipelineId = in.readString();
             Stats pipelineStat = new Stats(in);
@@ -76,12 +87,11 @@ public class IngestStats implements Writeable, ToXContentFragment {
             if (processorStatsForPipeline == null) {
                 out.writeVInt(0);
             } else {
-                out.writeVInt(processorStatsForPipeline.size());
-                for (ProcessorStat processorStat : processorStatsForPipeline) {
-                    out.writeString(processorStat.getName());
-                    out.writeString(processorStat.getType());
-                    processorStat.getStats().writeTo(out);
-                }
+                out.writeCollection(processorStatsForPipeline, (o, processorStat) -> {
+                    o.writeString(processorStat.getName());
+                    o.writeString(processorStat.getType());
+                    processorStat.getStats().writeTo(o);
+                });
             }
         }
     }

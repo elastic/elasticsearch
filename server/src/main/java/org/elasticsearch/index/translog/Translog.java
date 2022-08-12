@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.translog;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -23,10 +22,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -64,6 +63,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
 
 /**
@@ -316,7 +316,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 try {
                     Files.delete(tempFile);
                 } catch (IOException ex) {
-                    logger.warn(() -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
+                    logger.warn(() -> format("failed to delete temp file %s", tempFile), ex);
                 }
             }
         }
@@ -455,7 +455,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     static long findEarliestLastModifiedAge(long currentTime, Iterable<TranslogReader> readers, TranslogWriter writer) throws IOException {
         long earliestTime = currentTime;
-        for (BaseTranslogReader r : readers) {
+        for (TranslogReader r : readers) {
             earliestTime = Math.min(r.getLastModifiedTime(), earliestTime);
         }
         return Math.max(0, currentTime - Math.min(earliestTime, writer.getLastModifiedTime()));
@@ -1079,18 +1079,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
 
             public static Type fromId(byte id) {
-                switch (id) {
-                    case 1:
-                        return CREATE;
-                    case 2:
-                        return INDEX;
-                    case 3:
-                        return DELETE;
-                    case 4:
-                        return NO_OP;
-                    default:
-                        throw new IllegalArgumentException("no type mapped for [" + id + "]");
-                }
+                return switch (id) {
+                    case 1 -> CREATE;
+                    case 2 -> INDEX;
+                    case 3 -> DELETE;
+                    case 4 -> NO_OP;
+                    default -> throw new IllegalArgumentException("no type mapped for [" + id + "]");
+                };
             }
         }
 
@@ -1110,18 +1105,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          */
         static Operation readOperation(final StreamInput input) throws IOException {
             final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
-            switch (type) {
-                case CREATE:
-                    // the de-serialization logic in Index was identical to that of Create when create was deprecated
-                case INDEX:
-                    return new Index(input);
-                case DELETE:
-                    return new Delete(input);
-                case NO_OP:
-                    return new NoOp(input);
-                default:
-                    throw new AssertionError("no case for [" + type + "]");
-            }
+            return switch (type) {
+                // the de-serialization logic in Index was identical to that of Create when create was deprecated
+                case CREATE, INDEX -> new Index(input);
+                case DELETE -> new Delete(input);
+                case NO_OP -> new NoOp(input);
+            };
         }
 
         /**
@@ -1130,19 +1119,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         static void writeOperation(final StreamOutput output, final Operation operation) throws IOException {
             output.writeByte(operation.opType().id());
             switch (operation.opType()) {
-                case CREATE:
-                    // the serialization logic in Index was identical to that of Create when create was deprecated
-                case INDEX:
-                    ((Index) operation).write(output);
-                    break;
-                case DELETE:
-                    ((Delete) operation).write(output);
-                    break;
-                case NO_OP:
-                    ((NoOp) operation).write(output);
-                    break;
-                default:
-                    throw new AssertionError("no case for [" + operation.opType() + "]");
+                // the serialization logic in Index was identical to that of Create when create was deprecated
+                case CREATE, INDEX -> ((Index) operation).write(output);
+                case DELETE -> ((Delete) operation).write(output);
+                case NO_OP -> ((NoOp) operation).write(output);
+                default -> throw new AssertionError("no case for [" + operation.opType() + "]");
             }
         }
 

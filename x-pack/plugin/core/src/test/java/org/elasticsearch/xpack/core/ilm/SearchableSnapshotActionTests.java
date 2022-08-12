@@ -79,11 +79,23 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         StepKey nonFrozenKey = new StepKey(randomFrom("hot", "warm", "cold", "delete"), randomAlphaOfLength(5), randomAlphaOfLength(5));
         StepKey frozenKey = new StepKey("frozen", randomAlphaOfLength(5), randomAlphaOfLength(5));
 
-        assertThat(action.getConcreteStorageType(nonFrozenKey), equalTo(MountSearchableSnapshotRequest.Storage.FULL_COPY));
-        assertThat(action.getRestoredIndexPrefix(nonFrozenKey), equalTo(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX));
+        assertThat(
+            SearchableSnapshotAction.getConcreteStorageType(nonFrozenKey),
+            equalTo(MountSearchableSnapshotRequest.Storage.FULL_COPY)
+        );
+        assertThat(
+            SearchableSnapshotAction.getRestoredIndexPrefix(nonFrozenKey),
+            equalTo(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX)
+        );
 
-        assertThat(action.getConcreteStorageType(frozenKey), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
-        assertThat(action.getRestoredIndexPrefix(frozenKey), equalTo(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX));
+        assertThat(
+            SearchableSnapshotAction.getConcreteStorageType(frozenKey),
+            equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE)
+        );
+        assertThat(
+            SearchableSnapshotAction.getRestoredIndexPrefix(frozenKey),
+            equalTo(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX)
+        );
     }
 
     private List<StepKey> expectedStepKeysWithForceMerge(String phase) {

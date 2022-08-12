@@ -172,7 +172,7 @@ public class Segment implements Writeable {
         }
     }
 
-    private Sort readSegmentSort(StreamInput in) throws IOException {
+    private static Sort readSegmentSort(StreamInput in) throws IOException {
         int size = in.readVInt();
         if (size == 0) {
             return null;
@@ -193,23 +193,13 @@ public class Segment implements Writeable {
                 Object missing = in.readGenericValue();
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
-                final SortField.Type numericType;
-                switch (type) {
-                    case 1:
-                        numericType = SortField.Type.INT;
-                        break;
-                    case 2:
-                        numericType = SortField.Type.FLOAT;
-                        break;
-                    case 3:
-                        numericType = SortField.Type.DOUBLE;
-                        break;
-                    case 4:
-                        numericType = SortField.Type.LONG;
-                        break;
-                    default:
-                        throw new IOException("invalid index sort type:[" + type + "] for numeric field:[" + field + "]");
-                }
+                final SortField.Type numericType = switch (type) {
+                    case 1 -> SortField.Type.INT;
+                    case 2 -> SortField.Type.FLOAT;
+                    case 3 -> SortField.Type.DOUBLE;
+                    case 4 -> SortField.Type.LONG;
+                    default -> throw new IOException("invalid index sort type:[" + type + "] for numeric field:[" + field + "]");
+                };
                 fields[i] = new SortedNumericSortField(
                     field,
                     numericType,
@@ -224,43 +214,33 @@ public class Segment implements Writeable {
         return new Sort(fields);
     }
 
-    private void writeSegmentSort(StreamOutput out, Sort sort) throws IOException {
+    private static void writeSegmentSort(StreamOutput out, Sort sort) throws IOException {
         if (sort == null) {
             out.writeVInt(0);
             return;
         }
-        out.writeVInt(sort.getSort().length);
-        for (SortField field : sort.getSort()) {
-            out.writeString(field.getField());
+        out.writeArray((o, field) -> {
+            o.writeString(field.getField());
             if (field instanceof SortedSetSortField) {
-                out.writeByte((byte) 0);
-                out.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
-                out.writeBoolean(((SortedSetSortField) field).getSelector() == SortedSetSelector.Type.MAX);
-                out.writeBoolean(field.getReverse());
+                o.writeByte((byte) 0);
+                o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
+                o.writeBoolean(((SortedSetSortField) field).getSelector() == SortedSetSelector.Type.MAX);
+                o.writeBoolean(field.getReverse());
             } else if (field instanceof SortedNumericSortField) {
                 switch (((SortedNumericSortField) field).getNumericType()) {
-                    case INT:
-                        out.writeByte((byte) 1);
-                        break;
-                    case FLOAT:
-                        out.writeByte((byte) 2);
-                        break;
-                    case DOUBLE:
-                        out.writeByte((byte) 3);
-                        break;
-                    case LONG:
-                        out.writeByte((byte) 4);
-                        break;
-                    default:
-                        throw new IOException("invalid index sort field:" + field);
+                    case INT -> o.writeByte((byte) 1);
+                    case FLOAT -> o.writeByte((byte) 2);
+                    case DOUBLE -> o.writeByte((byte) 3);
+                    case LONG -> o.writeByte((byte) 4);
+                    default -> throw new IOException("invalid index sort field:" + field);
                 }
-                out.writeGenericValue(field.getMissingValue());
-                out.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
-                out.writeBoolean(field.getReverse());
+                o.writeGenericValue(field.getMissingValue());
+                o.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
+                o.writeBoolean(field.getReverse());
             } else {
                 throw new IOException("invalid index sort field:" + field);
             }
-        }
+        }, sort.getSort());
     }
 
     private static void readRamTree(StreamInput in) throws IOException {

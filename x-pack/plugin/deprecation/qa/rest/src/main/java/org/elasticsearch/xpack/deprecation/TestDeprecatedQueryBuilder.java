@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -88,4 +89,8 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
         return true;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

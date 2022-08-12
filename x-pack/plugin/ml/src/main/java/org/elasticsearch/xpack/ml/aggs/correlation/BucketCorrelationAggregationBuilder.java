@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -56,14 +56,6 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, GAP_POLICY, ObjectParser.ValueType.STRING);
-    }
-
-    public static SearchPlugin.PipelineAggregationSpec buildSpec() {
-        return new SearchPlugin.PipelineAggregationSpec(
-            NAME,
-            BucketCorrelationAggregationBuilder::new,
-            BucketCorrelationAggregationBuilder.PARSER
-        );
     }
 
     private final CorrelationFunction correlationFunction;
@@ -141,5 +133,10 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), correlationFunction);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_14_0;
     }
 }

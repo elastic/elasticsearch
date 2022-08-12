@@ -26,11 +26,11 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.is;
 
 public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNodeTestCase {
@@ -78,7 +78,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
             if (getIndexResponse.getIndices().length > 0) {
                 assertThat(getIndexResponse.getIndices().length, is(1));
-                assertThat(getIndexResponse.getIndices()[0], is(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
+                assertThat(getIndexResponse.getIndices()[0], is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
                 DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
                 assertAcked(client().admin().indices().delete(deleteIndexRequest).actionGet());
             }

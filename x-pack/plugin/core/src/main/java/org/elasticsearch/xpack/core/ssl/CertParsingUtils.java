@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslKeyConfig;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -30,7 +31,6 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -109,7 +109,7 @@ public class CertParsingUtils {
     private static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
         throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
         final Enumeration<String> enumeration = store.aliases();
-        final Map<Certificate, Key> map = new HashMap<>(store.size());
+        final Map<Certificate, Key> map = Maps.newMapWithExpectedSize(store.size());
         while (enumeration.hasMoreElements()) {
             final String alias = enumeration.nextElement();
             if (store.isKeyEntry(alias)) {

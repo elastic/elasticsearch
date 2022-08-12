@@ -29,7 +29,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -193,14 +192,10 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     static String scriptTypeField(ScriptType type) {
-        switch (type) {
-            case INLINE:
-                return "source";
-            case STORED:
-                return "id";
-            default:
-                throw illegalArgument("unsupported script type [{}]", type);
-        }
+        return switch (type) {
+            case INLINE -> "source";
+            case STORED -> "id";
+        };
     }
 
     public static ScriptService createScriptService() throws Exception {

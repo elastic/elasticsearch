@@ -103,8 +103,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
         final Set<String> followerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
 
         for (final Task task : taskManager.getTasks().values()) {
-            if (task instanceof ShardFollowNodeTask) {
-                final ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
+            if (task instanceof final ShardFollowNodeTask shardFollowNodeTask) {
                 if (followerIndices.contains(shardFollowNodeTask.getFollowShardId().getIndexName())) {
                     operation.accept(shardFollowNodeTask);
                 }
@@ -114,6 +113,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
+        final Task actionTask,
         final FollowStatsAction.StatsRequest request,
         final ShardFollowNodeTask task,
         final ActionListener<FollowStatsAction.StatsResponse> listener

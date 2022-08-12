@@ -14,11 +14,11 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -43,7 +43,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -109,7 +108,7 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
             List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
             List<Double> actual = buckets.stream()
                 .map(bucket -> ((InternalSimpleValue) (bucket.getAggregations().get("mov_fn"))).value())
-                .collect(Collectors.toList());
+                .toList();
             assertThat(actual, equalTo(expected));
         });
     }

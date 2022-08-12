@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -28,7 +29,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -546,7 +546,7 @@ public final class ConfigurationUtils {
         if (config instanceof Map) {
             return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
         } else if (config instanceof String && "script".equals(type)) {
-            Map<String, Object> normalizedScript = new HashMap<>(1);
+            Map<String, Object> normalizedScript = Maps.newMapWithExpectedSize(1);
             normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);
             return readProcessor(processorFactories, scriptService, type, normalizedScript);
         } else {

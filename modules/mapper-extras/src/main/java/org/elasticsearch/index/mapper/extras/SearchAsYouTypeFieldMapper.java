@@ -35,6 +35,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -92,7 +93,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public static final int MAX_SHINGLE_SIZE = 3;
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
 
     private static Builder builder(FieldMapper in) {
         return ((SearchAsYouTypeFieldMapper) in).builder;
@@ -135,24 +136,28 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final TextParams.Analyzers analyzers;
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
-        final Parameter<String> indexOptions = TextParams.indexOptions(m -> builder(m).indexOptions.get());
+        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.get());
         final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.get());
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.get());
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers) {
+        private final Version indexCreatedVersion;
+
+        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> builder(m).analyzers.getIndexAnalyzer(),
-                m -> builder(m).analyzers.positionIncrementGap.getValue()
+                m -> builder(m).analyzers.positionIncrementGap.getValue(),
+                indexCreatedVersion
             );
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 index,
                 store,
                 docValues,
@@ -164,8 +169,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 indexOptions,
                 norms,
                 termVectors,
-                meta
-            );
+                meta };
         }
 
         @Override
@@ -255,7 +259,16 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
-            return new SearchAsYouTypeFieldMapper(name, ft, copyTo.build(), indexAnalyzers, prefixFieldMapper, shingleFieldMappers, this);
+            return new SearchAsYouTypeFieldMapper(
+                name,
+                ft,
+                copyTo.build(),
+                indexAnalyzers,
+                prefixFieldMapper,
+                shingleFieldMappers,
+                multiFieldsBuilder.build(this, context),
+                this
+            );
         }
     }
 
@@ -428,6 +441,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public Query prefixQuery(
             String value,
             MultiTermQuery.RewriteMethod method,
@@ -561,6 +579,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
@@ -637,6 +660,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     private final ShingleFieldMapper[] shingleFields;
     private final Builder builder;
 
+    private final Map<String, NamedAnalyzer> indexAnalyzers;
+
     public SearchAsYouTypeFieldMapper(
         String simpleName,
         SearchAsYouTypeFieldType mappedFieldType,
@@ -644,13 +669,20 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         Map<String, NamedAnalyzer> indexAnalyzers,
         PrefixFieldMapper prefixField,
         ShingleFieldMapper[] shingleFields,
+        MultiFields multiFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo, false, null);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
         this.builder = builder;
+        this.indexAnalyzers = Map.copyOf(indexAnalyzers);
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return indexAnalyzers;
     }
 
     @Override
@@ -682,7 +714,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

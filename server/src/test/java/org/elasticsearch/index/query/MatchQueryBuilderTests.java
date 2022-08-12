@@ -9,8 +9,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CannedBinaryTokenStream;
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -26,6 +24,8 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
@@ -33,6 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -156,8 +157,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertEquals(expectedTermQuery, query);
         }
 
-        if (query instanceof BooleanQuery) {
-            BooleanQuery bq = (BooleanQuery) query;
+        if (query instanceof BooleanQuery bq) {
             if (queryBuilder.minimumShouldMatch() != null) {
                 // calculate expected minimumShouldMatch value
                 int optionalClauses = 0;
@@ -174,9 +174,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             }
         }
 
-        if (query instanceof FuzzyQuery) {
+        if (query instanceof FuzzyQuery fuzzyQuery) {
             assertTrue(queryBuilder.fuzziness() != null);
-            FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
             // depending on analyzer being set or not we can have term lowercased along the way, so to simplify test we just
             // compare lowercased terms here
             String originalTermLc = queryBuilder.value().toString().toLowerCase(Locale.ROOT);
@@ -241,7 +240,11 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
     }
 
-    public void testSimpleMatchQuery() throws IOException {
+    public void testParseDefaultsRemoved() throws IOException {
+        /*
+         * This json includes many defaults. When we parse the query and then
+         * call toString on it all of the defaults are removed.
+         */
         String json = """
             {
               "match" : {
@@ -259,10 +262,31 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
               }
             }""";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, qb);
+        checkGeneratedJson("""
+            {
+              "match": {
+                "message": {
+                  "query": "to be or not to be",
+                  "operator": "AND",
+                  "zero_terms_query": "ALL"
+                }
+              }
+            }""", qb);
 
         assertEquals(json, "to be or not to be", qb.value());
         assertEquals(json, Operator.AND, qb.operator());
+    }
+
+    public void testToXConentWithDefaults() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("foo", "bar");
+        checkGeneratedJson("""
+            {
+              "match": {
+                "foo": {
+                  "query": "bar"
+                }
+              }
+            }""", query);
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {
@@ -575,5 +599,60 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         QueryBuilder rewritten = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewritten.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
+    public void testRewriteToTermQueries() throws IOException {
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.boost(2f);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+        assertEquals(KEYWORD_FIELD_NAME, tqb.fieldName);
+        assertEquals(new BytesRef("value"), tqb.value);
+        assertThat(rewritten.boost(), equalTo(2f));
+    }
+
+    public void testRewriteToTermQueryWithAnalyzer() throws IOException {
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(TEXT_FIELD_NAME, "value");
+        queryBuilder.analyzer("keyword");
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+        assertEquals(TEXT_FIELD_NAME, tqb.fieldName);
+        assertEquals(new BytesRef("value"), tqb.value);
+    }
+
+    public void testRewriteWithFuzziness() throws IOException {
+        // If we've configured fuzziness then we can't rewrite to a term query
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.fuzziness(Fuzziness.AUTO);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertEquals(queryBuilder, rewritten);
+    }
+
+    public void testRewriteWithLeniency() throws IOException {
+        // If we've configured leniency then we can't rewrite to a term query
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.lenient(true);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertEquals(queryBuilder, rewritten);
+    }
+
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("_index", "does_not_exist");
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("_index", getIndex().getName());
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
 }

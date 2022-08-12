@@ -63,6 +63,14 @@
         "type":"boolean",
         "default":false,
         "description":"Indicates whether unmapped fields should be included in the response."
+      },
+      "filters": {
+        "type":"list",
+        "description":"An optional set of filters: can include +metadata,-metadata,-nested,-multifield,-parent"
+      },
+      "types": {
+        "type": "list",
+        "description":"Only return results for fields that have one of the types in the list"
       }
     },
     "body":{

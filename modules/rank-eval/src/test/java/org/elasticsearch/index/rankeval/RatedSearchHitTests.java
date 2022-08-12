@@ -40,14 +40,14 @@ public class RatedSearchHitTests extends ESTestCase {
         OptionalInt rating = original.getRating();
         SearchHit hit = original.getSearchHit();
         switch (randomIntBetween(0, 1)) {
-            case 0:
-                rating = rating.isPresent() ? OptionalInt.of(rating.getAsInt() + 1) : OptionalInt.of(randomInt(5));
-                break;
-            case 1:
-                hit = new SearchHit(hit.docId(), hit.getId() + randomAlphaOfLength(10), Collections.emptyMap(), Collections.emptyMap());
-                break;
-            default:
-                throw new IllegalStateException("The test should only allow two parameters mutated");
+            case 0 -> rating = rating.isPresent() ? OptionalInt.of(rating.getAsInt() + 1) : OptionalInt.of(randomInt(5));
+            case 1 -> hit = new SearchHit(
+                hit.docId(),
+                hit.getId() + randomAlphaOfLength(10),
+                Collections.emptyMap(),
+                Collections.emptyMap()
+            );
+            default -> throw new IllegalStateException("The test should only allow two parameters mutated");
         }
         return new RatedSearchHit(hit, rating);
     }

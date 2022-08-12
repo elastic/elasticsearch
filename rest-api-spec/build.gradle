@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.Version
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -22,7 +22,7 @@ configurations {
   // easy and efficient
   basicRestSpecs {
     attributes {
-      attribute(org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     }
   }
 }
@@ -35,13 +35,8 @@ artifacts {
 
 testClusters.configureEach {
   module ':modules:mapper-extras'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
-
-tasks.named("test").configure { enabled = false }
-tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
@@ -76,13 +71,16 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("field_caps/30_filter/Field caps with index filter", "behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year")
   task.skipTest("indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set", "#44761 bug fix")
   task.skipTest("search/340_type_query/type query", "#47207 type query throws exception in compatible mode")
-  task.skipTest("search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
+  task.skipTest("search.aggregation/210_top_hits_nested_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
   task.skipTest("search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception", "#42654 cutoff_frequency, common terms are not supported. Throwing an exception")
+  task.skipTest("search_shards/10_basic/Search shards aliases with and without filters", "Filter representation no longer outputs default boosts")
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals filters implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
   task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Awaits backport")
+  task.skipTest("search/330_fetch_fields/Test disable source", "Error no longer thrown")
+  task.skipTest("search/240_date_nanos/doc value fields are working as expected across date and date_nanos fields", "Fetching docvalues field multiple times is no longer allowed")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
@@ -218,6 +216,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   // sync_id is no longer available in SegmentInfos.userData // "indices.flush/10_basic/Index synced flush rest test"
   task.replaceIsTrue("indices.testing.shards.0.0.commit.user_data.sync_id", "indices.testing.shards.0.0.commit.user_data")
 
+  // we can now search using doc values only
+  task.replaceValueInMatch("fields.object\\.nested1.long.searchable", true)
 }
 
 tasks.register('enforceYamlTestConvention').configure {

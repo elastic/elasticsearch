@@ -191,14 +191,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         });
     }
 
-    static final class SearchRequestSlot {
+    record SearchRequestSlot(SearchRequest request, int responseSlot) {
 
-        final SearchRequest request;
-        final int responseSlot;
-
-        SearchRequestSlot(SearchRequest request, int responseSlot) {
-            this.request = request;
-            this.responseSlot = responseSlot;
-        }
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 
@@ -18,7 +19,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 
 public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase<ReplaceDataStreamBackingIndexStep> {
@@ -36,17 +37,10 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new ReplaceDataStreamBackingIndexStep(key, nextKey, indexNameSupplier);
     }
@@ -86,7 +80,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, List.of(sourceIndexMetadata.getIndex())))
                     .build()
             )
             .build();
@@ -117,7 +111,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .build()
             )
             .build();
@@ -165,7 +159,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )
@@ -211,13 +205,13 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> backingIndices = List.of(writeIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )

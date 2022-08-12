@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
@@ -17,24 +16,25 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This service is responsible for verifying index metadata when an index is introduced
@@ -51,7 +51,7 @@ public class IndexMetadataVerifier {
     private static final Logger logger = LogManager.getLogger(IndexMetadataVerifier.class);
 
     private final Settings settings;
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfiguration;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
@@ -64,7 +64,8 @@ public class IndexMetadataVerifier {
         ScriptCompiler scriptCompiler
     ) {
         this.settings = settings;
-        this.xContentRegistry = xContentRegistry;
+        this.parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.scriptService = scriptCompiler;
@@ -88,7 +89,7 @@ public class IndexMetadataVerifier {
         newMetadata = removeTierFiltering(newMetadata);
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
-        newMetadata = archiveBrokenIndexSettings(newMetadata);
+        newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
         checkMappingsCompatibility(newMetadata);
         return newMetadata;
     }
@@ -97,14 +98,14 @@ public class IndexMetadataVerifier {
      * Check that the index version is compatible. Elasticsearch does not support indices created before the
      * previous major version.
      */
-    private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        boolean isSupportedVersion = indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
+    private static void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+        boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
             throw new IllegalStateException(
                 "The index "
                     + indexMetadata.getIndex()
-                    + " was created with version ["
-                    + indexMetadata.getCreationVersion()
+                    + " has current compatibility version ["
+                    + indexMetadata.getCompatibilityVersion()
                     + "] but the minimum compatible version is ["
                     + minimumIndexCompatibilityVersion
                     + "]. It should be re-indexed in Elasticsearch "
@@ -186,11 +187,11 @@ public class IndexMetadataVerifier {
                 MapperService mapperService = new MapperService(
                     indexSettings,
                     fakeIndexAnalzyers,
-                    xContentRegistry,
+                    parserConfiguration,
                     similarityService,
                     mapperRegistry,
                     () -> null,
-                    IdFieldMapper.NO_FIELD_DATA,
+                    indexSettings.getMode().idFieldMapperWithoutFieldData(),
                     scriptService
                 );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
@@ -204,27 +205,54 @@ public class IndexMetadataVerifier {
     /**
      * Identify invalid or unknown index settings and archive them. This leniency allows Elasticsearch to load
      * indices even if they contain old settings that are no longer valid.
+     *
+     * When we find an invalid setting on a system index, we simply remove it instead of archiving. System indices
+     * are managed by Elasticsearch and manual modification of settings is limited and sometimes impossible.
      */
-    IndexMetadata archiveBrokenIndexSettings(IndexMetadata indexMetadata) {
+    IndexMetadata archiveOrDeleteBrokenIndexSettings(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();
-        final Settings newSettings = indexScopedSettings.archiveUnknownOrInvalidSettings(
-            settings,
-            e -> logger.warn(
-                "{} ignoring unknown index setting: [{}] with value [{}]; archiving",
-                indexMetadata.getIndex(),
-                e.getKey(),
-                e.getValue()
-            ),
-            (e, ex) -> logger.warn(
-                () -> new ParameterizedMessage(
-                    "{} ignoring invalid index setting: [{}] with value [{}]; archiving",
+        final Settings newSettings;
+
+        if (indexMetadata.isSystem()) {
+            newSettings = indexScopedSettings.deleteUnknownOrInvalidSettings(
+                settings,
+                e -> logger.warn(
+                    "{} deleting unknown system index setting: [{}] with value [{}]",
                     indexMetadata.getIndex(),
                     e.getKey(),
                     e.getValue()
                 ),
-                ex
-            )
-        );
+                (e, ex) -> logger.warn(
+                    () -> format(
+                        "%s deleting invalid system index setting: [%s] with value [%s]",
+                        indexMetadata.getIndex(),
+                        e.getKey(),
+                        e.getValue()
+                    ),
+                    ex
+                )
+            );
+        } else {
+            newSettings = indexScopedSettings.archiveUnknownOrInvalidSettings(
+                settings,
+                e -> logger.warn(
+                    "{} ignoring unknown index setting: [{}] with value [{}]; archiving",
+                    indexMetadata.getIndex(),
+                    e.getKey(),
+                    e.getValue()
+                ),
+                (e, ex) -> logger.warn(
+                    () -> format(
+                        "%s ignoring invalid index setting: [%s] with value [%s]; archiving",
+                        indexMetadata.getIndex(),
+                        e.getKey(),
+                        e.getValue()
+                    ),
+                    ex
+                )
+            );
+        }
+
         if (newSettings != settings) {
             return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         } else {
@@ -236,10 +264,10 @@ public class IndexMetadataVerifier {
      * Convert shared_cache searchable snapshot indices to only specify
      * _tier_preference: data_frozen, removing any pre-existing tier allocation rules.
      */
-    IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
-        final Settings settings = indexMetadata.getSettings();
+    static IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
         // Only remove these settings for a shared_cache searchable snapshot
-        if (isPartialSearchableSnapshotIndex(settings)) {
+        if (indexMetadata.isPartialSearchableSnapshot()) {
+            final Settings settings = indexMetadata.getSettings();
             final Settings.Builder settingsBuilder = Settings.builder().put(settings);
             // Clear any allocation rules other than preference for tier
             settingsBuilder.remove("index.routing.allocation.include._tier");
@@ -261,7 +289,7 @@ public class IndexMetadataVerifier {
     /**
      * Removes index level ._tier allocation filters, if they exist
      */
-    IndexMetadata removeTierFiltering(IndexMetadata indexMetadata) {
+    static IndexMetadata removeTierFiltering(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // Clear any allocation rules other than preference for tier

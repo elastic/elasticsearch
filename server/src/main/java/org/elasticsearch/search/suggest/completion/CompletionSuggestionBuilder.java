@@ -8,10 +8,12 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -31,7 +33,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -305,7 +306,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     ) throws IOException {
         try (XContentParser contextParser = XContentHelper.createParser(parserConfig, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
             contextParser.nextToken();
-            Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
+            Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Maps.newMapWithExpectedSize(contextMappings.size());
             assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
             XContentParser.Token currentToken;
             String currentFieldName;
@@ -323,6 +324,11 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     @Override
     public String getWriteableName() {
         return SUGGESTION_NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     @Override

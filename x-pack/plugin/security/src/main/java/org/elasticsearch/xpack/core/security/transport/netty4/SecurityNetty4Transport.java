@@ -157,7 +157,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         private final SNIHostName serverName;
 
         SecurityClientChannelInitializer(DiscoveryNode node) {
-            this.hostnameVerificationEnabled = sslEnabled && sslConfiguration.getVerificationMode().isHostnameVerificationEnabled();
+            this.hostnameVerificationEnabled = sslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
             String configuredServerName = node.getAttributes().get("server_name");
             if (configuredServerName != null) {
                 try {

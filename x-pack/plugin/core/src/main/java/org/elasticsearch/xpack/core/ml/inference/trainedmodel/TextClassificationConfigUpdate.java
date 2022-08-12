@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -21,10 +22,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.CLASSIFICATION_LABELS;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.NUM_TOP_CLASSES;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig.CLASSIFICATION_LABELS;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig.NUM_TOP_CLASSES;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig.RESULTS_FIELD;
 
 public class TextClassificationConfigUpdate extends NlpConfigUpdate implements NamedXContentObject {
 
@@ -94,6 +95,11 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
     @Override
     public String getName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_0_0;
     }
 
     @Override
@@ -237,6 +243,7 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
             return this;
         }
 
+        @Override
         public TextClassificationConfigUpdate build() {
             return new TextClassificationConfigUpdate(
                 this.classificationLabels,

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -14,12 +13,14 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -705,7 +706,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try {
+        try (dir; reader) {
             RollupJob job = new RollupJob(config, Collections.emptyMap());
             final SyncRollupIndexer action = new SyncRollupIndexer(
                 threadPool,
@@ -717,8 +718,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             rollupConsumer.accept(action.triggerAndWaitForCompletion(now));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-            reader.close();
-            dir.close();
         }
     }
 
@@ -736,25 +735,35 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberType.LONG, ScriptCompiler.NONE, false, false).build(
-                    MapperBuilderContext.ROOT
-                ).fieldType();
+                MappedFieldType ft = new NumberFieldMapper.Builder(
+                    field,
+                    NumberType.LONG,
+                    ScriptCompiler.NONE,
+                    false,
+                    false,
+                    Version.CURRENT
+                ).build(MapperBuilderContext.ROOT).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field).build(MapperBuilderContext.ROOT).fieldType();
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, Version.CURRENT).build(MapperBuilderContext.ROOT).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getMetricsConfig() != null) {
             for (MetricConfig metric : job.getMetricsConfig()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberType.LONG, ScriptCompiler.NONE, false, false)
-                    .build(MapperBuilderContext.ROOT)
-                    .fieldType();
+                MappedFieldType ft = new NumberFieldMapper.Builder(
+                    metric.getField(),
+                    NumberType.LONG,
+                    ScriptCompiler.NONE,
+                    false,
+                    false,
+                    Version.CURRENT
+                ).build(MapperBuilderContext.ROOT).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.Security;
@@ -221,7 +222,7 @@ public class IPFilter {
     }
 
     public Map<String, Object> usageStats() {
-        Map<String, Object> map = new HashMap<>(2);
+        Map<String, Object> map = Maps.newMapWithExpectedSize(2);
         final boolean httpFilterEnabled = isHttpFilterEnabled && (httpAllowFilter.isEmpty() == false || httpDenyFilter.isEmpty() == false);
         final boolean transportFilterEnabled = isIpFilterEnabled
             && (transportAllowFilter.isEmpty() == false || transportDenyFilter.isEmpty() == false);
@@ -285,15 +286,15 @@ public class IPFilter {
             if (rule.matches(peerAddress)) {
                 boolean isAllowed = rule.ruleType() == IpFilterRuleType.ACCEPT;
                 if (isAllowed) {
-                    auditTrail.connectionGranted(peerAddress.getAddress(), profile, rule);
+                    auditTrail.connectionGranted(peerAddress, profile, rule);
                 } else {
-                    auditTrail.connectionDenied(peerAddress.getAddress(), profile, rule);
+                    auditTrail.connectionDenied(peerAddress, profile, rule);
                 }
                 return isAllowed;
             }
         }
 
-        auditTrail.connectionGranted(peerAddress.getAddress(), profile, DEFAULT_PROFILE_ACCEPT_ALL);
+        auditTrail.connectionGranted(peerAddress, profile, DEFAULT_PROFILE_ACCEPT_ALL);
         return true;
     }
 

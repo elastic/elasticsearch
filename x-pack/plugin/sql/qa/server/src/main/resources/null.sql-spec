@@ -87,5 +87,6 @@ SELECT emp_no + 1 AS e FROM "test_emp" WHERE (emp_no + 2) / 1 + 10 % 3 > 100 AND
 nullifyCoalesceInSelectAndFilter
 SELECT COALESCE(null, ABS(emp_no) + 1, 123) AS c FROM test_emp WHERE emp_no IS NULL ORDER BY c NULLS FIRST LIMIT 5;
 
-
+isNullInProjectionsWithGroup
+SELECT last_name IS NULL x FROM test_emp GROUP BY x;
 

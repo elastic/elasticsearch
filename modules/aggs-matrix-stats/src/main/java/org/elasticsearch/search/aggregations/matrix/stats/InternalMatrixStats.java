@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -18,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
 
@@ -67,6 +70,9 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     /** get the number of documents */
     @Override
     public long getDocCount() {
+        if (results != null) {
+            return results.getDocCount();
+        }
         if (stats == null) {
             return 0;
         }
@@ -198,29 +204,41 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
+        } else if (path.size() == 2) {
+            if (results == null) {
+                return emptyMap();
+            }
+            final String field = path.get(0)
+                .replaceAll("^\"", "") // remove leading "
+                .replaceAll("^'", "") // remove leading '
+                .replaceAll("\"$", "") // remove trailing "
+                .replaceAll("'$", ""); // remove trailing '
+            final String element = path.get(1);
+            return switch (element) {
+                case "counts" -> results.getFieldCount(field);
+                case "means" -> results.getMean(field);
+                case "variances" -> results.getVariance(field);
+                case "skewness" -> results.getSkewness(field);
+                case "kurtosis" -> results.getKurtosis(field);
+                case "covariance" -> results.getCovariance(field, field);
+                case "correlation" -> results.getCorrelation(field, field);
+                default -> throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
+            };
         } else if (path.size() == 1) {
             String element = path.get(0);
             if (results == null) {
                 return emptyMap();
             }
-            switch (element) {
-                case "counts":
-                    return results.getFieldCounts();
-                case "means":
-                    return results.getMeans();
-                case "variances":
-                    return results.getVariances();
-                case "skewness":
-                    return results.getSkewness();
-                case "kurtosis":
-                    return results.getKurtosis();
-                case "covariance":
-                    return results.getCovariances();
-                case "correlation":
-                    return results.getCorrelations();
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
-            }
+            return switch (element) {
+                case "counts" -> results.getFieldCounts();
+                case "means" -> results.getMeans();
+                case "variances" -> results.getVariances();
+                case "skewness" -> results.getSkewness();
+                case "kurtosis" -> results.getKurtosis();
+                case "covariance" -> results.getCovariances();
+                case "correlation" -> results.getCorrelations();
+                default -> throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
+            };
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
@@ -239,6 +257,16 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
         RunningStats runningStats = new RunningStats();
         for (InternalAggregation agg : aggs) {
+            final Set<String> missingFields = runningStats.missingFieldNames(((InternalMatrixStats) agg).stats);
+            if (missingFields.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + agg.getName()
+                        + "] all fields must exist in all indices, but some indices are missing these fields ["
+                        + String.join(", ", new TreeSet<>(missingFields))
+                        + "]"
+                );
+            }
             runningStats.merge(((InternalMatrixStats) agg).stats);
         }
 
@@ -247,6 +275,17 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
             return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
         }
         return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalMatrixStats(
+            name,
+            samplingContext.scaleUp(getDocCount()),
+            stats,
+            new MatrixStatsResults(stats, samplingContext),
+            getMetadata()
+        );
     }
 
     @Override

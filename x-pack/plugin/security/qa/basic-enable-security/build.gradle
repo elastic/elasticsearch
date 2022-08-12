@@ -59,7 +59,7 @@ tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
       extraConfigFile 'transport.key', file('src/javaRestTest/resources/ssl/transport.key')
       extraConfigFile 'transport.crt', file('src/javaRestTest/resources/ssl/transport.crt')
       extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
-      extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
+      rolesFile file('src/javaRestTest/resources/roles.yml')
 
       user username: "admin_user", password: "admin-password"
       user username: "security_test_user", password: "security-test-password", role: "security_test_role"

@@ -16,17 +16,16 @@ archivesBaseName = 'x-pack-security'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(path: ':modules:transport-netty4')
-  api project(path: ':plugins:transport-nio')
 
+  testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(path: xpackModule('spatial'))
-  testImplementation project(path: xpackModule('vectors'))
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:reindex')
-  testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(':modules:data-streams')
   testImplementation project(":client:rest-high-level")
 
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -174,6 +173,12 @@ tasks.named("forbiddenPatterns").configure {
 
 tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
+}
+
+tasks.named('forbiddenApisTest').configure {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
@@ -423,4 +428,4 @@ tasks.named("internalClusterTest").configure {
   systemProperty 'es.transport.buffer.size', '256k'
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

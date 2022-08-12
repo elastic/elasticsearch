@@ -16,9 +16,9 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -72,7 +71,7 @@ public class RestTable {
             builder.endObject();
         }
         builder.endArray();
-        return new BytesRestResponse(RestStatus.OK, builder);
+        return new RestResponse(RestStatus.OK, builder);
     }
 
     public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
@@ -111,7 +110,7 @@ public class RestTable {
             out.append("\n");
         }
         out.close();
-        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+        return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
     }
 
     static List<Integer> getRowOrder(Table table, RestRequest request) {
@@ -218,7 +217,7 @@ public class RestTable {
      * or some headers are contained twice due to matching aliases
      */
     private static Set<String> expandHeadersFromRequest(Table table, RestRequest request) {
-        Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
+        Set<String> headers = Sets.newLinkedHashSetWithExpectedSize(table.getHeaders().size());
 
         // check headers and aliases
         for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {
@@ -334,8 +333,7 @@ public class RestTable {
         if (value == null) {
             return null;
         }
-        if (value instanceof ByteSizeValue) {
-            ByteSizeValue v = (ByteSizeValue) value;
+        if (value instanceof ByteSizeValue v) {
             String resolution = request.param("bytes");
             if ("b".equals(resolution)) {
                 return Long.toString(v.getBytes());
@@ -353,8 +351,7 @@ public class RestTable {
                 return v.toString();
             }
         }
-        if (value instanceof SizeValue) {
-            SizeValue v = (SizeValue) value;
+        if (value instanceof SizeValue v) {
             String resolution = request.param("size");
             if ("".equals(resolution)) {
                 return Long.toString(v.singles());
@@ -372,8 +369,7 @@ public class RestTable {
                 return v.toString();
             }
         }
-        if (value instanceof TimeValue) {
-            TimeValue v = (TimeValue) value;
+        if (value instanceof TimeValue v) {
             String resolution = request.param("time");
             if ("nanos".equals(resolution)) {
                 return Long.toString(v.nanos());
@@ -419,7 +415,7 @@ public class RestTable {
         }
 
         @SuppressWarnings("unchecked")
-        private int compareCell(Object o1, Object o2) {
+        private static int compareCell(Object o1, Object o2) {
             if (o1 == null && o2 == null) {
                 return 0;
             } else if (o1 == null) {

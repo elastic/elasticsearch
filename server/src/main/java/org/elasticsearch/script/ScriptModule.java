@@ -48,8 +48,11 @@ public class ScriptModule {
                 ScoreScript.CONTEXT,
                 NumberSortScript.CONTEXT,
                 StringSortScript.CONTEXT,
+                BytesRefSortScript.CONTEXT,
                 TermsSetQueryScript.CONTEXT,
                 UpdateScript.CONTEXT,
+                ReindexScript.CONTEXT,
+                UpdateByQueryScript.CONTEXT,
                 BucketAggregationScript.CONTEXT,
                 BucketAggregationSelectorScript.CONTEXT,
                 SignificantTermsHeuristicScoreScript.CONTEXT,
@@ -108,7 +111,7 @@ public class ScriptModule {
     /**
      * Allow the script service to register any settings update handlers on the cluster settings
      */
-    public void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
+    public static void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
         scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 }

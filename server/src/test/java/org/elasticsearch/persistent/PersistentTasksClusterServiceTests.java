@@ -44,7 +44,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -261,18 +260,13 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         int numberOfTasks = randomIntBetween(0, 40);
         for (int i = 0; i < numberOfTasks; i++) {
             switch (randomInt(2)) {
-                case 0:
+                case 0 ->
                     // add an unassigned task that should get assigned because it's assigned to a non-existing node or unassigned
                     addTask(tasks, "assign_me", randomBoolean() ? null : "no_longer_exists");
-                    break;
-                case 1:
+                case 1 ->
                     // add a task assigned to non-existing node that should not get assigned
                     addTask(tasks, "dont_assign_me", randomBoolean() ? null : "no_longer_exists");
-                    break;
-                case 2:
-                    addTask(tasks, "assign_one", randomBoolean() ? null : "no_longer_exists");
-                    break;
-
+                case 2 -> addTask(tasks, "assign_one", randomBoolean() ? null : "no_longer_exists");
             }
         }
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
@@ -582,33 +576,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         );
     }
 
-    public void testIsNodeShuttingDown() {
-        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(
-            Collections.singletonMap(
-                "this_node",
-                SingleNodeShutdownMetadata.builder()
-                    .setNodeId("this_node")
-                    .setReason("shutdown for a unit test")
-                    .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
-                    .setStartedAtMillis(randomNonNegativeLong())
-                    .build()
-            )
-        );
-        ClusterState state = initialState();
-
-        state = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
-            .nodes(
-                DiscoveryNodes.builder(state.nodes())
-                    .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .build()
-            )
-            .build();
-
-        assertThat(PersistentTasksClusterService.isNodeShuttingDown(state, "this_node"), equalTo(true));
-        assertThat(PersistentTasksClusterService.isNodeShuttingDown(state, "_node_1"), equalTo(false));
-    }
-
     public void testTasksNotAssignedToShuttingDownNodes() {
         ClusterState clusterState = initialState();
         ClusterState.Builder builder = ClusterState.builder(clusterState);
@@ -632,7 +599,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         // Now that we have a bunch of tasks that need to be assigned, let's
         // mark half the nodes as shut down and make sure they do not have any
         // tasks assigned
-        Collection<DiscoveryNode> allNodes = clusterState.nodes().getAllNodes();
+        Collection<DiscoveryNode> allNodes = clusterState.nodes();
         Map<String, SingleNodeShutdownMetadata> shutdownMetadataMap = new HashMap<>();
         allNodes.stream()
             .limit(Math.floorDiv(allNodes.size(), 2))
@@ -703,7 +670,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             t1.start();
             // Make sure we have at least one reassign check before we count down the latch
             assertBusy(
-                () -> verify(recheckTestClusterService, atLeastOnce()).submitStateUpdateTask(eq("reassign persistent tasks"), any())
+                () -> verify(recheckTestClusterService, atLeastOnce()).submitUnbatchedStateUpdateTask(
+                    eq("reassign persistent tasks"),
+                    any()
+                )
             );
             t2.start();
         } finally {
@@ -714,7 +684,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         // verify that our reassignment is possible again, here we have once from the previous reassignment in the `try` block
         // And one from the line above once the other threads have joined
-        assertBusy(() -> verify(recheckTestClusterService, times(2)).submitStateUpdateTask(eq("reassign persistent tasks"), any()));
+        assertBusy(
+            () -> verify(recheckTestClusterService, times(2)).submitUnbatchedStateUpdateTask(eq("reassign persistent tasks"), any())
+        );
         verifyNoMoreInteractions(recheckTestClusterService);
     }
 
@@ -738,13 +710,13 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 await.await();
             }
             if (testFailureNextTime.compareAndSet(true, false)) {
-                task.onFailure("testing failure", new RuntimeException("foo"));
+                task.onFailure(new RuntimeException("foo"));
             } else {
                 state.set(after);
-                task.clusterStateProcessed("test", before, after);
+                task.clusterStateProcessed(before, after);
             }
             return null;
-        }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        }).when(recheckTestClusterService).submitUnbatchedStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
 
         return recheckTestClusterService;
     }
@@ -759,7 +731,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> {
             TestParams testParams = (TestParams) params;
             switch (testParams.getTestParam()) {
-                case "assign_me":
+                case "assign_me" -> {
                     logger.info(
                         "--> assigning task randomly from candidates [{}]",
                         candidateNodes.stream().map(DiscoveryNode::getId).collect(Collectors.joining(","))
@@ -767,21 +739,25 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                     Assignment assignment = randomNodeAssignment(candidateNodes);
                     logger.info("--> assigned task to {}", assignment);
                     return assignment;
-                case "dont_assign_me":
+                }
+                case "dont_assign_me" -> {
                     logger.info("--> not assigning task");
                     return NO_NODE_FOUND;
-                case "fail_me_if_called":
+                }
+                case "fail_me_if_called" -> {
                     logger.info("--> failing test from task assignment");
                     fail("the decision decider shouldn't be called on this task");
                     return null;
-                case "assign_one":
+                }
+                case "assign_one" -> {
                     logger.info("--> assigning only a single task");
                     return assignOnlyOneTaskAtATime(candidateNodes, currentState);
-                case "assign_based_on_non_cluster_state_condition":
+                }
+                case "assign_based_on_non_cluster_state_condition" -> {
                     logger.info("--> assigning based on non cluster state condition: {}", nonClusterStateCondition);
                     return assignBasedOnNonClusterStateCondition(candidateNodes);
-                default:
-                    fail("unknown param " + testParams.getTestParam());
+                }
+                default -> fail("unknown param " + testParams.getTestParam());
             }
             return NO_NODE_FOUND;
         });
@@ -794,7 +770,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasksInProgress.findTasks(
             TestPersistentTasksExecutor.NAME,
-            task -> "assign_one".equals(((TestParams) task.getParams()).getTestParam()) && nodes.nodeExists(task.getExecutorNode())
+            task -> "assign_one".equals(((TestParams) task.getParams()).getTestParam())
+                && task.getExecutorNode() != null
+                && nodes.nodeExists(task.getExecutorNode())
         ).isEmpty()) {
             return randomNodeAssignment(candidateNodes);
         } else {
@@ -815,10 +793,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             return NO_NODE_FOUND;
         }
         return Optional.ofNullable(randomFrom(nodes)).map(node -> new Assignment(node.getId(), "test assignment")).orElse(NO_NODE_FOUND);
-    }
-
-    private Assignment randomNodeAssignment(DiscoveryNodes nodes) {
-        return randomNodeAssignment(nodes.getAllNodes());
     }
 
     private String dumpEvent(ClusterChangedEvent event) {

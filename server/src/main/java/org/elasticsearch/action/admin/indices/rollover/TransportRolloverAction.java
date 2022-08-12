@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -39,11 +38,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -58,10 +59,7 @@ import java.util.stream.Collectors;
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportRolloverAction.class);
-    private static final ClusterStateTaskConfig ROLLOVER_TASK_CONFIG = ClusterStateTaskConfig.build(Priority.NORMAL);
 
-    private final MetadataRolloverService rolloverService;
-    private final ActiveShardsObserver activeShardsObserver;
     private final Client client;
     private final RolloverExecutor rolloverTaskExecutor;
 
@@ -87,10 +85,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             RolloverResponse::new,
             ThreadPool.Names.SAME
         );
-        this.rolloverService = rolloverService;
         this.client = client;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-        this.rolloverTaskExecutor = new RolloverExecutor(allocationService);
+        this.rolloverTaskExecutor = new RolloverExecutor(
+            allocationService,
+            rolloverService,
+            new ActiveShardsObserver(clusterService, threadPool)
+        );
     }
 
     @Override
@@ -117,6 +117,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final ActionListener<RolloverResponse> listener
     ) throws Exception {
 
+        assert task instanceof CancellableTask;
         Metadata metadata = oldState.metadata();
 
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
@@ -133,19 +134,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             statsRequest,
 
             ActionListener.wrap(statsResponse -> {
-                // Now that we have the stats for the cluster, we need to know the
-                // names of the index for which we should evaluate
+                // Now that we have the stats for the cluster, we need to know the names of the index for which we should evaluate
                 // conditions, as well as what our newly created index *would* be.
-                final MetadataRolloverService.NameResolution trialRolloverNames = rolloverService.resolveRolloverNames(
+                final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
                     oldState,
                     rolloverRequest.getRolloverTarget(),
                     rolloverRequest.getNewIndexName(),
                     rolloverRequest.getCreateIndexRequest()
                 );
-                final String trialSourceIndexName = trialRolloverNames.sourceName;
-                final String trialRolloverIndexName = trialRolloverNames.rolloverName;
+                final String trialSourceIndexName = trialRolloverNames.sourceName();
+                final String trialRolloverIndexName = trialRolloverNames.rolloverName();
 
-                rolloverService.validateIndexName(oldState, trialRolloverIndexName);
+                MetadataRolloverService.validateIndexName(oldState, trialRolloverIndexName);
 
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> trialConditionResults = evaluateConditions(
@@ -153,35 +153,28 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     buildStats(metadata.index(trialSourceIndexName), statsResponse)
                 );
 
-                // If this is a dry run, return with the results without invoking a cluster state update
-                if (rolloverRequest.isDryRun()) {
-                    listener.onResponse(
-                        new RolloverResponse(trialSourceIndexName, trialRolloverIndexName, trialConditionResults, true, false, false, false)
-                    );
-                    return;
-                }
-
-                final List<Condition<?>> trialMetConditions = rolloverRequest.getConditions()
-                    .values()
-                    .stream()
-                    .filter(condition -> trialConditionResults.get(condition.toString()))
-                    .collect(Collectors.toList());
-
                 final RolloverResponse trialRolloverResponse = new RolloverResponse(
                     trialSourceIndexName,
                     trialRolloverIndexName,
                     trialConditionResults,
-                    false,
+                    rolloverRequest.isDryRun(),
                     false,
                     false,
                     false
                 );
 
+                // If this is a dry run, return with the results without invoking a cluster state update
+                if (rolloverRequest.isDryRun()) {
+                    listener.onResponse(trialRolloverResponse);
+                    return;
+                }
+
                 // Pre-check the conditions to see whether we should submit a new cluster state task
-                if (trialConditionResults.size() == 0 || trialMetConditions.size() > 0) {
+                if (rolloverRequest.areConditionsMet(trialConditionResults)) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
                     RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
-                    clusterService.submitStateUpdateTask(source, rolloverTask, ROLLOVER_TASK_CONFIG, rolloverTaskExecutor, rolloverTask);
+                    ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL, rolloverRequest.masterNodeTimeout());
+                    clusterService.submitStateUpdateTask(source, rolloverTask, config, rolloverTaskExecutor);
                 } else {
                     // conditions not met
                     listener.onResponse(trialRolloverResponse);
@@ -196,7 +189,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         if (stats != null) {
             return conditions.stream()
                 .map(condition -> condition.evaluate(stats))
-                .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
+                .collect(Collectors.toMap(result -> result.condition().toString(), Condition.Result::matched));
         } else {
             // no conditions matched
             return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
@@ -222,70 +215,108 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .max()
                 .orElse(0);
 
+            final long maxPrimaryShardDocs = indexStats.stream()
+                .map(IndexStats::getShards)
+                .filter(Objects::nonNull)
+                .flatMap(Arrays::stream)
+                .filter(shard -> shard.getShardRouting().primary())
+                .map(ShardStats::getStats)
+                .mapToLong(shard -> shard.docs.getCount())
+                .max()
+                .orElse(0);
+
             return new Condition.Stats(
                 docsStats == null ? 0 : docsStats.getCount(),
                 metadata.getCreationDate(),
                 new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes()),
-                new ByteSizeValue(maxPrimaryShardSize)
+                new ByteSizeValue(maxPrimaryShardSize),
+                maxPrimaryShardDocs
             );
         }
     }
 
-    class RolloverTask implements ClusterStateTaskListener {
+    record RolloverTask(
+        RolloverRequest rolloverRequest,
+        IndicesStatsResponse statsResponse,
+        RolloverResponse trialRolloverResponse,
+        ActionListener<RolloverResponse> listener
+    ) implements ClusterStateTaskListener {
 
-        private final RolloverRequest rolloverRequest;
-        private final IndicesStatsResponse statsResponse;
-        private final RolloverResponse trialRolloverResponse;
-        private final ActionListener<RolloverResponse> listener;
-
-        private boolean clusterStateProcessed = false;
-        // Holders for what our final source and rolled over index names are as well as the
-        // conditions met to cause the rollover, these are needed so we wait on and report
-        // the correct indices and conditions in the clusterStateProcessed method
-        private final SetOnce<String> sourceIndex = new SetOnce<>();
-        private final SetOnce<String> rolloverIndex = new SetOnce<>();
-        private final SetOnce<Map<String, Boolean>> conditionResults = new SetOnce<>();
-
-        RolloverTask(
-            RolloverRequest rolloverRequest,
-            IndicesStatsResponse statsResponse,
-            RolloverResponse trialRolloverResponse,
-            ActionListener<RolloverResponse> listener
-        ) {
-            this.rolloverRequest = rolloverRequest;
-            this.statsResponse = statsResponse;
-            this.trialRolloverResponse = trialRolloverResponse;
-            this.listener = listener;
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
         }
 
-        ClusterState performRollover(ClusterState currentState) throws Exception {
-            // Regenerate the rollover names, as a rollover could have happened
-            // in between the pre-check and the cluster state update
-            final MetadataRolloverService.NameResolution rolloverNames = rolloverService.resolveRolloverNames(
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "not called";
+        }
+    }
+
+    record RolloverExecutor(
+        AllocationService allocationService,
+        MetadataRolloverService rolloverService,
+        ActiveShardsObserver activeShardsObserver
+    ) implements ClusterStateTaskExecutor<RolloverTask> {
+        @Override
+        public ClusterState execute(ClusterState currentState, List<TaskContext<RolloverTask>> taskContexts) throws Exception {
+            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(taskContexts.size());
+            var state = currentState;
+            for (final var taskContext : taskContexts) {
+                try {
+                    state = executeTask(state, results, taskContext);
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+
+            if (state != currentState) {
+                var reason = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit(
+                    (Iterable<String>) () -> results.stream().map(t -> t.sourceIndexName() + "->" + t.rolloverIndexName()).iterator(),
+                    ",",
+                    "bulk rollover [",
+                    "]",
+                    1024,
+                    reason
+                );
+                state = allocationService.reroute(state, reason.toString());
+            }
+            return state;
+        }
+
+        public ClusterState executeTask(
+            ClusterState currentState,
+            List<MetadataRolloverService.RolloverResult> results,
+            TaskContext<RolloverTask> rolloverTaskContext
+        ) throws Exception {
+            final var rolloverTask = rolloverTaskContext.getTask();
+            final var rolloverRequest = rolloverTask.rolloverRequest();
+
+            // Regenerate the rollover names, as a rollover could have happened in between the pre-check and the cluster state update
+            final var rolloverNames = MetadataRolloverService.resolveRolloverNames(
                 currentState,
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest()
             );
-            final String sourceIndexName = rolloverNames.sourceName;
+            final String sourceIndexName = rolloverNames.sourceName();
 
             // Re-evaluate the conditions, now with our final source index name
             final Map<String, Boolean> postConditionResults = evaluateConditions(
                 rolloverRequest.getConditions().values(),
-                buildStats(currentState.metadata().index(sourceIndexName), statsResponse)
+                buildStats(currentState.metadata().index(sourceIndexName), rolloverTask.statsResponse())
             );
-            final List<Condition<?>> metConditions = rolloverRequest.getConditions()
-                .values()
-                .stream()
-                .filter(condition -> postConditionResults.get(condition.toString()))
-                .collect(Collectors.toList());
-            // Update the final condition results so they can be used when returning the response
-            conditionResults.set(postConditionResults);
 
-            if (postConditionResults.size() == 0 || metConditions.size() > 0) {
-                clusterStateProcessed = true;
+            if (rolloverRequest.areConditionsMet(postConditionResults)) {
+                final List<Condition<?>> metConditions = rolloverRequest.getConditions()
+                    .values()
+                    .stream()
+                    .filter(condition -> postConditionResults.get(condition.toString()))
+                    .toList();
+
                 // Perform the actual rollover
-                MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
+                final var rolloverResult = rolloverService.rolloverClusterState(
                     currentState,
                     rolloverRequest.getRolloverTarget(),
                     rolloverRequest.getNewIndexName(),
@@ -295,99 +326,43 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     false
                 );
+                results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);
 
-                // Update the "final" source and resulting rollover index names.
-                // Note that we use the actual rollover result for these, because
-                // even though we're single threaded, it's possible for the
-                // rollover names generated before the actual rollover to be
-                // different due to things like date resolution
-                sourceIndex.set(rolloverResult.sourceIndexName);
-                rolloverIndex.set(rolloverResult.rolloverIndexName);
+                rolloverTaskContext.success(() -> {
+                    // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
+                    // active shards, as well as return the names of the indices that were rolled/created
+                    activeShardsObserver.waitForActiveShards(
+                        new String[] { rolloverResult.rolloverIndexName() },
+                        rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+                        rolloverRequest.masterNodeTimeout(),
+                        isShardsAcknowledged -> rolloverTask.listener()
+                            .onResponse(
+                                new RolloverResponse(
+                                    // Note that we use the actual rollover result for these, because even though we're single threaded,
+                                    // it's possible for the rollover names generated before the actual rollover to be different due to
+                                    // things like date resolution
+                                    rolloverResult.sourceIndexName(),
+                                    rolloverResult.rolloverIndexName(),
+                                    postConditionResults,
+                                    false,
+                                    true,
+                                    true,
+                                    isShardsAcknowledged
+                                )
+                            ),
+                        rolloverTask.listener()::onFailure
+                    );
+                });
 
                 // Return the new rollover cluster state, which includes the changes that create the new index
-                return rolloverResult.clusterState;
+                return rolloverResult.clusterState();
             } else {
-                // Upon re-evaluation of the conditions, none were met, so
-                // therefore do not perform a rollover, returning the current
+                // Upon re-evaluation of the conditions, none were met, so therefore do not perform a rollover, returning the current
                 // cluster state.
+                rolloverTaskContext.success(() -> rolloverTask.listener().onResponse(rolloverTask.trialRolloverResponse()));
                 return currentState;
             }
-        }
-
-        @Override
-        public void onFailure(String source, Exception e) {
-            listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            // Now assuming we have a new state and the name of the rolled over index, we need to wait for the
-            // configured number of active shards, as well as return the names of the indices that were rolled/created
-            if (clusterStateProcessed) {
-                assert sourceIndex.get() != null : "source index missing on successful rollover";
-                assert rolloverIndex.get() != null : "rollover index missing on successful rollover";
-                assert conditionResults.get() != null : "matching rollover conditions missing on successful rollover";
-
-                activeShardsObserver.waitForActiveShards(
-                    new String[] { rolloverIndex.get() },
-                    rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                    rolloverRequest.masterNodeTimeout(),
-                    isShardsAcknowledged -> listener.onResponse(
-                        new RolloverResponse(
-                            sourceIndex.get(),
-                            rolloverIndex.get(),
-                            conditionResults.get(),
-                            false,
-                            true,
-                            true,
-                            isShardsAcknowledged
-                        )
-                    ),
-                    listener::onFailure
-                );
-            } else {
-                // We did not roll over due to conditions not being met inside the cluster state update
-                listener.onResponse(trialRolloverResponse);
-            }
-        }
-    }
-
-    static class RolloverExecutor implements ClusterStateTaskExecutor<RolloverTask> {
-
-        private final AllocationService allocationService;
-
-        RolloverExecutor(AllocationService allocationService) {
-            this.allocationService = allocationService;
-        }
-
-        @Override
-        public ClusterTasksResult<RolloverTask> execute(ClusterState currentState, List<RolloverTask> tasks) throws Exception {
-            ClusterStateTaskExecutor.ClusterTasksResult.Builder<RolloverTask> builder = ClusterStateTaskExecutor.ClusterTasksResult
-                .builder();
-            ClusterState state = currentState;
-            for (RolloverTask task : tasks) {
-                try {
-                    state = task.performRollover(state);
-                    builder.success(task);
-                } catch (Exception e) {
-                    builder.failure(task, e);
-                }
-            }
-
-            if (state != currentState) {
-                var reason = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(
-                    (Iterable<String>) () -> tasks.stream().map(t -> t.sourceIndex.get() + "->" + t.rolloverIndex.get()).iterator(),
-                    ",",
-                    "bulk rollover [",
-                    "]",
-                    1024,
-                    reason
-                );
-                state = allocationService.reroute(state, reason.toString());
-            }
-            return builder.build(state);
         }
     }
 }

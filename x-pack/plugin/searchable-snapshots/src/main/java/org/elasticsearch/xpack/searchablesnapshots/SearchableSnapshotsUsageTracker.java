@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.util.function.Supplier;
 
@@ -35,7 +34,7 @@ final class SearchableSnapshotsUsageTracker implements Runnable {
 
     private static boolean hasSearchableSnapshotsIndices(ClusterState state) {
         for (IndexMetadata indexMetadata : state.metadata()) {
-            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
+            if (indexMetadata.isSearchableSnapshot()) {
                 return true;
             }
         }

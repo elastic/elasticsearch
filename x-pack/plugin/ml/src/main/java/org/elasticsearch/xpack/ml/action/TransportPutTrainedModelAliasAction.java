@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -114,7 +116,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         if (oldModelId != null) {
             modelIds.add(oldModelId);
         }
-        trainedModelProvider.getTrainedModels(modelIds, GetTrainedModelsAction.Includes.empty(), true, ActionListener.wrap(models -> {
+        trainedModelProvider.getTrainedModels(modelIds, GetTrainedModelsAction.Includes.empty(), true, null, ActionListener.wrap(models -> {
             TrainedModelConfig newModel = null;
             TrainedModelConfig oldModel = null;
             for (TrainedModelConfig config : models) {
@@ -175,7 +177,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                     HeaderWarning.addWarning(warning);
                 }
             }
-            clusterService.submitStateUpdateTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {
+            submitUnbatchedTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
                     return updateModelAlias(currentState, request);
@@ -183,6 +185,11 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
             });
 
         }, listener::onFailure));
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState updateModelAlias(final ClusterState currentState, final PutTrainedModelAliasAction.Request request) {

@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.procedures.LongProcedure;
-
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
@@ -24,10 +21,10 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -37,7 +34,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,7 +74,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> try(Releasable lock = writeLock.acquire()) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
+    private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
     private ReleasableBytesStreamOutput buffer;
@@ -260,18 +259,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 );
                 // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
                 final boolean sameOp;
-                if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
-                    final Translog.Index o1 = (Translog.Index) prvOp;
-                    final Translog.Index o2 = (Translog.Index) newOp;
+                if (newOp instanceof final Translog.Index o2 && prvOp instanceof final Translog.Index o1) {
                     sameOp = Objects.equals(o1.id(), o2.id())
                         && Objects.equals(o1.source(), o2.source())
                         && Objects.equals(o1.routing(), o2.routing())
                         && o1.primaryTerm() == o2.primaryTerm()
                         && o1.seqNo() == o2.seqNo()
                         && o1.version() == o2.version();
-                } else if (newOp instanceof Translog.Delete && prvOp instanceof Translog.Delete) {
-                    final Translog.Delete o1 = (Translog.Delete) newOp;
-                    final Translog.Delete o2 = (Translog.Delete) prvOp;
+                } else if (newOp instanceof final Translog.Delete o1 && prvOp instanceof final Translog.Delete o2) {
                     sameOp = Objects.equals(o1.id(), o2.id())
                         && o1.primaryTerm() == o2.primaryTerm()
                         && o1.seqNo() == o2.seqNo()
@@ -460,7 +455,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
-                    final LongArrayList flushedSequenceNumbers;
+                    final List<Long> flushedSequenceNumbers;
                     final ReleasableBytesReference toWrite;
                     try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
@@ -471,7 +466,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                                 flushedSequenceNumbers = null;
                             } else {
                                 flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                                nonFsyncedSequenceNumbers = new LongArrayList(64);
+                                nonFsyncedSequenceNumbers = new ArrayList<>(64);
                             }
                         }
 
@@ -497,7 +492,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         throw ex;
                     }
                     if (flushedSequenceNumbers != null) {
-                        flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                        flushedSequenceNumbers.forEach(persistedSequenceNumberConsumer::accept);
                     }
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset
                         : "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -32,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportGetDatafeedRunningStateAction extends TransportTasksAction<
     TransportStartDatafeedAction.DatafeedTask,
@@ -77,6 +78,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         Request request,
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<Response> listener
@@ -120,7 +122,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
                             Collectors.toMap(
                                 StartDatafeedAction.DatafeedParams::getDatafeedId,
                                 // If it isn't assigned to a node, assume that look back hasn't completed yet
-                                params -> new Response.RunningState(params.getEndTime() == null, false)
+                                params -> new Response.RunningState(params.getEndTime() == null, false, null)
                             )
                         )
                 )
@@ -135,9 +137,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
             .toArray(String[]::new);
 
         if (nodesOfConcern.length == 0) {
-            logger.debug(
-                () -> new ParameterizedMessage("Unable to find executor nodes for datafeed tasks {}", request.getDatafeedTaskIds())
-            );
+            logger.debug(() -> format("Unable to find executor nodes for datafeed tasks %s", request.getDatafeedTaskIds()));
 
             taskResponseListener.onResponse(new Response(Collections.emptyMap()));
             return;

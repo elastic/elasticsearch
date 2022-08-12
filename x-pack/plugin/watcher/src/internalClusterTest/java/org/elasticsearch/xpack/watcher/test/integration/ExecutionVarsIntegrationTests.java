@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -109,11 +110,10 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67908")
     public void testVars() throws Exception {
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId)
             .setSource(
-                watchBuilder().trigger(schedule(cron("0/1 * * * * ?")))
+                watchBuilder().trigger(schedule(interval("1h")))
                     .input(simpleInput("value", 5))
                     .condition(
                         new ScriptCondition(
@@ -156,18 +156,17 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         for (Map<String, Object> action : actions) {
             String id = (String) action.get("id");
             switch (id) {
-                case "a1":
+                case "a1" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
-                    break;
-                case "a2":
+                }
+                case "a2" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
-                    break;
-                default:
-                    fail("there should not be an action result for action with an id other than a1 or a2");
+                }
+                default -> fail("there should not be an action result for action with an id other than a1 or a2");
             }
         }
     }
@@ -215,18 +214,17 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         for (Map<String, Object> action : actions) {
             String id = (String) action.get("id");
             switch (id) {
-                case "a1":
+                case "a1" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
-                    break;
-                case "a2":
+                }
+                case "a2" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
-                    break;
-                default:
-                    fail("there should not be an action result for action with an id other than a1 or a2");
+                }
+                default -> fail("there should not be an action result for action with an id other than a1 or a2");
             }
         }
     }

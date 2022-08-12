@@ -24,7 +24,7 @@ public record Profile(
     boolean enabled,
     long lastSynchronized,
     ProfileUser user,
-    Access access,
+    Map<String, Object> labels,
     Map<String, Object> applicationData,
     VersionControl versionControl
 ) implements Writeable, ToXContentObject {
@@ -33,18 +33,18 @@ public record Profile(
 
     public record ProfileUser(
         String username,
+        List<String> roles,
         String realmName,
-        @Nullable String realmDomain,
+        @Nullable String domainName,
         String email,
-        String fullName,
-        String displayName
+        String fullName
     ) implements Writeable, ToXContent {
 
         public ProfileUser(StreamInput in) throws IOException {
             this(
                 in.readString(),
+                in.readStringList(),
                 in.readString(),
-                in.readOptionalString(),
                 in.readOptionalString(),
                 in.readOptionalString(),
                 in.readOptionalString()
@@ -52,25 +52,23 @@ public record Profile(
         }
 
         public QualifiedName qualifiedName() {
-            return new QualifiedName(username, realmDomain);
+            return new QualifiedName(username, domainName);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("user");
             builder.field("username", username);
+            builder.field("roles", roles);
             builder.field("realm_name", realmName);
-            if (realmDomain != null) {
-                builder.field("realm_domain", realmDomain);
+            if (domainName != null) {
+                builder.field("realm_domain", domainName);
             }
             if (email != null) {
                 builder.field("email", email);
             }
             if (fullName != null) {
-                builder.field("full_name", email);
-            }
-            if (displayName != null) {
-                builder.field("display_name", displayName);
+                builder.field("full_name", fullName);
             }
             builder.endObject();
             return builder;
@@ -79,33 +77,11 @@ public record Profile(
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(username);
+            out.writeStringCollection(roles);
             out.writeString(realmName);
-            out.writeOptionalString(realmDomain);
+            out.writeOptionalString(domainName);
             out.writeOptionalString(email);
             out.writeOptionalString(fullName);
-            out.writeOptionalString(displayName);
-        }
-    }
-
-    public record Access(List<String> roles, Map<String, Object> applications) implements Writeable, ToXContent {
-
-        public Access(StreamInput in) throws IOException {
-            this(in.readStringList(), in.readMap());
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject("access");
-            builder.field("roles", roles);
-            builder.field("applications", applications);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(roles);
-            out.writeMap(applications);
         }
     }
 
@@ -132,21 +108,25 @@ public record Profile(
     }
 
     public Profile(StreamInput in) throws IOException {
-        this(in.readString(), in.readBoolean(), in.readLong(), new ProfileUser(in), new Access(in), in.readMap(), new VersionControl(in));
+        this(in.readString(), in.readBoolean(), in.readLong(), new ProfileUser(in), in.readMap(), in.readMap(), new VersionControl(in));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        versionControl.toXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("uid", uid);
         builder.field("enabled", enabled);
         builder.field("last_synchronized", lastSynchronized);
         user.toXContent(builder, params);
-        access.toXContent(builder, params);
+        builder.field("labels", labels);
         builder.field("data", applicationData);
-        versionControl.toXContent(builder, params);
-        builder.endObject();
-        return builder;
     }
 
     @Override
@@ -155,8 +135,8 @@ public record Profile(
         out.writeBoolean(enabled);
         out.writeLong(lastSynchronized);
         user.writeTo(out);
-        access.writeTo(out);
-        out.writeMap(applicationData);
+        out.writeGenericMap(labels);
+        out.writeGenericMap(applicationData);
         versionControl.writeTo(out);
     }
 }

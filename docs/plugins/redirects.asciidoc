@@ -18,7 +18,7 @@ Looking for a hosted solution for Elasticsearch on AWS? Check out https://www.el
 The Elasticsearch `cloud-aws` plugin has been split into two separate plugins:
 
 *  <<discovery-ec2>> (`discovery-ec2`)
-*  <<repository-s3>> (`repository-s3`)
+*  {ref}/repository-s3.html[`repository-s3`]
 
 [role="exclude",id="cloud-azure"]
 === Azure Cloud Plugin
@@ -26,7 +26,7 @@ The Elasticsearch `cloud-aws` plugin has been split into two separate plugins:
 The `cloud-azure` plugin has been split into two separate plugins:
 
 *  <<discovery-azure-classic>> (`discovery-azure-classic`)
-*  <<repository-azure>> (`repository-azure`)
+*  {ref}/repository-azure.html[`repository-azure`]
 
 
 [role="exclude",id="cloud-gce"]
@@ -71,3 +71,91 @@ See {ref}/monitor-elasticsearch-cluster.html[{stack} monitoring].
 === Security plugins
 
 See {ref}/secure-cluster.html[{stack} security].
+
+[role="exclude",id="repository-azure"]
+=== Azure repository plugin
+
+// tag::azure-repo-migration[]
+The Azure repository plugin is now included in {es}.
+See {ref}/repository-azure.html[Azure repository].
+// end::azure-repo-migration[]
+
+[role="exclude",id="repository-azure-usage"]
+=== Azure repository plugin
+
+include::redirects.asciidoc[tag=azure-repo-migration]
+
+[role="exclude",id="repository-azure-client-settings"]
+=== Azure repository plugin
+
+include::redirects.asciidoc[tag=azure-repo-migration]
+
+[role="exclude",id="repository-azure-repository-settings"]
+=== Azure repository plugin
+
+include::redirects.asciidoc[tag=azure-repo-migration]
+
+[role="exclude",id="repository-azure-validation"]
+=== Azure repository plugin
+
+include::redirects.asciidoc[tag=azure-repo-migration]
+
+[role="exclude",id="repository-s3"]
+=== S3 repository plugin
+
+// tag::s3-repo-migration[]
+The S3 repository plugin is now included in {es}.
+See {ref}/repository-s3.html[S3 repository].
+// end::s3-repo-migration[]
+
+[role="exclude",id="repository-s3-usage"]
+=== S3 repository plugin
+
+include::redirects.asciidoc[tag=s3-repo-migration]
+
+[role="exclude",id="repository-s3-client"]
+=== S3 repository plugin
+
+include::redirects.asciidoc[tag=s3-repo-migration]
+
+[role="exclude",id="repository-s3-repository"]
+=== S3 repository plugin
+
+include::redirects.asciidoc[tag=s3-repo-migration]
+
+[role="exclude",id="repository-gcs"]
+=== Google Cloud Storage repository plugin
+
+// tag::gcs-repo-migration[]
+The Google Cloud Storage repository plugin is now included in {es}.
+See {ref}/repository-gcs.html[Google Cloud Storage repository].
+// end::gcs-repo-migration[]
+
+[role="exclude",id="repository-gcs-usage"]
+=== Google Cloud Storage repository plugin
+
+include::redirects.asciidoc[tag=gcs-repo-migration]
+
+[role="exclude",id="repository-gcs-client"]
+=== Google Cloud Storage repository plugin
+
+include::redirects.asciidoc[tag=gcs-repo-migration]
+
+[role="exclude",id="repository-gcs-repository"]
+=== Google Cloud Storage repository plugin
+
+include::redirects.asciidoc[tag=gcs-repo-migration]
+
+[role="exclude",id="ingest-attachment"]
+=== Ingest Attachment plugin
+
+// tag::ingest-attachment-migration[]
+The Ingest Attachment plugin is now included in {es}.
+See the {ref}/attachment.html[Ingest Attachment] processor.
+// end::ingest-attachment-migration[]
+
+[role="exclude",id="ingest"]
+=== Ingest plugins
+
+All ingest functionality has been moved into the default distribution.
+For more information refer to the {ref}/processors.html[existing processors].

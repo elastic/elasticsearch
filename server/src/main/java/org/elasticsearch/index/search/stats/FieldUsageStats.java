@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class FieldUsageStats implements ToXContentObject, Writeable {
     public static final String ANY = "any";
@@ -73,7 +72,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             final List<Map.Entry<String, PerFieldUsageStats>> sortedEntries = stats.entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByKey())
-                .collect(Collectors.toList());
+                .toList();
             for (Map.Entry<String, PerFieldUsageStats> entry : sortedEntries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);

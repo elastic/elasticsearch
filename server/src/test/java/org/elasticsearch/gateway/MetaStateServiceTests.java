@@ -94,9 +94,9 @@ public class MetaStateServiceTests extends ESTestCase {
 
         Tuple<Manifest, Metadata> manifestAndMetadata = metaStateService.loadFullState();
         Manifest manifest = manifestAndMetadata.v1();
-        assertThat(manifest.getGlobalGeneration(), equalTo(globalGeneration));
-        assertThat(manifest.getIndexGenerations(), hasKey(indexMetadata.getIndex()));
-        assertThat(manifest.getIndexGenerations().get(indexMetadata.getIndex()), equalTo(indexGeneration));
+        assertThat(manifest.globalGeneration(), equalTo(globalGeneration));
+        assertThat(manifest.indexGenerations(), hasKey(indexMetadata.getIndex()));
+        assertThat(manifest.indexGenerations().get(indexMetadata.getIndex()), equalTo(indexGeneration));
 
         Metadata loadedMetadata = manifestAndMetadata.v2();
         assertThat(loadedMetadata.persistentSettings(), equalTo(metadata.persistentSettings()));
@@ -130,7 +130,7 @@ public class MetaStateServiceTests extends ESTestCase {
         Manifest manifest = new Manifest(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            Manifest.empty().getGlobalGeneration(),
+            Manifest.empty().globalGeneration(),
             new HashMap<Index, Long>() {
                 {
                     put(index.getIndex(), indexGeneration);

@@ -43,7 +43,6 @@ import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.internal.Requests#createIndexRequest(String)}.
@@ -453,7 +452,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         super.writeTo(out);
         out.writeString(cause);
         out.writeString(index);
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         if (out.getVersion().before(Version.V_8_0_0)) {
             if ("{}".equals(mappings)) {
                 out.writeVInt(0);
@@ -465,10 +464,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         } else {
             out.writeString(mappings);
         }
-        out.writeVInt(aliases.size());
-        for (Alias alias : aliases) {
-            alias.writeTo(out);
-        }
+        out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeString(origin);

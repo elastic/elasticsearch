@@ -15,21 +15,18 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
-import org.elasticsearch.index.fielddata.ScriptDocValues.LongsSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.script.field.SeqNoDocValuesField;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * Mapper for the {@code _seq_no} field.
@@ -53,10 +50,10 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
      */
     public static class SequenceIDFields {
 
-        public final Field seqNo;
-        public final Field seqNoDocValue;
-        public final Field primaryTerm;
-        public final Field tombstoneField;
+        private final Field seqNo;
+        private final Field seqNoDocValue;
+        private final Field primaryTerm;
+        private final Field tombstoneField;
 
         private SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm, Field tombstoneField) {
             Objects.requireNonNull(seqNo, "sequence number field cannot be null");
@@ -77,6 +74,20 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             }
         }
 
+        /**
+         * Update the values of the {@code _seq_no} and {@code primary_term} fields
+         * to the specified value. Called in the engine long after parsing.
+         */
+        public void set(long seqNo, long primaryTerm) {
+            this.seqNo.setLongValue(seqNo);
+            this.seqNoDocValue.setLongValue(seqNo);
+            this.primaryTerm.setLongValue(primaryTerm);
+        }
+
+        /**
+         * Build and empty sequence ID who's values can be assigned later by
+         * calling {@link #set}.
+         */
         public static SequenceIDFields emptySeqID() {
             return new SequenceIDFields(
                 new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
@@ -118,7 +129,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
-        private long parse(Object value) {
+        private static long parse(Object value) {
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();
                 if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
@@ -136,6 +147,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
@@ -148,7 +164,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
-            long[] v = values.stream().mapToLong(this::parse).toArray();
+            long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
             return LongPoint.newSetQuery(name(), v);
         }
 
@@ -184,13 +200,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(
-                name(),
-                NumericType.LONG,
-                (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
-            );
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new);
         }
     }
 

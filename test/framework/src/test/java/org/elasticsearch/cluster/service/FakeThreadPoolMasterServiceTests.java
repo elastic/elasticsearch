@@ -61,12 +61,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> runnableTasks.add((Runnable) invocationOnMock.getArguments()[0])).when(executorService).execute(any());
         when(mockThreadPool.generic()).thenReturn(executorService);
 
-        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService(
-            "test_node",
-            "test",
-            mockThreadPool,
-            runnableTasks::add
-        );
+        MasterService masterService = new FakeThreadPoolMasterService("test_node", "test", mockThreadPool, runnableTasks::add);
         masterService.setClusterStateSupplier(lastClusterStateRef::get);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
@@ -76,7 +71,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         masterService.start();
 
         AtomicBoolean firstTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
+        masterService.submitUnbatchedStateUpdateTask("test1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -85,13 +80,13 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 assertFalse(firstTaskCompleted.get());
                 firstTaskCompleted.set(true);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
         });
@@ -105,6 +100,10 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(scheduleTask, hasToString("master service scheduling next task"));
         scheduleTask.run();
 
+        // run tasks for computing routing nodes and indices lookup
+        runnableTasks.remove(0).run();
+        runnableTasks.remove(0).run();
+
         final Runnable publishTask = runnableTasks.remove(0);
         assertThat(publishTask, hasToString(containsString("publish change of cluster state")));
         publishTask.run();
@@ -116,7 +115,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(runnableTasks.size(), equalTo(0));
 
         AtomicBoolean secondTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
+        masterService.submitUnbatchedStateUpdateTask("test2", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -125,13 +124,13 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 assertFalse(secondTaskCompleted.get());
                 secondTaskCompleted.set(true);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
         });
@@ -142,6 +141,10 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(runnableTasks.size(), equalTo(1)); // check that new task gets queued
 
         runnableTasks.remove(0).run(); // schedule again
+
+        // run task for computing missing indices lookup
+        runnableTasks.remove(0).run();
+
         runnableTasks.remove(0).run(); // publish again
         assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(2));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion + 2));

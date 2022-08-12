@@ -5,6 +5,14 @@
 <titleabbrev>cat {dfanalytics}</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the 
+<<get-dfanalytics-stats,get data frame analytics jobs statistics API>>.
+====
+
 Returns configuration and usage information about {dfanalytics-jobs}.
 
 

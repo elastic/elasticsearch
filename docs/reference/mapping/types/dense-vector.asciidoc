@@ -91,11 +91,9 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
-//tag::dense-vector-indexing-speed[]
 NOTE: Indexing vectors for approximate kNN search is an expensive process. It
 can take substantial time to ingest documents that contain vector fields with
 `index` enabled.
-//end::dense-vector-indexing-speed[]
 
 Dense vector fields cannot be indexed if they are within
 <<nested, `nested`>> mappings.
@@ -108,7 +106,8 @@ The following mapping parameters are accepted:
 
 `dims`::
 (Required, integer)
-Number of vector dimensions. Can't exceed `2048`.
+Number of vector dimensions. Can't exceed `1024` for indexed vectors
+(`"index": true`), or `2048` for non-indexed vectors.
 
 `index`::
 (Optional, Boolean)
@@ -144,13 +143,16 @@ Computes the cosine similarity. Note that the most efficient way to perform
 cosine similarity is to normalize all vectors to unit length, and instead use
 `dot_product`. You should only use `cosine` if you need to preserve the
 original vectors and cannot normalize them in advance. The document `_score`
-is computed as `(1 + cosine(query, vector)) / 2`.
+is computed as `(1 + cosine(query, vector)) / 2`. The `cosine` similarity does
+not allow vectors with zero magnitude, since cosine is not defined in this
+case.
 ====
 
 NOTE: Although they are conceptually related, the `similarity` parameter is
 different from <<text,`text`>> field <<similarity,`similarity`>> and accepts
 a distinct set of options.
 
+[[dense-vector-index-options]]
 `index_options`::
 (Optional, object)
 An optional section that configures the kNN indexing algorithm. The HNSW

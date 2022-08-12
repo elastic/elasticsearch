@@ -13,7 +13,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Index-specific deprecation checks
@@ -21,13 +24,14 @@ import java.util.Locale;
 public class IndexDeprecationChecks {
 
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
-        Version createdWith = indexMetadata.getCreationVersion();
-        if (createdWith.before(Version.V_7_0_0)) {
+        // TODO: this check needs to be revised. It's trivially true right now.
+        Version currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+        if (currentCompatibilityVersion.before(Version.V_7_0_0)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Index created before 7.0",
+                "Old index with a compatibility version < 7.0",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
-                "This index was created using version: " + createdWith,
+                "This index has version: " + currentCompatibilityVersion,
                 false,
                 null
             );
@@ -40,6 +44,14 @@ public class IndexDeprecationChecks {
         if (softDeletesEnabled) {
             if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                List<String> settingKeys = new ArrayList<>();
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())) {
+                    settingKeys.add(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey());
+                }
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                    settingKeys.add(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey());
+                }
+                Map<String, Object> meta = DeprecationIssue.createMetaMapForRemovableSettings(settingKeys);
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "translog retention settings are ignored",
@@ -47,7 +59,7 @@ public class IndexDeprecationChecks {
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored "
                         + "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
                     false,
-                    null
+                    meta
                 );
             }
         }
@@ -64,7 +76,7 @@ public class IndexDeprecationChecks {
             final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/"
                 + "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found index data path configured. Discontinue use of this setting.";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
         return null;
     }

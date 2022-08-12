@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -59,7 +58,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
@@ -68,6 +66,7 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -138,7 +137,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
         final ConflictMode conflictMode = ConflictMode.randomMode();
-        final List<String> fieldNames = IntStream.rangeClosed(0, randomInt(10)).mapToObj(n -> "f" + n).collect(Collectors.toList());
+        final List<String> fieldNames = IntStream.rangeClosed(0, randomInt(10)).mapToObj(n -> "f" + n).toList();
 
         logger.info("starting indexers using conflict mode " + conflictMode);
         try {
@@ -178,7 +177,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             } catch (ElasticsearchException e) {
                                 exceptedExceptions.add(e);
                                 final String docId = id;
-                                logger.trace(() -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
+                                logger.trace(() -> format("[%s] failed id [%s] through node [%s]", name, docId, node), e);
                             } finally {
                                 countDownLatchRef.get().countDown();
                                 logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());
@@ -186,7 +185,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                         } catch (InterruptedException e) {
                             // fine - semaphore interrupt
                         } catch (AssertionError | Exception e) {
-                            logger.info(() -> new ParameterizedMessage("unexpected exception in background thread of [{}]", node), e);
+                            logger.info(() -> "unexpected exception in background thread of [" + node + "]", e);
                         }
                     }
                 });
@@ -231,8 +230,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 }
                 // in case of a bridge partition, shard allocation can fail "index.allocation.max_retries" times if the master
                 // is the super-connected node and recovery source and target are on opposite sides of the bridge
-                if (disruptionScheme instanceof NetworkDisruption
-                    && ((NetworkDisruption) disruptionScheme).getDisruptedLinks() instanceof Bridge) {
+                if (disruptionScheme instanceof NetworkDisruption networkDisruption
+                    && networkDisruption.getDisruptedLinks() instanceof Bridge) {
                     assertBusy(() -> assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true)));
                 }
                 ensureGreen("test");
@@ -328,7 +327,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3);
         String masterNode = internalCluster().getMasterName();
-        List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).collect(Collectors.toList());
+        List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).toList();
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(
             prepareCreate("test").setSettings(
@@ -443,7 +442,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     .isTimedOut()
             );
         }, 30, TimeUnit.SECONDS);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode)); // otherwise we will fail during clean-up
+        internalCluster().stopNode(dataNode); // otherwise we will fail during clean-up
     }
 
     /**
@@ -578,12 +577,15 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         masterClusterService.addHighPriorityApplier(event -> {
-            failedLeader.actionGet();
-            if (dataNodeHasMaster.get() == false) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    throw new AssertionError("unexpected", e);
+            // This is applicable for events related to the cluster disruption
+            if (event.state().nodes().getDataNodes().isEmpty()) {
+                failedLeader.actionGet();
+                if (dataNodeHasMaster.get() == false) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        throw new AssertionError("unexpected", e);
+                    }
                 }
             }
         });

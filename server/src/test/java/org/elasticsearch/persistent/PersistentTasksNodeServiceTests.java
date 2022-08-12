@@ -109,6 +109,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            threadPool,
             persistentTasksService,
             registry,
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
@@ -224,6 +225,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            threadPool,
             persistentTasksService,
             registry,
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
@@ -285,7 +287,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService, registry, taskManager, executor);
+        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            threadPool,
+            persistentTasksService,
+            registry,
+            taskManager,
+            executor
+        );
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
 
@@ -374,7 +382,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService, registry, taskManager, executor);
+        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            threadPool,
+            persistentTasksService,
+            registry,
+            taskManager,
+            executor
+        );
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
 
@@ -405,14 +419,14 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         // Check that races where some other event occurs after local abort are handled as expected
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 IllegalStateException e0 = expectThrows(IllegalStateException.class, runningTask::markAsCompleted);
                 assertThat(
                     e0.getMessage(),
                     equalTo("attempt to complete task [test] with id [" + persistentId + "] which has been locally aborted")
                 );
-                break;
-            case 1:
+            }
+            case 1 -> {
                 IllegalStateException e1 = expectThrows(
                     IllegalStateException.class,
                     () -> runningTask.markAsFailed(new Exception("failure detected after local abort"))
@@ -421,8 +435,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                     e1.getMessage(),
                     equalTo("attempt to fail task [test] with id [" + persistentId + "] which has been locally aborted")
                 );
-                break;
-            case 2:
+            }
+            case 2 -> {
                 IllegalStateException e2 = expectThrows(
                     IllegalStateException.class,
                     () -> runningTask.markAsLocallyAborted("second local abort")
@@ -431,7 +445,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                     e2.getMessage(),
                     equalTo("attempt to locally abort task [test] with id [" + persistentId + "] which has already been locally aborted")
                 );
-                break;
+            }
         }
 
         assertFalse(runningTask.markAsCancelled());
@@ -441,10 +455,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         final Client mockClient = mock(Client.class);
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(mockClient.threadPool()).thenReturn(threadPool);
+        final ThreadPool mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(mockThreadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(mockClient.threadPool()).thenReturn(mockThreadPool);
         when(mockClient.settings()).thenReturn(Settings.EMPTY);
 
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, mockClient) {
@@ -476,9 +490,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            mockThreadPool,
             persistentTasksService,
             registry,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, mockThreadPool, Collections.emptySet()),
             executor
         );
 

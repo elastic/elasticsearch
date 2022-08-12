@@ -22,7 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 
 public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQueryBuilder> {
 
@@ -51,17 +51,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             throw new UncheckedIOException(e);
         }
 
-        switch (randomInt(2)) {
-            case 0:
-                return new WrapperQueryBuilder(wrappedQuery.toString());
-            case 1:
-
-                return new WrapperQueryBuilder(BytesReference.toBytes(bytes));
-            case 2:
-                return new WrapperQueryBuilder(bytes);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomInt(2)) {
+            case 0 -> new WrapperQueryBuilder(wrappedQuery.toString());
+            case 1 -> new WrapperQueryBuilder(BytesReference.toBytes(bytes));
+            case 2 -> new WrapperQueryBuilder(bytes);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     @Override
@@ -102,12 +97,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
         WrapperQueryBuilder parsed = (WrapperQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-
-        try {
-            assertEquals(json, "{}", new String(parsed.source(), "UTF-8"));
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
-        }
+        assertEquals(json, "{}", new String(parsed.source(), StandardCharsets.UTF_8));
     }
 
     @Override

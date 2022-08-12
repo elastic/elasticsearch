@@ -44,8 +44,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 .or(instanceOf(SpanMatchNoDocsQuery.class))
                 .or(instanceOf(MatchAllQueryBuilder.class))
         );
-        if (query instanceof SpanNearQuery) {
-            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+        if (query instanceof SpanNearQuery spanNearQuery) {
             assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
             assertThat(spanNearQuery.isInOrder(), equalTo(queryBuilder.inOrder()));
             assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
@@ -83,22 +82,19 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 "clauses" : [ {
                   "span_term" : {
                     "field" : {
-                      "value" : "value1",
-                      "boost" : 1.0
+                      "value" : "value1"
                     }
                   }
                 }, {
                   "span_term" : {
                     "field" : {
-                      "value" : "value2",
-                      "boost" : 1.0
+                      "value" : "value2"
                     }
                   }
                 }, {
                   "span_term" : {
                     "field" : {
-                      "value" : "value3",
-                      "boost" : 1.0
+                      "value" : "value3"
                     }
                   }
                 } ],

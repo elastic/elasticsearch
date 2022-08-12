@@ -166,30 +166,22 @@ public class SamlResponseHandlerTests extends SamlTestCase {
      * @return algorithm URI
      */
     protected String getSignatureAlgorithmURI(PrivateKey key) {
-        String algoUri = null;
-        switch (key.getAlgorithm()) {
-            case "RSA":
-                algoUri = randomFrom(
-                    "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
-                    "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"
-                );
-                break;
-            case "DSA":
-                algoUri = "http://www.w3.org/2009/xmldsig11#dsa-sha256";
-                break;
-            case "EC":
-                algoUri = randomFrom(
-                    "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256",
-                    "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512"
-                );
-                break;
-            default:
-                throw new IllegalArgumentException(
-                    "Unsupported algorithm : "
-                        + key.getAlgorithm()
-                        + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]"
-                );
-        }
+        String algoUri = switch (key.getAlgorithm()) {
+            case "RSA" -> randomFrom(
+                "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+                "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"
+            );
+            case "DSA" -> "http://www.w3.org/2009/xmldsig11#dsa-sha256";
+            case "EC" -> randomFrom(
+                "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256",
+                "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512"
+            );
+            default -> throw new IllegalArgumentException(
+                "Unsupported algorithm : "
+                    + key.getAlgorithm()
+                    + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]"
+            );
+        };
         return algoUri;
     }
 

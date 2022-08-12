@@ -231,15 +231,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(expected, query);
     }
 
-    public void testToQueryFieldsWildcard() throws Exception {
-        Query query = multiMatchQuery("test").field("mapped_str*").tieBreaker(1.0f).toQuery(createSearchExecutionContext());
-        Query expected = new DisjunctionMaxQuery(
-            List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
-            1
-        );
-        assertEquals(expected, query);
-    }
-
     public void testToQueryFieldMissing() throws Exception {
         assertThat(
             multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createSearchExecutionContext()),
@@ -281,6 +272,25 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
     }
 
+    public void testSimpleFromJson() throws IOException {
+        String json = """
+            {
+              "multi_match" : {
+                "query" : "quick brown fox",
+                "fields" : [ "title^1.0", "title.original^1.0", "title.shingles^1.0" ]
+              }
+            }""";
+
+        MultiMatchQueryBuilder parsed = (MultiMatchQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "quick brown fox", parsed.value());
+        assertEquals(json, 3, parsed.fields().size());
+        assertEquals(json, Type.BEST_FIELDS, parsed.type());
+        assertEquals(json, Operator.OR, parsed.operator());
+        assertEquals(json, true, parsed.fuzzyTranspositions());
+    }
+
     public void testFromJson() throws IOException {
         String json = """
             {
@@ -288,15 +298,15 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 "query" : "quick brown fox",
                 "fields" : [ "title^1.0", "title.original^1.0", "title.shingles^1.0" ],
                 "type" : "most_fields",
-                "operator" : "OR",
-                "slop" : 0,
-                "prefix_length" : 0,
-                "max_expansions" : 50,
-                "lenient" : false,
-                "zero_terms_query" : "NONE",
-                "auto_generate_synonyms_phrase_query" : true,
+                "operator" : "AND",
+                "slop" : 1,
+                "prefix_length" : 1,
+                "max_expansions" : 40,
+                "lenient" : true,
+                "zero_terms_query" : "ALL",
+                "auto_generate_synonyms_phrase_query" : false,
                 "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "boost" : 2.0
               }
             }""";
 
@@ -306,7 +316,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(json, "quick brown fox", parsed.value());
         assertEquals(json, 3, parsed.fields().size());
         assertEquals(json, MultiMatchQueryBuilder.Type.MOST_FIELDS, parsed.type());
-        assertEquals(json, Operator.OR, parsed.operator());
+        assertEquals(json, Operator.AND, parsed.operator());
         assertEquals(json, false, parsed.fuzzyTranspositions());
     }
 
@@ -382,95 +392,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         FuzzyQuery expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "text"), 2, 2, 5, false);
 
         assertEquals(expected, query);
-    }
-
-    public void testDefaultField() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("hello");
-        // default value `*` sets leniency to true
-        Query query = builder.toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        try {
-            // `*` is in the list of the default_field => leniency set to true
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, "*", KEYWORD_FIELD_NAME).build()
-                    )
-                );
-            query = new MultiMatchQueryBuilder("hello").toQuery(context);
-            assertQueryWithAllFieldsWildcard(query);
-
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME + "^5").build()
-                    )
-                );
-            MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("hello");
-            query = qb.toQuery(context);
-            DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
-                Arrays.asList(
-                    new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
-                ),
-                0.0f
-            );
-            assertEquals(expected, query);
-
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder()
-                            .putList("index.query.default_field", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME + "^5", INT_FIELD_NAME)
-                            .build()
-                    )
-                );
-            // should fail because lenient defaults to false
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> qb.toQuery(context));
-            assertThat(exc, instanceOf(NumberFormatException.class));
-            assertThat(exc.getMessage(), equalTo("For input string: \"hello\""));
-
-            // explicitly sets lenient
-            qb.lenient(true);
-            query = qb.toQuery(context);
-            expected = new DisjunctionMaxQuery(
-                Arrays.asList(
-                    new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]"),
-                    new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
-                ),
-                0.0f
-            );
-            assertEquals(expected, query);
-
-        } finally {
-            // Reset to the default value
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putNull("index.query.default_field").build()
-                    )
-                );
-        }
-    }
-
-    public void testAllFieldsWildcard() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        Query query = new MultiMatchQueryBuilder("hello").field("*").toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        query = new MultiMatchQueryBuilder("hello").field(TEXT_FIELD_NAME).field("*").field(KEYWORD_FIELD_NAME).toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
     }
 
     public void testWithStopWords() throws Exception {

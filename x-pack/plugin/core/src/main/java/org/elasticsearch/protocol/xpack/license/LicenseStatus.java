@@ -41,15 +41,11 @@ public enum LicenseStatus implements Writeable {
     }
 
     public static LicenseStatus fromString(String value) {
-        switch (value) {
-            case "active":
-                return ACTIVE;
-            case "invalid":
-                return INVALID;
-            case "expired":
-                return EXPIRED;
-            default:
-                throw new IllegalArgumentException("unknown license status [" + value + "]");
-        }
+        return switch (value) {
+            case "active" -> ACTIVE;
+            case "invalid" -> INVALID;
+            case "expired" -> EXPIRED;
+            default -> throw new IllegalArgumentException("unknown license status [" + value + "]");
+        };
     }
 }

@@ -137,15 +137,12 @@ class ESFileStore extends FileStore {
 
     @Override
     public Object getAttribute(String attribute) throws IOException {
-        switch (attribute) {
+        return switch (attribute) {
             // for the partition
-            case "lucene:major_device_number":
-                return majorDeviceNumber;
-            case "lucene:minor_device_number":
-                return minorDeviceNumber;
-            default:
-                return in.getAttribute(attribute);
-        }
+            case "lucene:major_device_number" -> majorDeviceNumber;
+            case "lucene:minor_device_number" -> minorDeviceNumber;
+            default -> in.getAttribute(attribute);
+        };
     }
 
     @Override

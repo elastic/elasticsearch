@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -15,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -46,12 +43,12 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
 
-    static Map<String, RollableIndexCaps> getCaps(String indexPattern, ImmutableOpenMap<String, IndexMetadata> indices) {
+    static Map<String, RollableIndexCaps> getCaps(String indexPattern, Map<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
-        for (ObjectObjectCursor<String, IndexMetadata> entry : indices) {
+        for (var entry : indices.entrySet()) {
 
             // Does this index have rollup metadata?
-            TransportGetRollupCapsAction.findRollupIndexCaps(entry.key, entry.value).ifPresent(cap -> {
+            TransportGetRollupCapsAction.findRollupIndexCaps(entry.getKey(), entry.getValue()).ifPresent(cap -> {
 
                 List<RollupJobCaps> jobCaps;
                 if (indexPattern.equals(Metadata.ALL)) {

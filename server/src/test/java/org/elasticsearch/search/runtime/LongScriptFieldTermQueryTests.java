@@ -30,17 +30,10 @@ public class LongScriptFieldTermQueryTests extends AbstractLongScriptFieldQueryT
         String fieldName = orig.fieldName();
         long term = orig.term();
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                term = randomValueOtherThan(term, ESTestCase::randomLong);
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> term = randomValueOtherThan(term, ESTestCase::randomLong);
+            default -> fail();
         }
         return new LongScriptFieldTermQuery(script, leafFactory, fieldName, term);
     }

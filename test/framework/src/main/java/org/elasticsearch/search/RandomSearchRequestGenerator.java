@@ -32,12 +32,12 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -50,6 +50,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.mockScript;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
@@ -105,6 +106,9 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             searchRequest.source(randomSearchSourceBuilder.get());
         }
+        if (randomBoolean()) {
+            searchRequest.setForceSyntheticSource(randomBoolean());
+        }
         return searchRequest;
     }
 
@@ -155,22 +159,17 @@ public class RandomSearchRequestGenerator {
         }
 
         switch (randomInt(2)) {
-            case 0:
-                builder.storedFields();
-                break;
-            case 1:
-                builder.storedField("_none_");
-                break;
-            case 2:
+            case 0 -> builder.storedFields();
+            case 1 -> builder.storedField("_none_");
+            case 2 -> {
                 int fieldsSize = randomInt(25);
                 List<String> fields = new ArrayList<>(fieldsSize);
                 for (int i = 0; i < fieldsSize; i++) {
                     fields.add(randomAlphaOfLengthBetween(5, 50));
                 }
                 builder.storedFields(fields);
-                break;
-            default:
-                throw new IllegalStateException();
+            }
+            default -> throw new IllegalStateException();
         }
 
         if (randomBoolean()) {
@@ -212,32 +211,19 @@ public class RandomSearchRequestGenerator {
             for (int i = 0; i < excludes.length; i++) {
                 excludes[i] = randomAlphaOfLengthBetween(5, 20);
             }
-            switch (branch) {
-                case 0:
-                    fetchSourceContext = new FetchSourceContext(randomBoolean());
-                    break;
-                case 1:
-                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
-                    break;
-                case 2:
-                    fetchSourceContext = new FetchSourceContext(
-                        true,
-                        new String[] { randomAlphaOfLengthBetween(5, 20) },
-                        new String[] { randomAlphaOfLengthBetween(5, 20) }
-                    );
-                    break;
-                case 3:
-                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
-                    break;
-                case 4:
-                    fetchSourceContext = new FetchSourceContext(true, includes, null);
-                    break;
-                case 5:
-                    fetchSourceContext = new FetchSourceContext(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
-                    break;
-                default:
-                    throw new IllegalStateException();
-            }
+            fetchSourceContext = switch (branch) {
+                case 0 -> FetchSourceContext.of(randomBoolean());
+                case 1 -> FetchSourceContext.of(true, includes, excludes);
+                case 2 -> FetchSourceContext.of(
+                    true,
+                    new String[] { randomAlphaOfLengthBetween(5, 20) },
+                    new String[] { randomAlphaOfLengthBetween(5, 20) }
+                );
+                case 3 -> FetchSourceContext.of(true, includes, excludes);
+                case 4 -> FetchSourceContext.of(true, includes, null);
+                case 5 -> FetchSourceContext.of(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
+                default -> throw new IllegalStateException();
+            };
             builder.fetchSource(fetchSourceContext);
         }
         if (randomBoolean()) {
@@ -260,37 +246,38 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             builder.postFilter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
         }
+
+        if (randomBoolean()) {
+            String field = randomAlphaOfLength(6);
+            int dim = randomIntBetween(2, 30);
+            float[] vector = new float[dim];
+            for (int i = 0; i < vector.length; i++) {
+                vector[i] = randomFloat();
+            }
+            int k = randomIntBetween(1, 100);
+            int numCands = randomIntBetween(k, 1000);
+            builder.knnSearch(new KnnSearchBuilder(field, vector, k, numCands));
+        }
+
         if (randomBoolean()) {
             int numSorts = randomIntBetween(1, 5);
             for (int i = 0; i < numSorts; i++) {
                 int branch = randomInt(5);
                 switch (branch) {
-                    case 0:
-                        builder.sort(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
-                        break;
-                    case 1:
-                        builder.sort(
-                            SortBuilders.geoDistanceSort(randomAlphaOfLengthBetween(5, 20), AbstractQueryTestCase.randomGeohash(1, 12))
-                                .order(randomFrom(SortOrder.values()))
-                        );
-                        break;
-                    case 2:
-                        builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-                        break;
-                    case 3:
-                        builder.sort(
-                            SortBuilders.scriptSort(
-                                new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "foo", emptyMap()),
-                                ScriptSortBuilder.ScriptSortType.NUMBER
-                            ).order(randomFrom(SortOrder.values()))
-                        );
-                        break;
-                    case 4:
-                        builder.sort(randomAlphaOfLengthBetween(5, 20));
-                        break;
-                    case 5:
-                        builder.sort(randomAlphaOfLengthBetween(5, 20), randomFrom(SortOrder.values()));
-                        break;
+                    case 0 -> builder.sort(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
+                    case 1 -> builder.sort(
+                        SortBuilders.geoDistanceSort(randomAlphaOfLengthBetween(5, 20), AbstractQueryTestCase.randomGeohash(1, 12))
+                            .order(randomFrom(SortOrder.values()))
+                    );
+                    case 2 -> builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+                    case 3 -> builder.sort(
+                        SortBuilders.scriptSort(
+                            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "foo", emptyMap()),
+                            ScriptSortBuilder.ScriptSortType.NUMBER
+                        ).order(randomFrom(SortOrder.values()))
+                    );
+                    case 4 -> builder.sort(randomAlphaOfLengthBetween(5, 20));
+                    case 5 -> builder.sort(randomAlphaOfLengthBetween(5, 20), randomFrom(SortOrder.values()));
                 }
             }
         }
@@ -308,43 +295,21 @@ public class RandomSearchRequestGenerator {
                 for (int i = 0; i < numSearchFrom; i++) {
                     int branch = randomInt(8);
                     switch (branch) {
-                        case 0:
-                            jsonBuilder.value(randomInt());
-                            break;
-                        case 1:
-                            jsonBuilder.value(randomFloat());
-                            break;
-                        case 2:
-                            jsonBuilder.value(randomLong());
-                            break;
-                        case 3:
-                            jsonBuilder.value(randomDouble());
-                            break;
-                        case 4:
-                            jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
-                            break;
-                        case 5:
-                            jsonBuilder.value(randomBoolean());
-                            break;
-                        case 6:
-                            jsonBuilder.value(randomByte());
-                            break;
-                        case 7:
-                            jsonBuilder.value(randomShort());
-                            break;
-                        case 8:
-                            jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
-                            break;
+                        case 0 -> jsonBuilder.value(randomInt());
+                        case 1 -> jsonBuilder.value(randomFloat());
+                        case 2 -> jsonBuilder.value(randomLong());
+                        case 3 -> jsonBuilder.value(randomDouble());
+                        case 4 -> jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
+                        case 5 -> jsonBuilder.value(randomBoolean());
+                        case 6 -> jsonBuilder.value(randomByte());
+                        case 7 -> jsonBuilder.value(randomShort());
+                        case 8 -> jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
                     }
                 }
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(jsonBuilder).streamInput()
-                    );
+                    .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(jsonBuilder).streamInput());
                 parser.nextToken();
                 parser.nextToken();
                 parser.nextToken();

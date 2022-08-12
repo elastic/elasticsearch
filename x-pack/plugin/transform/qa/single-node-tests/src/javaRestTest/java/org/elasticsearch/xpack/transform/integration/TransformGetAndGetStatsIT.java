@@ -11,33 +11,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.core.PageParams;
-import org.elasticsearch.client.transform.DeleteTransformRequest;
-import org.elasticsearch.client.transform.GetTransformRequest;
-import org.elasticsearch.client.transform.GetTransformResponse;
-import org.elasticsearch.client.transform.GetTransformStatsRequest;
-import org.elasticsearch.client.transform.GetTransformStatsResponse;
-import org.elasticsearch.client.transform.PutTransformRequest;
-import org.elasticsearch.client.transform.transforms.DestConfig;
-import org.elasticsearch.client.transform.transforms.QueryConfig;
-import org.elasticsearch.client.transform.transforms.SourceConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.TransformStats;
-import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
-import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
-import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
@@ -50,7 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -518,83 +492,84 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         }, 120, TimeUnit.SECONDS);
     }
 
-    public void testManyTranformsUsingHlrc() throws IOException {
-        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
-            .addAggregator(AggregationBuilders.avg("review_score.avg").field("stars"))
-            .addAggregator(AggregationBuilders.max("timestamp.max").field("timestamp"));
+    @SuppressWarnings("unchecked")
+    public void testManyTransforms() throws IOException {
+        String config = transformConfig();
 
-        TransformConfig.Builder configBuilder = TransformConfig.builder()
-            .setSource(
-                SourceConfig.builder().setIndex(REVIEWS_INDEX_NAME).setQueryConfig(new QueryConfig(QueryBuilders.matchAllQuery())).build()
-            )
-            .setDest(DestConfig.builder().setIndex("dest").build())
-            .setFrequency(TimeValue.timeValueSeconds(10))
-            .setDescription("Test 10000 transform configs")
-            .setPivotConfig(
-                PivotConfig.builder()
-                    .setGroups(GroupConfig.builder().groupBy("by-user", TermsGroupSource.builder().setField("user_id").build()).build())
-                    .setAggregationConfig(new AggregationConfig(aggs))
-                    .build()
-            );
+        int numberOfTransforms = randomIntBetween(1_500, 4_000);
+        for (int i = 0; i < numberOfTransforms; ++i) {
+            String transformId = String.format(Locale.ROOT, "t-%05d", i);
+            final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
+            createTransformRequest.setJsonEntity(config);
+            assertOK(client().performRequest(createTransformRequest));
+        }
 
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            int numberOfTransforms = randomIntBetween(1_500, 4_000);
-            for (int i = 0; i < numberOfTransforms; ++i) {
-                AcknowledgedResponse response = restClient.transform()
-                    .putTransform(
-                        new PutTransformRequest(configBuilder.setId(String.format(Locale.ROOT, "t-%05d", i)).build()),
-                        RequestOptions.DEFAULT
-                    );
-                assertTrue(response.isAcknowledged());
+        for (int i = 0; i < 3; ++i) {
+            int from = randomIntBetween(0, numberOfTransforms - 1_000);
+            int size = randomIntBetween(1, 1000);
+
+            var transforms = getTransforms(from, size);
+            var statsResponse = getTransformsStateAndStats(from, size);
+
+            assertEquals(numberOfTransforms, transforms.get("count"));
+            assertEquals(numberOfTransforms, statsResponse.get("count"));
+
+            var configs = (List<Map<String, Object>>) transforms.get("transforms");
+            var stats = (List<Map<String, Object>>) statsResponse.get("transforms");
+
+            assertEquals(size, configs.size());
+            assertEquals(size, stats.size());
+
+            assertThat(configs.get(0).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
+            assertThat(configs.get(configs.size() - 1).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
+            assertThat(stats.get(0).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
+            assertThat(stats.get(stats.size() - 1).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
+
+            if (size > 2) {
+                int randomElement = randomIntBetween(1, size - 1);
+                assertThat(configs.get(randomElement).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
+                assertThat(stats.get(randomElement).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
             }
+        }
 
-            for (int i = 0; i < 3; ++i) {
-                int from = randomIntBetween(0, numberOfTransforms - 1_000);
-                int size = randomIntBetween(1, 1000);
-
-                GetTransformRequest request = new GetTransformRequest("*");
-                request.setPageParams(new PageParams(from, size));
-                GetTransformStatsRequest statsRequest = new GetTransformStatsRequest("*");
-                statsRequest.setPageParams(new PageParams(from, size));
-
-                GetTransformResponse response = restClient.transform().getTransform(request, RequestOptions.DEFAULT);
-                GetTransformStatsResponse statsResponse = restClient.transform().getTransformStats(statsRequest, RequestOptions.DEFAULT);
-
-                assertEquals(numberOfTransforms, response.getCount());
-                assertEquals(numberOfTransforms, statsResponse.getCount());
-
-                List<TransformConfig> configs = response.getTransformConfigurations();
-                List<TransformStats> stats = statsResponse.getTransformsStats();
-
-                assertEquals(size, configs.size());
-                assertEquals(size, stats.size());
-
-                assertThat(configs.get(0).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
-                assertThat(configs.get(configs.size() - 1).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
-                assertThat(stats.get(0).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
-                assertThat(stats.get(stats.size() - 1).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
-
-                if (size > 2) {
-                    int randomElement = randomIntBetween(1, size - 1);
-                    assertThat(configs.get(randomElement).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
-                    assertThat(stats.get(randomElement).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
-                }
-            }
-
-            for (int i = 0; i < numberOfTransforms; ++i) {
-                AcknowledgedResponse response = restClient.transform()
-                    .deleteTransform(new DeleteTransformRequest(String.format(Locale.ROOT, "t-%05d", i)), RequestOptions.DEFAULT);
-                assertTrue(response.isAcknowledged());
-            }
+        for (int i = 0; i < numberOfTransforms; ++i) {
+            deleteTransform(String.format(Locale.ROOT, "t-%05d", i));
         }
     }
 
-    protected static class TestRestHighLevelClient extends RestHighLevelClient {
-        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, emptyList())
-            .getNamedXContents();
-
-        TestRestHighLevelClient() {
-            super(client(), restClient -> {}, X_CONTENT_ENTRIES);
-        }
+    private static String transformConfig() {
+        return """
+            {
+              "description": "Test 10000 transform configs",
+              "source": {
+                "index":""" + "\"" + REVIEWS_INDEX_NAME + "\"" + """
+                  },
+                  "pivot": {
+                    "group_by": {
+                      "by-user": {
+                        "terms": {
+                          "field": "user_id"
+                        }
+                      }
+                    },
+                    "aggregations": {
+                      "review_score.avg": {
+                        "avg": {
+                          "field": "stars"
+                        }
+                      },
+                      "timestamp.max": {
+                        "max": {
+                          "field": "timestamp"
+                        }
+                      }
+                    }
+                  },
+                  "dest": {
+                    "index":"dest"
+                  },
+                  "frequency": "10s"
+                }
+            """;
     }
 }

@@ -257,7 +257,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // many iterations with boolean queries, which are the most complex queries to deal with when nested
         int numRandomBoolQueries = 1000;
         for (int i = 0; i < numRandomBoolQueries; i++) {
-            queryFunctions.add(() -> createRandomBooleanQuery(1, stringFields, stringContent, intFieldType, intValues));
+            queryFunctions.add(() -> createRandomBooleanQuery(1, stringFields, stringContent, intFieldType, intValues, context));
         }
         queryFunctions.add(() -> {
             int numClauses = randomIntBetween(1, 1 << randomIntBetween(2, 4));
@@ -292,16 +292,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // Disable query cache, because ControlQuery cannot be cached...
         shardSearcher.setQueryCache(null);
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         for (Map.Entry<String, List<String>> entry : stringContent.entrySet()) {
             String value = entry.getValue().stream().collect(Collectors.joining(" "));
             document.add(new TextField(entry.getKey(), value, Field.Store.NO));
         }
         for (Integer intValue : intValues) {
-            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields("int_field", intValue, true, true, false);
-            for (Field numberField : numberFields) {
-                document.add(numberField);
-            }
+            NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, true, true, false);
         }
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
         duelRun(queryStore, memoryIndex, shardSearcher);
@@ -312,7 +309,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         List<String> fields,
         Map<String, List<String>> content,
         MappedFieldType intFieldType,
-        List<Integer> intValues
+        List<Integer> intValues,
+        SearchExecutionContext context
     ) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         int numClauses = randomIntBetween(1, 1 << randomIntBetween(2, 4)); // use low numbers of clauses more often
@@ -326,24 +324,24 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                     String field = randomFrom(fields);
                     builder.add(new TermQuery(new Term(field, randomFrom(content.get(field)))), occur);
                 } else {
-                    builder.add(intFieldType.termQuery(randomFrom(intValues), null), occur);
+                    builder.add(intFieldType.termQuery(randomFrom(intValues), context), occur);
                 }
             } else if (rarely() && depth <= 3) {
                 occur = randomFrom(Arrays.asList(Occur.FILTER, Occur.MUST, Occur.SHOULD));
-                builder.add(createRandomBooleanQuery(depth + 1, fields, content, intFieldType, intValues), occur);
+                builder.add(createRandomBooleanQuery(depth + 1, fields, content, intFieldType, intValues, context), occur);
             } else if (rarely()) {
                 if (randomBoolean()) {
                     occur = randomFrom(Arrays.asList(Occur.FILTER, Occur.MUST, Occur.SHOULD));
                     if (randomBoolean()) {
                         builder.add(new TermQuery(new Term("unknown_field", randomAlphaOfLength(8))), occur);
                     } else {
-                        builder.add(intFieldType.termQuery(randomFrom(intValues), null), occur);
+                        builder.add(intFieldType.termQuery(randomFrom(intValues), context), occur);
                     }
                 } else if (randomBoolean()) {
                     String field = randomFrom(fields);
                     builder.add(new TermQuery(new Term(field, randomFrom(content.get(field)))), occur = Occur.MUST_NOT);
                 } else {
-                    builder.add(intFieldType.termQuery(randomFrom(intValues), null), occur = Occur.MUST_NOT);
+                    builder.add(intFieldType.termQuery(randomFrom(intValues), context), occur = Occur.MUST_NOT);
                 }
             } else {
                 if (randomBoolean()) {
@@ -352,7 +350,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                         String field = randomFrom(fields);
                         builder.add(new TermQuery(new Term(field, randomFrom(content.get(field)))), occur);
                     } else {
-                        builder.add(intFieldType.termQuery(randomFrom(intValues), null), occur);
+                        builder.add(intFieldType.termQuery(randomFrom(intValues), context), occur);
                     }
                 } else {
                     builder.add(new TermQuery(new Term("unknown_field", randomAlphaOfLength(8))), occur = Occur.MUST_NOT);
@@ -412,7 +410,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // Disable query cache, because ControlQuery cannot be cached...
         shardSearcher.setQueryCache(null);
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         for (String value : stringValues) {
             document.add(new TextField("string_field", value, Field.Store.NO));
             logger.info("Test with document: {}" + document);
@@ -421,16 +419,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         for (int[] range : ranges) {
-            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields(
-                "int_field",
-                between(range[0], range[1]),
-                true,
-                true,
-                false
-            );
-            for (Field numberField : numberFields) {
-                document.add(numberField);
-            }
+            NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", between(range[0], range[1]), true, true, false);
             logger.info("Test with document: {}" + document);
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);

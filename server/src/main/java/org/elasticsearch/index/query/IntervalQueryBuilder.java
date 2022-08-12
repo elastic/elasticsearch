@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,7 +65,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         builder.field(field);
         builder.startObject();
         sourceProvider.toXContent(builder, params);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }
@@ -86,15 +87,15 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
                 throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
             }
             switch (parser.currentName()) {
-                case "_name":
+                case "_name" -> {
                     parser.nextToken();
                     name = parser.text();
-                    break;
-                case "boost":
+                }
+                case "boost" -> {
                     parser.nextToken();
                     boost = parser.floatValue();
-                    break;
-                default:
+                }
+                default -> {
                     if (providerName != null) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -103,7 +104,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
                     }
                     providerName = parser.currentName();
                     provider = IntervalsSourceProvider.fromXContent(parser);
-
+                }
             }
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -151,5 +152,10 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

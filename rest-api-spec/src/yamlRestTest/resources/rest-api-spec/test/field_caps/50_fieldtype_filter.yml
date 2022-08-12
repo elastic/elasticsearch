@@ -1,0 +1,228 @@
+---
+setup:
+  - skip:
+      version: "- 8.1.99"
+      reason: Field type filters were added in 8.2
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              text:
+                type:     text
+                fields:
+                  keyword:
+                    type: keyword
+              keyword:
+                type:     keyword
+              number:
+                type:     double
+              geo:
+                type:     geo_point
+              misc:
+                type:     text
+              object:
+                type: object
+                properties:
+                  nested1 :
+                    type : text
+                    index: false
+                  nested2:
+                    type: float
+                    doc_values: false
+              level1:
+                type: nested
+                properties:
+                  level2:
+                    type: object
+                    properties:
+                      leaf1:
+                        type: text
+                        index: false
+            runtime:
+              misc.keyword:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              text:
+                type:     text
+              keyword:
+                type:     keyword
+              number:
+                type:     double
+              date:
+                type:     date
+              geo:
+                type:     geo_point
+              object:
+                type: object
+                properties:
+                  nested1 :
+                    type : text
+                    index: true
+                  nested2:
+                    type: float
+                    doc_values: true
+              level1:
+                type: nested
+                properties:
+                  level2:
+                    type: object
+                    properties:
+                      leaf1:
+                        type: text
+                        index: false
+  - do:
+      indices.create:
+        index: test3
+        body:
+          mappings:
+            properties:
+              text:
+                type:     text
+              keyword:
+                type:     keyword
+              number:
+                type:     long
+              date:
+                type:     date
+              non_indexed_date:
+                type:     date
+                index:    false
+              non_indexed_keyword:
+                type:     keyword
+                index:    false
+              non_indexed_boolean:
+                type:     boolean
+                index:    false
+              non_indexed_ip:
+                type:     ip
+                index:    false
+              non_indexed_geo_point:
+                type:     geo_point
+                index:    false
+              geo:
+                type:     keyword
+              object:
+                type: nested
+                properties:
+                  nested1 :
+                    type : long
+                    index: false
+                  nested2:
+                    type: keyword
+                    doc_values: false
+---
+"No filters includes all the following fields":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+
+  - is_true: fields.object
+  - is_true: fields.text
+  - is_true: fields.text\\.keyword
+  - is_true: fields._seq_no
+  - is_true: fields.level1\\.level2\\.leaf1
+  - is_true: fields.level1
+
+---
+"Exclude parent objects":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+        filters: '-parent'
+
+  - is_true: fields.object\\.nested1
+  - is_false: fields.object
+
+---
+"Exclude metadata fields":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+        filters: '-metadata'
+
+  - is_false: fields._seq_no
+
+---
+"Exclude non-metadata fields":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+        filters: '+metadata'
+
+  - is_true: fields._seq_no
+  - is_false: fields.text
+
+---
+"Exclude nested fields":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+        filters: '-nested'
+
+  - is_false: fields.level1
+  - is_false: fields.level1\\.level2\\.leaf1
+
+---
+"Exclude multifields":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+        filters: '-multifield'
+
+  - is_false: fields.text\\.keyword
+  - is_true: fields.misc\\.keyword
+
+---
+"Exclude multifields but include runtime fields":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+        filters: '-multifield'
+        body:
+          runtime_mappings:
+            text.keyword:
+              type: keyword
+
+  - is_true: fields.text\\.keyword
+  - is_true: fields.misc\\.keyword
+
+---
+"Field type filters":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+        types: 'text,keyword,long'
+
+  - is_false: fields.date
+  - is_false: fields.non_indexed_boolean
+  - is_true: fields.non_indexed_keyword
+  - is_true: fields.misc
+
+---
+"Field type filters with field name restrictions":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: 'non_*,text'
+        types: 'text,keyword,long'
+
+  - is_false: fields.non_indexed_boolean
+  - is_true: fields.non_indexed_keyword
+  - is_false: fields.misc
+  - is_true: fields.text

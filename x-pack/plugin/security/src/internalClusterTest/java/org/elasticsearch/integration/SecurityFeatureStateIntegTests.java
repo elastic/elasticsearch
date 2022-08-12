@@ -24,7 +24,7 @@ import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 
-import static org.elasticsearch.test.SecuritySettingsSource.TEST_SUPERUSER;
+import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -150,7 +150,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
     private Response performSuperuserRequest(Request request) throws Exception {
         String token = UsernamePasswordToken.basicAuthHeaderValue(
-            TEST_SUPERUSER,
+            ES_TEST_ROOT_USER,
             new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
         );
         return performAuthenticatedRequest(request, token);

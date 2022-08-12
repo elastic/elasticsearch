@@ -598,7 +598,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 mappingLookup,
                 null,
                 null,
-                xContentRegistry(),
+                parserConfig(),
                 writableRegistry(),
                 client,
                 new IndexSearcher(directoryReader),

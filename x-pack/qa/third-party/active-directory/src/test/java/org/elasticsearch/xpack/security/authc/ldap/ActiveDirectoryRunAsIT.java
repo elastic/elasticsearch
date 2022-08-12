@@ -43,7 +43,7 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         useLegacyBindPassword = randomBoolean();
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         switch (realmConfig) {
-            case AD:
+            case AD -> {
                 builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
                     .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".user_search.pool.enabled", false);
                 if (useLegacyBindPassword) {
@@ -56,17 +56,18 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
                         );
                     });
                 }
-                break;
-            default:
-                throw new IllegalStateException("Unknown realm config " + realmConfig);
+            }
+            default -> throw new IllegalStateException("Unknown realm config " + realmConfig);
         }
         return builder.build();
     }
 
     public void testRunAs() throws Exception {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";
-        final AuthenticateRequest request = new AuthenticateRequest(avenger);
-        final ActionFuture<AuthenticateResponse> future = runAsClient(avenger).execute(AuthenticateAction.INSTANCE, request);
+        final ActionFuture<AuthenticateResponse> future = runAsClient(avenger).execute(
+            AuthenticateAction.INSTANCE,
+            AuthenticateRequest.INSTANCE
+        );
         final AuthenticateResponse response = future.get(30, TimeUnit.SECONDS);
         assertThat(response.authentication().getUser().principal(), Matchers.equalTo(avenger));
     }

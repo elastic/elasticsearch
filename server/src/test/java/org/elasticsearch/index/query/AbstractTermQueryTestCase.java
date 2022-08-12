@@ -8,9 +8,8 @@
 
 package org.elasticsearch.index.query;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.util.HashMap;
 import java.util.Map;

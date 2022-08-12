@@ -8,9 +8,14 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,20 +26,33 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
 public class IndicesStatsResponse extends BroadcastResponse {
 
-    private ShardStats[] shards;
+    private final Map<String, ClusterHealthStatus> indexHealthMap;
+
+    private final Map<String, IndexMetadata.State> indexStateMap;
+
+    private final ShardStats[] shards;
 
     private Map<ShardRouting, ShardStats> shardStatsMap;
 
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
-        shards = in.readArray(ShardStats::new, (size) -> new ShardStats[size]);
+        shards = in.readArray(ShardStats::new, ShardStats[]::new);
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            indexHealthMap = in.readMap(StreamInput::readString, ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(StreamInput::readString, IndexMetadata.State::readFrom);
+        } else {
+            indexHealthMap = Map.of();
+            indexStateMap = Map.of();
+        }
     }
 
     IndicesStatsResponse(
@@ -42,10 +60,28 @@ public class IndicesStatsResponse extends BroadcastResponse {
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<DefaultShardOperationFailedException> shardFailures
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
+        Objects.requireNonNull(clusterState);
+        Objects.requireNonNull(shards);
+        Map<String, ClusterHealthStatus> indexHealthModifiableMap = new HashMap<>();
+        Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
+        for (ShardStats shard : shards) {
+            Index index = shard.getShardRouting().index();
+            IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+            if (indexMetadata != null) {
+                indexHealthModifiableMap.computeIfAbsent(
+                    index.getName(),
+                    ignored -> new ClusterIndexHealth(indexMetadata, clusterState.routingTable().index(index)).getStatus()
+                );
+                indexStateModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
+            }
+        }
+        indexHealthMap = unmodifiableMap(indexHealthModifiableMap);
+        indexStateMap = unmodifiableMap(indexStateModifiableMap);
     }
 
     public Map<ShardRouting, ShardStats> asMap() {
@@ -83,7 +119,7 @@ public class IndicesStatsResponse extends BroadcastResponse {
             Index index = shard.getShardRouting().index();
             IndexStatsBuilder indexStatsBuilder = indexToIndexStatsBuilder.computeIfAbsent(
                 index.getName(),
-                k -> new IndexStatsBuilder(k, index.getUUID())
+                k -> new IndexStatsBuilder(k, index.getUUID(), indexHealthMap.get(index.getName()), indexStateMap.get(index.getName()))
             );
             indexStatsBuilder.add(shard);
         }
@@ -128,6 +164,10 @@ public class IndicesStatsResponse extends BroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
+            out.writeMap(indexStateMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
+        }
     }
 
     @Override
@@ -157,6 +197,12 @@ public class IndicesStatsResponse extends BroadcastResponse {
             for (IndexStats indexStats : getIndices().values()) {
                 builder.startObject(indexStats.getIndex());
                 builder.field("uuid", indexStats.getUuid());
+                if (indexStats.getHealth() != null) {
+                    builder.field("health", indexStats.getHealth().toString().toLowerCase(Locale.ROOT));
+                }
+                if (indexStats.getState() != null) {
+                    builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
+                }
                 builder.startObject("primaries");
                 indexStats.getPrimaries().toXContent(builder, params);
                 builder.endObject();

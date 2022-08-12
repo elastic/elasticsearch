@@ -52,8 +52,7 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
             }
         }
 
-        else if (value instanceof Collection) {
-            Collection<?> coll = (Collection<?>) value;
+        else if (value instanceof Collection<?> coll) {
             if (coll.isEmpty()) {
                 return false;
             }

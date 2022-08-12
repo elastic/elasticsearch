@@ -6,12 +6,11 @@
  * Side Public License, v 1.
  */
 
+
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
   restTests {
@@ -20,19 +19,17 @@ restResources {
 }
 
 File repo = file("$buildDir/testclusters/repo")
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   numberOfNodes = 2
   setting 'path.repo', repo.absolutePath
 }
 
 testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
-tasks.named("integTest").configure {
+tasks.named("yamlRestTest").configure {
   doFirst {
     project.delete(repo)
     repo.mkdirs()

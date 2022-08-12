@@ -9,22 +9,19 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.elasticsearch.xpack.ml.job.config.CategorizationAnalyzerConfigTests;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder.MAX_MAX_MATCHED_TOKENS;
-import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder.MAX_MAX_UNIQUE_TOKENS;
 
 public class CategorizeTextAggregationBuilderTests extends BaseAggregationTestCase<CategorizeTextAggregationBuilder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getExtraPlugins() {
-        return Collections.singletonList(MachineLearning.class);
+        return List.of(MachineLearningTests.TrialLicensedMachineLearning.class);
     }
 
     @Override
@@ -36,12 +33,6 @@ public class CategorizeTextAggregationBuilderTests extends BaseAggregationTestCa
         }
         if (setFilters == false) {
             builder.setCategorizationAnalyzerConfig(CategorizationAnalyzerConfigTests.createRandomized().build());
-        }
-        if (randomBoolean()) {
-            builder.setMaxUniqueTokens(randomIntBetween(1, MAX_MAX_UNIQUE_TOKENS));
-        }
-        if (randomBoolean()) {
-            builder.setMaxMatchedTokens(randomIntBetween(1, MAX_MAX_MATCHED_TOKENS));
         }
         if (randomBoolean()) {
             builder.setSimilarityThreshold(randomIntBetween(1, 100));

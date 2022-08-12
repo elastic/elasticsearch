@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -86,7 +87,11 @@ public class XContentHelper {
         BytesReference bytes,
         XContentType xContentType
     ) throws IOException {
-        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation), bytes);
+        return createParser(
+            XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation),
+            bytes,
+            xContentType
+        );
     }
 
     /**
@@ -192,14 +197,7 @@ public class XContentHelper {
      * error.
      */
     public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
-        // It is safe to use EMPTY here because this never uses namedObject
-        try (
-            XContentParser parser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                string
-            )
-        ) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -228,7 +226,9 @@ public class XContentHelper {
         @Nullable Set<String> include,
         @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
-        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude), input)) {
+        try (
+            XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false), input)
+        ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -262,7 +262,7 @@ public class XContentHelper {
     ) throws ElasticsearchParseException {
         try (
             XContentParser parser = xContent.createParser(
-                XContentParserConfiguration.EMPTY.withFiltering(include, exclude),
+                XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false),
                 bytes,
                 offset,
                 length
@@ -519,6 +519,32 @@ public class XContentHelper {
     }
 
     /**
+     * Guesses the content type based on the provided bytes which may be compressed.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static XContentType xContentTypeMayCompressed(BytesReference bytes) {
+        Compressor compressor = CompressorFactory.compressor(bytes);
+        if (compressor != null) {
+            try {
+                InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
+                if (compressedStreamInput.markSupported() == false) {
+                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+                }
+                return XContentFactory.xContentType(compressedStreamInput);
+            } catch (IOException e) {
+                assert false : "Should not happen, we're just reading bytes from memory";
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            return XContentHelper.xContentType(bytes);
+        }
+    }
+
+    /**
      * Guesses the content type based on the provided bytes.
      *
      * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
@@ -573,6 +599,23 @@ public class XContentHelper {
             out.writeVInt(xContentType.canonical().ordinal());
         } else {
             out.writeVInt(xContentType.ordinal());
+        }
+    }
+
+    /**
+     * Convenience method that creates a {@link XContentParser} from a content map so that it can be passed to
+     * existing REST based code for input parsing.
+     *
+     * @param config XContentParserConfiguration for this mapper
+     * @param source the operator content as a map
+     * @return
+     */
+    public static XContentParser mapToXContentParser(XContentParserConfiguration config, Map<String, ?> source) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.map(source);
+            return XContentFactory.xContent(builder.contentType()).createParser(config, Strings.toString(builder));
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 }

@@ -129,16 +129,12 @@ public class GeoPoint implements ToXContentFragment {
             return resetFromGeoHash(geohash);
         } else {
             Rectangle rectangle = Geohash.toBoundingBox(geohash);
-            switch (effectivePoint) {
-                case TOP_LEFT:
-                    return reset(rectangle.getMaxY(), rectangle.getMinX());
-                case TOP_RIGHT:
-                    return reset(rectangle.getMaxY(), rectangle.getMaxX());
-                case BOTTOM_RIGHT:
-                    return reset(rectangle.getMinY(), rectangle.getMaxX());
-                default:
-                    throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
-            }
+            return switch (effectivePoint) {
+                case TOP_LEFT -> reset(rectangle.getMaxY(), rectangle.getMinX());
+                case TOP_RIGHT -> reset(rectangle.getMaxY(), rectangle.getMaxX());
+                case BOTTOM_RIGHT -> reset(rectangle.getMinY(), rectangle.getMaxX());
+                default -> throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
+            };
         }
     }
 
@@ -199,6 +195,18 @@ public class GeoPoint implements ToXContentFragment {
 
     public String getGeohash() {
         return Geohash.stringEncode(lon, lat);
+    }
+
+    /** Return the point in Lucene encoded format used to stored points as doc values */
+    public long getEncoded() {
+        final int latitudeEncoded = GeoEncodingUtils.encodeLatitude(this.lat);
+        final int longitudeEncoded = GeoEncodingUtils.encodeLongitude(this.lon);
+        return (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
+    }
+
+    /** reset the point using Lucene encoded format used to stored points as doc values */
+    public GeoPoint resetFromEncoded(long encoded) {
+        return reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
     }
 
     @Override

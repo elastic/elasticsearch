@@ -36,33 +36,32 @@ public class GeoPointScriptFieldGeoShapeQueryTests extends AbstractGeoPointScrip
 
     @Override
     protected GeoPointScriptFieldGeoShapeQuery mutate(GeoPointScriptFieldGeoShapeQuery orig) {
-        switch (randomInt(2)) {
-            case 0:
-                return new GeoPointScriptFieldGeoShapeQuery(
-                    randomValueOtherThan(orig.script(), this::randomScript),
-                    leafFactory,
-                    orig.fieldName(),
-                    ShapeRelation.INTERSECTS,
-                    polygon2
-                );
-            case 1:
-                return new GeoPointScriptFieldGeoShapeQuery(orig.script(), leafFactory, orig.fieldName(), ShapeRelation.DISJOINT, polygon1);
-            default:
-                return new GeoPointScriptFieldGeoShapeQuery(
-                    orig.script(),
-                    leafFactory,
-                    orig.fieldName() + "modified",
-                    ShapeRelation.INTERSECTS,
-                    polygon1
-                );
-        }
+        return switch (randomInt(2)) {
+            case 0 -> new GeoPointScriptFieldGeoShapeQuery(
+                randomValueOtherThan(orig.script(), this::randomScript),
+                leafFactory,
+                orig.fieldName(),
+                ShapeRelation.INTERSECTS,
+                polygon2
+            );
+            case 1 -> new GeoPointScriptFieldGeoShapeQuery(orig.script(), leafFactory, orig.fieldName(), ShapeRelation.DISJOINT, polygon1);
+            default -> new GeoPointScriptFieldGeoShapeQuery(
+                orig.script(),
+                leafFactory,
+                orig.fieldName() + "modified",
+                ShapeRelation.INTERSECTS,
+                polygon1
+            );
+        };
     }
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance().matches(new long[] { 1L }, randomIntBetween(1, Integer.MAX_VALUE)));
-        assertFalse(createTestInstance().matches(new long[0], 0));
-        assertFalse(createTestInstance().matches(new long[1], 0));
+        // TODO this should actually reject some points
+        assertTrue(createTestInstance().matches(new double[] { 1 }, new double[] { 2 }, randomIntBetween(1, Integer.MAX_VALUE)));
+        assertFalse(createTestInstance().matches(new double[0], new double[0], 0));
+        assertFalse(createTestInstance().matches(new double[1], new double[0], 0));
+        assertFalse(createTestInstance().matches(new double[0], new double[1], 0));
     }
 
     @Override

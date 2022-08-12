@@ -14,16 +14,23 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.publish'
 
 /*
  TODOs:
    * fix permissions such that only netty4 can open sockets etc?
    * fix the hack in the build framework that copies transport-netty4 into the integ test cluster
-   * maybe figure out a way to run all tests from core with netty4/network?
  */
 esplugin {
   description 'Netty 4 based transport implementation'
   classname 'org.elasticsearch.transport.netty4.Netty4Plugin'
+}
+
+// exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass
+configurations {
+  [testCompileClasspath, testRuntimeClasspath, internalClusterTestCompileClasspath, internalClusterTestRuntimeClasspath].each {
+    it.exclude group: 'org.elasticsearch.plugin', module: 'transport-netty4'
+  }
 }
 
 dependencies {
@@ -83,7 +90,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoders',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 
@@ -103,7 +110,9 @@ tasks.named("thirdPartyAudit").configure {
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
@@ -184,7 +193,8 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
     'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',

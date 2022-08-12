@@ -414,7 +414,7 @@ public class PublicationTests extends ESTestCase {
 
         List<Tuple<DiscoveryNode, Throwable>> errors = ackListener.awaitErrors(0L, TimeUnit.SECONDS);
         assertThat(errors.size(), equalTo(3));
-        assertThat(errors.stream().map(Tuple::v1).collect(Collectors.toList()), containsInAnyOrder(n1, n2, n3));
+        assertThat(errors.stream().map(Tuple::v1).toList(), containsInAnyOrder(n1, n2, n3));
         errors.stream()
             .forEach(
                 tuple -> assertThat(

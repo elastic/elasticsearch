@@ -26,13 +26,13 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
     public TermBasedFieldType(
         String name,
-        boolean isSearchable,
+        boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     /** Returns the indexed value used to construct search "values".
@@ -46,6 +46,11 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
         return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+    }
+
+    @Override
+    public boolean mayExistInIndex(SearchExecutionContext context) {
+        return context.fieldExistsInIndex(name());
     }
 
     @Override

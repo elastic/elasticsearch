@@ -75,6 +75,13 @@ public class FillMaskConfig implements NlpConfig {
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.numTopClasses = numTopClasses == null ? DEFAULT_NUM_RESULTS : numTopClasses;
         this.resultsField = resultsField;
+        if (this.tokenization.span != -1) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] does not support windowing long text sequences; configured span [{}]",
+                NAME,
+                this.tokenization.span
+            );
+        }
     }
 
     public FillMaskConfig(StreamInput in) throws IOException {

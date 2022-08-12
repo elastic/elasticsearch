@@ -10,6 +10,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -238,15 +239,19 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
         builder.endArray();
 
-        builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        if (scoreMode != DEFAULT_SCORE_MODE) {
+            builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        }
         if (boostMode != null) {
             builder.field(BOOST_MODE_FIELD.getPreferredName(), boostMode.name().toLowerCase(Locale.ROOT));
         }
-        builder.field(MAX_BOOST_FIELD.getPreferredName(), maxBoost);
+        if (maxBoost != FunctionScoreQuery.DEFAULT_MAX_BOOST) {
+            builder.field(MAX_BOOST_FIELD.getPreferredName(), maxBoost);
+        }
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -642,5 +647,10 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, scoreFunction));
         }
         return currentFieldName;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

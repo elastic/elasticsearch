@@ -302,7 +302,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             }
             builder.endArray();
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -395,5 +395,10 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             && Objects.equals(docs, other.docs)
             && Objects.equals(organicQuery, other.organicQuery)
             && boost == other.boost;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_4_0;
     }
 }

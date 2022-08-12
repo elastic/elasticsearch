@@ -33,6 +33,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -72,7 +73,8 @@ public class InboundHandlerTests extends ESTestCase {
             new StatsTracker(),
             threadPool,
             new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE),
-            new HandlingTimeTracker()
+            new HandlingTimeTracker(),
+            false
         );
         requestHandlers = new Transport.RequestHandlers();
         responseHandlers = new Transport.ResponseHandlers();
@@ -104,7 +106,8 @@ public class InboundHandlerTests extends ESTestCase {
             (request, channel, task) -> channelCaptor.set(channel),
             ThreadPool.Names.SAME,
             false,
-            true
+            true,
+            Tracer.NOOP
         );
         requestHandlers.registerHandler(registry);
 
@@ -151,7 +154,8 @@ public class InboundHandlerTests extends ESTestCase {
             },
             ThreadPool.Names.SAME,
             false,
-            true
+            true,
+            Tracer.NOOP
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);

@@ -68,7 +68,7 @@ public class WhitelistLoaderTests extends ESTestCase {
             if ("deprecatedMethod".equals(whitelistMethod.methodName)) {
                 assertEquals(
                     "use another method",
-                    ((DeprecatedAnnotation) whitelistMethod.painlessAnnotations.get(DeprecatedAnnotation.class)).getMessage()
+                    ((DeprecatedAnnotation) whitelistMethod.painlessAnnotations.get(DeprecatedAnnotation.class)).message()
                 );
                 assertEquals(1, whitelistMethod.painlessAnnotations.size());
                 ++count;
@@ -78,9 +78,9 @@ public class WhitelistLoaderTests extends ESTestCase {
                 AnnotationTestObject.TestAnnotation ta = ((AnnotationTestObject.TestAnnotation) whitelistMethod.painlessAnnotations.get(
                     AnnotationTestObject.TestAnnotation.class
                 ));
-                assertEquals("one", ta.getOne());
-                assertEquals("two", ta.getTwo());
-                assertEquals("three", ta.getThree());
+                assertEquals("one", ta.one());
+                assertEquals("two", ta.two());
+                assertEquals("three", ta.three());
                 assertEquals(1, whitelistMethod.painlessAnnotations.size());
                 ++count;
             }
@@ -88,14 +88,14 @@ public class WhitelistLoaderTests extends ESTestCase {
             if ("annotatedMultipleMethod".equals(whitelistMethod.methodName)) {
                 assertEquals(
                     "test",
-                    ((DeprecatedAnnotation) whitelistMethod.painlessAnnotations.get(DeprecatedAnnotation.class)).getMessage()
+                    ((DeprecatedAnnotation) whitelistMethod.painlessAnnotations.get(DeprecatedAnnotation.class)).message()
                 );
                 AnnotationTestObject.TestAnnotation ta = ((AnnotationTestObject.TestAnnotation) whitelistMethod.painlessAnnotations.get(
                     AnnotationTestObject.TestAnnotation.class
                 ));
-                assertEquals("one", ta.getOne());
-                assertEquals("two", ta.getTwo());
-                assertEquals("three", ta.getThree());
+                assertEquals("one", ta.one());
+                assertEquals("two", ta.two());
+                assertEquals("three", ta.three());
                 assertEquals(2, whitelistMethod.painlessAnnotations.size());
                 ++count;
             }

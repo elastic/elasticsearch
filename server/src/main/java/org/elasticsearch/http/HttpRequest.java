@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -52,14 +51,6 @@ public interface HttpRequest {
         List<String> values = getHeaders().get(name);
         if (values != null && values.isEmpty() == false) {
             return values.get(0);
-        }
-        return null;
-    }
-
-    default List<String> allHeaders(String name) {
-        List<String> values = getHeaders().get(name);
-        if (values != null) {
-            return Collections.unmodifiableList(values);
         }
         return null;
     }

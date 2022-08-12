@@ -55,23 +55,12 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
         int syntaxFlags = orig.syntaxFlags();
         int matchFlags = orig.matchFlags();
         switch (randomInt(4)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                pattern += "modified";
-                break;
-            case 3:
-                syntaxFlags = randomValueOtherThan(syntaxFlags, () -> randomInt(RegExp.ALL));
-                break;
-            case 4:
-                matchFlags = (matchFlags & RegExp.ASCII_CASE_INSENSITIVE) != 0 ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> pattern += "modified";
+            case 3 -> syntaxFlags = randomValueOtherThan(syntaxFlags, () -> randomInt(RegExp.ALL));
+            case 4 -> matchFlags = (matchFlags & RegExp.ASCII_CASE_INSENSITIVE) != 0 ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
+            default -> fail();
         }
         return new StringScriptFieldRegexpQuery(
             script,

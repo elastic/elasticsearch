@@ -32,7 +32,7 @@ public class FilterPathTests extends ESTestCase {
 
         List<FilterPath> nextFilters = new ArrayList<>();
         FilterPath filterPath = filterPaths[0];
-        assertThat(filterPath.matches("test", nextFilters), is(true));
+        assertThat(filterPath.matches("test", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
     }
 
@@ -46,12 +46,12 @@ public class FilterPathTests extends ESTestCase {
         List<FilterPath> nextFilters = new ArrayList<>();
         FilterPath filterPath = filterPaths[0];
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertThat(filterPath.matches("foo", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("bar", nextFilters), is(true));
+        assertThat(filterPath.matches("bar", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 1);
     }
 
@@ -65,18 +65,18 @@ public class FilterPathTests extends ESTestCase {
         List<FilterPath> nextFilters = new ArrayList<>();
         FilterPath filterPath = filterPaths[0];
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertThat(filterPath.matches("foo", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("bar", nextFilters), is(false));
+        assertThat(filterPath.matches("bar", nextFilters, false), is(false));
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("quz", nextFilters), is(true));
+        assertThat(filterPath.matches("quz", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
     }
 
@@ -102,25 +102,25 @@ public class FilterPathTests extends ESTestCase {
         List<FilterPath> nextFilters = new ArrayList<>();
         FilterPath filterPath = filterPaths[0];
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("w", nextFilters), is(false));
+        assertThat(filterPath.matches("w", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("0", nextFilters), is(false));
+        assertThat(filterPath.matches("0", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("0", nextFilters), is(false));
+        assertThat(filterPath.matches("0", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("t", nextFilters), is(true));
+        assertThat(filterPath.matches("t", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
 
         input = "w\\.0\\.0\\.t";
@@ -131,7 +131,7 @@ public class FilterPathTests extends ESTestCase {
 
         nextFilters = new ArrayList<>();
         filterPath = filterPaths[0];
-        assertTrue(filterPath.matches("w.0.0.t", nextFilters));
+        assertTrue(filterPath.matches("w.0.0.t", nextFilters, false));
         assertEquals(nextFilters.size(), 0);
 
         input = "w\\.0.0\\.t";
@@ -143,13 +143,13 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPaths[0];
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("w.0", nextFilters), is(false));
+        assertThat(filterPath.matches("w.0", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("0.t", nextFilters), is(true));
+        assertThat(filterPath.matches("0.t", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
     }
 
@@ -161,7 +161,7 @@ public class FilterPathTests extends ESTestCase {
         FilterPath filterPath = filterPaths[0];
         List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("foo", nextFilters), is(true));
+        assertThat(filterPath.matches("foo", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
     }
 
@@ -175,19 +175,19 @@ public class FilterPathTests extends ESTestCase {
         FilterPath filterPath = filterPaths[0];
         List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertThat(filterPath.matches("foo", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
-        assertThat(filterPath.matches("flo", nextFilters), is(false));
+        assertThat(filterPath.matches("flo", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 2);
-        assertThat(filterPath.matches("foooo", nextFilters), is(false));
+        assertThat(filterPath.matches("foooo", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 3);
-        assertThat(filterPath.matches("boo", nextFilters), is(false));
+        assertThat(filterPath.matches("boo", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 3);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("bar", nextFilters), is(true));
+        assertThat(filterPath.matches("bar", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
     }
 
@@ -199,7 +199,7 @@ public class FilterPathTests extends ESTestCase {
         FilterPath filterPath = filterPaths[0];
         List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("foo", nextFilters), is(true));
+        assertThat(filterPath.matches("foo", nextFilters, false), is(true));
         assertThat(filterPath.hasDoubleWildcard(), is(true));
         assertEquals(nextFilters.size(), 0);
     }
@@ -214,13 +214,13 @@ public class FilterPathTests extends ESTestCase {
         FilterPath filterPath = filterPaths[0];
         List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertThat(filterPath.matches("foo", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("bar", nextFilters), is(true));
+        assertThat(filterPath.matches("bar", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
     }
 
@@ -234,19 +234,19 @@ public class FilterPathTests extends ESTestCase {
         FilterPath filterPath = filterPaths[0];
         List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertThat(filterPath.matches("foo", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("test", nextFilters), is(false));
+        assertThat(filterPath.matches("test", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("bar", nextFilters), is(true));
+        assertThat(filterPath.matches("bar", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
     }
 
@@ -261,38 +261,38 @@ public class FilterPathTests extends ESTestCase {
         FilterPath filterPath = filterPaths[0];
         List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertThat(filterPath.matches("foo", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("test", nextFilters), is(false));
+        assertThat(filterPath.matches("test", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("bar", nextFilters), is(false));
+        assertThat(filterPath.matches("bar", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 2);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("test2", nextFilters), is(true));
+        assertThat(filterPath.matches("test2", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
 
         // test.dot\.ted
         filterPath = filterPaths[0];
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("test", nextFilters), is(false));
+        assertThat(filterPath.matches("test", nextFilters, false), is(false));
         assertEquals(nextFilters.size(), 1);
 
         filterPath = nextFilters.get(0);
         nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches("dot.ted", nextFilters), is(true));
+        assertThat(filterPath.matches("dot.ted", nextFilters, false), is(true));
         assertEquals(nextFilters.size(), 0);
     }
 
@@ -335,7 +335,71 @@ public class FilterPathTests extends ESTestCase {
 
         List<FilterPath> nextFilters = new ArrayList<>();
         FilterPath filterPath = filterPaths[0];
-        assertFalse(filterPath.matches(randomAlphaOfLength(10), nextFilters));
+        assertFalse(filterPath.matches(randomAlphaOfLength(10), nextFilters, false));
+        assertEquals(nextFilters.size(), 0);
+    }
+
+    public void testDotInFieldName() {
+        // FilterPath match
+        FilterPath[] filterPaths = FilterPath.compile(singleton("foo"));
+        List<FilterPath> nextFilters = new ArrayList<>();
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+
+        // FilterPath not match
+        filterPaths = FilterPath.compile(singleton("bar"));
+        assertFalse(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+
+        // FilterPath equals to fieldName
+        filterPaths = FilterPath.compile(singleton("foo.bar"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+
+        // FilterPath longer than fieldName
+        filterPaths = FilterPath.compile(singleton("foo.bar.test"));
+        assertFalse(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 1);
+        nextFilters.clear();
+
+        // partial match
+        filterPaths = FilterPath.compile(singleton("foo.bar.test"));
+        assertFalse(filterPaths[0].matches("foo.bar.text", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+
+        // wildcard
+        filterPaths = FilterPath.compile(singleton("*.bar"));
+        assertFalse(filterPaths[0].matches("foo", nextFilters, true));
+        assertEquals(nextFilters.size(), 1);
+        nextFilters.clear();
+        filterPaths = FilterPath.compile(singleton("*.bar"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        filterPaths = FilterPath.compile(singleton("f*.bar"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        filterPaths = FilterPath.compile(singleton("foo.*"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        filterPaths = FilterPath.compile(singleton("foo.*ar"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        filterPaths = FilterPath.compile(singleton("*.*"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+
+        // test double wildcard
+        filterPaths = FilterPath.compile(singleton("**.c"));
+        assertFalse(filterPaths[0].matches("a.b", nextFilters, true));
+        assertEquals(nextFilters.size(), 1);
+        nextFilters.clear();
+        assertTrue(filterPaths[0].matches("a.c", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        assertTrue(filterPaths[0].matches("a.b.c", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        assertTrue(filterPaths[0].matches("a.b.d.c", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        assertTrue(filterPaths[0].matches("a.b.c.d", nextFilters, true));
         assertEquals(nextFilters.size(), 0);
     }
 }

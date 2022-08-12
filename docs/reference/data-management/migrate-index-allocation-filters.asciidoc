@@ -24,7 +24,7 @@ indices to switch to node roles.
 [[cloud-migrate-to-node-roles]]
 === Automatically migrate to node roles on {ess} or {ece}
 
-If you are using node attributes on {ess} or {ece}, you will be
+If you are using node attributes from the default deployment template in {ess} or {ece}, you will be
 prompted to switch to node roles when you:
 
 * Upgrade to {es} 7.10 or higher
@@ -136,6 +136,11 @@ DELETE _template/.cloud-hot-warm-allocation-0
 
 If you're using a custom index template, update it to remove the <<shard-allocation-filtering, attribute-based allocation filters>> you used to assign new indices to the hot tier.
 
+To completely avoid the issues that raise when mixing the tier preference and
+custom attribute routing setting we also recommend updating all the legacy,
+composable, and component templates to remove the <<shard-allocation-filtering, attribute-based allocation filters>>
+from the settings they configure.
+
 [discrete]
 [[set-tier-preference]]
 ==== Set a tier preference for existing indices
@@ -194,3 +199,34 @@ PUT my-index/_settings
 // TEST[continued]
 
 If an index is already in the cold phase, include the cold, warm, and hot tiers.
+
+For indices that have both the `_tier_preference` and `require.data` configured
+but the `_tier_preference` is outdated (ie. the node attribute configuration
+is "colder" than the configured `_tier_preference`), the migration needs to
+remove the `require.data` attribute and update the `_tier_preference` to reflect
+the correct tiering.
+
+eg. For an index with the following routing configuration:
+[source,JSON]
+----
+{
+  "index.routing.allocation.require.data": "warm",
+  "index.routing.allocation.include._tier_preference": "data_hot"
+}
+----
+
+The routing configuration should be fixed like so:
+[source,console]
+----
+PUT my-index/_settings
+{
+  "index.routing.allocation.require.data": null,
+  "index.routing.allocation.include._tier_preference": "data_warm,data_hot"
+}
+----
+// TEST[continued]
+
+This situation can occur in a system that defaults to data tiers when, e.g.,
+an ILM policy that uses node attributes is restored and transitions the managed
+indices from the hot phase into the warm phase. In this case the node attribute
+configuration indicates the correct tier where the index should be allocated.

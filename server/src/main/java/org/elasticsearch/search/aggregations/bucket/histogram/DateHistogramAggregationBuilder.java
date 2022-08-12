@@ -35,6 +35,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static java.util.Map.entry;
 
@@ -161,6 +162,11 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.DATE;
     }
@@ -186,6 +192,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The calendar interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder calendarInterval(DateHistogramInterval interval) {
         dateHistogramInterval.calendarInterval(interval);
         return this;
@@ -199,6 +206,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The fixed interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder fixedInterval(DateHistogramInterval interval) {
         dateHistogramInterval.fixedInterval(interval);
         return this;
@@ -488,5 +496,20 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             && Objects.equals(offset, other.offset)
             && Objects.equals(extendedBounds, other.extendedBounds)
             && Objects.equals(hardBounds, other.hardBounds);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
+    @Override
+    protected void validateSequentiallyOrdered(String type, String name, Consumer<String> addValidationError) {}
+
+    @Override
+    protected void validateSequentiallyOrderedWithoutGaps(String type, String name, Consumer<String> addValidationError) {
+        if (minDocCount != 0) {
+            addValidationError.accept("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
+        }
     }
 }

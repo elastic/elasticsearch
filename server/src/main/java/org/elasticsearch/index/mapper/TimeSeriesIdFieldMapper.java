@@ -8,32 +8,35 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
-import java.util.function.Supplier;
+import java.util.TreeMap;
 
 /**
  * Mapper for {@code _tsid} field included generated when the index is
@@ -70,13 +73,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     public static class Builder extends MetadataFieldMapper.Builder {
+
         protected Builder() {
             super(NAME);
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of();
+        protected Parameter<?>[] getParameters() {
+            return EMPTY_PARAMETERS;
         }
 
         @Override
@@ -85,7 +89,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().buildTimeSeriesIdFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesIdFieldMapper());
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
@@ -99,7 +103,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
 
         @Override
@@ -111,10 +115,10 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             // TODO don't leak the TSID's binary format into the script
-            return new SortedSetOrdinalsIndexFieldData.Builder(
+            return new SortedOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
@@ -136,37 +140,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
-        assert fieldType().isSearchable() == false;
+        assert fieldType().isIndexed() == false;
 
-        // SortedMap is expected to be sorted by key (field name)
-        SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionBytes();
-        if (dimensionFields.isEmpty()) {
-            throw new IllegalArgumentException("Dimension fields are missing.");
-        }
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(dimensionFields.size());
-            for (Map.Entry<String, BytesReference> entry : dimensionFields.entrySet()) {
-                String fieldName = entry.getKey();
-                BytesRef fieldNameBytes = new BytesRef(fieldName);
-                int len = fieldNameBytes.length;
-                if (len > DIMENSION_NAME_LIMIT) {
-                    throw new IllegalArgumentException(
-                        "Dimension name must be less than [" + DIMENSION_NAME_LIMIT + "] bytes but [" + fieldName + "] was [" + len + "]."
-                    );
-                }
-                // Write field name in utf-8 instead of writeString's utf-16-ish thing
-                out.writeBytesRef(fieldNameBytes);
-                entry.getValue().writeTo(out);
-            }
-
-            BytesReference timeSeriesId = out.bytes();
-            if (timeSeriesId.length() > LIMIT) {
-                throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "].");
-            }
-            assert timeSeriesId != null : "In time series mode _tsid cannot be null";
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
-        }
+        TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
+        BytesRef timeSeriesId = timeSeriesIdBuilder.build().toBytesRef();
+        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
+        TsidExtractingIdFieldMapper.createField(context, timeSeriesId);
     }
 
     @Override
@@ -183,22 +162,19 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             Map<String, Object> result = new LinkedHashMap<String, Object>(size);
 
             for (int i = 0; i < size; i++) {
-                String name = in.readString();
+                String name = in.readBytesRef().utf8ToString();
 
                 int type = in.read();
                 switch (type) {
-                    case (byte) 's': // parse a string
+                    case (byte) 's' -> // parse a string
                         result.put(name, in.readBytesRef().utf8ToString());
-                        break;
-                    case (byte) 'l': // parse a long
+                    case (byte) 'l' -> // parse a long
                         result.put(name, in.readLong());
-                        break;
-                    case (byte) 'u': // parse an unsigned_long
-                        Object ul = DocValueFormat.UnsignedLongShiftedDocValueFormat.INSTANCE.format(in.readLong());
+                    case (byte) 'u' -> { // parse an unsigned_long
+                        Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
                         result.put(name, ul);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
+                    }
+                    default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
             }
             return result;
@@ -207,44 +183,107 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static BytesReference encodeTsidValue(String value) {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.write((byte) 's');
-            /*
-             * Write in utf8 instead of StreamOutput#writeString which is utf-16-ish
-             * so its easier for folks to reason about the space taken up. Mostly
-             * it'll be smaller too.
-             */
-            BytesRef bytes = new BytesRef(value);
-            if (bytes.length > DIMENSION_VALUE_LIMIT) {
-                throw new IllegalArgumentException(
-                    "Dimension fields must be less than [" + DIMENSION_VALUE_LIMIT + "] bytes but was [" + bytes.length + "]."
-                );
+    public static class TimeSeriesIdBuilder implements DocumentDimensions {
+        /**
+         * A sorted map of the serialized values of dimension fields that will be used
+         * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
+         * to build the _tsid field for the document.
+         */
+        private final SortedMap<BytesRef, BytesReference> dimensions = new TreeMap<>();
+
+        public BytesReference build() throws IOException {
+            if (dimensions.isEmpty()) {
+                throw new IllegalArgumentException("Dimension fields are missing.");
             }
-            out.writeBytesRef(bytes);
-            return out.bytes();
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.writeVInt(dimensions.size());
+                for (Map.Entry<BytesRef, BytesReference> entry : dimensions.entrySet()) {
+                    BytesRef fieldName = entry.getKey();
+                    if (fieldName.length > DIMENSION_NAME_LIMIT) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "Dimension name must be less than [%d] bytes but [%s] was [%s].",
+                                DIMENSION_NAME_LIMIT,
+                                fieldName.utf8ToString(),
+                                fieldName.length
+                            )
+                        );
+                    }
+                    out.writeBytesRef(fieldName);
+                    entry.getValue().writeTo(out);
+                }
+                BytesReference timeSeriesId = out.bytes();
+                if (timeSeriesId.length() > LIMIT) {
+                    throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "].");
+                }
+                return timeSeriesId;
+            }
+        }
+
+        @Override
+        public void addString(String fieldName, String value) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.write((byte) 's');
+                /*
+                 * Write in utf8 instead of StreamOutput#writeString which is utf-16-ish
+                 * so its easier for folks to reason about the space taken up. Mostly
+                 * it'll be smaller too.
+                 */
+                BytesRef bytes = new BytesRef(value);
+                if (bytes.length > DIMENSION_VALUE_LIMIT) {
+                    throw new IllegalArgumentException(
+                        "Dimension fields must be less than [" + DIMENSION_VALUE_LIMIT + "] bytes but was [" + bytes.length + "]."
+                    );
+                }
+                out.writeBytesRef(bytes);
+                add(fieldName, out.bytes());
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
+            }
+        }
+
+        @Override
+        public void addIp(String fieldName, InetAddress value) {
+            addString(fieldName, NetworkAddress.format(value));
+        }
+
+        @Override
+        public void addLong(String fieldName, long value) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.write((byte) 'l');
+                out.writeLong(value);
+                add(fieldName, out.bytes());
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
+            }
+        }
+
+        @Override
+        public void addUnsignedLong(String fieldName, long value) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.write((byte) 'u');
+                out.writeLong(value);
+                add(fieldName, out.bytes());
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
+            }
+        }
+
+        private void add(String fieldName, BytesReference encoded) {
+            BytesReference old = dimensions.put(new BytesRef(fieldName), encoded);
+            if (old != null) {
+                throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
+            }
         }
     }
 
-    public static BytesReference encodeTsidValue(long value) {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.write((byte) 'l');
-            out.writeLong(value);
-            return out.bytes();
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
-        }
-    }
-
-    public static BytesReference encodeTsidUnsignedLongValue(long value) {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.write((byte) 'u');
-            out.writeLong(value);
-            return out.bytes();
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
+    public static Map<String, Object> decodeTsid(BytesRef bytesRef) {
+        try (StreamInput input = new BytesArray(bytesRef).streamInput()) {
+            return decodeTsid(input);
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("Dimension field cannot be deserialized.", ex);
         }
     }
 }

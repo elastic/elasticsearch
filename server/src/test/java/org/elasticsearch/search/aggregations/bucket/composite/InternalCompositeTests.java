@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -29,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
@@ -67,6 +67,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             // and the raw format for the other types
             return DocValueFormat.RAW;
         }
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -117,17 +122,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         Comparable<?>[] keys = new Comparable<?>[sourceNames.size()];
         for (int j = 0; j < keys.length; j++) {
             switch (types[j]) {
-                case 0:
-                    keys[j] = randomLong();
-                    break;
-                case 1:
-                    keys[j] = randomDouble();
-                    break;
-                case 2:
-                    keys[j] = new BytesRef(randomAsciiLettersOfLengthBetween(1, 20));
-                    break;
-                default:
-                    throw new AssertionError("illegal branch");
+                case 0 -> keys[j] = randomLong();
+                case 1 -> keys[j] = randomDouble();
+                case 2 -> keys[j] = new BytesRef(randomAsciiLettersOfLengthBetween(1, 20));
+                default -> throw new AssertionError("illegal branch");
             }
         }
         return new CompositeKey(keys);
@@ -191,14 +189,14 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         int code = randomIntBetween(0, 2);
         int[] reverseMuls = instance.getReverseMuls();
         switch (code) {
-            case 0:
+            case 0 -> {
                 int[] newReverseMuls = new int[reverseMuls.length];
                 for (int i = 0; i < reverseMuls.length; i++) {
                     newReverseMuls[i] = reverseMuls[i] == 1 ? -1 : 1;
                 }
                 reverseMuls = newReverseMuls;
-                break;
-            case 1:
+            }
+            case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
                     new InternalComposite.InternalBucket(
@@ -211,17 +209,16 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                         InternalAggregations.EMPTY
                     )
                 );
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("illegal branch");
+            }
+            default -> throw new AssertionError("illegal branch");
         }
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size() - 1).getRawKey() : null;
         return new InternalComposite(
@@ -246,7 +243,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             .sorted(getKeyComparator())
             .distinct()
             .limit(reduced.getSize())
-            .collect(Collectors.toList());
+            .toList();
 
         assertThat(reduced.getBuckets().size(), lessThanOrEqualTo(size));
         assertThat(reduced.getBuckets().size(), equalTo(expectedKeys.size()));
@@ -410,7 +407,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     private InternalComposite.ArrayMap createMap(List<String> fields, Comparable<?>[] values) {
-        List<DocValueFormat> formats = IntStream.range(0, fields.size()).mapToObj(i -> DocValueFormat.RAW).collect(Collectors.toList());
+        List<DocValueFormat> formats = IntStream.range(0, fields.size()).mapToObj(i -> DocValueFormat.RAW).toList();
         return new InternalComposite.ArrayMap(fields, formats, values);
     }
 }

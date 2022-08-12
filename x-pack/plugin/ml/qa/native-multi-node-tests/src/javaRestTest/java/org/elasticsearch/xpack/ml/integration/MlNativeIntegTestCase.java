@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -54,9 +56,8 @@ import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -83,12 +84,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -110,7 +110,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.monitoring.MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
@@ -172,7 +171,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             throw new UncheckedIOException(e);
         }
         writeFile(xpackConf, "users", "x_pack_rest_user" + ":" + SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING + "\n");
-        writeFile(xpackConf, "users_roles", "superuser:x_pack_rest_user\n");
+        writeFile(xpackConf, "users_roles", SecuritySettingsSourceField.ES_TEST_ROOT_ROLE + ":x_pack_rest_user\n");
+        writeFile(xpackConf, "roles.yml", SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML);
 
         Path key;
         Path certificate;
@@ -205,7 +205,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     protected void cleanUp() {
         setUpgradeModeTo(false);
-        deleteAllDataStreams();
         cleanUpResources();
     }
 
@@ -218,7 +217,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                 AnomalyDetectorsIndex.jobResultsIndexPrefix(),
                 InferenceIndexConstants.LATEST_INDEX_NAME,
-                SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME
+                SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME,
+                ".deprecation-indexing-template",
+                ".deprecation-indexing-settings",
+                ".deprecation-indexing-mappings"
             )
         );
     }
@@ -289,15 +291,15 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     Metadata.Custom.class,
-                    TrainedModelAllocationMetadata.NAME,
-                    TrainedModelAllocationMetadata::new
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata::fromStream
                 )
             );
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     NamedDiff.class,
-                    TrainedModelAllocationMetadata.NAME,
-                    TrainedModelAllocationMetadata::readDiffFrom
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata::readDiffFrom
                 )
             );
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
@@ -312,6 +314,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 )
             );
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom));
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new));
             entries.add(
                 new NamedWriteableRegistry.Entry(
@@ -410,14 +413,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
     }
 
-    protected static void deleteAllDataStreams() {
-        AcknowledgedResponse response = client().execute(
-            DeleteDataStreamAction.INSTANCE,
-            new DeleteDataStreamAction.Request(new String[] { "*" })
-        ).actionGet();
-        assertAcked(response);
-    }
-
     public static class MockPainlessScriptEngine extends MockScriptEngine {
 
         public static final String NAME = "painless";
@@ -445,9 +440,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                IngestScript.Factory factory = (params, ctx) -> new IngestScript(params, ctx) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {}
+                    public void execute() {}
                 };
                 return context.factoryClazz.cast(factory);
             }

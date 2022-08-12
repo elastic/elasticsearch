@@ -58,7 +58,8 @@ public final class SqlTestUtils {
         false,
         false,
         null,
-        null
+        null,
+        false
     );
 
     public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersion sqlVersion) {
@@ -80,7 +81,8 @@ public final class SqlTestUtils {
             false,
             randomBoolean(),
             new TaskId(randomAlphaOfLength(10), taskId),
-            randomTask(taskId, mode, sqlVersion)
+            randomTask(taskId, mode, sqlVersion),
+            randomBoolean()
         );
     }
 
@@ -142,20 +144,12 @@ public final class SqlTestUtils {
             for (int i = 0; i < noOfSelectArgs; i++) {
                 sb.append(shuffledArgIndices.get(i));
                 switch (randomInt(2)) {
-                    case 0:
-                        sb.append(" DESC");
-                        break;
-                    case 1:
-                        sb.append(" ASC");
-                        break;
+                    case 0 -> sb.append(" DESC");
+                    case 1 -> sb.append(" ASC");
                 }
                 switch (randomInt(2)) {
-                    case 0:
-                        sb.append(" NULLS FIRST");
-                        break;
-                    case 1:
-                        sb.append(" NULLS LAST");
-                        break;
+                    case 0 -> sb.append(" NULLS FIRST");
+                    case 1 -> sb.append(" NULLS LAST");
                 }
                 if (i < noOfSelectArgs - 1) {
                     sb.append(", ");

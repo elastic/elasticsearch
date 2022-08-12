@@ -380,14 +380,19 @@ cluster load, a {transform} increases search and indexing load on your
 cluster while it runs. If you're experiencing an excessive load, however, you
 can stop it.
 
-You can start, stop, and manage {transforms} in {kib}:
+You can start, stop, reset, and manage {transforms} in {kib}:
 
 [role="screenshot"]
 image::images/manage-transforms.png["Managing {transforms} in {kib}"]
 
 Alternatively, you can use the
-<<start-transform,start {transforms}>> and
-<<stop-transform,stop {transforms}>> APIs.
+<<start-transform,start {transforms}>>, <<stop-transform,stop {transforms}>> and 
+<<reset-transform, reset {transforms}>> APIs.
+
+If you reset a {transform}, all checkpoints, states, and the destination index 
+(if it was created by the {transform}) are deleted. The {transform} is ready to 
+start again as if it had just been created.
+
 
 .API example
 [%collapsible]

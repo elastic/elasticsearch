@@ -103,16 +103,12 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
     }
 
     private static KerberosAuthenticationToken mutateTestItem(KerberosAuthenticationToken original) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new KerberosAuthenticationToken(randomByteArrayOfLength(10));
-            case 1:
-                return new KerberosAuthenticationToken("base64EncodedToken".getBytes(StandardCharsets.UTF_16));
-            case 2:
-                return new KerberosAuthenticationToken("[B@6499375d".getBytes(StandardCharsets.UTF_8));
-            default:
-                throw new IllegalArgumentException("unknown option");
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new KerberosAuthenticationToken(randomByteArrayOfLength(10));
+            case 1 -> new KerberosAuthenticationToken("base64EncodedToken".getBytes(StandardCharsets.UTF_16));
+            case 2 -> new KerberosAuthenticationToken("[B@6499375d".getBytes(StandardCharsets.UTF_8));
+            default -> throw new IllegalArgumentException("unknown option");
+        };
     }
 
     private static void assertContainsAuthenticateHeader(ElasticsearchSecurityException e) {

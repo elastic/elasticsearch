@@ -20,18 +20,26 @@ import static org.hamcrest.Matchers.is;
 public class RoleReferenceTests extends ESTestCase {
 
     public void testNamedRoleReference() {
-        final String[] roleNames = randomArray(0, 2, String[]::new, () -> randomAlphaOfLength(8));
+        final String[] roleNames = randomArray(0, 2, String[]::new, () -> randomAlphaOfLengthBetween(4, 8));
 
-        final boolean hasSuperUserRole = roleNames.length > 0 && randomBoolean();
-        if (hasSuperUserRole) {
-            roleNames[randomIntBetween(0, roleNames.length - 1)] = "superuser";
-        }
         final RoleReference.NamedRoleReference namedRoleReference = new RoleReference.NamedRoleReference(roleNames);
 
-        if (hasSuperUserRole) {
-            assertThat(namedRoleReference.id(), is(RoleKey.ROLE_KEY_SUPERUSER));
-        } else if (roleNames.length == 0) {
+        if (roleNames.length == 0) {
             assertThat(namedRoleReference.id(), is(RoleKey.ROLE_KEY_EMPTY));
+        } else {
+            final RoleKey roleKey = namedRoleReference.id();
+            assertThat(roleKey.getNames(), equalTo(Set.of(roleNames)));
+            assertThat(roleKey.getSource(), equalTo(RoleKey.ROLES_STORE_SOURCE));
+        }
+    }
+
+    public void testSuperuserRoleReference() {
+        final String[] roleNames = randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(4, 12));
+        roleNames[randomIntBetween(0, roleNames.length - 1)] = "superuser";
+        final RoleReference.NamedRoleReference namedRoleReference = new RoleReference.NamedRoleReference(roleNames);
+
+        if (roleNames.length == 1) {
+            assertThat(namedRoleReference.id(), is(RoleKey.ROLE_KEY_SUPERUSER));
         } else {
             final RoleKey roleKey = namedRoleReference.id();
             assertThat(roleKey.getNames(), equalTo(Set.of(roleNames)));
@@ -42,11 +50,11 @@ public class RoleReferenceTests extends ESTestCase {
     public void testApiKeyRoleReference() {
         final String apiKeyId = randomAlphaOfLength(20);
         final BytesArray roleDescriptorsBytes = new BytesArray(randomAlphaOfLength(50));
-        final String roleKeySource = randomAlphaOfLength(8);
+        final RoleReference.ApiKeyRoleType apiKeyRoleType = randomFrom(RoleReference.ApiKeyRoleType.values());
         final RoleReference.ApiKeyRoleReference apiKeyRoleReference = new RoleReference.ApiKeyRoleReference(
             apiKeyId,
             roleDescriptorsBytes,
-            roleKeySource
+            apiKeyRoleType
         );
 
         final RoleKey roleKey = apiKeyRoleReference.id();
@@ -54,7 +62,7 @@ public class RoleReferenceTests extends ESTestCase {
             roleKey.getNames(),
             hasItem("apikey:" + MessageDigests.toHexString(MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())))
         );
-        assertThat(roleKey.getSource(), equalTo(roleKeySource));
+        assertThat(roleKey.getSource(), equalTo("apikey_" + apiKeyRoleType));
     }
 
     public void testServiceAccountRoleReference() {

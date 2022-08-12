@@ -30,7 +30,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_STATS_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_TRANSLATE_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.toMap;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.query;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
@@ -345,7 +344,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         request.setEntity(
             new StringEntity(RestSqlTestCase.cursor(cursor).mode(mode).clientId(clientType).toString(), ContentType.APPLICATION_JSON)
         );
-        return (String) toMap(client().performRequest(request), mode).get("cursor");
+        return (String) BaseRestSqlTestCase.toMap(client().performRequest(request), mode).get("cursor");
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -380,7 +379,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
                 ContentType.APPLICATION_JSON
             )
         );
-        return (String) toMap(client().performRequest(request), mode).get("cursor");
+        return (String) BaseRestSqlTestCase.toMap(client().performRequest(request), mode).get("cursor");
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

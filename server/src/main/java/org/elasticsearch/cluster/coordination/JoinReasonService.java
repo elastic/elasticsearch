@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,8 +51,7 @@ public class JoinReasonService {
      * Called when a new cluster state was applied by a master-eligible node, possibly adding or removing some nodes.
      */
     public void onClusterStateApplied(DiscoveryNodes discoveryNodes) {
-        assert Thread.currentThread().getName().contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
-            || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         assert discoveryNodes.getLocalNode().isMasterNode();
 
         if (this.discoveryNodes != discoveryNodes) {
@@ -98,8 +98,7 @@ public class JoinReasonService {
      * absent node is still tracked then this adds the removal reason ({@code disconnected}, {@code lagging}, etc.) to the tracker.
      */
     public void onNodeRemoved(DiscoveryNode discoveryNode, String reason) {
-        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-            : Thread.currentThread().getName();
+        assert MasterService.assertMasterUpdateOrTestThread();
         trackedNodes.computeIfPresent(discoveryNode.getId(), (ignored, trackedNode) -> trackedNode.withRemovalReason(reason));
     }
 
@@ -176,15 +175,7 @@ public class JoinReasonService {
         }
     };
 
-    private static class PresentNode implements TrackedNode {
-
-        private final String ephemeralId;
-        private final int removalCount;
-
-        PresentNode(String ephemeralId, int removalCount) {
-            this.ephemeralId = ephemeralId;
-            this.removalCount = removalCount;
-        }
+    private record PresentNode(String ephemeralId, int removalCount) implements TrackedNode {
 
         @Override
         public TrackedNode present(String ephemeralId) {
@@ -216,22 +207,13 @@ public class JoinReasonService {
         }
     }
 
-    private static class AbsentNode implements TrackedNode {
-
-        private final String ephemeralId;
-        private final int removalCount;
-        private final long removalTimeMillis;
-        private final String removingNodeName;
-        @Nullable // if removal reason not known, e.g. if removed by a different master
-        private final String removalReason;
-
-        AbsentNode(String ephemeralId, int removalCount, long removalTimeMillis, String removingNodeName, @Nullable String removalReason) {
-            this.ephemeralId = ephemeralId;
-            this.removalCount = removalCount;
-            this.removalTimeMillis = removalTimeMillis;
-            this.removingNodeName = removingNodeName;
-            this.removalReason = removalReason;
-        }
+    private record AbsentNode(
+        String ephemeralId,
+        int removalCount,
+        long removalTimeMillis,
+        String removingNodeName,
+        @Nullable String removalReason // if removal reason not known, e.g. if removed by a different master
+    ) implements TrackedNode {
 
         @Override
         public TrackedNode present(String ephemeralId) {

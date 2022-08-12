@@ -25,7 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -244,9 +243,7 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
                 );
             case "status":
                 ClusterHealthStatus status = randomFrom(
-                    Arrays.stream(ClusterHealthStatus.values())
-                        .filter(value -> value.equals(instance.getStatus()) == false)
-                        .collect(Collectors.toList())
+                    Arrays.stream(ClusterHealthStatus.values()).filter(value -> value.equals(instance.getStatus()) == false).toList()
                 );
                 return new ClusterIndexHealth(
                     instance.getIndex(),

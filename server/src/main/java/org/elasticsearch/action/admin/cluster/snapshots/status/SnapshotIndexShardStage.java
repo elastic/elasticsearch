@@ -65,19 +65,13 @@ public enum SnapshotIndexShardStage {
      * @return state
      */
     public static SnapshotIndexShardStage fromValue(byte value) {
-        switch (value) {
-            case 0:
-                return INIT;
-            case 1:
-                return STARTED;
-            case 2:
-                return FINALIZE;
-            case 3:
-                return DONE;
-            case 4:
-                return FAILURE;
-            default:
-                throw new IllegalArgumentException("No snapshot shard stage for value [" + value + "]");
-        }
+        return switch (value) {
+            case 0 -> INIT;
+            case 1 -> STARTED;
+            case 2 -> FINALIZE;
+            case 3 -> DONE;
+            case 4 -> FAILURE;
+            default -> throw new IllegalArgumentException("No snapshot shard stage for value [" + value + "]");
+        };
     }
 }

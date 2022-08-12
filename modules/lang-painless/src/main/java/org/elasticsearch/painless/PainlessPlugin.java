@@ -41,6 +41,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -90,7 +91,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
         for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
             List<Whitelist> contextWhitelists = new ArrayList<>();
-            if (PainlessPlugin.class.getResourceAsStream("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
+            if (PainlessPlugin.class.getResource("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
                 contextWhitelists.add(
                     WhitelistLoader.loadFromResourceFiles(
                         PainlessPlugin.class,
@@ -119,13 +120,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         Map<ScriptContext<?>, List<Whitelist>> contextsWithWhitelists = new HashMap<>();
         for (ScriptContext<?> context : contexts) {
             // we might have a context that only uses the base whitelists, so would not have been filled in by reloadSPI
+            List<Whitelist> mergedWhitelists = new ArrayList<>(BASE_WHITELISTS);
             List<Whitelist> contextWhitelists = whitelists.get(context);
-            if (contextWhitelists == null) {
-                contextWhitelists = new ArrayList<>(BASE_WHITELISTS);
-            } else {
-                contextWhitelists.addAll(BASE_WHITELISTS);
+            if (contextWhitelists != null) {
+                mergedWhitelists.addAll(contextWhitelists);
             }
-            contextsWithWhitelists.put(context, contextWhitelists);
+            contextsWithWhitelists.put(context, mergedWhitelists);
         }
         painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists));
         return painlessScriptEngine.get();
@@ -143,7 +143,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice

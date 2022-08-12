@@ -21,7 +21,7 @@ dependencies {
   testImplementation project(":modules:analysis-common")
   testImplementation project(xpackModule('watcher'))
   testImplementation project(xpackModule('ilm'))
-  testImplementation project(xpackModule('data-streams'))
+  testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 

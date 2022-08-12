@@ -126,12 +126,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                         int docCount = pointValues.getDocCount();
                         valuesMap.put(info.name, new PointValues() {
                             @Override
-                            public void intersect(IntersectVisitor visitor) {
-                                throw new UnsupportedOperationException();
-                            }
-
-                            @Override
-                            public long estimatePointCount(IntersectVisitor visitor) {
+                            public PointTree getPointTree() {
                                 throw new UnsupportedOperationException();
                             }
 
@@ -222,7 +217,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
             throw new UnsupportedOperationException();
         }
 

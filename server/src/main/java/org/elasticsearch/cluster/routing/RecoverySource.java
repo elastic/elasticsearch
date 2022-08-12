@@ -50,20 +50,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     public static RecoverySource readFrom(StreamInput in) throws IOException {
         Type type = Type.values()[in.readByte()];
-        switch (type) {
-            case EMPTY_STORE:
-                return EmptyStoreRecoverySource.INSTANCE;
-            case EXISTING_STORE:
-                return ExistingStoreRecoverySource.read(in);
-            case PEER:
-                return PeerRecoverySource.INSTANCE;
-            case SNAPSHOT:
-                return new SnapshotRecoverySource(in);
-            case LOCAL_SHARDS:
-                return LocalShardsRecoverySource.INSTANCE;
-            default:
-                throw new IllegalArgumentException("unknown recovery type: " + type.name());
-        }
+        return switch (type) {
+            case EMPTY_STORE -> EmptyStoreRecoverySource.INSTANCE;
+            case EXISTING_STORE -> ExistingStoreRecoverySource.read(in);
+            case PEER -> PeerRecoverySource.INSTANCE;
+            case SNAPSHOT -> new SnapshotRecoverySource(in);
+            case LOCAL_SHARDS -> LocalShardsRecoverySource.INSTANCE;
+        };
     }
 
     @Override

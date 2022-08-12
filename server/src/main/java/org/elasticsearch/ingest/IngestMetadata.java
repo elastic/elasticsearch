@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,10 +49,6 @@ public final class IngestMetadata implements Metadata.Custom {
     // IngestMetadata is registered as custom metadata.
     private final Map<String, PipelineConfiguration> pipelines;
 
-    private IngestMetadata() {
-        this.pipelines = Collections.emptyMap();
-    }
-
     public IngestMetadata(Map<String, PipelineConfiguration> pipelines) {
         this.pipelines = Collections.unmodifiableMap(pipelines);
     }
@@ -72,7 +69,7 @@ public final class IngestMetadata implements Metadata.Custom {
 
     public IngestMetadata(StreamInput in) throws IOException {
         int size = in.readVInt();
-        Map<String, PipelineConfiguration> pipelines = new HashMap<>(size);
+        Map<String, PipelineConfiguration> pipelines = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             PipelineConfiguration pipeline = PipelineConfiguration.readFrom(in);
             pipelines.put(pipeline.getId(), pipeline);

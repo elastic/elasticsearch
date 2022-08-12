@@ -33,17 +33,10 @@ public class BooleanScriptFieldTermQueryTests extends AbstractBooleanScriptField
         String fieldName = orig.fieldName();
         boolean term = orig.term();
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                term = term == false;
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> term = term == false;
+            default -> fail();
         }
         return new BooleanScriptFieldTermQuery(script, leafFactory, fieldName, term);
     }

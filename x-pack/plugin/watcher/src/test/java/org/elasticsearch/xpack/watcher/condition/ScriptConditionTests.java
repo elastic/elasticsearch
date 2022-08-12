@@ -96,7 +96,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testExecute() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("ctx.payload.hits.total.value > 1"), scriptService);
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,
@@ -118,7 +118,7 @@ public class ScriptConditionTests extends ESTestCase {
         );
         ScriptCondition executable = new ScriptCondition(script, scriptService);
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,
@@ -140,7 +140,7 @@ public class ScriptConditionTests extends ESTestCase {
         ExecutableCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,
@@ -181,13 +181,14 @@ public class ScriptConditionTests extends ESTestCase {
         String script;
         Class<? extends Exception> expectedException;
         switch (scriptType) {
-            case STORED:
+            case STORED -> {
                 expectedException = ResourceNotFoundException.class;
                 script = "nonExisting_script";
-                break;
-            default:
+            }
+            default -> {
                 expectedException = GeneralScriptException.class;
                 script = "foo = = 1";
+            }
         }
         XContentBuilder builder = createConditionContent(script, "mockscript", scriptType);
         XContentParser parser = createParser(builder);
@@ -211,7 +212,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testScriptConditionThrowException() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("null.foo"), scriptService);
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,
@@ -231,7 +232,7 @@ public class ScriptConditionTests extends ESTestCase {
             scriptService
         );
         SearchResponse response = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             3,
             3,
@@ -256,14 +257,9 @@ public class ScriptConditionTests extends ESTestCase {
         }
         builder.startObject();
         switch (scriptType) {
-            case INLINE:
-                builder.field("source", script);
-                break;
-            case STORED:
-                builder.field("id", script);
-                break;
-            default:
-                throw illegalArgument("unsupported script type [{}]", scriptType);
+            case INLINE -> builder.field("source", script);
+            case STORED -> builder.field("id", script);
+            default -> throw illegalArgument("unsupported script type [{}]", scriptType);
         }
         if (scriptLang != null && scriptType != ScriptType.STORED) {
             builder.field("lang", scriptLang);

@@ -11,9 +11,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     private final AbstractHyperLogLogPlusPlus counts;
 
     InternalCardinality(String name, AbstractHyperLogLogPlusPlus counts, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, null, metadata);
         this.counts = counts;
     }
 
@@ -34,7 +34,6 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
      */
     public InternalCardinality(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         if (in.readBoolean()) {
             counts = AbstractHyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
         } else {
@@ -116,6 +115,15 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
             return other.counts == null;
         }
         return counts.equals(0, other.counts, 0);
+    }
+
+    /**
+     * The counts created in cardinality do not lend themselves to be automatically scaled.
+     * Consequently, when finalizing the sampling, nothing is changed and the same object is returned
+     */
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     AbstractHyperLogLogPlusPlus getState() {

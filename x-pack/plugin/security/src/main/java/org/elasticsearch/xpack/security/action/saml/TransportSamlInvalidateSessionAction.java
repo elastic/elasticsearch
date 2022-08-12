@@ -123,16 +123,21 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
 
     private void invalidateTokenPair(Tuple<UserToken, String> tokenPair, ActionListener<TokensInvalidationResult> listener) {
         // Invalidate the refresh token first, so the client doesn't trigger a refresh once the access token is invalidated
-        tokenService.invalidateRefreshToken(
-            tokenPair.v2(),
-            ActionListener.wrap(
-                ignore -> tokenService.invalidateAccessToken(tokenPair.v1(), ActionListener.wrap(listener::onResponse, e -> {
-                    logger.info("Failed to invalidate SAML access_token [{}] - {}", tokenPair.v1().getId(), e.toString());
-                    listener.onFailure(e);
-                })),
-                listener::onFailure
-            )
-        );
+        if (tokenPair.v2() != null) {
+            tokenService.invalidateRefreshToken(
+                tokenPair.v2(),
+                ActionListener.wrap(ignore -> invalidateAccessToken(tokenPair.v1(), listener), listener::onFailure)
+            );
+        } else {
+            invalidateAccessToken(tokenPair.v1(), listener);
+        }
+    }
+
+    private void invalidateAccessToken(UserToken userToken, ActionListener<TokensInvalidationResult> listener) {
+        tokenService.invalidateAccessToken(userToken, ActionListener.wrap(listener::onResponse, e -> {
+            logger.info("Failed to invalidate SAML access_token [{}] - {}", userToken.getId(), e.toString());
+            listener.onFailure(e);
+        }));
     }
 
     private Predicate<Map<String, Object>> containsMetadata(Map<String, Object> requiredMetadata) {

@@ -18,7 +18,6 @@ package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 /**
  * Injects a field or method of a given object.
@@ -26,5 +25,4 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 interface SingleMemberInjector {
     void inject(Errors errors, InternalContext context, Object o);
 
-    InjectionPoint getInjectionPoint();
 }

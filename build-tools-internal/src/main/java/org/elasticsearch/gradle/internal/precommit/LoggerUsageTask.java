@@ -12,7 +12,8 @@ import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
@@ -39,7 +40,14 @@ public abstract class LoggerUsageTask extends PrecommitTask {
 
     private FileCollection classpath;
 
-    public LoggerUsageTask() {
+    private final ListProperty<FileCollection> classesDirs;
+
+    private ObjectFactory objectFactory;
+
+    @Inject
+    public LoggerUsageTask(ObjectFactory objectFactory) {
+        this.classesDirs = objectFactory.listProperty(FileCollection.class);
+        this.objectFactory = objectFactory;
         setDescription("Runs LoggerUsageCheck on output directories of all source sets");
     }
 
@@ -68,19 +76,11 @@ public abstract class LoggerUsageTask extends PrecommitTask {
     @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getClassDirectories() {
-        return getProject().getExtensions()
-            .getByType(JavaPluginExtension.class)
-            .getSourceSets()
-            .stream()
-            // Don't pick up all source sets like the java9 ones as logger-check doesn't support the class format
-            .filter(
-                sourceSet -> sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
-                    || sourceSet.getName().equals(SourceSet.TEST_SOURCE_SET_NAME)
-            )
-            .map(sourceSet -> sourceSet.getOutput().getClassesDirs())
-            .reduce(FileCollection::plus)
-            .orElse(getProject().files())
-            .filter(File::exists);
+        return classesDirs.get().stream().reduce(FileCollection::plus).orElse(objectFactory.fileCollection()).filter(File::exists);
+    }
+
+    public void addSourceSet(SourceSet sourceSet) {
+        classesDirs.add(sourceSet.getOutput().getClassesDirs());
     }
 
     abstract static class LoggerUsageWorkAction implements WorkAction<Parameters> {

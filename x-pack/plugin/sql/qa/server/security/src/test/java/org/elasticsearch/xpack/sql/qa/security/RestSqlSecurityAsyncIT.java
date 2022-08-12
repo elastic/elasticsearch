@@ -38,15 +38,15 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
     public void indexDocuments() throws IOException {
         createIndex("index", Settings.EMPTY);
         index("index", "0", "event_type", "my_event", "@timestamp", "2020-04-09T12:35:48Z", "val", 0);
-        refresh("index");
+        refresh(adminClient(), "index");
 
         createIndex("index-user1", Settings.EMPTY);
         index("index-user1", "0", "event_type", "my_event", "@timestamp", "2020-04-09T12:35:48Z", "val", 0);
-        refresh("index-user1");
+        refresh(adminClient(), "index-user1");
 
         createIndex("index-user2", Settings.EMPTY);
         index("index-user2", "0", "event_type", "my_event", "@timestamp", "2020-04-09T12:35:48Z", "val", 0);
-        refresh("index-user2");
+        refresh(adminClient(), "index-user2");
     }
 
     @Override
@@ -133,10 +133,6 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
         final Request request = new Request("POST", "/" + index + "/_doc/" + id);
         request.setJsonEntity(Strings.toString(document));
         assertOK(client().performRequest(request));
-    }
-
-    static void refresh(String index) throws IOException {
-        assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
     static Response get(String index, String id, String user) throws IOException {

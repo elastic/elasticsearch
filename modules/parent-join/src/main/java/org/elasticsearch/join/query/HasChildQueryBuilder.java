@@ -18,9 +18,11 @@ import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.NoRewriteMatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -59,6 +61,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * The default minimum number of children that are required to match for the parent to be considered a match.
      */
     public static final int DEFAULT_MIN_CHILDREN = 1;
+    private static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.None;
 
     /**
      * The default value for ignore_unmapped.
@@ -79,7 +82,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     private InnerHitBuilder innerHitBuilder;
     private int minChildren = DEFAULT_MIN_CHILDREN;
     private int maxChildren = DEFAULT_MAX_CHILDREN;
-    private boolean ignoreUnmapped = false;
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     public HasChildQueryBuilder(String type, QueryBuilder query, ScoreMode scoreMode) {
         this(type, query, DEFAULT_MIN_CHILDREN, DEFAULT_MAX_CHILDREN, scoreMode, null);
@@ -223,11 +226,19 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.field(QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
         builder.field(TYPE_FIELD.getPreferredName(), type);
-        builder.field(SCORE_MODE_FIELD.getPreferredName(), NestedQueryBuilder.scoreModeAsString(scoreMode));
-        builder.field(MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
-        builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
-        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
-        printBoostAndQueryName(builder);
+        if (false == scoreMode.equals(DEFAULT_SCORE_MODE)) {
+            builder.field(SCORE_MODE_FIELD.getPreferredName(), NestedQueryBuilder.scoreModeAsString(scoreMode));
+        }
+        if (minChildren != DEFAULT_MIN_CHILDREN) {
+            builder.field(MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
+        }
+        if (maxChildren != DEFAULT_MAX_CHILDREN) {
+            builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
+        }
+        if (ignoreUnmapped != DEFAULT_IGNORE_UNMAPPED) {
+            builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
+        }
+        boostAndQueryNameToXContent(builder);
         if (innerHitBuilder != null) {
             builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
@@ -237,7 +248,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     public static HasChildQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
-        ScoreMode scoreMode = ScoreMode.None;
+        ScoreMode scoreMode = DEFAULT_SCORE_MODE;
         int minChildren = HasChildQueryBuilder.DEFAULT_MIN_CHILDREN;
         int maxChildren = HasChildQueryBuilder.DEFAULT_MAX_CHILDREN;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
@@ -333,7 +344,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         Query childFilter = joiner.filter(type);
         Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);
         MappedFieldType ft = context.getFieldType(parentJoinField);
-        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft);
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
         return new LateParsingQuery(
             parentFilter,
             filteredQuery,
@@ -415,7 +426,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     // blow up since for this query to work we have to have a DirectoryReader otherwise
                     // we can't load global ordinals - for this to work we simply check if the reader has no leaves
                     // and rewrite to match nothing
-                    return new MatchNoDocsQuery();
+                    return new NoRewriteMatchNoDocsQuery("Can't load against an empty reader");
                 }
                 throw new IllegalStateException(
                     "can't load global ordinals for reader of type: " + reader.getClass() + " must be a DirectoryReader"
@@ -526,5 +537,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             );
             innerHits.put(name, innerHitContextBuilder);
         }
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

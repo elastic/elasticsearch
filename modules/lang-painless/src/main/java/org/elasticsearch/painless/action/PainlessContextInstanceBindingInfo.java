@@ -53,10 +53,10 @@ public class PainlessContextInstanceBindingInfo implements Writeable, ToXContent
 
     public PainlessContextInstanceBindingInfo(PainlessInstanceBinding painlessInstanceBinding) {
         this(
-            painlessInstanceBinding.javaMethod.getDeclaringClass().getName(),
-            painlessInstanceBinding.javaMethod.getName(),
-            painlessInstanceBinding.returnType.getName(),
-            painlessInstanceBinding.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
+            painlessInstanceBinding.javaMethod().getDeclaringClass().getName(),
+            painlessInstanceBinding.javaMethod().getName(),
+            painlessInstanceBinding.returnType().getName(),
+            painlessInstanceBinding.typeParameters().stream().map(Class::getName).collect(Collectors.toList())
 
         );
     }

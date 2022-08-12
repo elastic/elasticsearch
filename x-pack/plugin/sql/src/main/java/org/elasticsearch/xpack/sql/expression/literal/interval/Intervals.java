@@ -80,24 +80,15 @@ public final class Intervals {
         // Cannot use Period.of since it accepts int so use plus which accepts long
         // Further more Period and Duration have inconsistent addition methods but plus is there
         try {
-            switch (unit) {
-                case YEAR:
-                    return Period.ZERO.plusYears(duration);
-                case MONTH:
-                    return Period.ZERO.plusMonths(duration);
-                case DAY:
-                    return Duration.ZERO.plusDays(duration);
-                case HOUR:
-                    return Duration.ZERO.plusHours(duration);
-                case MINUTE:
-                    return Duration.ZERO.plusMinutes(duration);
-                case SECOND:
-                    return Duration.ZERO.plusSeconds(duration);
-                case MILLISECOND:
-                    return Duration.ZERO.plusMillis(duration);
-                default:
-                    throw new ParsingException(source, "Cannot parse duration [{}]", unit);
-            }
+            return switch (unit) {
+                case YEAR -> Period.ZERO.plusYears(duration);
+                case MONTH -> Period.ZERO.plusMonths(duration);
+                case DAY -> Duration.ZERO.plusDays(duration);
+                case HOUR -> Duration.ZERO.plusHours(duration);
+                case MINUTE -> Duration.ZERO.plusMinutes(duration);
+                case SECOND -> Duration.ZERO.plusSeconds(duration);
+                case MILLISECOND -> Duration.ZERO.plusMillis(duration);
+            };
         } catch (ArithmeticException ae) {
             throw new ParsingException(source, "Value [{}] cannot be used as it is too large to convert into [{}]s", duration, unit);
         }
@@ -105,22 +96,15 @@ public final class Intervals {
 
     public static DataType intervalType(Source source, TimeUnit leading, TimeUnit trailing) {
         if (trailing == null) {
-            switch (leading) {
-                case YEAR:
-                    return INTERVAL_YEAR;
-                case MONTH:
-                    return INTERVAL_MONTH;
-                case DAY:
-                    return INTERVAL_DAY;
-                case HOUR:
-                    return INTERVAL_HOUR;
-                case MINUTE:
-                    return INTERVAL_MINUTE;
-                case SECOND:
-                    return INTERVAL_SECOND;
-                default:
-                    throw new ParsingException(source, "Cannot determine datatype for [{}]", leading);
-            }
+            return switch (leading) {
+                case YEAR -> INTERVAL_YEAR;
+                case MONTH -> INTERVAL_MONTH;
+                case DAY -> INTERVAL_DAY;
+                case HOUR -> INTERVAL_HOUR;
+                case MINUTE -> INTERVAL_MINUTE;
+                case SECOND -> INTERVAL_SECOND;
+                default -> throw new ParsingException(source, "Cannot determine datatype for [{}]", leading);
+            };
         } else {
             if (leading == TimeUnit.YEAR && trailing == TimeUnit.MONTH) {
                 return INTERVAL_YEAR_TO_MONTH;
@@ -190,18 +174,13 @@ public final class Intervals {
     }
 
     private static String intervalUnit(char unitChar) {
-        switch (unitChar) {
-            case 'D':
-                return "DAY";
-            case 'H':
-                return "HOUR";
-            case 'M':
-                return "MINUTE";
-            case 'S':
-                return "SECOND";
-            default:
-                throw new QlIllegalArgumentException("Unknown unit {}", unitChar);
-        }
+        return switch (unitChar) {
+            case 'D' -> "DAY";
+            case 'H' -> "HOUR";
+            case 'M' -> "MINUTE";
+            case 'S' -> "SECOND";
+            default -> throw new QlIllegalArgumentException("Unknown unit {}", unitChar);
+        };
     }
 
     //

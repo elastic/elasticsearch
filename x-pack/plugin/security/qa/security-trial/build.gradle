@@ -20,7 +20,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
 
-  extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
+  rolesFile file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
   user username: "x_pack_rest_user", password: "x-pack-test-password"

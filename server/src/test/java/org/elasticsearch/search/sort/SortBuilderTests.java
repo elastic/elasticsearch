@@ -106,7 +106,7 @@ public class SortBuilderTests extends ESTestCase {
         assertEquals(new GeoDistanceSortBuilder("pin.location", 40, -70), sortBuilder);
 
         json = """
-            { "sort" : [{"_geo_distance" : {"pin.location" : "40,-70" } }] }""";
+            { "sort" : [{"_geo_distance" : {"pin.location" : "POINT (-70 40)" } }] }""";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
@@ -175,28 +175,15 @@ public class SortBuilderTests extends ESTestCase {
         int size = randomIntBetween(1, 5);
         List<SortBuilder<?>> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            switch (randomIntBetween(0, 5)) {
-                case 0:
-                    list.add(new ScoreSortBuilder());
-                    break;
-                case 1:
-                    list.add(new FieldSortBuilder(randomAlphaOfLengthBetween(1, 10)));
-                    break;
-                case 2:
-                    list.add(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
-                    break;
-                case 3:
-                    list.add(GeoDistanceSortBuilderTests.randomGeoDistanceSortBuilder());
-                    break;
-                case 4:
-                    list.add(ScriptSortBuilderTests.randomScriptSortBuilder());
-                    break;
-                case 5:
-                    list.add(SortBuilders.pitTiebreaker());
-                    break;
-                default:
-                    throw new IllegalStateException("unexpected randomization in tests");
-            }
+            list.add(switch (randomIntBetween(0, 5)) {
+                case 0 -> new ScoreSortBuilder();
+                case 1 -> new FieldSortBuilder(randomAlphaOfLengthBetween(1, 10));
+                case 2 -> SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME);
+                case 3 -> GeoDistanceSortBuilderTests.randomGeoDistanceSortBuilder();
+                case 4 -> ScriptSortBuilderTests.randomScriptSortBuilder();
+                case 5 -> SortBuilders.pitTiebreaker();
+                default -> throw new IllegalStateException("unexpected randomization in tests");
+            });
         }
         return list;
     }
@@ -223,7 +210,7 @@ public class SortBuilderTests extends ESTestCase {
                 },
                 {
                   "_geo_distance": {
-                    "pin.location": "40,-70"
+                    "pin.location": "POINT (-70 40)"
                   }
                 },
                 "_score"

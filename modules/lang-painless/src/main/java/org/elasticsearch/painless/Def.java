@@ -19,6 +19,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -146,6 +147,8 @@ public final class Def {
     /** factory for arraylength MethodHandle (intrinsic) from Java 9 (pkg-private for tests) */
     static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
+    public static final Map<Class<?>, MethodHandle> DEF_TO_BOXED_TYPE_IMPLICIT_CAST;
+
     static {
         final MethodHandles.Lookup methodHandlesLookup = MethodHandles.publicLookup();
 
@@ -182,6 +185,43 @@ public final class Def {
             arrayLengthMHFactory = null;
         }
         JAVA9_ARRAY_LENGTH_MH_FACTORY = arrayLengthMHFactory;
+
+        Map<Class<?>, MethodHandle> defToBoxedTypeImplicitCast = new HashMap<>();
+
+        try {
+            defToBoxedTypeImplicitCast.put(
+                Byte.class,
+                methodHandlesLookup.findStatic(Def.class, "defToByteImplicit", MethodType.methodType(Byte.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Short.class,
+                methodHandlesLookup.findStatic(Def.class, "defToShortImplicit", MethodType.methodType(Short.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Character.class,
+                methodHandlesLookup.findStatic(Def.class, "defToCharacterImplicit", MethodType.methodType(Character.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Integer.class,
+                methodHandlesLookup.findStatic(Def.class, "defToIntegerImplicit", MethodType.methodType(Integer.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Long.class,
+                methodHandlesLookup.findStatic(Def.class, "defToLongImplicit", MethodType.methodType(Long.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Float.class,
+                methodHandlesLookup.findStatic(Def.class, "defToFloatImplicit", MethodType.methodType(Float.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Double.class,
+                methodHandlesLookup.findStatic(Def.class, "defToDoubleImplicit", MethodType.methodType(Double.class, Object.class))
+            );
+        } catch (NoSuchMethodException | IllegalAccessException exception) {
+            throw new IllegalStateException(exception);
+        }
+
+        DEF_TO_BOXED_TYPE_IMPLICIT_CAST = Collections.unmodifiableMap(defToBoxedTypeImplicitCast);
     }
 
     /** Hack to rethrow unknown Exceptions from {@link MethodHandle#invokeExact}: */
@@ -256,7 +296,7 @@ public final class Def {
                 );
             }
 
-            MethodHandle handle = painlessMethod.methodHandle;
+            MethodHandle handle = painlessMethod.methodHandle();
             Object[] injections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
             if (injections.length > 0) {
@@ -298,7 +338,7 @@ public final class Def {
             );
         }
 
-        MethodHandle handle = method.methodHandle;
+        MethodHandle handle = method.methodHandle();
         Object[] injections = PainlessLookupUtility.buildInjections(method, constants);
 
         if (injections.length > 0) {
@@ -313,7 +353,7 @@ public final class Def {
             if (lambdaArgs.get(i - 1)) {
                 Def.Encoding defEncoding = new Encoding((String) args[upTo++]);
                 MethodHandle filter;
-                Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced - (defEncoding.needsInstance ? 1 : 0));
+                Class<?> interfaceType = method.typeParameters().get(i - 1 - replaced - (defEncoding.needsInstance ? 1 : 0));
                 if (defEncoding.isStatic) {
                     // the implementation is strongly typed, now that we know the interface type,
                     // we have everything.
@@ -385,7 +425,7 @@ public final class Def {
         if (interfaceMethod == null) {
             throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
         }
-        int arity = interfaceMethod.typeParameters.size();
+        int arity = interfaceMethod.typeParameters().size();
         PainlessMethod implMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
         if (implMethod == null) {
             throw new IllegalArgumentException(
@@ -399,8 +439,8 @@ public final class Def {
             constants,
             methodHandlesLookup,
             interfaceType,
-            PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
-            implMethod.javaMethod.getName(),
+            PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass()),
+            implMethod.javaMethod().getName(),
             1,
             false
         );

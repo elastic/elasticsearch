@@ -13,13 +13,14 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -39,7 +40,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -202,7 +202,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
             .subAggregation(lineAggregationBuilder);
 
-        Map<String, InternalGeoLine> lines = new HashMap<>(1);
+        Map<String, InternalGeoLine> lines = Maps.newMapWithExpectedSize(1);
         String groupOrd = "0";
         long[] points = new long[numPoints];
         double[] sortValues = new double[numPoints];
@@ -263,6 +263,40 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {}, terms -> { assertTrue(terms.getBuckets().isEmpty()); });
     }
 
+    public void testOnePoint() throws IOException {
+        int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name").point(valueConfig)
+            .sortOrder(SortOrder.ASC)
+            .sort(sortConfig)
+            .size(size);
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
+            .subAggregation(lineAggregationBuilder);
+        double lon = GeoEncodingUtils.decodeLongitude(randomInt());
+        double lat = GeoEncodingUtils.decodeLatitude(randomInt());
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(
+                Arrays.asList(
+                    new LatLonDocValuesField("value_field", lat, lon),
+                    new SortedNumericDocValuesField("sort_field", NumericUtils.doubleToSortableLong(randomDouble())),
+                    new SortedDocValuesField("group_id", new BytesRef("groupOrd"))
+                )
+            );
+        }, terms -> {
+            assertEquals(1, terms.getBuckets().size());
+            InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("_name");
+            assertNotNull(geoLine);
+            Map<String, Object> geojson = geoLine.geoJSONGeometry();
+            assertEquals("Point", geojson.get("type"));
+            assertTrue(geojson.get("coordinates") instanceof double[]);
+            double[] coordinates = (double[]) geojson.get("coordinates");
+            assertEquals(2, coordinates.length);
+            assertEquals(lon, coordinates[0], 1e-6);
+            assertEquals(lat, coordinates[1], 1e-6);
+        });
+    }
+
     private void testAggregator(SortOrder sortOrder) throws IOException {
         int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
@@ -275,9 +309,9 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .subAggregation(lineAggregationBuilder);
 
         int numGroups = randomIntBetween(1, 2);
-        Map<String, InternalGeoLine> lines = new HashMap<>(numGroups);
-        Map<Integer, long[]> indexedPoints = new HashMap<>(numGroups);
-        Map<Integer, double[]> indexedSortValues = new HashMap<>(numGroups);
+        Map<String, InternalGeoLine> lines = Maps.newMapWithExpectedSize(numGroups);
+        Map<Integer, long[]> indexedPoints = Maps.newMapWithExpectedSize(numGroups);
+        Map<Integer, double[]> indexedSortValues = Maps.newMapWithExpectedSize(numGroups);
         for (int groupOrd = 0; groupOrd < numGroups; groupOrd++) {
             int numPoints = randomIntBetween(2, 2 * size);
             boolean complete = numPoints <= size;

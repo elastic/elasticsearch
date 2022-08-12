@@ -20,14 +20,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -126,9 +125,10 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
             IndexRoutingTable indexRoutingTable = routingTable.index("test");
             IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-            for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
-                final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
-                for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                    ShardRouting shardRouting = shardRoutingTable.shard(copy);
                     if (shardRouting.primary()) {
                         newIndexRoutingTable.addShard(primary);
                     } else {
@@ -139,8 +139,10 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         }
 
-        ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
-        shards.put(primary.shardId(), new RestoreInProgress.ShardRestoreStatus(clusterState.getNodes().getLocalNodeId(), shardState));
+        Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = Map.of(
+            primary.shardId(),
+            new RestoreInProgress.ShardRestoreStatus(clusterState.getNodes().getLocalNodeId(), shardState)
+        );
 
         Snapshot snapshot = recoverySource.snapshot();
         RestoreInProgress.State restoreState = RestoreInProgress.State.STARTED;
@@ -148,8 +150,9 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             recoverySource.restoreUUID(),
             snapshot,
             restoreState,
+            false,
             singletonList("test"),
-            shards.build()
+            shards
         );
 
         clusterState = ClusterState.builder(clusterState)
@@ -202,7 +205,6 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         final AllocationDecider decider = new RestoreInProgressAllocationDecider();
         final RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
-            clusterState.getRoutingNodes(),
             clusterState,
             null,
             null,
@@ -215,7 +217,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             decision = decider.canAllocate(shardRouting, allocation);
         } else {
             DiscoveryNode node = clusterState.getNodes().getMasterNode();
-            decision = decider.canAllocate(shardRouting, new RoutingNode(node.getId(), node), allocation);
+            decision = decider.canAllocate(shardRouting, RoutingNodesHelper.routingNode(node.getId(), node), allocation);
         }
         return decision;
     }

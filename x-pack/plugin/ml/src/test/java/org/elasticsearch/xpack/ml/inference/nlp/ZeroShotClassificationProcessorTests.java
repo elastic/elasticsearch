@@ -31,8 +31,8 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testBuildRequest() throws IOException {
         NlpTokenizer tokenizer = NlpTokenizer.build(
-            new Vocabulary(TEST_CASED_VOCAB, randomAlphaOfLength(10)),
-            new BertTokenization(null, true, 512, Tokenization.Truncate.NONE)
+            new Vocabulary(TEST_CASED_VOCAB, randomAlphaOfLength(10), List.of()),
+            new BertTokenization(null, true, 512, Tokenization.Truncate.NONE, -1)
         );
 
         ZeroShotClassificationConfig config = new ZeroShotClassificationConfig(
@@ -48,9 +48,9 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
 
         NlpTask.Request request = processor.getRequestBuilder(
             (NlpConfig) new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("new", "stuff")).build().apply(config)
-        ).buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
+        ).buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1);
 
-        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
+        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertEquals("request1", jsonDocAsMap.get("request_id"));

@@ -46,4 +46,6 @@
         wait_for_completion: false
   - match: { task: '/^\S+:\d+$/' }
 
-
+  - do:
+      tasks.list:
+        wait_for_completion: true

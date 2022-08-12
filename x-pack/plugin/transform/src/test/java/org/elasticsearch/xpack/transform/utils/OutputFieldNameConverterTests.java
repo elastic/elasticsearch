@@ -25,5 +25,6 @@ public class OutputFieldNameConverterTests extends ESTestCase {
         assertEquals("NaN", OutputFieldNameConverter.fromDouble(Double.NaN));
         // infinity
         assertEquals("-Infinity", OutputFieldNameConverter.fromDouble(Double.NEGATIVE_INFINITY));
+        assertEquals("Infinity", OutputFieldNameConverter.fromDouble(Double.POSITIVE_INFINITY));
     }
 }

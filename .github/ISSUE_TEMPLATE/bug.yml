@@ -1,0 +1,70 @@
+name: Bug
+description: "Report a confirmed bug. For unconfirmed bugs please visit https://discuss.elastic.co/c/elasticsearch"
+labels: [">bug", "needs:triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Github is reserved for bug reports and feature requests; it is
+        not the place for general questions. If you have a question or
+        an unconfirmed bug, please visit the [forums](https://discuss.elastic.co/c/elasticsearch).
+        Please also check your OS is [supported](https://www.elastic.co/support/matrix#show_os).
+        If it is not, the issue is likely to be closed.
+
+        For security vulnerabilities please only send reports to security@elastic.co.
+        See https://www.elastic.co/community/security for more information.
+
+        Please fill in the following details to help us reproduce the bug:
+  - type: input
+    id: es_version
+    attributes:
+      label: Elasticsearch Version
+      description: The version of Elasticsearch you are running, found with `bin/elasticsearch --version`
+    validations:
+      required: true
+  - type: input
+    id: plugins
+    attributes:
+      label: Installed Plugins
+      description: Comma separated list of plugins that you have installed
+    validations:
+      required: false
+  - type: input
+    id: java_version
+    attributes:
+      label: Java Version
+      description: The version of Java Elasticsearch is running with, found with `java -version`
+      value: _bundled_
+    validations:
+      required: true
+  - type: input
+    id: os_version
+    attributes:
+      label: OS Version    
+      description: The version of your operating system, found with `uname -a` of on unix-like system
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Description
+      description: A description of the problem including expected versus actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: |
+        A minimal but complete recreation of the problem including (e.g.) index
+        creation, mappings, settings, query etc.  The easier you make for us to
+        reproduce it, the more likely that somebody will take the time to look at it.
+    validations:
+      required: true
+  - type: textarea
+    id: logs 
+    attributes:
+      label: Logs (if relevant)
+      description: Any log relevant log messages or snippets
+    validations:
+      required: false

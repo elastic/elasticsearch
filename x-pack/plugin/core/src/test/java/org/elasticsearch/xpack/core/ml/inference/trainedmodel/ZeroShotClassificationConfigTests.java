@@ -18,6 +18,18 @@ import java.util.function.Predicate;
 
 public class ZeroShotClassificationConfigTests extends InferenceConfigItemTestCase<ZeroShotClassificationConfig> {
 
+    public static ZeroShotClassificationConfig mutateForVersion(ZeroShotClassificationConfig instance, Version version) {
+        return new ZeroShotClassificationConfig(
+            instance.getClassificationLabels(),
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getHypothesisTemplate(),
+            instance.isMultiLabel(),
+            instance.getLabels().orElse(null),
+            instance.getResultsField()
+        );
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return true;
@@ -45,14 +57,20 @@ public class ZeroShotClassificationConfigTests extends InferenceConfigItemTestCa
 
     @Override
     protected ZeroShotClassificationConfig mutateInstanceForVersion(ZeroShotClassificationConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static ZeroShotClassificationConfig createRandom() {
         return new ZeroShotClassificationConfig(
             randomFrom(List.of("entailment", "neutral", "contradiction"), List.of("contradiction", "neutral", "entailment")),
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomBoolean()
+                ? null
+                : randomFrom(
+                    BertTokenizationTests.createRandom(),
+                    MPNetTokenizationTests.createRandom(),
+                    RobertaTokenizationTests.createRandom()
+                ),
             randomAlphaOfLength(10),
             randomBoolean(),
             randomBoolean() ? null : randomList(1, 5, () -> randomAlphaOfLength(10)),

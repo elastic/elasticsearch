@@ -198,3 +198,237 @@ document level security on tsid is not possible:
             tsids:
               terms:
                 field: _tsid
+
+---
+create_doc permission can create:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid support introduced in 8.1.0
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "createonly"
+        body:  >
+          {
+            "indices": [
+              {
+                "names": ["*"],
+                "privileges": ["create_doc"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "limited"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "createonly" ],
+            "full_name" : "user who can only create docs"
+          }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2021-04-28T22:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - match: { items.0.create._version: 1 }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      index:
+        refresh: true
+        index: test
+        body:
+          "@timestamp": "2021-04-28T23:51:03.142Z"
+          metricset: pod
+          k8s:
+            pod:
+              name: dog
+              uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+              ip: 10.10.55.3
+              network:
+                tx: 111434595272
+                rx: 430605511
+  - match: { _version: 1 }
+
+---
+create_doc permission can't overwrite:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid support introduced in 8.1.0
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "createonly"
+        body:  >
+          {
+            "indices": [
+              {
+                "names": ["*"],
+                "privileges": ["create_doc"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "limited"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "createonly" ],
+            "full_name" : "user who can only create docs"
+          }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - match: { items.0.index.error.reason: "/is\\ unauthorized\\ for\\ user\\ \\[limited\\]/" }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      catch: "/is\ unauthorized\ for\ user\ \\[limited\\]/"
+      index:
+        refresh: true
+        index: test
+        op_type: index
+        body:
+          "@timestamp": "2021-04-28T18:51:03.142Z"
+          metricset: pod
+          k8s:
+            pod:
+              name: dog
+              uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+              ip: 10.10.55.3
+              network:
+                tx: 111434595272
+                rx: 430605511
+
+---
+index permission can create:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid support introduced in 8.1.0
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "indexonly"
+        body:  >
+          {
+            "indices": [
+              {
+                "names": ["*"],
+                "privileges": ["index"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "limited"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "indexonly" ],
+            "full_name" : "user who can only index docs"
+          }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2021-04-28T22:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - match: { items.0.create._version: 1 }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      index:
+        refresh: true
+        index: test
+        body:
+          "@timestamp": "2021-04-28T23:51:03.142Z"
+          metricset: pod
+          k8s:
+            pod:
+              name: dog
+              uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+              ip: 10.10.55.3
+              network:
+                tx: 111434595272
+                rx: 430605511
+  - match: { _version: 1 }
+
+---
+index permission can overwrite:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid support introduced in 8.1.0
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "indexonly"
+        body:  >
+          {
+            "indices": [
+              {
+                "names": ["*"],
+                "privileges": ["index"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "limited"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "indexonly" ],
+            "full_name" : "user who can only index docs"
+          }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - match: { items.0.index._version: 2 }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      index:
+        refresh: true
+        index: test
+        op_type: index
+        body:
+          "@timestamp": "2021-04-28T18:51:03.142Z"
+          metricset: pod
+          k8s:
+            pod:
+              name: dog
+              uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+              ip: 10.10.55.3
+              network:
+                tx: 111434595272
+                rx: 430605511
+  - match: { _version: 2 }

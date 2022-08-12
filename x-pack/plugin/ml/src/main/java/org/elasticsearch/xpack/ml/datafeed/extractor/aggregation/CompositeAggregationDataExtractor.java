@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -18,6 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * An implementation that extracts data from elasticsearch using search with composite aggregations on a client.
@@ -84,7 +86,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     @Override
     public void cancel() {
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Data extractor received cancel request", context.jobId));
+        LOGGER.debug(() -> "[" + context.jobId + "] Data extractor received cancel request");
         isCancelled = true;
     }
 
@@ -94,19 +96,20 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
+    public Result next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
+        SearchInterval searchInterval = new SearchInterval(context.start, context.end);
         Aggregations aggs = search();
         if (aggs == null) {
-            LOGGER.trace(() -> new ParameterizedMessage("[{}] extraction finished", context.jobId));
+            LOGGER.trace(() -> "[" + context.jobId + "] extraction finished");
             hasNext = false;
             afterKey = null;
-            return Optional.empty();
+            return new Result(searchInterval, Optional.empty());
         }
-        return Optional.of(processAggs(aggs));
+        return new Result(searchInterval, Optional.of(processAggs(aggs)));
     }
 
     private Aggregations search() {
@@ -116,12 +119,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         // Also, it doesn't make sense to have a derivative when grouping by time AND by some other criteria.
 
         LOGGER.trace(
-            () -> new ParameterizedMessage(
-                "[{}] Executing composite aggregated search from [{}] to [{}]",
-                context.jobId,
-                context.start,
-                context.end
-            )
+            () -> format("[%s] Executing composite aggregated search from [%s] to [%s]", context.jobId, context.start, context.end)
         );
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
             .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
@@ -135,7 +133,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
-        LOGGER.trace(() -> new ParameterizedMessage("[{}] Search composite response was obtained", context.jobId));
+        LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         Aggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {
@@ -149,7 +147,14 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            searchRequestBuilder::get
+        );
+        checkForSkippedClusters(searchResponse);
+        return searchResponse;
     }
 
     private InputStream processAggs(Aggregations aggs) throws IOException {
@@ -161,8 +166,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             context.compositeAggDateHistogramGroupSourceName
         );
         LOGGER.trace(
-            () -> new ParameterizedMessage(
-                "[{}] got [{}] composite buckets",
+            () -> format(
+                "[%s] got [%s] composite buckets",
                 context.jobId,
                 ((CompositeAggregation) aggs.get(compositeAggregationBuilder.getName())).getBuckets().size()
             )
@@ -187,8 +192,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
                     // If we are not matching the current bucket floor, then this simply aligns to the next bucket
                     nextBucketOnCancel = Intervals.alignToFloor(timestamp + interval, interval);
                     LOGGER.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] set future timestamp cancel to [{}] via timestamp [{}]",
+                        () -> format(
+                            "[%s] set future timestamp cancel to [%s] via timestamp [%s]",
                             context.jobId,
                             nextBucketOnCancel,
                             timestamp
@@ -202,8 +207,8 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         // If the process is canceled and cancelable, then we can indicate that there are no more buckets to process.
         if (isCancelled && cancellable) {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] cancelled before bucket [{}] on date_histogram page [{}]",
+                () -> format(
+                    "[%s] cancelled before bucket [%s] on date_histogram page [%s]",
                     context.jobId,
                     nextBucketOnCancel,
                     afterKeyTimeBucket != null ? afterKeyTimeBucket : "__null__"

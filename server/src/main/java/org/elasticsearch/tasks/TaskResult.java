@@ -80,7 +80,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
      */
     public TaskResult(StreamInput in) throws IOException {
         completed = in.readBoolean();
-        task = new TaskInfo(in);
+        task = TaskInfo.from(in);
         error = in.readOptionalBytesReference();
         response = in.readOptionalBytesReference();
     }
@@ -173,9 +173,8 @@ public final class TaskResult implements Writeable, ToXContentObject {
         );
         parser.declareBoolean(constructorArg(), new ParseField("completed"));
         parser.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
-        ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("error"));
-        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("response"));
+        ObjectParserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("error"));
+        ObjectParserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("response"));
         PARSER = parser.build();
     }
 

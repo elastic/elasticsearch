@@ -13,6 +13,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.script.FieldScript;
@@ -85,13 +86,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         this.docValueFields = clone.docValueFields == null ? null : new ArrayList<>(clone.docValueFields);
         this.fetchFields = clone.fetchFields == null ? null : new ArrayList<>(clone.fetchFields);
         this.scriptFields = clone.scriptFields == null ? null : new HashSet<>(clone.scriptFields);
-        this.fetchSourceContext = clone.fetchSourceContext == null
-            ? null
-            : new FetchSourceContext(
-                clone.fetchSourceContext.fetchSource(),
-                clone.fetchSourceContext.includes(),
-                clone.fetchSourceContext.excludes()
-            );
+        this.fetchSourceContext = clone.fetchSourceContext;
     }
 
     @Override
@@ -105,7 +100,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     public TopHitsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         explain = in.readBoolean();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         if (in.readBoolean()) {
             int size = in.readVInt();
             docValueFields = new ArrayList<>(size);
@@ -118,7 +113,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         if (in.readBoolean()) {
             int size = in.readVInt();
-            scriptFields = new HashSet<>(size);
+            scriptFields = Sets.newHashSetWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 scriptFields.add(new ScriptField(in));
             }
@@ -313,7 +308,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      */
     public TopHitsAggregationBuilder fetchSource(boolean fetch) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
+        this.fetchSourceContext = FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
         return this;
     }
 
@@ -351,7 +346,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      */
     public TopHitsAggregationBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes);
+        this.fetchSourceContext = FetchSourceContext.of(fetchSourceContext.fetchSource(), includes, excludes);
         return this;
     }
 
@@ -594,6 +589,11 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         throw new AggregationInitializationException(
             "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
         );
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -914,5 +914,10 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

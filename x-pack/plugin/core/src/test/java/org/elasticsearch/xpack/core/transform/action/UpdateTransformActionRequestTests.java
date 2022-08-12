@@ -46,10 +46,8 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         TimeValue timeout = instance.getTimeout();
 
         switch (between(0, 3)) {
-            case 0:
-                id += randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
+            case 0 -> id += randomAlphaOfLengthBetween(1, 5);
+            case 1 -> {
                 String description = update.getDescription() == null ? "" : update.getDescription();
                 description += randomAlphaOfLengthBetween(1, 5);
                 // fix corner case that description gets too long
@@ -66,15 +64,10 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
                     update.getMetadata(),
                     update.getRetentionPolicyConfig()
                 );
-                break;
-            case 2:
-                deferValidation ^= true;
-                break;
-            case 3:
-                timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
-                break;
-            default:
-                throw new AssertionError("Illegal randomization branch");
+            }
+            case 2 -> deferValidation ^= true;
+            case 3 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+            default -> throw new AssertionError("Illegal randomization branch");
         }
 
         return new Request(update, id, deferValidation, timeout);

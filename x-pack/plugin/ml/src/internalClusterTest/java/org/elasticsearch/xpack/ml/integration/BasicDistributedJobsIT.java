@@ -22,7 +22,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -43,7 +42,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MlInitializationService;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.io.IOException;
@@ -61,7 +59,6 @@ import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
@@ -91,6 +88,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         awaitJobOpenedAndAssigned(job.getId(), null);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82591")
     public void testFailOverBasics_withDataFeeder() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);
@@ -218,14 +216,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         }
         ensureStableCluster(3);
 
-        // By now the ML initialization service should have realised that there are no
-        // legacy ML templates in the cluster and it doesn't need to keep checking
-        MlInitializationService mlInitializationService = internalCluster().getInstance(
-            MlInitializationService.class,
-            internalCluster().getMasterName()
-        );
-        assertBusy(() -> assertThat(mlInitializationService.checkForLegacyMlTemplates(), is(false)));
-
         String jobId = "dedicated-ml-node-job";
         Job.Builder job = createJob(jobId, ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
@@ -247,7 +237,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
 
         logger.info("stop the only running ml node");
-        internalCluster().stopRandomNode(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE));
+        internalCluster().stopNode(
+            internalCluster().getNodeNameThat(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE))
+        );
         ensureStableCluster(2);
         assertBusy(() -> {
             // job should get and remain in a failed state and
@@ -324,22 +316,20 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         logger.info("stopping ml nodes");
         for (int i = 0; i < numMlNodes; i++) {
-            // fork so stopping all ml nodes proceeds quicker:
-            Runnable r = () -> {
-                try {
-                    internalCluster().stopRandomNode(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE));
-                } catch (IOException e) {
-                    logger.error("error stopping node", e);
-                }
-            };
-            new Thread(r).start();
+            try {
+                internalCluster().stopNode(
+                    internalCluster().getNodeNameThat(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE))
+                );
+            } catch (IOException e) {
+                logger.error("error stopping node", e);
+            }
         }
         ensureStableCluster(1, nonMlNode);
         assertBusy(() -> {
             ClusterState state = client(nonMlNode).admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertEquals(numJobs, tasks.taskMap().size());
-            for (PersistentTask<?> task : tasks.taskMap().values()) {
+            List<PersistentTask<?>> tasks = findTasks(state, MlTasks.JOB_TASK_NAME);
+            assertEquals(numJobs, tasks.size());
+            for (PersistentTask<?> task : tasks) {
                 assertNull(task.getExecutorNode());
             }
         });
@@ -426,12 +416,12 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertEquals(0, tasks.taskMap().size());
+            List<PersistentTask<?>> tasks = findTasks(clusterState, MlTasks.JOB_TASK_NAME);
+            assertEquals(0, tasks.size());
         });
         logger.info("Stop non ml node");
         Settings nonMLNodeDataPathSettings = internalCluster().dataPathSettings(nonMLNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nonMLNode));
+        internalCluster().stopNode(nonMLNode);
         ensureStableCluster(1);
 
         Exception e = expectThrows(
@@ -517,10 +507,10 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     private void assertJobTask(String jobId, JobState expectedState, boolean hasExecutorNode) {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        assertEquals(1, tasks.taskMap().size());
-        PersistentTask<?> task = MlTasks.getJobTask(jobId, tasks);
-        assertNotNull(task);
+        List<PersistentTask<?>> tasks = findTasks(clusterState, MlTasks.JOB_TASK_NAME);
+        assertEquals(1, tasks.size());
+        PersistentTask<?> task = tasks.get(0);
+        assertEquals(task.getId(), MlTasks.jobTaskId(jobId));
 
         if (hasExecutorNode) {
             assertNotNull(task.getExecutorNode());
@@ -539,9 +529,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     private CheckedRunnable<Exception> checkAllJobsAreAssignedAndOpened(int numJobs) {
         return () -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertEquals(numJobs, tasks.taskMap().size());
-            for (PersistentTask<?> task : tasks.taskMap().values()) {
+            List<PersistentTask<?>> tasks = findTasks(state, MlTasks.JOB_TASK_NAME);
+            assertEquals(numJobs, tasks.size());
+            for (PersistentTask<?> task : tasks) {
                 assertNotNull(task.getExecutorNode());
                 JobTaskState jobTaskState = (JobTaskState) task.getState();
                 assertNotNull(jobTaskState);

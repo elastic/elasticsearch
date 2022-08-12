@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -332,8 +333,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());
         }
 
-        if (throwable instanceof ElasticsearchException) {
-            ElasticsearchException exception = (ElasticsearchException) throwable;
+        if (throwable instanceof ElasticsearchException exception) {
             exception.metadataToXContent(builder, params);
         }
 
@@ -722,7 +722,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * This is the list of Exceptions Elasticsearch can throw over the wire or save into a corruption marker. Each value in the enum is a
      * single exception tying the Class to an id for use of the encode side and the id back to a constructor for use on the decode side. As
-     * such its ok if the exceptions to change names so long as their constructor can still read the exception. Each exception is listed
+     * such it's ok if the exceptions to change names so long as their constructor can still read the exception. Each exception is listed
      * in id order below. If you want to remove an exception leave a tombstone comment and mark the id as null in
      * ExceptionSerializationTests.testIds.ids.
      */
@@ -1560,6 +1560,24 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.repositories.RepositoryConflictException::new,
             163,
             Version.V_8_0_0
+        ),
+        DESIRED_NODES_VERSION_CONFLICT_EXCEPTION(
+            org.elasticsearch.cluster.desirednodes.VersionConflictException.class,
+            org.elasticsearch.cluster.desirednodes.VersionConflictException::new,
+            164,
+            Version.V_8_1_0
+        ),
+        SNAPSHOT_NAME_ALREADY_IN_USE_EXCEPTION(
+            org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException.class,
+            org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException::new,
+            165,
+            Version.V_8_2_0
+        ),
+        HEALTH_NODE_NOT_DISCOVERED_EXCEPTION(
+            HealthNodeNotDiscoveredException.class,
+            HealthNodeNotDiscoveredException::new,
+            166,
+            Version.V_8_5_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

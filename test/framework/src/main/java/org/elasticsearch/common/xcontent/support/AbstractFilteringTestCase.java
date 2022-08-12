@@ -12,12 +12,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.FilterXContentParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedReader;
@@ -26,6 +25,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
@@ -41,7 +41,8 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     @FunctionalInterface
     protected interface Builder extends CheckedFunction<XContentBuilder, XContentBuilder, IOException> {}
 
-    protected abstract void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException;
+    protected abstract void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes)
+        throws IOException;
 
     /** Sample test case */
     protected static final Builder SAMPLE = builderFor("sample.json");
@@ -50,12 +51,9 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         return builder -> {
             try (InputStream stream = AbstractFilteringTestCase.class.getResourceAsStream(file)) {
                 assertThat("Couldn't find [" + file + "]", stream, notNullValue());
-                try (
-                    XContentParser parser = XContentType.JSON.xContent()
-                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
-                ) {
+                try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, stream)) {
                     // copyCurrentStructure does not property handle filters when it is passed a json parser. So we hide it.
-                    return builder.copyCurrentStructure(new FilterXContentParser(parser) {
+                    return builder.copyCurrentStructure(new FilterXContentParserWrapper(parser) {
                     });
                 }
             }
@@ -455,5 +453,18 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
                 .collect(toSet());
             testFilter(deep, deep, manyFilters, emptySet());
         }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
+    public void testExcludeWildCardFields() throws IOException {
+        Builder sample = builder -> builder.startObject()
+            .startObject("include")
+            .field("field1", "v1")
+            .field("field2", "v2")
+            .endObject()
+            .field("include2", "vv2")
+            .endObject();
+        Builder expected = builder -> builder.startObject().startObject("include").field("field1", "v1").endObject().endObject();
+        testFilter(expected, sample, singleton("include"), singleton("*.field2"));
     }
 }

@@ -89,7 +89,7 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
         Info() {}
 
-        String getMessage() {
+        static String getMessage() {
             return message;
         }
 

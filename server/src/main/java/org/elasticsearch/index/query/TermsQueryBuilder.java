@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -98,7 +97,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, int... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
     }
 
     /**
@@ -108,7 +107,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, long... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
     }
 
     /**
@@ -118,10 +117,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, float... values) {
-        this(
-            fieldName,
-            values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).collect(Collectors.toList()) : (Iterable<?>) null
-        );
+        this(fieldName, values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).toList() : (Iterable<?>) null);
     }
 
     /**
@@ -131,7 +127,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, double... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
     }
 
     /**
@@ -349,7 +345,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return fieldType.termsQuery(values, context);
     }
 
-    private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
+    private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
         client.get(getRequest, actionListener.map(getResponse -> {
@@ -452,7 +448,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             }
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 if (convert) {
-                    list = list.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).collect(Collectors.toList());
+                    list = list.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).toList();
                 }
                 output.writeGenericValue(list);
                 return output.bytes();
@@ -585,7 +581,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             return Objects.hash(valueRef);
         }
 
-        private int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
+        private static int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
             byte genericSign = in.readByte();
             assert genericSign == 7;
             return in.readVInt();
@@ -666,5 +662,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         public int hashCode() {
             return Objects.hash(values);
         }
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

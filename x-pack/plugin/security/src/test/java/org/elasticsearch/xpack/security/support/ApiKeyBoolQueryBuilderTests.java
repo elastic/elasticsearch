@@ -27,6 +27,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
@@ -34,7 +36,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.containsString;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -60,6 +62,32 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         assertThat(mustQueries.get(0), equalTo(q1));
         assertTrue(apiKeyQb1.should().isEmpty());
         assertTrue(apiKeyQb1.mustNot().isEmpty());
+    }
+
+    public void testQueryForDomainAuthentication() {
+        final Authentication authentication = AuthenticationTests.randomAuthentication(null, AuthenticationTests.randomRealmRef(true));
+        final QueryBuilder query = randomSimpleQuery("name");
+        final ApiKeyBoolQueryBuilder apiKeysQuery = ApiKeyBoolQueryBuilder.build(query, authentication);
+        assertThat(apiKeysQuery.filter().get(0), is(QueryBuilders.termQuery("doc_type", "api_key")));
+        assertThat(apiKeysQuery.filter().get(1), is(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal())));
+        if (authentication.getDomain().realms().size() == 1) {
+            assertThat(
+                apiKeysQuery.filter().get(2),
+                is(QueryBuilders.termQuery("creator.realm", authentication.getDomain().realms().stream().findFirst().get().getName()))
+            );
+        } else {
+            assertThat(apiKeysQuery.filter().get(2), instanceOf(BoolQueryBuilder.class));
+            assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).must().size(), is(0));
+            assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).mustNot().size(), is(0));
+            assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).filter().size(), is(0));
+            assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).minimumShouldMatch(), is("1"));
+            for (RealmConfig.RealmIdentifier realmIdentifier : authentication.getDomain().realms()) {
+                assertThat(
+                    ((BoolQueryBuilder) apiKeysQuery.filter().get(2)).should(),
+                    hasItem(QueryBuilders.termQuery("creator.realm", realmIdentifier.getName()))
+                );
+            }
+        }
     }
 
     public void testBuildFromBoolQuery() {
@@ -191,7 +219,6 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> q1 = randomFrom(
             QueryBuilders.matchQuery(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             QueryBuilders.constantScoreQuery(mock(QueryBuilder.class)),
-            QueryBuilders.existsQuery(randomAlphaOfLength(5)),
             QueryBuilders.boostingQuery(mock(QueryBuilder.class), mock(QueryBuilder.class)),
             QueryBuilders.queryStringQuery("q=a:42"),
             QueryBuilders.simpleQueryStringQuery(randomAlphaOfLength(5)),
@@ -262,6 +289,17 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         }
     }
 
+    public void testWillFilterForApiKeyId() {
+        final String apiKeyId = randomAlphaOfLength(20);
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(
+            new User(randomAlphaOfLengthBetween(5, 8)),
+            apiKeyId
+        );
+        final ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(randomFrom(randomSimpleQuery("name"), null), authentication);
+        assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.termQuery("doc_type", "api_key")));
+        assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.idsQuery().addIds(apiKeyId)));
+    }
+
     private void testAllowedIndexFieldName(Predicate<String> predicate) {
         final String allowedField = randomFrom(
             "doc_type",
@@ -283,7 +321,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             .stream()
             .filter(q -> q.getClass() == TermQueryBuilder.class)
             .map(q -> (TermQueryBuilder) q)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         assertTrue(tqb.stream().anyMatch(q -> q.equals(QueryBuilders.termQuery("doc_type", "api_key"))));
         if (authentication == null) {
             return;
@@ -298,23 +336,17 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
     }
 
     private QueryBuilder randomSimpleQuery(String name) {
-        switch (randomIntBetween(0, 6)) {
-            case 0:
-                return QueryBuilders.termQuery(name, randomAlphaOfLengthBetween(3, 8));
-            case 1:
-                return QueryBuilders.termsQuery(name, randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
-            case 2:
-                return QueryBuilders.idsQuery().addIds(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(22)));
-            case 3:
-                return QueryBuilders.prefixQuery(name, "prod-");
-            case 4:
-                return QueryBuilders.wildcardQuery(name, "prod-*-east-*");
-            case 5:
-                return QueryBuilders.matchAllQuery();
-            default:
-                return QueryBuilders.rangeQuery(name)
-                    .from(Instant.now().minus(1, ChronoUnit.DAYS).toEpochMilli(), randomBoolean())
-                    .to(Instant.now().toEpochMilli(), randomBoolean());
-        }
+        return switch (randomIntBetween(0, 7)) {
+            case 0 -> QueryBuilders.termQuery(name, randomAlphaOfLengthBetween(3, 8));
+            case 1 -> QueryBuilders.termsQuery(name, randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
+            case 2 -> QueryBuilders.idsQuery().addIds(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(22)));
+            case 3 -> QueryBuilders.prefixQuery(name, "prod-");
+            case 4 -> QueryBuilders.wildcardQuery(name, "prod-*-east-*");
+            case 5 -> QueryBuilders.matchAllQuery();
+            case 6 -> QueryBuilders.existsQuery(name);
+            default -> QueryBuilders.rangeQuery(name)
+                .from(Instant.now().minus(1, ChronoUnit.DAYS).toEpochMilli(), randomBoolean())
+                .to(Instant.now().toEpochMilli(), randomBoolean());
+        };
     }
 }

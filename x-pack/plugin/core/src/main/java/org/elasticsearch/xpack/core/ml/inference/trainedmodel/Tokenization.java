@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,33 +44,38 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     public static final ParseField WITH_SPECIAL_TOKENS = new ParseField("with_special_tokens");
     public static final ParseField MAX_SEQUENCE_LENGTH = new ParseField("max_sequence_length");
     public static final ParseField TRUNCATE = new ParseField("truncate");
+    public static final ParseField SPAN = new ParseField("span");
 
     private static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
     private static final boolean DEFAULT_DO_LOWER_CASE = false;
     private static final boolean DEFAULT_WITH_SPECIAL_TOKENS = true;
     private static final Truncate DEFAULT_TRUNCATION = Truncate.FIRST;
+    private static final int DEFAULT_SPAN = -1;
 
     static <T extends Tokenization> void declareCommonFields(ConstructingObjectParser<T, ?> parser) {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DO_LOWER_CASE);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), WITH_SPECIAL_TOKENS);
         parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_SEQUENCE_LENGTH);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TRUNCATE);
+        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), SPAN);
     }
 
     public static BertTokenization createDefault() {
-        return new BertTokenization(null, null, null, Tokenization.DEFAULT_TRUNCATION);
+        return new BertTokenization(null, null, null, Tokenization.DEFAULT_TRUNCATION, DEFAULT_SPAN);
     }
 
     protected final boolean doLowerCase;
     protected final boolean withSpecialTokens;
     protected final int maxSequenceLength;
     protected final Truncate truncate;
+    protected final int span;
 
     Tokenization(
         @Nullable Boolean doLowerCase,
         @Nullable Boolean withSpecialTokens,
         @Nullable Integer maxSequenceLength,
-        @Nullable Truncate truncate
+        @Nullable Truncate truncate,
+        @Nullable Integer span
     ) {
         if (maxSequenceLength != null && maxSequenceLength <= 0) {
             throw new IllegalArgumentException("[" + MAX_SEQUENCE_LENGTH.getPreferredName() + "] must be positive");
@@ -78,6 +84,36 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         this.withSpecialTokens = Optional.ofNullable(withSpecialTokens).orElse(DEFAULT_WITH_SPECIAL_TOKENS);
         this.maxSequenceLength = Optional.ofNullable(maxSequenceLength).orElse(DEFAULT_MAX_SEQUENCE_LENGTH);
         this.truncate = Optional.ofNullable(truncate).orElse(DEFAULT_TRUNCATION);
+        this.span = Optional.ofNullable(span).orElse(DEFAULT_SPAN);
+        if (this.span < 0 && this.span != -1) {
+            throw new IllegalArgumentException(
+                "[" + SPAN.getPreferredName() + "] must be non-negative to indicate span length or -1 to indicate no windowing should occur"
+            );
+        }
+        if (this.span > this.maxSequenceLength) {
+            throw new IllegalArgumentException(
+                "["
+                    + SPAN.getPreferredName()
+                    + "] provided ["
+                    + this.span
+                    + "] must not be greater than ["
+                    + MAX_SEQUENCE_LENGTH.getPreferredName()
+                    + "] provided ["
+                    + this.maxSequenceLength
+                    + "]"
+            );
+        }
+        if (this.span != -1 && truncate != Truncate.NONE) {
+            throw new IllegalArgumentException(
+                "["
+                    + SPAN.getPreferredName()
+                    + "] must not be provided when ["
+                    + TRUNCATE.getPreferredName()
+                    + "] is not ["
+                    + Truncate.NONE
+                    + "]"
+            );
+        }
     }
 
     public Tokenization(StreamInput in) throws IOException {
@@ -85,6 +121,11 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         this.withSpecialTokens = in.readBoolean();
         this.maxSequenceLength = in.readVInt();
         this.truncate = in.readEnum(Truncate.class);
+        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+            this.span = in.readInt();
+        } else {
+            this.span = -1;
+        }
     }
 
     @Override
@@ -93,6 +134,9 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         out.writeBoolean(withSpecialTokens);
         out.writeVInt(maxSequenceLength);
         out.writeEnum(truncate);
+        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            out.writeInt(span);
+        }
     }
 
     abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
@@ -104,6 +148,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         builder.field(WITH_SPECIAL_TOKENS.getPreferredName(), withSpecialTokens);
         builder.field(MAX_SEQUENCE_LENGTH.getPreferredName(), maxSequenceLength);
         builder.field(TRUNCATE.getPreferredName(), truncate.toString());
+        builder.field(SPAN.getPreferredName(), span);
         builder = doXContentBody(builder, params);
         builder.endObject();
         return builder;
@@ -117,12 +162,13 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         return doLowerCase == that.doLowerCase
             && withSpecialTokens == that.withSpecialTokens
             && truncate == that.truncate
+            && span == that.span
             && maxSequenceLength == that.maxSequenceLength;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(doLowerCase, truncate, withSpecialTokens, maxSequenceLength);
+        return Objects.hash(doLowerCase, truncate, withSpecialTokens, maxSequenceLength, span);
     }
 
     public boolean doLowerCase() {
@@ -139,5 +185,9 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
 
     public Truncate getTruncate() {
         return truncate;
+    }
+
+    public int getSpan() {
+        return span;
     }
 }

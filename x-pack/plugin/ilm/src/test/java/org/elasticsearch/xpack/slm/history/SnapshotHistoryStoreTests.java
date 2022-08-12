@@ -16,7 +16,9 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -28,6 +30,7 @@ import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
@@ -48,13 +51,16 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     public void setup() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new SnapshotLifecycleTemplateRegistryTests.VerifyingClient(threadPool);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
+        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
         ClusterState state = clusterService.state();
         Metadata.Builder metadataBuilder = Metadata.builder(state.getMetadata())
             .indexTemplates(SnapshotLifecycleTemplateRegistry.COMPOSABLE_INDEX_TEMPLATE_CONFIGS);
         ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadataBuilder).build());
-        historyStore = new SnapshotHistoryStore(Settings.EMPTY, client, clusterService);
-        clusterService.stop();
+        historyStore = new SnapshotHistoryStore(client, clusterService);
     }
 
     @After
@@ -62,12 +68,16 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         clusterService.stop();
+        client.close();
         threadPool.shutdownNow();
     }
 
-    public void testNoActionIfDisabled() {
-        Settings settings = Settings.builder().put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        SnapshotHistoryStore disabledHistoryStore = new SnapshotHistoryStore(settings, client, null);
+    public void testNoActionIfDisabled() throws Exception {
+        ClusterState state = clusterService.state();
+        Metadata.Builder metadata = Metadata.builder(state.metadata())
+            .persistentSettings(Settings.builder().put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build());
+        ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadata));
+
         String policyId = randomAlphaOfLength(5);
         SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(policyId);
         final long timestamp = randomNonNegativeLong();
@@ -78,7 +88,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             fail("the history store is disabled, no action should have been taken");
             return null;
         });
-        disabledHistoryStore.putAsync(record);
+        historyStore.putAsync(record);
     }
 
     @SuppressWarnings("unchecked")

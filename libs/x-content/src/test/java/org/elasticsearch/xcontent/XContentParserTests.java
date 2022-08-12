@@ -8,8 +8,6 @@
 
 package org.elasticsearch.xcontent;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,20 +67,9 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(value, number.floatValue(), 0.0f);
 
             switch (xContentType) {
-                case VND_CBOR:
-                case VND_SMILE:
-                case CBOR:
-                case SMILE:
-                    assertThat(number, instanceOf(Float.class));
-                    break;
-                case VND_JSON:
-                case VND_YAML:
-                case JSON:
-                case YAML:
-                    assertThat(number, instanceOf(Double.class));
-                    break;
-                default:
-                    throw new AssertionError("unexpected x-content type [" + xContentType + "]");
+                case VND_CBOR, VND_SMILE, CBOR, SMILE -> assertThat(number, instanceOf(Float.class));
+                case VND_JSON, VND_YAML, JSON, YAML -> assertThat(number, instanceOf(Double.class));
+                default -> throw new AssertionError("unexpected x-content type [" + xContentType + "]");
             }
         }
     }
@@ -227,7 +214,7 @@ public class XContentParserTests extends ESTestCase {
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
             } else {
-                expectThrows(JsonParseException.class, parser::booleanValue);
+                expectThrows(XContentParseException.class, parser::booleanValue);
             }
 
             token = parser.nextToken();
@@ -239,7 +226,7 @@ public class XContentParserTests extends ESTestCase {
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
             } else {
-                expectThrows(JsonParseException.class, parser::booleanValue);
+                expectThrows(XContentParseException.class, parser::booleanValue);
             }
         }
     }

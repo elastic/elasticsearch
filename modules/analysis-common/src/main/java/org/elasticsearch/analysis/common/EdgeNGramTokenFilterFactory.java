@@ -30,7 +30,7 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
     EdgeNGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.minGram = settings.getAsInt("min_gram", 1);
         this.maxGram = settings.getAsInt("max_gram", 2);
         this.side = parseSide(settings.get("side", "front"));
@@ -38,14 +38,11 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     static int parseSide(String side) {
-        switch (side) {
-            case "front":
-                return SIDE_FRONT;
-            case "back":
-                return SIDE_BACK;
-            default:
-                throw new IllegalArgumentException("invalid side: " + side);
-        }
+        return switch (side) {
+            case "front" -> SIDE_FRONT;
+            case "back" -> SIDE_BACK;
+            default -> throw new IllegalArgumentException("invalid side: " + side);
+        };
     }
 
     @Override

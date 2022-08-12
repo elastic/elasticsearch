@@ -17,15 +17,15 @@
         body:
           - index:
               _index: races
-              _id: 1
+              _id: "1"
           - '{"position": "POINT(4.912350 52.374081)", "race_id": "Amsterdam", "timestamp": 4}'
           - index:
               _index:  races
-              _id: 2
+              _id: "2"
           - '{"position": "POINT(4.901618 52.369219)", "race_id": "Amsterdam", "timestamp": 3}'
           - index:
               _index: races
-              _id: 3
+              _id: "3"
           - '{"position": "POINT(4.914722 52.371667)", "race_id": "Amsterdam", "timestamp": 10}'
 
   - do:
@@ -84,27 +84,27 @@
         body:
           - index:
               _index: test1
-              _id: 1
+              _id: "1"
           - '{ "date" : "2020-01-01T01:00:00.0Z", "entity" : "e1", "location" : { "lat" : 50.3, "lon" : 0.13 }}'
           - index:
               _index: test1
-              _id: 2
+              _id: "2"
           - '{ "date" : "2020-01-01T01:00:01.0Z", "entity" : "e1", "location" : { "lat" : 50.4, "lon" : 0.13 } }'
           - index:
               _index: test1
-              _id: 3
+              _id: "3"
           - '{ "date" : "2020-01-01T01:00:03.0Z", "entity" : "e1", "location" : { "lat" : 50.5, "lon" : 0.13 }}'
           - index:
               _index: test2
-              _id: 1
+              _id: "1"
           - '{ "date" : "2020-01-02T02:00:01.0Z", "entity" : "e2",  "location" : { "lat" : 51.3, "lon" : 0.13 }}'
           - index:
               _index: test2
-              _id: 2
+              _id: "2"
           - '{ "date" : "2020-01-02T02:00:02.0Z", "entity" : "e2",  "location" : { "lat" : 51.4, "lon" : 0.13 }}'
           - index:
               _index: test2
-              _id: 3
+              _id: "3"
           - '{ "date" : "2020-01-02T02:00:03.0Z", "entity" : "e2", "location" : { "lat" : 51.5, "lon" : 0.13 }}'
 
   - do:

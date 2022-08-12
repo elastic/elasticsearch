@@ -54,8 +54,7 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
             for (int i = 0; i < count; ++i) {
                 set(i, Array.get(value, i));
             }
-        } else if (value instanceof Collection) {
-            final Collection<?> coll = (Collection<?>) value;
+        } else if (value instanceof final Collection<?> coll) {
             count = coll.size();
             if (count == 0) {
                 return false;

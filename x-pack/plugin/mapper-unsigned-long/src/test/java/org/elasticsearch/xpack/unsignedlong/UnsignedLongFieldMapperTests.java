@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -374,5 +375,15 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
                 BigInteger big = BigInteger.valueOf(randomLongBetween(0, Long.MAX_VALUE)).shiftLeft(1);
                 return big.add(randomBoolean() ? BigInteger.ONE : BigInteger.ZERO);
         }
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

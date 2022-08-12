@@ -161,10 +161,13 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         "pa",
         "ku"
     );
+    // The final value for our provided language names indicates if there is no valid text in the string to classify
+    // This value should map back to "zxx", which is the code for "no linguistic content" in the BCP 47
+    // system - see https://tools.ietf.org/search/bcp47
+    private static final int MISSING_VALID_TXT_CLASSIFICATION = LANGUAGE_NAMES.size() - 1;
+    private static final String MISSING_VALID_TXT_CLASSIFICATION_STR = "zxx";
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(LangIdentNeuralNetwork.class);
-
-    private static final int EMBEDDING_VECTOR_LENGTH = 80;
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<LangIdentNeuralNetwork, Void> createParser(boolean lenient) {
@@ -229,6 +232,18 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
             );
         }
         List<?> embeddedVector = (List<?>) vector;
+        final ClassificationConfig classificationConfig = (ClassificationConfig) config;
+        if (embeddedVector.isEmpty()) {
+            return new ClassificationInferenceResults(
+                MISSING_VALID_TXT_CLASSIFICATION,
+                MISSING_VALID_TXT_CLASSIFICATION_STR,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                classificationConfig,
+                1.0,
+                1.0
+            );
+        }
         double[] probabilities = new double[LANGUAGE_NAMES.size()];
         int totalLen = 0;
         for (Object vec : embeddedVector) {
@@ -245,7 +260,6 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         if (totalLen != 0) {
             divMut(probabilities, totalLen);
         }
-        ClassificationConfig classificationConfig = (ClassificationConfig) config;
         Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
             probabilities,
             LANGUAGE_NAMES,

@@ -10,7 +10,6 @@ package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.BwcVersions.VersionPair;
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
@@ -18,7 +17,7 @@ import org.gradle.testfixtures.ProjectBuilder;
 import java.io.File;
 import java.util.Arrays;
 
-public class AbstractDistributionDownloadPluginTests extends GradleUnitTestCase {
+public class AbstractDistributionDownloadPluginTests {
     protected static Project rootProject;
     protected static Project archivesProject;
     protected static Project packagesProject;
@@ -31,19 +30,19 @@ public class AbstractDistributionDownloadPluginTests extends GradleUnitTestCase 
     protected static final VersionPair BWC_MAINTENANCE_VERSION = new VersionPair(Version.fromString("0.90.1"), Version.fromString("1.1.3"));
 
     protected static final BwcVersions BWC_MINOR = new BwcVersions(
-        BWC_MAJOR_VERSION.elasticsearch,
+        BWC_MAJOR_VERSION.elasticsearch(),
         Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
     );
     protected static final BwcVersions BWC_STAGED = new BwcVersions(
-        BWC_MAJOR_VERSION.elasticsearch,
+        BWC_MAJOR_VERSION.elasticsearch(),
         Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_STAGED_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
     );
     protected static final BwcVersions BWC_BUGFIX = new BwcVersions(
-        BWC_MAJOR_VERSION.elasticsearch,
+        BWC_MAJOR_VERSION.elasticsearch(),
         Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
     );
     protected static final BwcVersions BWC_MAINTENANCE = new BwcVersions(
-        BWC_MINOR_VERSION.elasticsearch,
+        BWC_MINOR_VERSION.elasticsearch(),
         Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_BUGFIX_VERSION, BWC_MINOR_VERSION)
     );
 

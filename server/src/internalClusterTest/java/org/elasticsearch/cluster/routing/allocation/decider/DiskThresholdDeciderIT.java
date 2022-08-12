@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -187,7 +188,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
     private Set<ShardRouting> getShardRoutings(final String nodeId, final String indexName) {
         final Set<ShardRouting> shardRoutings = new HashSet<>();
-        for (IndexShardRoutingTable indexShardRoutingTable : client().admin()
+        final IndexRoutingTable indexRoutingTable = client().admin()
             .cluster()
             .prepareState()
             .clear()
@@ -195,8 +196,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             .get()
             .getState()
             .getRoutingTable()
-            .index(indexName)) {
-            for (ShardRouting shard : indexShardRoutingTable.shards()) {
+            .index(indexName);
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shard = shardRoutingTable.shard(copy);
                 assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
                 if (shard.currentNodeId().equals(nodeId)) {
                     shardRoutings.add(shard);

@@ -67,7 +67,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
             }
         }
         if (randomBoolean()) {
-            sourceFiltering = new FetchSourceContext(
+            sourceFiltering = FetchSourceContext.of(
                 true,
                 generateRandomStringArray(10, 10, false, false),
                 generateRandomStringArray(10, 10, false, false)
@@ -97,7 +97,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
     public void testConstructor_GivenDisabledSource() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataFrameAnalyticsSource(new String[] { "index" }, null, new FetchSourceContext(false, null, null), null)
+            () -> new DataFrameAnalyticsSource(new String[] { "index" }, null, FetchSourceContext.DO_NOT_FETCH_SOURCE, null)
         );
         assertThat(e.getMessage(), equalTo("source._source cannot be disabled"));
     }
@@ -124,7 +124,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(
             new String[] { "index" },
             null,
-            new FetchSourceContext(true, null, null),
+            FetchSourceContext.FETCH_SOURCE,
             null
         );
         assertThat(source.isFieldExcluded(randomAlphaOfLength(10)), is(false));
@@ -169,7 +169,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
     }
 
     private static DataFrameAnalyticsSource newSourceWithIncludesExcludes(List<String> includes, List<String> excludes) {
-        FetchSourceContext sourceFiltering = new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
+        FetchSourceContext sourceFiltering = FetchSourceContext.of(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
         return new DataFrameAnalyticsSource(new String[] { "index" }, null, sourceFiltering, null);
     }
 

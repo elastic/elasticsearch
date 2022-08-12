@@ -251,7 +251,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
     protected TaskId findTaskWithXOpaqueId(String id, String action) {
         TaskInfo taskInfo = getTaskInfoWithXOpaqueId(id, action);
         if (taskInfo != null) {
-            return taskInfo.getTaskId();
+            return taskInfo.taskId();
         } else {
             return null;
         }
@@ -260,7 +260,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
     protected TaskInfo getTaskInfoWithXOpaqueId(String id, String action) {
         ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(action).get();
         for (TaskInfo task : tasks.getTasks()) {
-            if (id.equals(task.getHeaders().get(Task.X_OPAQUE_ID_HTTP_HEADER))) {
+            if (id.equals(task.headers().get(Task.X_OPAQUE_ID_HTTP_HEADER))) {
                 return task;
             }
         }
@@ -273,7 +273,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
         logger.trace("Cancelling task " + taskId);
         CancelTasksResponse response = client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).get();
         assertThat(response.getTasks(), hasSize(1));
-        assertThat(response.getTasks().get(0).getAction(), equalTo(action));
+        assertThat(response.getTasks().get(0).action(), equalTo(action));
         logger.trace("Task is cancelled " + taskId);
         return taskId;
     }

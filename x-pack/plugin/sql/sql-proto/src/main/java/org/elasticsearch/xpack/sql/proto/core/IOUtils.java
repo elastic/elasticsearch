@@ -53,4 +53,36 @@ public class IOUtils {
             closeable.close();
         }
     }
+
+    /**
+     * Closes all given {@link Closeable}s, suppressing all thrown exceptions. Some of the {@link Closeable}s may be null, they are ignored.
+     *
+     * @param objects objects to close
+     */
+    public static void closeWhileHandlingException(final Closeable... objects) {
+        closeWhileHandlingException(Arrays.asList(objects));
+    }
+
+    /**
+     * Closes all given {@link Closeable}s, suppressing all thrown exceptions.
+     *
+     * @param objects objects to close
+     *
+     * @see #closeWhileHandlingException(Closeable...)
+     */
+    public static void closeWhileHandlingException(final Iterable<? extends Closeable> objects) {
+        for (final Closeable object : objects) {
+            closeWhileHandlingException(object);
+        }
+    }
+
+    /**
+     * @see #closeWhileHandlingException(Closeable...)
+     */
+    public static void closeWhileHandlingException(final Closeable closeable) {
+        // noinspection EmptyCatchBlock
+        try {
+            close(closeable);
+        } catch (final IOException | RuntimeException e) {}
+    }
 }

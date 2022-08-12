@@ -17,6 +17,14 @@ import java.util.function.Predicate;
 
 public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEmbeddingConfig> {
 
+    public static TextEmbeddingConfig mutateForVersion(TextEmbeddingConfig instance, Version version) {
+        return new TextEmbeddingConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getResultsField()
+        );
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return true;
@@ -44,13 +52,19 @@ public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEm
 
     @Override
     protected TextEmbeddingConfig mutateInstanceForVersion(TextEmbeddingConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static TextEmbeddingConfig createRandom() {
         return new TextEmbeddingConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomBoolean()
+                ? null
+                : randomFrom(
+                    BertTokenizationTests.createRandom(),
+                    MPNetTokenizationTests.createRandom(),
+                    RobertaTokenizationTests.createRandom()
+                ),
             randomBoolean() ? null : randomAlphaOfLength(7)
         );
     }

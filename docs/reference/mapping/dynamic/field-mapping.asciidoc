@@ -15,19 +15,19 @@ explicitly map all other data types.
 
 [[dynamic-field-mapping-types]]
 // tag::dynamic-field-mapping-types-tag[]
-[cols="3"]
+[cols="3",frame=all]
 |===
+h|                2+^h|{es} data type
 h| JSON data type h| `"dynamic":"true"` h| `"dynamic":"runtime"`
  |`null` 2*| No field added
  |`true` or `false` 2*| `boolean`
  |`double` | `float` | `double`
- |`integer` 2*| `long`
+ |`long` 2*| `long`
  |`object` | `object` | No field added
  |`array` 2*|  Depends on the first non-`null` value in the array
  |`string` that passes <<date-detection,date detection>> 2*| `date`
  |`string` that passes <<numeric-detection,numeric detection>> | `float` or `long` | `double` or `long`
  |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
-3+|
 |===
 // end::dynamic-field-mapping-types-tag[]
 
@@ -114,6 +114,107 @@ PUT my-index-000001/_doc/1
 }
 --------------------------------------------------
 
+[NOTE]
+====
+There is a difference between configuring an array of date patterns and
+configuring multiple patterns in a single string separated by `||`. When you
+configure an array of date patterns, the pattern that matches the date in the
+first document with an unmapped date field will determine the mapping of that
+field:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_date_formats": [ "yyyy/MM", "MM/dd/yyyy"]
+  }
+}
+
+PUT my-index-000001/_doc/1
+{
+  "create_date": "09/25/2015"
+}
+--------------------------------------------------
+
+The resulting mapping will be:
+
+////
+[source,console]
+----
+GET my-index-000001/_mapping
+----
+//TEST[continued]
+////
+
+[source,console-result]
+--------------------------------------------------
+{
+  "my-index-000001": {
+    "mappings": {
+      "dynamic_date_formats": [
+        "yyyy/MM",
+        "MM/dd/yyyy"
+      ],
+      "properties": {
+        "create_date": {
+          "type": "date",
+          "format": "MM/dd/yyyy"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Configuring multiple patterns in a single string separated by `||` results in a
+mapping that supports any of the date formats. This enables you to index
+documents that use different formats:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_date_formats": [ "yyyy/MM||MM/dd/yyyy"]
+  }
+}
+
+PUT my-index-000001/_doc/1
+{
+  "create_date": "09/25/2015"
+}
+--------------------------------------------------
+
+The resulting mapping will be:
+
+////
+[source,console]
+----
+GET my-index-000001/_mapping
+----
+//TEST[continued]
+////
+
+[source,console-result]
+--------------------------------------------------
+{
+  "my-index-000001": {
+    "mappings": {
+      "dynamic_date_formats": [
+        "yyyy/MM||MM/dd/yyyy"
+      ],
+      "properties": {
+        "create_date": {
+          "type": "date",
+          "format": "yyyy/MM||MM/dd/yyyy"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+====
 
 [[numeric-detection]]
 ==== Numeric detection

@@ -11,13 +11,13 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -59,11 +59,11 @@ public class MultiBucketCollectorTests extends ESTestCase {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
             if (count >= terminateAfter) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
-            final LeafBucketCollector leafCollector = in.getLeafCollector(context);
+            final LeafBucketCollector leafCollector = in.getLeafCollector(aggCtx);
             return new LeafBucketCollectorBase(leafCollector, null) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -95,7 +95,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
         TotalHitCountBucketCollector() {}
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext context) {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -130,8 +130,8 @@ public class MultiBucketCollectorTests extends ESTestCase {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
-            final LeafBucketCollector leafCollector = in.getLeafCollector(context);
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+            final LeafBucketCollector leafCollector = in.getLeafCollector(aggCtx);
             return new LeafBucketCollectorBase(leafCollector, null) {
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
@@ -176,7 +176,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
                 expectedCounts.put(collector, expectedCount);
                 collectors.add(new TerminateAfterBucketCollector(collector, terminateAfter));
             }
-            searcher.search(new MatchAllDocsQuery(), MultiBucketCollector.wrap(true, collectors));
+            searcher.search(new MatchAllDocsQuery(), MultiBucketCollector.wrap(true, collectors).asCollector());
             for (Map.Entry<TotalHitCountBucketCollector, Integer> expectedCount : expectedCounts.entrySet()) {
                 assertEquals(expectedCount.getValue().intValue(), expectedCount.getKey().getTotalHits());
             }
@@ -213,7 +213,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
                         for (Map.Entry<TotalHitCountBucketCollector, Integer> expectedCount : expectedCounts.entrySet()) {
                             shouldNoop &= expectedCount.getValue().intValue() <= expectedCount.getKey().getTotalHits();
                         }
-                        LeafBucketCollector collector = wrapped.getLeafCollector(ctx);
+                        LeafBucketCollector collector = wrapped.getLeafCollector(new AggregationExecutionContext(ctx, null, null));
                         assertThat(collector.isNoop(), equalTo(shouldNoop));
                         if (false == collector.isNoop()) {
                             for (int docId = 0; docId < ctx.reader().numDocs(); docId++) {

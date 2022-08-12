@@ -15,13 +15,16 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -41,7 +44,6 @@ import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
@@ -74,6 +76,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -84,8 +87,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -114,7 +118,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void prepare() {
         threadPool = new TestThreadPool("test");
         noopClient = new NoOpClient(threadPool);
-        historyStore = new NoOpHistoryStore(noopClient);
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING))
+        );
+        historyStore = new NoOpHistoryStore(noopClient, ClusterServiceUtils.createClusterService(threadPool, settings));
     }
 
     @After
@@ -175,7 +183,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(anyString(), any(), any(), any(), any());
+        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(anyString(), any(), any(), any());
     }
 
     public void testRunPolicyErrorStep() {
@@ -250,7 +258,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any());
+        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any(), eq(IndexLifecycleRunner.ILM_TASK_CONFIG), any());
     }
 
     public void testRunStateChangePolicyWithNoNextStep() throws Exception {
@@ -345,13 +353,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         // The cluster state can take a few extra milliseconds to update after the steps are executed
         assertBusy(() -> assertNotEquals(before, clusterService.state()));
-        LifecycleExecutionState newExecutionState = LifecycleExecutionState.fromIndexMetadata(
-            clusterService.state().metadata().index(indexMetadata.getIndex())
-        );
-        assertThat(newExecutionState.getPhase(), equalTo("phase"));
-        assertThat(newExecutionState.getAction(), equalTo("action"));
-        assertThat(newExecutionState.getStep(), equalTo("next_cluster_state_action_step"));
-        assertThat(newExecutionState.getStepTime(), equalTo(stepTime));
+        LifecycleExecutionState newExecutionState = clusterService.state()
+            .metadata()
+            .index(indexMetadata.getIndex())
+            .getLifecycleExecutionState();
+        assertThat(newExecutionState.phase(), equalTo("phase"));
+        assertThat(newExecutionState.action(), equalTo("action"));
+        assertThat(newExecutionState.step(), equalTo("next_cluster_state_action_step"));
+        assertThat(newExecutionState.stepTime(), equalTo(stepTime));
         assertThat(step.getExecuteCount(), equalTo(1L));
         assertThat(nextStep.getExecuteCount(), equalTo(1L));
         clusterService.close();
@@ -438,16 +447,17 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         // The cluster state can take a few extra milliseconds to update after the steps are executed
         assertBusy(() -> assertNotEquals(before, clusterService.state()));
-        LifecycleExecutionState newExecutionState = LifecycleExecutionState.fromIndexMetadata(
-            clusterService.state().metadata().index(indexMetadata.getIndex())
-        );
-        assertThat(newExecutionState.getPhase(), equalTo("phase"));
-        assertThat(newExecutionState.getAction(), equalTo("action"));
-        assertThat(newExecutionState.getStep(), equalTo("cluster_state_action_step"));
+        LifecycleExecutionState newExecutionState = clusterService.state()
+            .metadata()
+            .index(indexMetadata.getIndex())
+            .getLifecycleExecutionState();
+        assertThat(newExecutionState.phase(), equalTo("phase"));
+        assertThat(newExecutionState.action(), equalTo("action"));
+        assertThat(newExecutionState.step(), equalTo("cluster_state_action_step"));
         assertThat(step.getExecuteCount(), equalTo(0L));
         assertThat(nextStep.getExecuteCount(), equalTo(0L));
         assertThat(
-            newExecutionState.getStepInfo(),
+            newExecutionState.stepInfo(),
             containsString("{\"type\":\"illegal_argument_exception\",\"reason\":\"fake failure retrieving step\"}")
         );
         clusterService.close();
@@ -654,8 +664,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                     ilm-execute-cluster-state-steps [{"phase":"phase","action":"action","name":"cluster_state_action_step"} => null]"""),
                 Mockito.argThat(taskMatcher),
                 eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
-                any(),
-                Mockito.argThat(taskMatcher)
+                any()
             );
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -682,8 +691,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                     ilm-execute-cluster-state-steps [{"phase":"phase","action":"action","name":"cluster_state_action_step"} => null]"""),
                 Mockito.argThat(taskMatcher),
                 eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
-                any(),
-                Mockito.argThat(taskMatcher)
+                any()
             );
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -764,8 +772,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 Mockito.eq("ilm-set-step-info {policy [cluster_state_action_policy], index [my_index], currentStep [null]}"),
                 Mockito.argThat(taskMatcher),
                 eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
-                any(),
-                Mockito.argThat(taskMatcher)
+                any()
             );
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -932,25 +939,25 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(nextStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(nextStep.getAction(), newLifecycleState.getAction());
-        assertEquals(nextStep.getName(), newLifecycleState.getStep());
+        assertEquals(nextStep.getPhase(), newLifecycleState.phase());
+        assertEquals(nextStep.getAction(), newLifecycleState.action());
+        assertEquals(nextStep.getName(), newLifecycleState.step());
         if (currentStep.getPhase().equals(nextStep.getPhase())) {
-            assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
+            assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
         } else {
-            assertEquals(now, newLifecycleState.getPhaseTime().longValue());
+            assertEquals(now, newLifecycleState.phaseTime().longValue());
         }
         if (currentStep.getAction().equals(nextStep.getAction())) {
-            assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
+            assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
         } else {
-            assertEquals(now, newLifecycleState.getActionTime().longValue());
+            assertEquals(now, newLifecycleState.actionTime().longValue());
         }
-        assertEquals(now, newLifecycleState.getStepTime().longValue());
-        assertEquals(null, newLifecycleState.getFailedStep());
-        assertEquals(null, newLifecycleState.getStepInfo());
+        assertEquals(now, newLifecycleState.stepTime().longValue());
+        assertEquals(null, newLifecycleState.failedStep());
+        assertEquals(null, newLifecycleState.stepInfo());
     }
 
     static class MockAsyncActionStep extends AsyncActionStep {
@@ -1260,8 +1267,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         private final List<ILMHistoryItem> items = new CopyOnWriteArrayList<>();
 
-        NoOpHistoryStore(Client noopClient) {
-            super(Settings.EMPTY, noopClient, null, null);
+        NoOpHistoryStore(Client noopClient, ClusterService clusterService) {
+            super(noopClient, clusterService, null);
         }
 
         public List<ILMHistoryItem> getItems() {

@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +40,11 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
     static final String INDEX_NAME = "created_index";
 
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
+
     @Override
     protected Collection<String> templatesToWaitFor() {
         // We shouldn't wait for ML templates during the upgrade - production won't
@@ -52,17 +58,16 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     public void testTrainedModelInference() throws Exception {
         assumeTrue("We should only test if old cluster is after trained models we GA", UPGRADE_FROM_VERSION.after(Version.V_7_13_0));
         switch (CLUSTER_TYPE) {
-            case OLD:
-                createIndex(INDEX_NAME);
+            case OLD -> {
+                createIndexWithName(INDEX_NAME);
                 indexData(INDEX_NAME, 1000);
                 createAndRunClassificationJob();
                 createAndRunRegressionJob();
                 List<String> oldModels = getTrainedModels();
                 createPipelines(oldModels);
                 testInfer(oldModels);
-                break;
-            case MIXED:
-            case UPGRADED:
+            }
+            case MIXED, UPGRADED -> {
                 ensureHealth(".ml-inference-*,.ml-config*", (request -> {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("timeout", "70s");
@@ -72,9 +77,8 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 getTrainedModelStats();
                 // Verify that the pipelines still work and inference is possible
                 testInfer(modelIds);
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            }
+            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 
@@ -220,7 +224,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
         client().performRequest(putRequest);
     }
 
-    void createIndex(String index) throws IOException {
+    void createIndexWithName(String index) throws IOException {
         String mapping = """
             "properties": {
                 "%s": {

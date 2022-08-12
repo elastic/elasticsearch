@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
@@ -54,6 +55,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         assertQuery("SELECT -2123", "-2123", "integer", -2123, 11);
         assertQuery("SELECT 1234567890123", "1234567890123", "long", 1234567890123L, 20);
         assertQuery("SELECT -1234567890123", "-1234567890123", "long", -1234567890123L, 20);
+        assertQuery("SELECT 18446744073709551615", "18446744073709551615", "unsigned_long", UNSIGNED_LONG_MAX, 20);
         assertQuery("SELECT 1234567890123.34", "1234567890123.34", "double", 1234567890123.34, 25);
         assertQuery("SELECT -1234567890123.34", "-1234567890123.34", "double", -1234567890123.34, 25);
         assertQuery("SELECT CAST(1234.34 AS REAL)", "CAST(1234.34 AS REAL)", "float", 1234.34f, 15);
@@ -112,6 +114,11 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             "2001:0db8:0000:0000:0000:ff00:0042:8329",
             45
         );
+    }
+
+    public void testVersionFields() throws IOException {
+        assertQuery("SELECT CAST('1.2.3' AS VERSION)", "CAST('1.2.3' AS VERSION)", "version", "1.2.3", 2147483647);
+        assertQuery("SELECT CAST('bad' AS VERSION)", "CAST('bad' AS VERSION)", "version", "bad", 2147483647);
     }
 
     public void testDateTimeIntervals() throws IOException {

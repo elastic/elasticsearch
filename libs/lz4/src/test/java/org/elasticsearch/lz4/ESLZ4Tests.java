@@ -209,10 +209,10 @@ public class ESLZ4Tests extends AbstractLZ4TestCase {
         final int maxCompressedLength = tester.maxCompressedLength(data.length);
         final T compressed = tester.allocate(maxCompressedLength);
         final int compressedLen = tester.compress(compressor, original, compressed);
-        if (original instanceof ByteBuffer) {
-            assertEquals(data.length, ((ByteBuffer) original).position());
+        if (original instanceof ByteBuffer byteBuffer) {
+            assertEquals(data.length, byteBuffer.position());
             assertEquals(compressedLen, ((ByteBuffer) compressed).position());
-            ((ByteBuffer) original).rewind();
+            byteBuffer.rewind();
             ((ByteBuffer) compressed).rewind();
         }
 

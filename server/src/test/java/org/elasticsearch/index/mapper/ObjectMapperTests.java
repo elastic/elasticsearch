@@ -8,10 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -20,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ObjectMapperTests extends MapperServiceTestCase {
 
@@ -42,7 +45,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                      "value":"value"
                    }""".indent(1)), XContentType.JSON))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
+        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.array.object] with an object mapping"));
     }
 
     public void testEmptyArrayProperties() throws Exception {
@@ -153,6 +156,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
+        assertTrue(objectMapper.subobjects());
 
         // Setting 'enabled' to true is allowed, and updates the mapping.
         update = Strings.toString(
@@ -162,6 +166,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .startObject("object")
                 .field("type", "object")
                 .field("enabled", true)
+                .field("subobjects", false)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -171,6 +176,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
         assertTrue(objectMapper.isEnabled());
+        assertFalse(objectMapper.subobjects());
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {
@@ -322,5 +328,192 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         // Empty name not allowed in index created after 5.0
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testUnknownLegacyFields() throws Exception {
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", "unknown");
+            b.field("unknown_setting", 5);
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+    }
+
+    public void testUnmappedLegacyFields() throws Exception {
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", CompletionFieldMapper.CONTENT_TYPE);
+            b.field("unknown_setting", 5);
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+    }
+
+    public void testSubobjectsFalse() throws Exception {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("metrics.service");
+            {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("time");
+                    b.field("type", "long");
+                    b.endObject();
+                    b.startObject("time.max");
+                    b.field("type", "long");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertNotNull(mapperService.fieldType("metrics.service.time"));
+        assertNotNull(mapperService.fieldType("metrics.service.time.max"));
+    }
+
+    public void testSubobjectsFalseWithInnerObject() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("metrics.service");
+            {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("time");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("max");
+                            b.field("type", "long");
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add subobject [time] to object [service] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("metrics.service");
+            {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("time");
+                    b.field("type", "nested");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add nested object [time] to object [service] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseRoot() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties");
+            {
+                b.startObject("metrics.service.time");
+                b.field("type", "long");
+                b.endObject();
+                b.startObject("metrics.service.time.max");
+                b.field("type", "long");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertNotNull(mapperService.fieldType("metrics.service.time"));
+        assertNotNull(mapperService.fieldType("metrics.service.time.max"));
+    }
+
+    public void testExplicitDefaultSubobjects() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", true)));
+        assertEquals("{\"_doc\":{\"subobjects\":true}}", Strings.toString(mapperService.mappingLookup().getMapping()));
+    }
+
+    public void testSubobjectsFalseRootWithInnerObject() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties");
+            {
+                b.startObject("metrics.service.time");
+                {
+                    b.startObject("properties");
+                    {
+                        b.startObject("max");
+                        b.field("type", "long");
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add subobject [metrics.service.time] to object [_doc] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseRootWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties");
+            {
+                b.startObject("metrics.service");
+                b.field("type", "nested");
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add nested object [metrics.service] to object [_doc] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsCannotBeUpdated() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "object")));
+        DocumentMapper mapper = mapperService.documentMapper();
+        assertNull(mapper.mapping().getRoot().dynamic());
+        Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
+            b.field("type", "object");
+            b.field("subobjects", "false");
+        }))));
+        MapperException exception = expectThrows(
+            MapperException.class,
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
+        );
+        assertEquals("the [subobjects] parameter can't be updated for the object mapping [field]", exception.getMessage());
+    }
+
+    public void testSubobjectsCannotBeUpdatedOnRoot() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
+        DocumentMapper mapper = mapperService.documentMapper();
+        assertNull(mapper.mapping().getRoot().dynamic());
+        Mapping mergeWith = mapperService.parseMapping(
+            "_doc",
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("subobjects", true); })))
+        );
+        MapperException exception = expectThrows(
+            MapperException.class,
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
+        );
+        assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class NodeRoleSettings {
 
@@ -25,7 +24,7 @@ public class NodeRoleSettings {
             .stream()
             .filter(role -> role.isEnabledByDefault(settings))
             .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toList()),
+            .toList(),
         roles -> {
             for (final DiscoveryNodeRole role : roles) {
                 role.validateRoles(roles);

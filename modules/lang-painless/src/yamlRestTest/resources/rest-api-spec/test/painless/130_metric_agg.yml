@@ -17,21 +17,21 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body:
           double: 1.0
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body:
           double: 1.0
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body:
           double: 2.0
 

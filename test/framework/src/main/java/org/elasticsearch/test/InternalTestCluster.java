@@ -7,9 +7,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.hppc.ObjectLongMap;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -39,13 +36,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -62,14 +59,14 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -134,8 +131,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -247,7 +244,18 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private final Function<Client, Client> clientWrapper;
 
-    private int bootstrapMasterNodeIndex = -1;
+    /**
+     * Default value of bootstrapMasterNodeIndex, indicating that bootstrapping should happen automatically.
+     */
+    public static final int BOOTSTRAP_MASTER_NODE_INDEX_AUTO = -1;
+
+    /**
+     * Sentinel value of bootstrapMasterNodeIndex, indicating that bootstrapMasterNodeIndex was set explicitly and has been used.
+     */
+    public static final int BOOTSTRAP_MASTER_NODE_INDEX_DONE = -2;
+
+    // index of node to bootstrap as master, or BOOTSTRAP_MASTER_NODE_INDEX_AUTO or BOOTSTRAP_MASTER_NODE_INDEX_DONE
+    private int bootstrapMasterNodeIndex = BOOTSTRAP_MASTER_NODE_INDEX_AUTO;
 
     public InternalTestCluster(
         final long clusterSeed,
@@ -371,8 +379,8 @@ public final class InternalTestCluster extends TestCluster {
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TransportSettings.PORT.getKey(), 0);
-        builder.put("http.port", 0);
+        builder.put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange());
+        builder.put("http.port", ESTestCase.getPortRange());
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));
         }
@@ -428,6 +436,7 @@ public final class InternalTestCluster extends TestCluster {
             Integer.MAX_VALUE,
             0,
             TimeUnit.SECONDS,
+            true,
             EsExecutors.daemonThreadFactory("test_" + clusterName),
             new ThreadContext(Settings.EMPTY)
         );
@@ -439,8 +448,9 @@ public final class InternalTestCluster extends TestCluster {
      * It's only possible to change {@link #bootstrapMasterNodeIndex} value if autoManageMasterNodes is false.
      */
     public void setBootstrapMasterNodeIndex(int bootstrapMasterNodeIndex) {
-        assert autoManageMasterNodes == false || bootstrapMasterNodeIndex == -1
-            : "bootstrapMasterNodeIndex should be -1 if autoManageMasterNodes is true, but was " + bootstrapMasterNodeIndex;
+        assert autoManageMasterNodes == false || bootstrapMasterNodeIndex == BOOTSTRAP_MASTER_NODE_INDEX_AUTO
+            : "bootstrapMasterNodeIndex should be BOOTSTRAP_MASTER_NODE_INDEX_AUTO if autoManageMasterNodes is true, but was "
+                + bootstrapMasterNodeIndex;
         this.bootstrapMasterNodeIndex = bootstrapMasterNodeIndex;
     }
 
@@ -522,6 +532,10 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
+        // RST all closing connections in tests (by setting SO_LINGER to 0) so we don't leave too many connections in TIME_WAIT state and
+        // run out of ports.
+        builder.put(TransportSettings.RST_ON_CLOSE.getKey(), true);
+
         // randomize tcp settings
         if (random.nextBoolean()) {
             builder.put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
@@ -579,6 +593,14 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.getKey(), timeValueMillis(initialMillisBound));
             int retryTimeoutSeconds = RandomNumbers.randomIntBetween(random, 0, 60);
             builder.put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), timeValueSeconds(retryTimeoutSeconds));
+        }
+        if (random.nextInt(10) == 0) {
+            builder.put(
+                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
+                new ByteSizeValue(
+                    RandomNumbers.randomIntBetween(random, rarely(random) ? 10 : 100, randomFrom(random, 1000, 10000, 100000, 1000000))
+                )
+            );
         }
 
         return builder.build();
@@ -1032,7 +1054,7 @@ public final class InternalTestCluster extends TestCluster {
                 node.close();
                 try {
                     if (node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                        throw new IOException("Node didn't close within 10 seconds.");
+                        throw new AssertionError("Node didn't close within 10 seconds.");
                     }
                 } catch (InterruptedException e) {
                     throw new AssertionError("Interruption while waiting for the node to close", e);
@@ -1067,8 +1089,7 @@ public final class InternalTestCluster extends TestCluster {
         // clear all rules for mock transport services
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
-            if (transportService instanceof MockTransportService) {
-                final MockTransportService mockTransportService = (MockTransportService) transportService;
+            if (transportService instanceof final MockTransportService mockTransportService) {
                 mockTransportService.clearAllRules();
             }
         }
@@ -1191,23 +1212,22 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
-        try {
-            // use waiting via the cluster service first to save on some busy-waiting and sleeping before entering the busy assert below
-            ClusterServiceUtils.awaitClusterState(
-                logger,
-                state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
-                getInstance(ClusterService.class)
-            );
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
+        assertFalse(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNodes(Integer.toString(expectedNodes.size()))
+                .get()
+                .isTimedOut()
+        );
         try {
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
                     .stream()
                     .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
                     .map(ClusterService::state)
-                    .collect(Collectors.toList());
+                    .toList();
                 final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
                 // all nodes have a master
                 assertTrue("Missing master" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
@@ -1396,15 +1416,16 @@ public final class InternalTestCluster extends TestCluster {
     public void assertSeqNos() throws Exception {
         assertBusy(() -> {
             final ClusterState state = clusterService().state();
-            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
-                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
-                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+            for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
                     final IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue; // just ignore - shard movement
                     }
                     final SeqNoStats primarySeqNoStats;
-                    final ObjectLongMap<String> syncGlobalCheckpoints;
+                    final Map<String, Long> syncGlobalCheckpoints;
                     try {
                         primarySeqNoStats = primaryShard.seqNoStats();
                         syncGlobalCheckpoints = primaryShard.getInSyncGlobalCheckpoints();
@@ -1416,7 +1437,7 @@ public final class InternalTestCluster extends TestCluster {
                         primarySeqNoStats.getGlobalCheckpoint(),
                         not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO))
                     );
-                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
                         final IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
                         if (replicaShard == null) {
                             continue; // just ignore - shard movement
@@ -1446,9 +1467,10 @@ public final class InternalTestCluster extends TestCluster {
     public void assertSameDocIdsOnShards() throws Exception {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
-                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
-                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+            for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
                     IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue;
@@ -1459,7 +1481,7 @@ public final class InternalTestCluster extends TestCluster {
                     } catch (AlreadyClosedException ex) {
                         continue;
                     }
-                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
                         IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
                         if (replicaShard == null) {
                             continue;
@@ -1545,6 +1567,9 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, DATA_NODE_PREDICATE);
     }
 
+    /**
+     * Return the instance of the given class &gt;T&lt; from the elected master node. See also {@link #getAnyMasterNodeInstance}.
+     */
     public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
         return getInstance(clazz, new NodeNamePredicate(getMasterName()));
     }
@@ -1577,7 +1602,11 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, DATA_NODE_PREDICATE);
     }
 
-    public <T> T getMasterNodeInstance(Class<T> clazz) {
+    /**
+     * Return the instance of the given class &gt;T&lt; from any of the master-eligible nodes (not necessarily the elected master). See
+     * also {@link #getCurrentMasterNodeInstance}.
+     */
+    public <T> T getAnyMasterNodeInstance(Class<T> clazz) {
         return getInstance(clazz, MASTER_NODE_PREDICATE);
     }
 
@@ -1644,6 +1673,7 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         Optional<NodeAndClient> nodeToStop = nodes.values().stream().filter(n -> n.getName().equals(nodeName)).findFirst();
         if (nodeToStop.isPresent()) {
+            ensureNotTheLastMasterEligibleNode(nodeToStop.get());
             logger.info("Closing node [{}]", nodeToStop.get().name);
             stopNodesAndClient(nodeToStop.get());
             return true;
@@ -1651,27 +1681,17 @@ public final class InternalTestCluster extends TestCluster {
         return false;
     }
 
-    /**
-     * Stops a random node in the cluster that applies to the given filter. Does nothing if none of the nodes match the
-     * filter.
-     */
-    public synchronized void stopRandomNode(final Predicate<Settings> filter) throws IOException {
-        ensureOpen();
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
-        if (nodeAndClient != null) {
-            if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
-                && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
-                && nodeAndClient.isMasterEligible()
-                && autoManageMasterNodes
-                && nodes.values()
-                    .stream()
-                    .filter(NodeAndClient::isMasterEligible)
-                    .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
-                    .count() == 1) {
-                throw new AssertionError("Tried to stop the only master eligible shared node");
-            }
-            logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
-            stopNodesAndClient(nodeAndClient);
+    private void ensureNotTheLastMasterEligibleNode(NodeAndClient nodeAndClient) {
+        if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
+            && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
+            && nodeAndClient.isMasterEligible()
+            && autoManageMasterNodes
+            && nodes.values()
+                .stream()
+                .filter(NodeAndClient::isMasterEligible)
+                .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
+                .count() == 1) {
+            throw new AssertionError("Tried to stop the only master eligible shared node");
         }
     }
 
@@ -1961,6 +1981,21 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    /**
+     * @return the name of a random node in a cluster
+     */
+    public String getRandomNodeName() {
+        return getNodeNameThat(ignored -> true);
+    }
+
+    /**
+     * @return the name of a random node in a cluster that match the {@code predicate}
+     */
+    public String getNodeNameThat(Predicate<Settings> predicate) {
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> predicate.test(nc.node.settings()));
+        return nodeAndClient != null ? nodeAndClient.getName() : null;
+    }
+
     synchronized Set<String> allDataNodesButN(int count) {
         final int numNodes = numDataNodes() - count;
         assert size() >= numNodes;
@@ -2004,7 +2039,8 @@ public final class InternalTestCluster extends TestCluster {
      */
     private List<Settings> bootstrapMasterNodeWithSpecifiedIndex(List<Settings> allNodesSettings) {
         assert Thread.holdsLock(this);
-        if (bootstrapMasterNodeIndex == -1) { // fast-path
+        if (bootstrapMasterNodeIndex == BOOTSTRAP_MASTER_NODE_INDEX_AUTO || bootstrapMasterNodeIndex == BOOTSTRAP_MASTER_NODE_INDEX_DONE) {
+            // fast-path
             return allNodesSettings;
         }
 
@@ -2040,7 +2076,7 @@ public final class InternalTestCluster extends TestCluster {
                             .build()
                     );
 
-                    setBootstrapMasterNodeIndex(-1);
+                    setBootstrapMasterNodeIndex(BOOTSTRAP_MASTER_NODE_INDEX_DONE);
                 }
             }
         }
@@ -2090,6 +2126,9 @@ public final class InternalTestCluster extends TestCluster {
         final int newMasterCount = Math.toIntExact(Stream.of(extraSettings).filter(DiscoveryNode::isMasterNode).count());
         final List<NodeAndClient> nodeList = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
+        assert autoManageMasterNodes || bootstrapMasterNodeIndex != BOOTSTRAP_MASTER_NODE_INDEX_AUTO : """
+            if autoManageMasterNodes is false you must configure bootstrapping by calling setBootstrapMasterNodeIndex before starting the \
+            first node""";
         int autoBootstrapMasterNodeIndex = autoManageMasterNodes
             && prevMasterCount == 0
             && newMasterCount > 0
@@ -2172,8 +2211,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public String startDataOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(dataOnlyNode(settings)).build();
-        return startNode(settings1);
+        return startNode(Settings.builder().put(settings).put(dataOnlyNode(settings)).build());
     }
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {
@@ -2282,7 +2320,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    if (shard == indexRouting.indexShard(null, routing, null, null)) {
+                    if (shard == indexRouting.indexShard("id", routing, null, null)) {
                         return routing;
                     }
                 }
@@ -2321,14 +2359,6 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return getInstance(NamedWriteableRegistry.class);
-    }
-
-    /**
-     * Returns a predicate that only accepts settings of nodes with one of the given names.
-     */
-    public static Predicate<Settings> nameFilter(String... nodeNames) {
-        final Set<String> nodes = Sets.newHashSet(nodeNames);
-        return settings -> nodes.contains(settings.get("node.name"));
     }
 
     /**
@@ -2456,7 +2486,7 @@ public final class InternalTestCluster extends TestCluster {
                 try {
                     env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (ShardLockObtainFailedException ex) {
-                    fail("Shard " + id + " is still locked after 5 sec waiting");
+                    throw new AssertionError("Shard " + id + " is still locked after 5 sec waiting", ex);
                 }
             }
         }

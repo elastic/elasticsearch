@@ -27,10 +27,10 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -38,6 +38,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -57,7 +59,7 @@ public class TransformInternalIndexTests extends ESTestCase {
     }
 
     public static ClusterState randomTransformClusterState(boolean shardsReady) {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMapBuilder = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indexMapBuilder = new HashMap<>();
         try {
             IndexMetadata.Builder builder = new IndexMetadata.Builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).settings(
                 Settings.builder()
@@ -70,20 +72,18 @@ public class TransformInternalIndexTests extends ESTestCase {
             throw new UncheckedIOException(e);
         }
         Metadata.Builder metaBuilder = Metadata.builder();
-        metaBuilder.indices(indexMapBuilder.build());
+        metaBuilder.indices(indexMapBuilder);
         ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
         csBuilder.metadata(metaBuilder.build());
 
+        final var index = new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, UUIDs.randomBase64UUID());
         csBuilder.routingTable(
             RoutingTable.builder()
                 .add(
-                    IndexRoutingTable.builder(
-                        new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, UUIDs.randomBase64UUID())
-                    )
+                    IndexRoutingTable.builder(index)
                         .addShard(
                             TestShardRouting.newShardRouting(
-                                TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                                0,
+                                new ShardId(index, 0),
                                 "node_a",
                                 null,
                                 true,

@@ -220,24 +220,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     // This can happen if nodes drop out of the cluster completely or restart during the snapshot.
                     // We rebuild the information they would have provided from their in memory state from the cluster
                     // state and the repository contents in the below logic
-                    final SnapshotIndexShardStage stage;
-                    switch (shardEntry.getValue().state()) {
-                        case FAILED:
-                        case ABORTED:
-                        case MISSING:
-                            stage = SnapshotIndexShardStage.FAILURE;
-                            break;
-                        case INIT:
-                        case WAITING:
-                        case QUEUED:
-                            stage = SnapshotIndexShardStage.STARTED;
-                            break;
-                        case SUCCESS:
-                            stage = SnapshotIndexShardStage.DONE;
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
-                    }
+                    final SnapshotIndexShardStage stage = switch (shardEntry.getValue().state()) {
+                        case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
+                        case INIT, WAITING, QUEUED -> SnapshotIndexShardStage.STARTED;
+                        case SUCCESS -> SnapshotIndexShardStage.DONE;
+                    };
                     final SnapshotIndexShardStatus shardStatus;
                     if (stage == SnapshotIndexShardStage.DONE) {
                         // Shard snapshot completed successfully so we should be able to load the exact statistics for this
@@ -342,20 +329,14 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue().asCopy();
                             shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
                         }
-                        final SnapshotsInProgress.State state;
-                        switch (snapshotInfo.state()) {
-                            case FAILED:
-                                state = SnapshotsInProgress.State.FAILED;
-                                break;
-                            case SUCCESS:
-                            case PARTIAL:
+                        final SnapshotsInProgress.State state = switch (snapshotInfo.state()) {
+                            case FAILED -> SnapshotsInProgress.State.FAILED;
+                            case SUCCESS, PARTIAL ->
                                 // Translating both PARTIAL and SUCCESS to SUCCESS for now
                                 // TODO: add the differentiation on the metadata level in the next major release
-                                state = SnapshotsInProgress.State.SUCCESS;
-                                break;
-                            default:
-                                throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
-                        }
+                                SnapshotsInProgress.State.SUCCESS;
+                            default -> throw new IllegalArgumentException("Unexpected snapshot state " + snapshotInfo.state());
+                        };
                         final long startTime = snapshotInfo.startTime();
                         final long endTime = snapshotInfo.endTime();
                         assert endTime >= startTime || (endTime == 0L && snapshotInfo.state().completed() == false)

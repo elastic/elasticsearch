@@ -22,6 +22,7 @@ import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -171,8 +172,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
     }
 
     /**
@@ -218,7 +219,9 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             true,
             () -> null,
             RuntimeField::parseScript,
-            RuntimeField.initializerNotSupported()
+            RuntimeField.initializerNotSupported(),
+            XContentBuilder::field,
+            Objects::toString
         ).setSerializerCheck((id, ic, v) -> ic);
 
         Builder(String name, ScriptContext<Factory> scriptContext) {

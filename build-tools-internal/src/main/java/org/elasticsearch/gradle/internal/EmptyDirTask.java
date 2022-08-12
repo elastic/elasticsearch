@@ -56,13 +56,6 @@ public class EmptyDirTask extends DefaultTask {
         this.dir = dir;
     }
 
-    /**
-     * @param dir The path of the directory to create. Takes a String and coerces it to a file.
-     */
-    public void setDir(String dir) {
-        this.dir = getProject().file(dir);
-    }
-
     @Input
     public int getDirMode() {
         return dirMode;

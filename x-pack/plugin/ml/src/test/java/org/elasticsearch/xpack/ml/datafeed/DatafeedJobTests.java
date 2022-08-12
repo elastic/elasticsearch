@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -133,7 +134,7 @@ public class DatafeedJobTests extends ESTestCase {
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
-        when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
+        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
         DataCounts dataCounts = new DataCounts(
             jobId,
             1,
@@ -292,7 +293,7 @@ public class DatafeedJobTests extends ESTestCase {
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
+        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 
@@ -301,7 +302,7 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = currentTime + DELAYED_DATA_FREQ_HALF;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
+        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 
@@ -350,7 +351,7 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = currentTime + DELAYED_DATA_WINDOW + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
+        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 
@@ -392,7 +393,7 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = currentTime + DELAYED_DATA_WINDOW + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
+        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 

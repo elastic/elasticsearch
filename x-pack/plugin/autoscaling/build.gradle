@@ -14,13 +14,11 @@ archivesBaseName = 'x-pack-autoscaling'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(':modules:data-streams')
   testImplementation project(path: xpackModule('searchable-snapshots'))
   testImplementation project(path: xpackModule('ilm'))
 
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:2.10.4"
-  testImplementation project(':modules:transport-netty4') // for http
-  testImplementation project(':plugins:transport-nio') // for http
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

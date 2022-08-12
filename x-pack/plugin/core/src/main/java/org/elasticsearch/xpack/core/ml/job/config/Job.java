@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -56,11 +58,13 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * data time fields are {@code null} until the job has seen some data or it is
  * finished respectively.
  */
-public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentObject {
+public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
 
     public static final String TYPE = "job";
 
     public static final String ANOMALY_DETECTOR_JOB_TYPE = "anomaly_detector";
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Job.class);
 
     /*
      * Field names used in serialization
@@ -569,7 +573,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
-        out.writeMap(customSettings);
+        out.writeGenericMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
         if (modelSnapshotMinVersion != null) {
             out.writeBoolean(true);
@@ -1066,7 +1070,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(modelSnapshotRetentionDays);
             out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             out.writeOptionalLong(resultsRetentionDays);
-            out.writeMap(customSettings);
+            out.writeGenericMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
             if (modelSnapshotMinVersion != null) {
                 out.writeBoolean(true);
@@ -1207,6 +1211,32 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && modelSnapshotRetentionDays > DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS) {
                 dailyModelSnapshotRetentionAfterDays = DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS;
             }
+
+            final long SECONDS_IN_A_DAY = 86400;
+            if (analysisConfig.getBucketSpan().seconds() > SECONDS_IN_A_DAY) {
+                if (analysisConfig.getBucketSpan().seconds() % SECONDS_IN_A_DAY != 0) {
+                    deprecationLogger.critical(
+                        DeprecationCategory.OTHER,
+                        "bucket_span",
+                        "bucket_span {} [{}s] is not an integral multiple of the number of seconds in 1d [{}s]. This is now deprecated.",
+                        analysisConfig.getBucketSpan().toString(),
+                        analysisConfig.getBucketSpan().seconds(),
+                        SECONDS_IN_A_DAY
+                    );
+                }
+            } else {
+                if (SECONDS_IN_A_DAY % analysisConfig.getBucketSpan().seconds() != 0) {
+                    deprecationLogger.critical(
+                        DeprecationCategory.OTHER,
+                        "bucket_span",
+                        "bucket_span {} [{}s] is not an integral divisor of the number of seconds in 1d [{}s]. This is now deprecated.",
+                        analysisConfig.getBucketSpan().toString(),
+                        analysisConfig.getBucketSpan().seconds(),
+                        SECONDS_IN_A_DAY
+                    );
+                }
+            }
+
             if (analysisConfig.getModelPruneWindow() == null) {
                 long modelPruneWindowSeconds = analysisConfig.getBucketSpan().seconds() / 2 + AnalysisConfig.DEFAULT_MODEL_PRUNE_WINDOW
                     .seconds();
@@ -1217,7 +1247,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 modelPruneWindowSeconds = Math.max(20 * analysisConfig.getBucketSpan().seconds(), modelPruneWindowSeconds);
 
                 AnalysisConfig.Builder analysisConfigBuilder = new AnalysisConfig.Builder(analysisConfig);
-                final long SECONDS_IN_A_DAY = 86400;
                 final long SECONDS_IN_AN_HOUR = 3600;
                 final long SECONDS_IN_A_MINUTE = 60;
                 if (modelPruneWindowSeconds % SECONDS_IN_A_DAY == 0) {

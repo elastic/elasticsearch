@@ -7,29 +7,22 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
-
 import java.util.Objects;
 
 /**
  * Main (/) response for JDBC/CLI client
  */
 public class MainResponse {
-    private String nodeName;
-    private String version;
-    private String clusterName;
-    private String clusterUuid;
-
-    private MainResponse() {}
+    private final String nodeName;
+    private final String version;
+    private final String clusterName;
+    private final String clusterUuid;
 
     public MainResponse(String nodeName, String version, String clusterName, String clusterUuid) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
-
     }
 
     public String getNodeName() {
@@ -46,28 +39,6 @@ public class MainResponse {
 
     public String getClusterUuid() {
         return clusterUuid;
-    }
-
-    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(
-        MainResponse.class.getName(),
-        true,
-        MainResponse::new
-    );
-
-    static {
-        PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
-        PARSER.declareString((response, value) -> response.clusterName = value, new ParseField("cluster_name"));
-        PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
-        PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
-        PARSER.declareObject(
-            (response, value) -> { response.version = (String) value.get("number"); },
-            (parser, context) -> parser.map(),
-            new ParseField("version")
-        );
-    }
-
-    public static MainResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

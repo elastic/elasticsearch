@@ -32,50 +32,21 @@ public enum AuditLevel {
         for (String level : levels) {
             String lowerCaseLevel = level.trim().toLowerCase(Locale.ROOT);
             switch (lowerCaseLevel) {
-                case "_all":
-                    enumSet.addAll(Arrays.asList(AuditLevel.values()));
-                    break;
-                case "anonymous_access_denied":
-                    enumSet.add(ANONYMOUS_ACCESS_DENIED);
-                    break;
-                case "authentication_failed":
-                    enumSet.add(AUTHENTICATION_FAILED);
-                    break;
-                case "realm_authentication_failed":
-                    enumSet.add(REALM_AUTHENTICATION_FAILED);
-                    break;
-                case "access_granted":
-                    enumSet.add(ACCESS_GRANTED);
-                    break;
-                case "access_denied":
-                    enumSet.add(ACCESS_DENIED);
-                    break;
-                case "tampered_request":
-                    enumSet.add(TAMPERED_REQUEST);
-                    break;
-                case "connection_granted":
-                    enumSet.add(CONNECTION_GRANTED);
-                    break;
-                case "connection_denied":
-                    enumSet.add(CONNECTION_DENIED);
-                    break;
-                case "system_access_granted":
-                    enumSet.add(SYSTEM_ACCESS_GRANTED);
-                    break;
-                case "security_config_change":
-                    enumSet.add(SECURITY_CONFIG_CHANGE);
-                    break;
-                case "authentication_success":
-                    enumSet.add(AUTHENTICATION_SUCCESS);
-                    break;
-                case "run_as_granted":
-                    enumSet.add(RUN_AS_GRANTED);
-                    break;
-                case "run_as_denied":
-                    enumSet.add(RUN_AS_DENIED);
-                    break;
-                default:
-                    throw new IllegalArgumentException("invalid event name specified [" + level + "]");
+                case "_all" -> enumSet.addAll(Arrays.asList(AuditLevel.values()));
+                case "anonymous_access_denied" -> enumSet.add(ANONYMOUS_ACCESS_DENIED);
+                case "authentication_failed" -> enumSet.add(AUTHENTICATION_FAILED);
+                case "realm_authentication_failed" -> enumSet.add(REALM_AUTHENTICATION_FAILED);
+                case "access_granted" -> enumSet.add(ACCESS_GRANTED);
+                case "access_denied" -> enumSet.add(ACCESS_DENIED);
+                case "tampered_request" -> enumSet.add(TAMPERED_REQUEST);
+                case "connection_granted" -> enumSet.add(CONNECTION_GRANTED);
+                case "connection_denied" -> enumSet.add(CONNECTION_DENIED);
+                case "system_access_granted" -> enumSet.add(SYSTEM_ACCESS_GRANTED);
+                case "security_config_change" -> enumSet.add(SECURITY_CONFIG_CHANGE);
+                case "authentication_success" -> enumSet.add(AUTHENTICATION_SUCCESS);
+                case "run_as_granted" -> enumSet.add(RUN_AS_GRANTED);
+                case "run_as_denied" -> enumSet.add(RUN_AS_DENIED);
+                default -> throw new IllegalArgumentException("invalid event name specified [" + level + "]");
             }
         }
         return enumSet;

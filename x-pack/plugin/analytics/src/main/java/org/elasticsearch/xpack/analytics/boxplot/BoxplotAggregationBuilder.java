@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -163,5 +164,10 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     @Override
     public Optional<Set<String>> getOutputFieldNames() {
         return Optional.of(InternalBoxplot.METRIC_NAMES);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_7_0;
     }
 }

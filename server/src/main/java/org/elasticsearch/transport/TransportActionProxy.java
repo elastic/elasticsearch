@@ -51,7 +51,7 @@ public final class TransportActionProxy {
             DiscoveryNode targetNode = request.targetNode;
             TransportRequest wrappedRequest = request.wrapped;
             assert assertConsistentTaskType(task, wrappedRequest);
-            TaskId taskId = task.taskInfo(service.localNode.getId(), false).getTaskId();
+            TaskId taskId = task.taskInfo(service.localNode.getId(), false).taskId();
             wrappedRequest.setParentTask(taskId);
             service.sendRequest(
                 targetNode,
@@ -61,7 +61,7 @@ public final class TransportActionProxy {
             );
         }
 
-        private boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
+        private static boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
             final Task targetTask = wrapped.createTask(0, proxyTask.getType(), proxyTask.getAction(), TaskId.EMPTY_TASK_ID, Map.of());
             assert targetTask instanceof CancellableTask == proxyTask instanceof CancellableTask
                 : "Cancellable property of proxy action ["

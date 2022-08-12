@@ -52,7 +52,7 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
         if (numberOfShards != null) {
             int sourceNumberOfShards = indexMetadata.getNumberOfShards();
             if (sourceNumberOfShards % numberOfShards != 0) {
-                String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                String policyName = indexMetadata.getLifecyclePolicyName();
                 String errorMessage = String.format(
                     Locale.ROOT,
                     "lifecycle action of policy [%s] for index [%s] cannot make progress "

@@ -15,11 +15,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 public class VersionConflictEngineException extends EngineException {
-
-    public VersionConflictEngineException(ShardId shardId, Engine.Operation op, long currentVersion, boolean deleted) {
-        this(shardId, op.id(), op.versionType().explainConflictForWrites(currentVersion, op.version(), deleted));
-    }
-
     public VersionConflictEngineException(
         ShardId shardId,
         String id,
@@ -30,7 +25,7 @@ public class VersionConflictEngineException extends EngineException {
     ) {
         this(
             shardId,
-            id,
+            "[" + id + "]",
             "required seqNo ["
                 + compareAndWriteSeqNo
                 + "], primary term ["
@@ -42,8 +37,8 @@ public class VersionConflictEngineException extends EngineException {
         );
     }
 
-    public VersionConflictEngineException(ShardId shardId, String id, String explanation) {
-        this(shardId, "[{}]: version conflict, {}", null, id, explanation);
+    public VersionConflictEngineException(ShardId shardId, String documentDescription, String explanation) {
+        this(shardId, "{}: version conflict, {}", null, documentDescription, explanation);
     }
 
     public VersionConflictEngineException(ShardId shardId, String msg, Throwable cause, Object... params) {

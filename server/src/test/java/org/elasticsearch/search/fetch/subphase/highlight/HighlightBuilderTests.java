@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,8 +49,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -303,7 +303,7 @@ public class HighlightBuilderTests extends ESTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             namedWriteableRegistry,
             null,
             null,
@@ -614,19 +614,11 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.fragmenter(randomAlphaOfLengthBetween(1, 10));
         }
         if (randomBoolean()) {
-            QueryBuilder highlightQuery;
-            switch (randomInt(2)) {
-                case 0:
-                    highlightQuery = new MatchAllQueryBuilder();
-                    break;
-                case 1:
-                    highlightQuery = new IdsQueryBuilder();
-                    break;
-                default:
-                case 2:
-                    highlightQuery = new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-                    break;
-            }
+            QueryBuilder highlightQuery = switch (randomInt(2)) {
+                case 0 -> new MatchAllQueryBuilder();
+                case 1 -> new IdsQueryBuilder();
+                default -> new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
+            };
             highlightQuery.boost((float) randomDoubleBetween(0, 10, false));
             highlightBuilder.highlightQuery(highlightQuery);
         }
@@ -672,20 +664,14 @@ public class HighlightBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int items = randomIntBetween(0, 5);
-            Map<String, Object> options = new HashMap<>(items);
+            Map<String, Object> options = Maps.newMapWithExpectedSize(items);
             for (int i = 0; i < items; i++) {
-                Object value = null;
-                switch (randomInt(2)) {
-                    case 0:
-                        value = randomAlphaOfLengthBetween(1, 10);
-                        break;
-                    case 1:
-                        value = Integer.valueOf(randomInt(1000));
-                        break;
-                    case 2:
-                        value = Boolean.valueOf(randomBoolean());
-                        break;
-                }
+                Object value = switch (randomInt(2)) {
+                    case 0 -> randomAlphaOfLengthBetween(1, 10);
+                    case 1 -> Integer.valueOf(randomInt(1000));
+                    case 2 -> Boolean.valueOf(randomBoolean());
+                    default -> null;
+                };
                 options.put(randomAlphaOfLengthBetween(1, 10), value);
             }
         }
@@ -747,7 +733,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 break;
             case 15:
                 int items = 6;
-                Map<String, Object> options = new HashMap<>(items);
+                Map<String, Object> options = Maps.newMapWithExpectedSize(items);
                 for (int i = 0; i < items; i++) {
                     options.put(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
                 }
@@ -778,7 +764,7 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     private static String[] randomStringArray(int minSize, int maxSize) {
         int size = randomIntBetween(minSize, maxSize);
-        Set<String> randomStrings = new HashSet<>(size);
+        Set<String> randomStrings = Sets.newHashSetWithExpectedSize(size);
         for (int f = 0; f < size; f++) {
             randomStrings.add(randomAlphaOfLengthBetween(3, 10));
         }

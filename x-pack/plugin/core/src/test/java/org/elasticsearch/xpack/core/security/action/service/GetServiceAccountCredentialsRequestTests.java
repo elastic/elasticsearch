@@ -31,23 +31,20 @@ public class GetServiceAccountCredentialsRequestTests extends AbstractWireSerial
 
     @Override
     protected GetServiceAccountCredentialsRequest mutateInstance(GetServiceAccountCredentialsRequest instance) throws IOException {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new GetServiceAccountCredentialsRequest(
-                    randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    instance.getServiceName()
-                );
-            case 1:
-                return new GetServiceAccountCredentialsRequest(
-                    instance.getNamespace(),
-                    randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
-                );
-            default:
-                return new GetServiceAccountCredentialsRequest(
-                    randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
-                );
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new GetServiceAccountCredentialsRequest(
+                randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                instance.getServiceName()
+            );
+            case 1 -> new GetServiceAccountCredentialsRequest(
+                instance.getNamespace(),
+                randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
+            );
+            default -> new GetServiceAccountCredentialsRequest(
+                randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
+            );
+        };
     }
 
     public void testValidate() {

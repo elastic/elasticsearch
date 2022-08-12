@@ -103,21 +103,5 @@ class TarInputStream extends FilterInputStream {
         }
     }
 
-    static class TarEntry {
-        private final String name;
-        private final boolean notFile;
-
-        TarEntry(String name, boolean notFile) {
-            this.name = name;
-            this.notFile = notFile;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public boolean isNotFile() {
-            return notFile;
-        }
-    }
+    record TarEntry(String name, boolean notFile) {}
 }

@@ -11,11 +11,11 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -115,7 +115,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("buckets_path must reference a cardinality aggregation, " + "got: [InternalSum] at aggregation [the_sum]")
+            equalTo("buckets_path must reference a cardinality aggregation, " + "got: [Sum] at aggregation [the_sum]")
         );
     }
 

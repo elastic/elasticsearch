@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.sql.action;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -22,11 +24,17 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
-import org.junit.BeforeClass;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Payloads;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
+import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.proto.content.ContentFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
@@ -41,13 +49,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
-    private static String nodeHttpTypeKey;
-
-    @BeforeClass
-    public static void setUpTransport() {
-        nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class));
-    }
-
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
@@ -57,17 +58,8 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
             .build();
-    }
-
-    private static String getHttpTypeKey(Class<? extends Plugin> clazz) {
-        if (clazz.equals(NioTransportPlugin.class)) {
-            return NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME;
-        } else {
-            assert clazz.equals(Netty4Plugin.class);
-            return Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME;
-        }
     }
 
     @Override
@@ -75,7 +67,6 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(getTestTransportPlugin());
         plugins.add(Netty4Plugin.class);
-        plugins.add(NioTransportPlugin.class);
         return plugins;
     }
 
@@ -112,13 +103,10 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         // We are cancelling during both mapping and searching but we cancel during mapping so we should never reach the second block
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
-        SqlQueryRequest sqlRequest = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
-            "SELECT event_type FROM test WHERE val=1"
-        ).request();
         String id = randomAlphaOfLength(10);
 
         Request request = new Request("POST", Protocol.SQL_QUERY_REST_ENDPOINT);
-        request.setJsonEntity(Strings.toString(sqlRequest));
+        request.setJsonEntity(queryAsJson("SELECT event_type FROM test WHERE val=1"));
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
@@ -147,8 +135,8 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         assertBusy(() -> {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.getTaskId().getNodeId())) {
-                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.getId());
+                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.taskId().getNodeId())) {
+                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.id());
                     if (task != null) {
                         assertThat(task, instanceOf(SqlQueryTask.class));
                         SqlQueryTask sqlSearchTask = (SqlQueryTask) task;
@@ -171,6 +159,32 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         latch.await();
         assertThat(error.get(), instanceOf(CancellationException.class));
+    }
+
+    private static String queryAsJson(String query) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        try (JsonGenerator generator = ContentFactory.generator(ContentFactory.ContentType.JSON, out)) {
+            Payloads.generate(
+                generator,
+                new SqlQueryRequest(
+                    query,
+                    Collections.emptyList(),
+                    CoreProtocol.TIME_ZONE,
+                    null,
+                    CoreProtocol.FETCH_SIZE,
+                    CoreProtocol.REQUEST_TIMEOUT,
+                    CoreProtocol.PAGE_TIMEOUT,
+                    null,
+                    null,
+                    new RequestInfo(Mode.PLAIN),
+                    CoreProtocol.FIELD_MULTI_VALUE_LENIENCY,
+                    CoreProtocol.INDEX_INCLUDE_FROZEN,
+                    CoreProtocol.BINARY_COMMUNICATION,
+                    CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS
+                )
+            );
+        }
+        return out.bytes().utf8ToString();
     }
 
     @Override

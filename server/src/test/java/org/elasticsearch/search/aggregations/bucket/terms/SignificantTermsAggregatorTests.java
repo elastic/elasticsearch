@@ -19,14 +19,16 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -39,6 +41,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.InternalRandomSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
@@ -53,6 +57,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.hamcrest.Matchers.equalTo;
@@ -139,7 +146,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertNotNull(terms.getBucketByKey("even"));
 
                 // Search odd with regex includeexcludes
-                sigAgg.includeExclude(new IncludeExclude("o.d", null));
+                sigAgg.includeExclude(new IncludeExclude("o.d", null, null, null));
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
                 assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(1, terms.getBuckets().size());
@@ -148,10 +155,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertNull(terms.getBucketByKey("even"));
 
                 // Search with string-based includeexcludes
-                String oddStrings[] = new String[] { "odd", "weird" };
-                String evenStrings[] = new String[] { "even", "regular" };
+                SortedSet<BytesRef> oddStrings = new TreeSet<>(Set.of(new BytesRef("odd"), new BytesRef("weird")));
+                SortedSet<BytesRef> evenStrings = new TreeSet<>(Set.of(new BytesRef("even"), new BytesRef("regular")));
 
-                sigAgg.includeExclude(new IncludeExclude(oddStrings, evenStrings));
+                sigAgg.includeExclude(new IncludeExclude(null, null, oddStrings, evenStrings));
                 sigAgg.significanceHeuristic(heuristic);
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
                 assertThat(terms.getSubsetSize(), equalTo(5L));
@@ -162,7 +169,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertNull(terms.getBucketByKey("even"));
                 assertNull(terms.getBucketByKey("regular"));
 
-                sigAgg.includeExclude(new IncludeExclude(evenStrings, oddStrings));
+                sigAgg.includeExclude(new IncludeExclude(null, null, evenStrings, oddStrings));
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
                 assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(0, terms.getBuckets().size());
@@ -184,6 +191,51 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
+     * Test to make sure foreground and background sets (when sampling) are over the same doc sets
+     *
+     * @throws IOException on test setup failure
+     */
+    public void testSamplingConsistency() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
+        textFieldType.setFielddata(true);
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
+        indexWriterConfig.setMaxBufferedDocs(10_000);
+        indexWriterConfig.setRAMBufferSizeMB(10_000); // flush on open to have a single segment
+
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            addManyMixedTextDocs(w);
+            RandomSamplerAggregationBuilder randomSamplerAggregationBuilder = new RandomSamplerAggregationBuilder("random").setProbability(
+                0.5
+            );
+
+            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field("text");
+            sigAgg.executionHint(randomExecutionHint());
+            if (randomBoolean()) {
+                // Use a background filter which just happens to be same scope as whole-index.
+                sigAgg.backgroundFilter(QueryBuilders.termsQuery("text", "common"));
+            }
+
+            randomSamplerAggregationBuilder.subAggregation(sigAgg);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                // Match all so background and foreground should be the same size
+                InternalRandomSampler randomSampler = searchAndReduce(
+                    searcher,
+                    // randomly select the query, but both should hit the same docs, which is all of them.
+                    randomBoolean() ? new MatchAllDocsQuery() : new TermQuery(new Term("text", "common")),
+                    randomSamplerAggregationBuilder,
+                    textFieldType
+                );
+                SignificantStringTerms terms = randomSampler.getAggregations().get("sig_text");
+                assertThat(Strings.toString(terms), terms.subsetSize, equalTo(terms.supersetSize));
+            }
+        }
+    }
+
+    /**
      * Uses the significant terms aggregation to find the keywords in numeric
      * fields
      */
@@ -200,15 +252,15 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
 
             for (int i = 0; i < 10; i++) {
-                Document doc = new Document();
+                LuceneDocument doc = new LuceneDocument();
                 if (i % 2 == 0) {
-                    addFields(doc, NumberType.LONG.createFields("long_field", ODD_VALUE, true, true, false));
+                    NumberType.LONG.addFields(doc, "long_field", ODD_VALUE, true, true, false);
                     doc.add(new Field("text", "odd", TextFieldMapper.Defaults.FIELD_TYPE));
                 } else {
-                    addFields(doc, NumberType.LONG.createFields("long_field", EVEN_VALUE, true, true, false));
+                    NumberType.LONG.addFields(doc, "long_field", EVEN_VALUE, true, true, false);
                     doc.add(new Field("text", "even", TextFieldMapper.Defaults.FIELD_TYPE));
                 }
-                addFields(doc, NumberType.LONG.createFields("long_field", COMMON_VALUE, true, true, false));
+                NumberType.LONG.addFields(doc, "long_field", COMMON_VALUE, true, true, false);
                 w.addDocument(doc);
             }
 
@@ -352,6 +404,49 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
                 assertFalse(oddTerms.getBuckets().isEmpty());
                 assertEquals(oddTerms, aliasOddTerms);
+            }
+        }
+    }
+
+    public void testFieldBackground() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
+        textFieldType.setFielddata(true);
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
+
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            addMixedTextDocs(w);
+
+            SignificantTermsAggregationBuilder agg = significantTerms("sig_text").field("text");
+            SignificantTermsAggregationBuilder backgroundAgg = significantTerms("sig_text").field("text");
+
+            String executionHint = randomExecutionHint();
+            agg.executionHint(executionHint);
+            backgroundAgg.executionHint(executionHint);
+
+            QueryBuilder backgroundFilter = QueryBuilders.termsQuery("text", "odd");
+            backgroundAgg.backgroundFilter(backgroundFilter);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                SignificantTerms evenTerms = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), agg, textFieldType);
+                SignificantTerms backgroundEvenTerms = searchAndReduce(
+                    searcher,
+                    new TermQuery(new Term("text", "even")),
+                    backgroundAgg,
+                    textFieldType
+                );
+
+                assertFalse(evenTerms.getBuckets().isEmpty());
+                assertFalse(backgroundEvenTerms.getBuckets().isEmpty());
+                assertEquals(((InternalMappedSignificantTerms) evenTerms).getSubsetSize(), 5);
+                assertEquals(((InternalMappedSignificantTerms) evenTerms).getSupersetSize(), 10);
+                assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSubsetSize(), 5);
+                assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSupersetSize(), 5);
             }
         }
     }
@@ -580,6 +675,25 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
     private void addMixedTextDocs(IndexWriter w) throws IOException {
         for (int i = 0; i < 10; i++) {
+            Document doc = new Document();
+            StringBuilder text = new StringBuilder("common ");
+            if (i % 2 == 0) {
+                text.append("odd ");
+            } else {
+                text.append("even ");
+            }
+
+            doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
+            String json = """
+                { "text" : "%s" }""".formatted(text.toString());
+            doc.add(new StoredField("_source", new BytesRef(json)));
+
+            w.addDocument(doc);
+        }
+    }
+
+    private void addManyMixedTextDocs(IndexWriter w) throws IOException {
+        for (int i = 0; i < 10_000; i++) {
             Document doc = new Document();
             StringBuilder text = new StringBuilder("common ");
             if (i % 2 == 0) {

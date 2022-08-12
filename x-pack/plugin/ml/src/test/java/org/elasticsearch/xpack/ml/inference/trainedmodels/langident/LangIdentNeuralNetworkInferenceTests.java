@@ -41,30 +41,30 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
             inferenceObj(""),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
 
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
             inferenceObj("     "),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
 
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
             inferenceObj("!@#$%^&*()"),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
 
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
             inferenceObj("1234567890"),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
             inferenceObj("-----=-=--=-=+__+_+__==-=-!@#$%^&*()"),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
 
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(inferenceObj("A"), classificationConfig);
         assertThat(singleValueInferenceResults.valueAsString(), equalTo("lb"));
@@ -179,7 +179,7 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
         PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
         // Should be OK as we don't make any client calls
-        trainedModelProvider.getTrainedModel("lang_ident_model_1", GetTrainedModelsAction.Includes.forModelDefinition(), future);
+        trainedModelProvider.getTrainedModel("lang_ident_model_1", GetTrainedModelsAction.Includes.forModelDefinition(), null, future);
         TrainedModelConfig config = future.actionGet();
 
         config.ensureParsedDefinition(xContentRegistry());

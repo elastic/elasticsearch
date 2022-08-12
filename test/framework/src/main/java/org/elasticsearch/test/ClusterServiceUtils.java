@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.TaskManager;
@@ -137,6 +139,68 @@ public class ClusterServiceUtils {
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
         clusterService.getMasterService().setClusterStatePublisher(createClusterStatePublisher(clusterService.getClusterApplierService()));
         clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
+        clusterService.start();
+        return clusterService;
+    }
+
+    public static ClusterService createSingleThreadedClusterService() {
+        final var threadPool = new DeterministicTaskQueue().getThreadPool();
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var localNode = new DiscoveryNode(
+            "node",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
+        // run tasks inline, no need to fork to a separate thread
+        final var directExecutor = new PrioritizedEsThreadPoolExecutor(
+            "direct",
+            1,
+            1,
+            1,
+            TimeUnit.SECONDS,
+            r -> { throw new AssertionError("should not create new threads"); },
+            null,
+            null,
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        ) {
+            @Override
+            public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
+                command.run();
+            }
+
+            @Override
+            public void execute(Runnable command) {
+                command.run();
+            }
+        };
+
+        final var clusterApplierService = new ClusterApplierService("test", Settings.EMPTY, clusterSettings, threadPool) {
+            @Override
+            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                return directExecutor;
+            }
+        };
+        clusterApplierService.setInitialState(
+            ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+                .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+                .build()
+        );
+
+        final var masterService = new MasterService(Settings.EMPTY, clusterSettings, threadPool) {
+            @Override
+            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                return directExecutor;
+            }
+        };
+        masterService.setClusterStatePublisher(createClusterStatePublisher(clusterApplierService));
+        masterService.setClusterStateSupplier(clusterApplierService::state);
+
+        final var clusterService = new ClusterService(Settings.EMPTY, clusterSettings, masterService, clusterApplierService);
+        clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
+        clusterService.setRerouteService((s, p, r) -> r.onResponse(clusterApplierService.state()));
         clusterService.start();
         return clusterService;
     }

@@ -190,7 +190,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     synchronized void startWatcher(boolean onStartup) {
         if (watching() || active == false) {
-            assert initialState == false;
             // already watching or inactive, nothing to do
             return;
         }

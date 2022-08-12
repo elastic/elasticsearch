@@ -1326,35 +1326,33 @@ public class IndexNameExpressionResolver {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
             final boolean includeHidden = context.getOptions().expandWildcardsHidden();
             Set<String> expand = new HashSet<>();
-            for (Map.Entry<String, IndexAbstraction> entry : matches.entrySet()) {
-                String aliasOrIndexName = entry.getKey();
-                IndexAbstraction indexAbstraction = entry.getValue();
+            for (IndexAbstraction indexAbstraction : matches.values()) {
 
-                if (indexAbstraction.isSystem()) {
-                    if (context.netNewSystemIndexPredicate.test(indexAbstraction.getName())
-                        && context.systemIndexAccessPredicate.test(indexAbstraction.getName()) == false) {
-                        continue;
-                    }
-                    if (indexAbstraction.getType() == Type.DATA_STREAM || indexAbstraction.getParentDataStream() != null) {
-                        if (context.systemIndexAccessPredicate.test(indexAbstraction.getName()) == false) {
-                            continue;
-                        }
-                    }
+                if (indexAbstraction.isSystem()
+                    && (indexAbstraction.getType() == Type.DATA_STREAM
+                        || indexAbstraction.getParentDataStream() != null
+                        || context.netNewSystemIndexPredicate.test(indexAbstraction.getName()))
+                    && context.systemIndexAccessPredicate.test(indexAbstraction.getName()) == false) {
+                    continue;
                 }
 
-                if (indexAbstraction.isHidden() == false || includeHidden || implicitHiddenMatch(aliasOrIndexName, expression)) {
-                    if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-                        expand.add(aliasOrIndexName);
-                    } else {
-                        for (Index index : indexAbstraction.getIndices()) {
-                            IndexMetadata meta = context.state.metadata().index(index);
-                            if (excludeState == null || meta.getState() != excludeState) {
-                                expand.add(meta.getIndex().getName());
-                            }
+                if (indexAbstraction.isHidden()
+                    && includeHidden == false
+                    && implicitHiddenMatch(indexAbstraction.getName(), expression) == false) {
+                    continue;
+                }
+
+                if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
+                    expand.add(indexAbstraction.getName());
+                } else {
+                    for (Index index : indexAbstraction.getIndices()) {
+                        IndexMetadata meta = context.state.metadata().index(index);
+                        if (excludeState == null || meta.getState() != excludeState) {
+                            expand.add(meta.getIndex().getName());
                         }
-                        if (context.isPreserveDataStreams() && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                            expand.add(indexAbstraction.getName());
-                        }
+                    }
+                    if (context.isPreserveDataStreams() && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                        expand.add(indexAbstraction.getName());
                     }
                 }
             }

@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
@@ -58,6 +59,10 @@ public class RestInferTrainedModelAction extends BaseRestHandler {
             request.setUpdate(new EmptyConfigUpdate());
         }
 
-        return channel -> client.execute(InferModelAction.EXTERNAL_INSTANCE, request.build(), new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            InferModelAction.EXTERNAL_INSTANCE,
+            request.build(),
+            new RestToXContentListener<>(channel)
+        );
     }
 }

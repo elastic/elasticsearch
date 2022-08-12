@@ -246,10 +246,7 @@ public class JoinHelper {
                         new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
-                                assert Thread.currentThread()
-                                    .getName()
-                                    .contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
-                                    || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
+                                assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
                                 pendingJoinInfo.message = PENDING_JOIN_WAITING_RESPONSE;
                                 transportService.sendRequest(
                                     destination,

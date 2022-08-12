@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -106,7 +107,9 @@ public final class SPIClassIterator<S> implements Iterator<Class<? extends S>> {
             }
             final URL url = profilesEnum.nextElement();
             try {
-                final InputStream in = url.openStream();
+                URLConnection urlc = url.openConnection();
+                urlc.setUseCaches(false); // prevents retaining a handle to the underlying jar file, when the stream is closed
+                final InputStream in = urlc.getInputStream();
                 boolean success = false;
                 try {
                     final BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));

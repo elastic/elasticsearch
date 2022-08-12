@@ -42,7 +42,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         addArg(args, "--Classpath", pinfo.sysprops().get("java.class.path"));
         addArg(args, "--JvmMs", "4m");
         addArg(args, "--JvmMx", "64m");
-        addArg(args, "--JvmOptions", getJvmOptions(pinfo.sysprops()));
+        addQuotedArg(args, "--JvmOptions", getJvmOptions(pinfo.sysprops()));
         addArg(args, "--PidFile", "%s.pid".formatted(serviceId));
         addArg(
             args,
@@ -55,10 +55,10 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
             pinfo.envVars()
                 .getOrDefault("SERVICE_DESCRIPTION", "Elasticsearch %s Windows Service - https://elastic.co".formatted(Version.CURRENT))
         );
-        addArg(args, "--Jvm", getJvmDll(getJavaHome(pinfo.sysprops())).toString());
+        addQuotedArg(args, "--Jvm", quote(getJvmDll(getJavaHome(pinfo.sysprops())).toString()));
         addArg(args, "--StartMode", "jvm");
         addArg(args, "--StopMode", "jvm");
-        addArg(args, "--StartPath", pinfo.workingDir().toString());
+        addQuotedArg(args, "--StartPath", quote(pinfo.workingDir().toString()));
         addArg(args, "++JvmOptions", "-Dcli.name=windows-service-daemon");
         addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli,lib/tools/windows-service-cli");
         addArg(args, "++Environment", "HOSTNAME=%s".formatted(pinfo.envVars().get("COMPUTERNAME")));
@@ -89,6 +89,13 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         args.add(value);
     }
 
+    // Adds an arg with an already appropriately quoted value. Trivial, but explicit implementation.
+    // This method is typically used when adding args whose value contains a file-system path
+    private static void addQuotedArg(List<String> args, String arg, String value) {
+        args.add(arg);
+        args.add(value);
+    }
+
     @SuppressForbidden(reason = "get java home path to pass through")
     private static Path getJavaHome(Map<String, String> sysprops) {
         return Paths.get(sysprops.get("java.home"));
@@ -107,7 +114,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         jvmOptions.add("-XX:+UseSerialGC");
         // passthrough these properties
         for (var prop : List.of("es.path.home", "es.path.conf", "es.distribution.type")) {
-            jvmOptions.add("-D%s=%s".formatted(prop, sysprops.get(prop)));
+            jvmOptions.add("-D%s=%s".formatted(prop, quote(sysprops.get(prop))));
         }
         return String.join(";", jvmOptions);
     }

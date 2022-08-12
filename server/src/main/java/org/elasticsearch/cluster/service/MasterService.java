@@ -42,6 +42,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -74,6 +78,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
+    public static final String STATE_UPDATE_ACTION_NAME = "publish_cluster_state_update";
+
     ClusterStatePublisher clusterStatePublisher;
 
     private final String nodeName;
@@ -84,13 +90,14 @@ public class MasterService extends AbstractLifecycleComponent {
     private final TimeValue starvationLoggingThreshold;
 
     protected final ThreadPool threadPool;
+    private final TaskManager taskManager;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
 
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
 
-    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -99,6 +106,7 @@ public class MasterService extends AbstractLifecycleComponent {
         this.starvationLoggingThreshold = MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(settings);
 
         this.threadPool = threadPool;
+        this.taskManager = taskManager;
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -217,6 +225,10 @@ public class MasterService extends AbstractLifecycleComponent {
         return Thread.currentThread().getName().contains('[' + MASTER_UPDATE_THREAD_NAME + ']');
     }
 
+    public static boolean assertMasterUpdateOrTestThread() {
+        return ThreadPool.assertCurrentThreadPool(MASTER_UPDATE_THREAD_NAME);
+    }
+
     public static boolean assertNotMasterUpdateThread(String reason) {
         assert isMasterUpdateThread() == false
             : "Expected current thread [" + Thread.currentThread() + "] to not be the master service thread. Reason: [" + reason + "]";
@@ -271,6 +283,35 @@ public class MasterService extends AbstractLifecycleComponent {
             logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
             clusterStateUpdateStatsTracker.onUnchangedClusterState(computationTime.millis(), executionTime.millis());
         } else {
+            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                publishClusterStateUpdate(executor, summary, previousClusterState, executionResults, newClusterState, computationTime);
+            }
+        }
+    }
+
+    private void publishClusterStateUpdate(
+        ClusterStateTaskExecutor<ClusterStateTaskListener> executor,
+        BatchSummary summary,
+        ClusterState previousClusterState,
+        List<ExecutionResult<ClusterStateTaskListener>> executionResults,
+        ClusterState newClusterState,
+        TimeValue computationTime
+    ) {
+        final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+
+            @Override
+            public String getDescription() {
+                return "publication of cluster state [" + newClusterState.getVersion() + "]";
+            }
+        });
+        try {
             if (logger.isTraceEnabled()) {
                 logger.trace("cluster state updated, source [{}]\n{}", summary, newClusterState);
             } else {
@@ -282,6 +323,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     summary,
                     previousClusterState,
                     newClusterState,
+                    task,
                     computationTime.millis(),
                     publicationStartTime
                 );
@@ -302,6 +344,9 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
 
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
+                // initialize routing nodes and the indices lookup concurrently, we will need both of them for the cluster state
+                // application and can compute them while we wait for the other nodes during publication
+                newClusterState.initializeAsync(threadPool.generic());
                 publish(
                     clusterStatePublicationEvent,
                     new CompositeTaskAckListener(
@@ -387,6 +432,8 @@ public class MasterService extends AbstractLifecycleComponent {
             } catch (Exception e) {
                 handleException(summary, publicationStartTime, newClusterState, e);
             }
+        } finally {
+            taskManager.unregister(task);
         }
     }
 
@@ -767,8 +814,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         private boolean incomplete() {
-            assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-                : Thread.currentThread().getName();
+            assert assertMasterUpdateOrTestThread();
             return publishedStateConsumer == null && onPublicationSuccess == null && failure == null;
         }
 

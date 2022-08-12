@@ -50,7 +50,7 @@ The following parameters can be specified in the body of a POST or PUT request:
 
 [[api-key-role-descriptors]]
 `role_descriptors`::
-(Optional, array-of-role-descriptor) An array of role descriptors for this API
+(Optional, object) The role descriptors for this API
 key. This parameter is optional. When it is not specified or is an empty array,
 then the API key will have a _point in time snapshot of permissions of the
 authenticated user_. If you supply role descriptors then the resultant permissions
@@ -144,7 +144,7 @@ API key information.
 <1> Unique `id` for this API key
 <2> Optional expiration in milliseconds for this API key
 <3> Generated API key
-<4> API key credentials which is the Base64-encoding of the UTF-8 
+<4> API key credentials which is the Base64-encoding of the UTF-8
 representation of the `id` and `api_key` joined by a colon (`:`).
 
 To use the generated API key, send a request with an `Authorization` header that

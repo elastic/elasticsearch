@@ -347,6 +347,9 @@ public class Docker {
      * @param containerPath The path to mount localPath inside the container.
      */
     private static void executePrivilegeEscalatedShellCmd(String shellCmd, Path localPath, Path containerPath) {
+        final String image = "alpine:3.13";
+        ensureImageIsPulled(image);
+
         final List<String> args = new ArrayList<>();
 
         args.add("docker run");
@@ -358,7 +361,7 @@ public class Docker {
         args.add("--volume \"" + localPath.getParent() + ":" + containerPath.getParent() + "\"");
 
         // Use a lightweight musl libc based small image
-        args.add("alpine:3.13");
+        args.add(image);
 
         // And run inline commands via the POSIX shell
         args.add("/bin/sh -c \"" + shellCmd + "\"");
@@ -366,6 +369,33 @@ public class Docker {
         final String command = String.join(" ", args);
         logger.info("Running command: " + command);
         sh.run(command);
+    }
+
+    private static void ensureImageIsPulled(String image) {
+        // Don't pull if the image already exists. This does also mean that we never refresh it, but that
+        // isn't an issue in CI.
+        if (sh.runIgnoreExitCode("docker image inspect -f '{{ .Id }}' " + image).isSuccess()) {
+            return;
+        }
+
+        Shell.Result result = null;
+        int i = 0;
+        while (true) {
+            result = sh.runIgnoreExitCode("docker pull " + image);
+            if (result.isSuccess()) {
+                return;
+            }
+
+            if (++i == 3) {
+                throw new RuntimeException("Failed to pull Docker image [" + image + "]: " + result);
+            }
+
+            try {
+                Thread.sleep(10_000L);
+            } catch (InterruptedException e) {
+                // ignore
+            }
+        }
     }
 
     /**

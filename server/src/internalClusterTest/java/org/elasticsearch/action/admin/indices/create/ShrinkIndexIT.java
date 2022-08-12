@@ -47,7 +47,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -668,7 +667,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ensureGreen();
 
         final int nodeCount = cluster().size();
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(shrinkNode));
+        internalCluster().stopNode(shrinkNode);
         ensureStableCluster(nodeCount - 1);
 
         // demonstrate that the index.routing.allocation.initial_recovery setting from the shrink doesn't carry over into the split index,

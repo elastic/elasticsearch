@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -85,7 +84,11 @@ import static org.junit.Assert.fail;
 public class ElasticsearchAssertions {
 
     public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
-        assertAcked(builder.get());
+        assertAcked(builder, TimeValue.timeValueSeconds(30));
+    }
+
+    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder, TimeValue timeValue) {
+        assertAcked(builder.get(timeValue));
     }
 
     public static void assertNoTimeout(ClusterHealthRequestBuilder requestBuilder) {
@@ -98,10 +101,6 @@ public class ElasticsearchAssertions {
 
     public static void assertAcked(AcknowledgedResponse response) {
         assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), equalTo(true));
-    }
-
-    public static void assertAcked(DeleteIndexRequestBuilder builder) {
-        assertAcked(builder.get());
     }
 
     /**

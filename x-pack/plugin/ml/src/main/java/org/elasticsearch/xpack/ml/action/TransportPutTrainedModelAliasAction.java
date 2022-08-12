@@ -116,7 +116,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         if (oldModelId != null) {
             modelIds.add(oldModelId);
         }
-        trainedModelProvider.getTrainedModels(modelIds, GetTrainedModelsAction.Includes.empty(), true, ActionListener.wrap(models -> {
+        trainedModelProvider.getTrainedModels(modelIds, GetTrainedModelsAction.Includes.empty(), true, null, ActionListener.wrap(models -> {
             TrainedModelConfig newModel = null;
             TrainedModelConfig oldModel = null;
             for (TrainedModelConfig config : models) {

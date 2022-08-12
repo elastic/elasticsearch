@@ -32,11 +32,6 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
     }
 
     @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
-        listeners.remove(listener);
-    }
-
-    @Override
     public void start() {
         synchronized (lifecycle) {
             if (lifecycle.canMoveToStarted() == false) {

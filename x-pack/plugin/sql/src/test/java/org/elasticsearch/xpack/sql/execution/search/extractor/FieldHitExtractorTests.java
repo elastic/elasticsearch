@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -35,6 +36,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
@@ -218,6 +220,19 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, UNSIGNED_LONG, randomZone(), randomBoolean());
 
         assertEquals(bi, fe.extract(hit));
+    }
+
+    public void testVersionExtraction() {
+        Version version = new Version(randomAlphaOfLength(10));
+
+        Object value = randomBoolean() ? version.toString() : version;
+
+        String fieldName = randomAlphaOfLength(10);
+        DocumentField field = new DocumentField(fieldName, singletonList(value));
+        SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, VERSION, randomZone(), randomBoolean());
+
+        assertEquals(version.toString(), fe.extract(hit).toString());
     }
 
     private FieldHitExtractor getFieldHitExtractor(String fieldName) {

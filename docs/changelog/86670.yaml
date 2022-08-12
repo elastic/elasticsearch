@@ -1,5 +1,0 @@
-pr: 86670
-summary: Add `master_timeout` support to voting config exclusions APIs
-area: Cluster Coordination
-type: bug
-issues: []

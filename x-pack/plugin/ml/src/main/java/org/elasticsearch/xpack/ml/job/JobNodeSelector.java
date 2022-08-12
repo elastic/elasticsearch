@@ -15,7 +15,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
@@ -107,7 +106,7 @@ public class JobNodeSelector {
         int maxOpenJobs
     ) {
         List<DiscoveryNode> capableNodes = candidateNodes.stream().filter(n -> this.nodeFilter.apply(n) == null).toList();
-        NativeMemoryCapacity currentCapacityForMl = MlAutoscalingDeciderService.currentScale(
+        NativeMemoryCapacity currentCapacityForMl = NativeMemoryCapacity.currentScale(
             capableNodes,
             maxMachineMemoryPercent,
             useAutoMemoryPercentage
@@ -201,7 +200,7 @@ public class JobNodeSelector {
                     jobId,
                     nodeNameAndMlAttributes(node),
                     "This node is full. Number of opened jobs and allocated native inference processes [%s], %s [%s].",
-                    currentLoad.getNumAssignedJobs(),
+                    currentLoad.getNumAssignedJobsAndModels(),
                     MAX_OPEN_JOBS_PER_NODE.getKey(),
                     maxNumberOfOpenJobs
                 );
@@ -234,7 +233,7 @@ public class JobNodeSelector {
 
             // If this will be the first job assigned to the node then it will need to
             // load the native code shared libraries, so add the overhead for this
-            if (currentLoad.getNumAssignedJobs() == 0) {
+            if (currentLoad.getNumAssignedJobsAndModels() == 0) {
                 requiredMemoryForJob += MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
             }
             long availableMemory = currentLoad.getMaxMlMemory() - currentLoad.getAssignedJobMemory();

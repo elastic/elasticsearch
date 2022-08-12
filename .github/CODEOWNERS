@@ -1,0 +1,21 @@
+# GitHub CODEOWNERS definition
+# Identify which groups will be pinged by changes to different parts of the codebase.
+# For more info, see https://help.github.com/articles/about-codeowners/
+
+# Stack Monitoring index templates
+x-pack/plugin/core/src/main/resources/monitoring-alerts-7.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-beats-mb.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-beats.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-ent-search-mb.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-es-mb.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-es.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-kibana-mb.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-kibana.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-logstash-mb.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-logstash.json @elastic/infra-monitoring-ui
+x-pack/plugin/core/src/main/resources/monitoring-mb-ilm-policy.json @elastic/infra-monitoring-ui
+x-pack/plugin/monitoring/src/main/java/org/elasticsearch/xpack/monitoring/MonitoringTemplateRegistry.java @elastic/infra-monitoring-ui
+
+# Elastic Agent
+x-pack/plugin/fleet/src/main/java/org/elasticsearch/xpack/fleet @elastic/elastic-agent-control-plane
+x-pack/plugin/core/src/main/resources/fleet-* @elastic/elastic-agent-control-plane

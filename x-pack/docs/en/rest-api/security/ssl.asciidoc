@@ -72,7 +72,7 @@ serial number.
 key for this certificate.
 `expiry`:: (string) The ISO formatted date of the certificate's expiry
 (not-after) date.
-
+`issuer`:: (string) The Distinguished Name of the certificate's issuer.
 
 [[security-api-ssl-example]]
 ==== {api-examples-title}

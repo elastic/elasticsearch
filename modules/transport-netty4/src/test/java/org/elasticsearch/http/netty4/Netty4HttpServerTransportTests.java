@@ -57,12 +57,13 @@ import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
@@ -157,7 +158,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
+                channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
 
             @Override
@@ -174,7 +175,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                Tracer.NOOP
             )
         ) {
             transport.start();
@@ -222,7 +224,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 new NullDispatcher(),
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                Tracer.NOOP
             )
         ) {
             transport.start();
@@ -239,7 +242,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     xContentRegistry(),
                     new NullDispatcher(),
                     clusterSettings,
-                    new SharedGroupFactory(settings)
+                    new SharedGroupFactory(settings),
+                    Tracer.NOOP
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -263,7 +267,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 causeReference.set(cause);
                 try {
                     final ElasticsearchException e = new ElasticsearchException("you sent a bad request and you should feel bad");
-                    channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
+                    channel.sendResponse(new RestResponse(channel, BAD_REQUEST, e));
                 } catch (final IOException e) {
                     throw new AssertionError(e);
                 }
@@ -290,7 +294,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                Tracer.NOOP
             )
         ) {
             transport.start();
@@ -333,7 +338,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 if (url.equals(request.uri())) {
-                    channel.sendResponse(new BytesRestResponse(OK, responseString));
+                    channel.sendResponse(new RestResponse(OK, responseString));
                 } else {
                     logger.error("--> Unexpected successful uri [{}]", request.uri());
                     throw new AssertionError();
@@ -357,7 +362,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                Tracer.NOOP
             ) {
                 @Override
                 public ChannelHandler configureServerChannelHandler() {
@@ -453,7 +459,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 randomClusterSettings(),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                Tracer.NOOP
             )
         ) {
             transport.start();
@@ -522,7 +529,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 randomClusterSettings(),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                Tracer.NOOP
             )
         ) {
             transport.start();

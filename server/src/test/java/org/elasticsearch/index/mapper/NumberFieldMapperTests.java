@@ -360,12 +360,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
 
         @Override
-        public SyntheticSourceExample example() {
+        public SyntheticSourceExample example(int maxVals) {
             if (randomBoolean()) {
                 Tuple<Object, Number> v = generateValue();
                 return new SyntheticSourceExample(v.v1(), round.apply(v.v2()), this::mapping);
             }
-            List<Tuple<Object, Number>> values = randomList(1, 5, this::generateValue);
+            List<Tuple<Object, Number>> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Tuple::v1).toList();
             List<Number> outList = values.stream().map(t -> round.apply(t.v2())).sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;

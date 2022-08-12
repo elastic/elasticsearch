@@ -18,9 +18,7 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -30,8 +28,20 @@ import java.util.function.Function;
  */
 class FieldValueFetcher {
 
-    private static final Set<Class<?>> VALID_TYPES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class))
+    private static final Set<Class<?>> VALID_METRIC_TYPES = Set.of(
+        Long.class,
+        Double.class,
+        BigInteger.class,
+        String.class,
+        BytesRef.class
+    );
+    private static final Set<Class<?>> VALID_LABEL_TYPES = Set.of(
+        Long.class,
+        Double.class,
+        BigInteger.class,
+        String.class,
+        BytesRef.class,
+        Boolean.class
     );
 
     private final String name;
@@ -66,7 +76,7 @@ class FieldValueFetcher {
 
     FormattedDocValues getLeaf(LeafReaderContext context) {
 
-        final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(DocValueFormat.RAW);
+        final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(format);
         return new FormattedDocValues() {
             @Override
             public boolean advanceExact(int docId) throws IOException {
@@ -102,28 +112,36 @@ class FieldValueFetcher {
     /**
      * Retrieve field fetchers for a list of fields.
      */
-    static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
+    private static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields, Set<Class<?>> validTypes) {
         List<FieldValueFetcher> fetchers = new ArrayList<>(fields.length);
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);
             if (fieldType == null) {
                 throw new IllegalArgumentException("Unknown field: [" + field + "]");
             }
-            IndexFieldData<?> fieldData = context.getForField(fieldType);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
+            IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field, validTypes)));
         }
         return Collections.unmodifiableList(fetchers);
     }
 
-    static Function<Object, Object> getValidator(String field) {
+    static Function<Object, Object> getValidator(String field, Set<Class<?>> validTypes) {
         return value -> {
-            if (VALID_TYPES.contains(value.getClass()) == false) {
+            if (validTypes.contains(value.getClass()) == false) {
                 throw new IllegalArgumentException(
-                    "Expected [" + VALID_TYPES + "] for field [" + field + "], " + "got [" + value.getClass() + "]"
+                    "Expected [" + validTypes + "] for field [" + field + "], " + "got [" + value.getClass() + "]"
                 );
             }
             return value;
         };
+    }
+
+    static List<FieldValueFetcher> forMetrics(SearchExecutionContext context, String[] metricFields) {
+        return build(context, metricFields, VALID_METRIC_TYPES);
+    }
+
+    static List<FieldValueFetcher> forLabels(SearchExecutionContext context, String[] labelFields) {
+        return build(context, labelFields, VALID_LABEL_TYPES);
     }
 
 }

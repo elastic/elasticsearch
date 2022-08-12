@@ -74,6 +74,18 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         return Optional.of(state).map(ClusterState::metadata).map(m -> m.custom(TYPE));
     }
 
+    /**
+     * Returns true if the given node is marked as shutting down with any
+     * shutdown type.
+     */
+    public static boolean isNodeShuttingDown(final ClusterState state, final String nodeId) {
+        // Right now we make no distinction between the type of shutdown, but maybe in the future we might?
+        return NodesShutdownMetadata.getShutdowns(state)
+            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
+            .map(allNodes -> allNodes.get(nodeId))
+            .isPresent();
+    }
+
     public static NodesShutdownMetadata getShutdownsOrEmpty(final ClusterState state) {
         return getShutdowns(state).orElse(EMPTY);
     }

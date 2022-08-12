@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
@@ -56,11 +57,6 @@ public class DeflateCompressor implements Compressor {
             }
         }
         return true;
-    }
-
-    @Override
-    public int headerLength() {
-        return HEADER.length;
     }
 
     // Reusable inflater reference for streaming decompression
@@ -206,6 +202,16 @@ public class DeflateCompressor implements Compressor {
 
     @Override
     public BytesReference uncompress(BytesReference bytesReference) throws IOException {
+        if (bytesReference.length() < HEADER.length) {
+            throw new IOException(
+                String.format(
+                    Locale.ROOT,
+                    "Input bytes length %d is less than DEFLATE header size %d",
+                    bytesReference.length(),
+                    HEADER.length
+                )
+            );
+        }
         final BytesStreamOutput buffer = baos.get();
         try {
             final Inflater inflater = inflaterRef.get();

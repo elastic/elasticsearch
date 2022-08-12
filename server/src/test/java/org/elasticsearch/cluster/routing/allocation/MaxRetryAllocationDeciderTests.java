@@ -94,7 +94,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     randomBoolean()
                 )
             );
-            ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
+            ClusterState newState = strategy.applyFailedShards(clusterState, failedShards, List.of());
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = newState.routingTable();
@@ -107,7 +107,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         List<FailedShard> failedShards = Collections.singletonList(
             new FailedShard(routingTable.index("idx").shard(0).shard(0), "boom", new UnsupportedOperationException(), randomBoolean())
         );
-        ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
+        ClusterState newState = strategy.applyFailedShards(clusterState, failedShards, List.of());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();
@@ -134,7 +134,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 new FailedShard(routingTable.index("idx").shard(0).shard(0), "boom", new UnsupportedOperationException(), randomBoolean())
             );
 
-            newState = strategy.applyFailedShards(clusterState, failedShards);
+            newState = strategy.applyFailedShards(clusterState, failedShards, List.of());
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = newState.routingTable();
@@ -148,7 +148,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         failedShards = Collections.singletonList(
             new FailedShard(routingTable.index("idx").shard(0).shard(0), "boom", new UnsupportedOperationException(), randomBoolean())
         );
-        newState = strategy.applyFailedShards(clusterState, failedShards);
+        newState = strategy.applyFailedShards(clusterState, failedShards, List.of());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();
@@ -172,7 +172,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     randomBoolean()
                 )
             );
-            ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
+            ClusterState newState = strategy.applyFailedShards(clusterState, failedShards, List.of());
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = newState.routingTable();
@@ -196,7 +196,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             List<FailedShard> failedShards = Collections.singletonList(
                 new FailedShard(routingTable.index("idx").shard(0).shard(0), "boom", new UnsupportedOperationException(), randomBoolean())
             );
-            ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
+            ClusterState newState = strategy.applyFailedShards(clusterState, failedShards, List.of());
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = newState.routingTable();
@@ -268,7 +268,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         List<FailedShard> failedShards = Collections.singletonList(
             new FailedShard(routingTable.index("idx").shard(0).shard(0), "ZOOOMG", new UnsupportedOperationException(), randomBoolean())
         );
-        newState = strategy.applyFailedShards(clusterState, failedShards);
+        newState = strategy.applyFailedShards(clusterState, failedShards, List.of());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();

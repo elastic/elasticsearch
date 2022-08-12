@@ -51,7 +51,7 @@ public interface Function {
      * 2. apply the collected changes as filter query and search/process them
      * 3. in case phase 1 could not collect all changes, move the collector cursor, collect changes and continue with step 2
      */
-    public interface ChangeCollector {
+    interface ChangeCollector {
 
         /**
          * Build the search query to gather the changes between 2 checkpoints.

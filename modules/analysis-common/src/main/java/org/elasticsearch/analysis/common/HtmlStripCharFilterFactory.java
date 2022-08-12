@@ -25,7 +25,7 @@ public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
     private final Set<String> escapedTags;
 
     HtmlStripCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name);
+        super(name);
         List<String> escapedTagsList = settings.getAsList("escaped_tags");
         if (escapedTagsList.size() > 0) {
             this.escapedTags = unmodifiableSet(newHashSet(escapedTagsList));

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +18,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptedMetricAggContexts.MapScript;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -90,7 +90,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         // Clear any old leaf scripts so we rebuild them on the new leaf when we first see them.
         for (long i = 0; i < states.size(); i++) {
             State state = states.get(i);
@@ -117,7 +117,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
                     states.set(owningBucketOrd, state);
                 }
                 if (state.leafMapScript == null) {
-                    state.leafMapScript = state.mapScript.newInstance(ctx);
+                    state.leafMapScript = state.mapScript.newInstance(aggCtx.getLeafReaderContext());
                     state.leafMapScript.setScorer(scorer);
                 }
                 state.leafMapScript.setDocument(doc);

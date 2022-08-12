@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -90,7 +89,7 @@ public class RestListTasksAction extends BaseRestHandler {
                     builder.startObject();
                     response.toXContentGroupedByNode(builder, channel.request(), nodesInCluster.get());
                     builder.endObject();
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new RestResponse(RestStatus.OK, builder);
                 }
             };
         } else if ("parents".equals(groupBy)) {
@@ -100,7 +99,7 @@ public class RestListTasksAction extends BaseRestHandler {
                     builder.startObject();
                     response.toXContentGroupedByParents(builder, channel.request());
                     builder.endObject();
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new RestResponse(RestStatus.OK, builder);
                 }
             };
         } else if ("none".equals(groupBy)) {

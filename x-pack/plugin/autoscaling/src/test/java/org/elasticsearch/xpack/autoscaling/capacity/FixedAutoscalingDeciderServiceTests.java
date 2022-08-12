@@ -14,7 +14,6 @@ import org.hamcrest.Matchers;
 
 public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
-
         Settings.Builder configurationBuilder = Settings.builder();
         int nodes = randomIntBetween(1, 1000);
         if (randomBoolean()) {
@@ -25,19 +24,29 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
         configurationBuilder = Settings.builder();
 
         ByteSizeValue storage = randomNullableByteSizeValue();
-        ByteSizeValue memory = storage != null ? randomNullableByteSizeValue() : randomByteSizeValue();
+        ByteSizeValue memory = randomNullableByteSizeValue();
+        Float processors = (memory != null || storage != null) && randomBoolean() ? null : (float) randomInt(64);
         if (storage != null) {
             configurationBuilder.put(FixedAutoscalingDeciderService.STORAGE.getKey(), storage);
         }
         if (memory != null) {
             configurationBuilder.put(FixedAutoscalingDeciderService.MEMORY.getKey(), memory);
         }
-        verify(configurationBuilder.build(), AutoscalingCapacity.builder().node(storage, memory).total(storage, memory).build());
+        if (processors != null) {
+            configurationBuilder.put(FixedAutoscalingDeciderService.PROCESSORS.getKey(), processors);
+        }
+        verify(
+            configurationBuilder.build(),
+            AutoscalingCapacity.builder().node(storage, memory, processors).total(storage, memory, processors).build()
+        );
 
         configurationBuilder.put(FixedAutoscalingDeciderService.NODES.getKey(), nodes);
         verify(
             configurationBuilder.build(),
-            AutoscalingCapacity.builder().node(storage, memory).total(multiply(storage, nodes), multiply(memory, nodes)).build()
+            AutoscalingCapacity.builder()
+                .node(storage, memory, processors)
+                .total(multiply(storage, nodes), multiply(memory, nodes), multiply(processors, nodes))
+                .build()
         );
 
     }
@@ -50,5 +59,9 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
 
     private ByteSizeValue multiply(ByteSizeValue bytes, int nodes) {
         return bytes == null ? null : new ByteSizeValue(bytes.getBytes() * nodes);
+    }
+
+    private Float multiply(Float processors, int nodes) {
+        return processors == null ? null : processors * nodes;
     }
 }

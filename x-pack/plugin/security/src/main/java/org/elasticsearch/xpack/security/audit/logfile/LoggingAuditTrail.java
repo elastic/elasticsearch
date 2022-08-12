@@ -43,12 +43,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.Grant;
+import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -287,7 +292,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         DeleteServiceAccountTokenAction.NAME,
         ActivateProfileAction.NAME,
         UpdateProfileDataAction.NAME,
-        SetProfileEnabledAction.NAME
+        SetProfileEnabledAction.NAME,
+        UpdateApiKeyAction.NAME,
+        BulkUpdateApiKeyAction.NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -402,32 +409,24 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 INCLUDE_REQUEST_BODY
             )
         );
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
-                .changePrincipalsFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_REALMS, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeRealmsFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_ROLES, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeRolesFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_INDICES, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeIndicesFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_ACTIONS, (policyName, filtersList) -> {
-            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
-            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeActionsFilter(filtersList);
-            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        clusterService.getClusterSettings()
+            .addAffixGroupUpdateConsumer(
+                List.of(
+                    FILTER_POLICY_IGNORE_PRINCIPALS,
+                    FILTER_POLICY_IGNORE_REALMS,
+                    FILTER_POLICY_IGNORE_ROLES,
+                    FILTER_POLICY_IGNORE_INDICES,
+                    FILTER_POLICY_IGNORE_ACTIONS
+                ),
+                (policyName, updatedSettings) -> {
+                    if (updatedSettings.keySet().isEmpty()) {
+                        this.eventFilterPolicyRegistry.remove(policyName);
+                    } else {
+                        this.eventFilterPolicyRegistry.set(policyName, new EventFilterPolicy(policyName, updatedSettings));
+                    }
+                }
+            );
+
         // this log filter ensures that audit events are not filtered out because of the log level
         final LoggerContext ctx = LoggerContext.getContext(false);
         MarkerFilter auditMarkerFilter = MarkerFilter.createFilter(AUDIT_MARKER.getName(), Result.ACCEPT, Result.NEUTRAL);
@@ -755,6 +754,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final SetProfileEnabledRequest setProfileEnabledRequest) {
                     assert SetProfileEnabledAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(setProfileEnabledRequest).build();
+                } else if (msg instanceof final UpdateApiKeyRequest updateApiKeyRequest) {
+                    assert UpdateApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateApiKeyRequest).build();
+                } else if (msg instanceof final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest) {
+                    assert BulkUpdateApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(bulkUpdateApiKeyRequest).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -1223,17 +1228,70 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "change_apikey");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            withRequestBody(builder, updateApiKeyRequest);
+            builder.endObject();
+            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "change_apikeys");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            withRequestBody(builder, bulkUpdateApiKeyRequest);
+            builder.endObject();
+            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         private void withRequestBody(XContentBuilder builder, CreateApiKeyRequest createApiKeyRequest) throws IOException {
             TimeValue expiration = createApiKeyRequest.getExpiration();
             builder.startObject("apikey")
+                .field("id", createApiKeyRequest.getId())
                 .field("name", createApiKeyRequest.getName())
                 .field("expiration", expiration != null ? expiration.toString() : null)
                 .startArray("role_descriptors");
             for (RoleDescriptor roleDescriptor : createApiKeyRequest.getRoleDescriptors()) {
                 withRoleDescriptor(builder, roleDescriptor);
             }
-            builder.endArray() // role_descriptors
-                .endObject(); // apikey
+            builder.endArray(); // role_descriptors
+            if (createApiKeyRequest.getMetadata() != null && createApiKeyRequest.getMetadata().isEmpty() == false) {
+                builder.field("metadata", createApiKeyRequest.getMetadata());
+            }
+            builder.endObject(); // apikey
+        }
+
+        private void withRequestBody(final XContentBuilder builder, final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
+            builder.startObject("apikey").field("id", updateApiKeyRequest.getId());
+            withBaseUpdateApiKeyFields(builder, updateApiKeyRequest);
+            builder.endObject();
+        }
+
+        private void withRequestBody(final XContentBuilder builder, final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest)
+            throws IOException {
+            builder.startObject("apikeys").stringListField("ids", bulkUpdateApiKeyRequest.getIds());
+            withBaseUpdateApiKeyFields(builder, bulkUpdateApiKeyRequest);
+            builder.endObject();
+        }
+
+        private void withBaseUpdateApiKeyFields(final XContentBuilder builder, final BaseUpdateApiKeyRequest baseUpdateApiKeyRequest)
+            throws IOException {
+            if (baseUpdateApiKeyRequest.getRoleDescriptors() != null) {
+                builder.startArray("role_descriptors");
+                for (RoleDescriptor roleDescriptor : baseUpdateApiKeyRequest.getRoleDescriptors()) {
+                    withRoleDescriptor(builder, roleDescriptor);
+                }
+                builder.endArray();
+            }
+            if (baseUpdateApiKeyRequest.getMetadata() != null) {
+                // Include in entry even if metadata is empty. It's meaningful to track an empty metadata request parameter
+                // because it replaces any metadata previously associated with the API key
+                builder.field("metadata", baseUpdateApiKeyRequest.getMetadata());
+            }
         }
 
         private void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
@@ -1446,6 +1504,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             if (grant.getAccessToken() != null) {
                 builder.field("has_access_token", grant.getAccessToken() != null);
+            }
+            if (grant.getRunAsUsername() != null) {
+                builder.field("run_as", grant.getRunAsUsername());
             }
             builder.endObject();
         }
@@ -1684,92 +1745,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final Predicate<String> ignoreIndicesPredicate;
         private final Predicate<String> ignoreActionsPredicate;
 
-        EventFilterPolicy(String name, Settings settings) {
-            this(
-                name,
-                parsePredicate(FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace(name).get(settings)),
-                parsePredicate(FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace(name).get(settings)),
-                parsePredicate(FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace(name).get(settings)),
-                parsePredicate(FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace(name).get(settings)),
-                parsePredicate(FILTER_POLICY_IGNORE_ACTIONS.getConcreteSettingForNamespace(name).get(settings))
-            );
-        }
-
         /**
          * An empty filter list for a field will match events with that field missing.
          * An event with an undefined field has the field value the empty string ("") or
          * a singleton list of the empty string ([""]).
          */
-        EventFilterPolicy(
-            String name,
-            Predicate<String> ignorePrincipalsPredicate,
-            Predicate<String> ignoreRealmsPredicate,
-            Predicate<String> ignoreRolesPredicate,
-            Predicate<String> ignoreIndicesPredicate,
-            Predicate<String> ignoreActionsPredicate
-        ) {
+        EventFilterPolicy(String name, Settings settings) {
             this.name = name;
             // "null" values are "unexpected" and should not match any ignore policy
-            this.ignorePrincipalsPredicate = ignorePrincipalsPredicate;
-            this.ignoreRealmsPredicate = ignoreRealmsPredicate;
-            this.ignoreRolesPredicate = ignoreRolesPredicate;
-            this.ignoreIndicesPredicate = ignoreIndicesPredicate;
-            this.ignoreActionsPredicate = ignoreActionsPredicate;
-        }
-
-        private EventFilterPolicy changePrincipalsFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                parsePredicate(filtersList),
-                ignoreRealmsPredicate,
-                ignoreRolesPredicate,
-                ignoreIndicesPredicate,
-                ignoreActionsPredicate
+            this.ignorePrincipalsPredicate = parsePredicate(
+                FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace(name).get(settings)
             );
-        }
-
-        private EventFilterPolicy changeRealmsFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                ignorePrincipalsPredicate,
-                parsePredicate(filtersList),
-                ignoreRolesPredicate,
-                ignoreIndicesPredicate,
-                ignoreActionsPredicate
-            );
-        }
-
-        private EventFilterPolicy changeRolesFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                ignorePrincipalsPredicate,
-                ignoreRealmsPredicate,
-                parsePredicate(filtersList),
-                ignoreIndicesPredicate,
-                ignoreActionsPredicate
-            );
-        }
-
-        private EventFilterPolicy changeIndicesFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                ignorePrincipalsPredicate,
-                ignoreRealmsPredicate,
-                ignoreRolesPredicate,
-                parsePredicate(filtersList),
-                ignoreActionsPredicate
-            );
-        }
-
-        private EventFilterPolicy changeActionsFilter(List<String> filtersList) {
-            return new EventFilterPolicy(
-                name,
-                ignorePrincipalsPredicate,
-                ignoreRealmsPredicate,
-                ignoreRolesPredicate,
-                ignoreIndicesPredicate,
-                parsePredicate(filtersList)
-            );
+            this.ignoreRealmsPredicate = parsePredicate(FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace(name).get(settings));
+            this.ignoreRolesPredicate = parsePredicate(FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace(name).get(settings));
+            this.ignoreIndicesPredicate = parsePredicate(FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace(name).get(settings));
+            this.ignoreActionsPredicate = parsePredicate(FILTER_POLICY_IGNORE_ACTIONS.getConcreteSettingForNamespace(name).get(settings));
         }
 
         static Predicate<String> parsePredicate(List<String> l) {
@@ -1840,12 +1830,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             predicate = buildIgnorePredicate(policyMap);
         }
 
-        private Optional<EventFilterPolicy> get(String policyName) {
-            return Optional.ofNullable(policyMap.get(policyName));
-        }
-
         private synchronized void set(String policyName, EventFilterPolicy eventFilterPolicy) {
             policyMap = Maps.copyMapWithAddedOrReplacedEntry(policyMap, policyName, eventFilterPolicy);
+            // precompute predicate
+            predicate = buildIgnorePredicate(policyMap);
+        }
+
+        private synchronized void remove(String policyName) {
+            policyMap = Maps.copyMapWithRemovedEntry(policyMap, policyName);
             // precompute predicate
             predicate = buildIgnorePredicate(policyMap);
         }

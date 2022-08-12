@@ -38,7 +38,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -288,7 +287,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         Path server2Shard = shardDirectory(node_2, index, 0);
         logger.info("--> stopping node {}", node_2);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
+        internalCluster().stopNode(node_2);
 
         logger.info("--> running cluster_health");
         clusterHealth = client().admin()
@@ -364,8 +363,8 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         List<String> nodesToShutDown = randomSubsetOf(2, node1, node2, node3);
         Settings node1DataPathSettings = internalCluster().dataPathSettings(nodesToShutDown.get(0));
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodesToShutDown.get(1));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesToShutDown.get(0)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesToShutDown.get(1)));
+        internalCluster().stopNode(nodesToShutDown.get(0));
+        internalCluster().stopNode(nodesToShutDown.get(1));
 
         logger.debug("--> verifying index is red");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();

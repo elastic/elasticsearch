@@ -14,6 +14,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class InferModelAction extends ActionType<InferModelAction.Response> {
     public static final String NAME = "cluster:internal/xpack/ml/inference/infer";
@@ -174,6 +179,11 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
                 && Objects.equals(timeout, that.timeout)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("infer_trained_model[%s]", modelId), parentTaskId, headers);
         }
 
         @Override

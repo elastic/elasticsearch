@@ -41,26 +41,10 @@ backslash or surround it with double quotes. For example:
 [NOTE]
 ====
 
-The backslash character is an escape character in both JSON strings and regular
+The backslash is an escape character in both JSON strings and regular
 expressions. You need to escape both backslashes in a query, unless you use a
-language client, which takes care of this. For example, the keyword string `a\b`
-needs to be indexed as `"a\\b"`:
-
-////
-[source,console]
-----
-PUT my-index-000001
-{
-  "mappings": {
-    "properties": {
-      "my_field": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-----
-////
+language client, which takes care of this. For example, the string `a\b` needs
+to be indexed as `"a\\b"`:
 
 [source,console]
 --------------------------------------------------
@@ -69,7 +53,6 @@ PUT my-index-000001/_doc/1
   "my_field": "a\\b"
 }
 --------------------------------------------------
-//TEST[continued]
 
 This document matches the following `regexp` query:
 
@@ -79,7 +62,7 @@ GET my-index-000001/_search
 {
   "query": {
     "regexp": {
-      "my_field": "a\\\\.*"
+      "my_field.keyword": "a\\\\.*"
     }
   }
 }

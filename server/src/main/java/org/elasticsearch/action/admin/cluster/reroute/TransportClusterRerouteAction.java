@@ -163,7 +163,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         submitUnbatchedTask(
             TASK_SOURCE,
-            new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, listener.map(response -> {
+            new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, threadPool, request, listener.map(response -> {
                 if (request.dryRun() == false) {
                     response.getExplanations().getYesDecisionMessages().forEach(logger::info);
                 }
@@ -189,12 +189,13 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         ClusterRerouteResponseAckedClusterStateUpdateTask(
             Logger logger,
             AllocationService allocationService,
+            ThreadPool threadPool,
             ClusterRerouteRequest request,
             ActionListener<ClusterRerouteResponse> listener
         ) {
             super(Priority.IMMEDIATE);
             this.request = request;
-            this.listener = new AllocationActionListener<>(listener);
+            this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
             this.logger = logger;
             this.allocationService = allocationService;
         }

@@ -1,7 +1,7 @@
 {
   "_internal.prevalidate_node_removal": {
     "documentation":{
-      "url": null,
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/prevalidate-node-removal-api.html",
       "description":"Prevalidates node removal from the cluster"
     },
     "stability":"experimental",

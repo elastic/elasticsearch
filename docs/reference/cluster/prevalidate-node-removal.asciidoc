@@ -4,8 +4,6 @@
 <titleabbrev>Prevalidate node removal</titleabbrev>
 ++++
 
-This API is currently experimental for internal use by Elastic software only.
-
 NOTE: {cloud-only}
 
 Prevalidate node removal.
@@ -47,7 +45,7 @@ The result of the prevalidation is expressed as either `YES`, `NO`, or `UNKNOWN`
 [[prevalidate-node-removal-api-example]]
 ==== {api-examples-title}
 
-This example validates whether it is safe to remove the nodes `node1` and `node2`. The response indicates that it is safe to remove `node`, but it might not be safe to remove `node2`. Therefore, the overall prevalidation of the removal of the two nodes is `UNKNOWN`.
+This example validates whether it is safe to remove the nodes `node1` and `node2`. The response indicates that it is safe to remove `node1`, but it might not be safe to remove `node2`. Therefore, the overall prevalidation of the removal of the two nodes is `UNKNOWN`.
 
 [source,console]
 --------------------------------------------------

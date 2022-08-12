@@ -67,8 +67,9 @@ class H3LatLonGeometry extends LatLonGeometry {
 
     private static class H3Polygon2D implements Component2D {
 
-        // this value is experimental
-        private static final double BBOX_BUFFER_FRACTION = 1e-3;
+        // We want to make are edges a bit bigger because spatial3d and h3 edges do not fully agree in
+        // membership of points around he edges.
+        private static final double BBOX_EDGE_DELTA = 1e-4;
         private final long h3;
         private final int res;
         private final GeoPolygon hexagon;
@@ -94,10 +95,10 @@ class H3LatLonGeometry extends LatLonGeometry {
             }
             // Unfortunately, h3 bin edges are fuzzy and cannot be represented easily. We need to buffer
             // the bounding boxes to make sure we don't reject valid points
-            this.minX = Math.max(GeoUtils.MIN_LON_INCL, minX - BBOX_BUFFER_FRACTION * (maxX - minX));
-            this.maxX = Math.min(GeoUtils.MAX_LON_INCL, maxX + BBOX_BUFFER_FRACTION * (maxX - minX));
-            this.minY = Math.max(GeoUtils.MIN_LAT_INCL, minY - BBOX_BUFFER_FRACTION * (maxY - minY));
-            this.maxY = Math.min(GeoUtils.MAX_LAT_INCL, maxY + BBOX_BUFFER_FRACTION * (maxY - minY));
+            this.minX = Math.max(GeoUtils.MIN_LON_INCL, minX - BBOX_EDGE_DELTA);
+            this.maxX = Math.min(GeoUtils.MAX_LON_INCL, maxX + BBOX_EDGE_DELTA);
+            this.minY = Math.max(GeoUtils.MIN_LAT_INCL, minY - BBOX_EDGE_DELTA);
+            this.maxY = Math.min(GeoUtils.MAX_LAT_INCL, maxY + BBOX_EDGE_DELTA);
 
         }
 
@@ -145,14 +146,16 @@ class H3LatLonGeometry extends LatLonGeometry {
             // return crosses.
             final GeoArea box = GeoAreaFactory.makeGeoArea(
                 PlanetModel.SPHERE,
-                Math.toRadians(Math.min(GeoUtils.MAX_LAT_INCL, maxY + BBOX_BUFFER_FRACTION)),
-                Math.toRadians(Math.max(GeoUtils.MIN_LAT_INCL, minY - BBOX_BUFFER_FRACTION)),
-                Math.toRadians(Math.max(GeoUtils.MIN_LON_INCL, minX - BBOX_BUFFER_FRACTION)),
-                Math.toRadians(Math.min(GeoUtils.MAX_LON_INCL, maxX + BBOX_BUFFER_FRACTION))
+                Math.toRadians(Math.min(GeoUtils.MAX_LAT_INCL, maxY + BBOX_EDGE_DELTA)),
+                Math.toRadians(Math.max(GeoUtils.MIN_LAT_INCL, minY - BBOX_EDGE_DELTA)),
+                Math.toRadians(Math.max(GeoUtils.MIN_LON_INCL, minX - BBOX_EDGE_DELTA)),
+                Math.toRadians(Math.min(GeoUtils.MAX_LON_INCL, maxX + BBOX_EDGE_DELTA))
             );
-            return box.getRelationship(hexagon) == GeoArea.CONTAINS
-                ? PointValues.Relation.CELL_INSIDE_QUERY
-                : PointValues.Relation.CELL_CROSSES_QUERY;
+            return switch (box.getRelationship(hexagon)) {
+                case GeoArea.CONTAINS -> PointValues.Relation.CELL_INSIDE_QUERY;
+                case GeoArea.DISJOINT -> PointValues.Relation.CELL_OUTSIDE_QUERY;
+                default -> PointValues.Relation.CELL_CROSSES_QUERY;
+            };
         }
 
         @Override

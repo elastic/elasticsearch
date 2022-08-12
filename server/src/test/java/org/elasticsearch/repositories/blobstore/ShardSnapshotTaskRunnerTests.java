@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,10 +38,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class ShardSnapshotWorkersTests extends ESTestCase {
+public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
-    private static ThreadPool threadPool;
-    private static Executor executor;
+    private ThreadPool threadPool;
+    private Executor executor;
 
     @Override
     public void setUp() throws Exception {
@@ -62,23 +61,13 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         private final AtomicInteger finishedFileSnapshotTasks = new AtomicInteger();
         private final AtomicInteger finishedShardSnapshotTasks = new AtomicInteger();
         private final AtomicInteger finishedShardSnapshots = new AtomicInteger();
-        private final CountDownLatch snapshotShardBlocker;
-        private ShardSnapshotWorkers workers;
+        private ShardSnapshotTaskRunner taskRunner;
 
-        MockedRepo(CountDownLatch snapshotShardBlocker) {
-            this.snapshotShardBlocker = snapshotShardBlocker;
-        }
-
-        public void setWorkers(ShardSnapshotWorkers workers) {
-            this.workers = workers;
+        public void setTaskRunner(ShardSnapshotTaskRunner taskRunner) {
+            this.taskRunner = taskRunner;
         }
 
         public void snapshotShard(SnapshotShardContext context) {
-            try {
-                snapshotShardBlocker.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
             int filesToUpload = randomIntBetween(0, 10);
             if (filesToUpload == 0) {
                 finishedShardSnapshots.incrementAndGet();
@@ -89,7 +78,7 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
                     filesToUpload
                 );
                 for (int i = 0; i < filesToUpload; i++) {
-                    workers.enqueueFileSnapshot(context, dummyFileInfo(), uploadListener);
+                    taskRunner.enqueueFileSnapshot(context, dummyFileInfo(), uploadListener);
                 }
             }
             finishedShardSnapshotTasks.incrementAndGet();
@@ -123,7 +112,7 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
     }
 
     private SnapshotShardContext dummyContext() {
-        return dummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()), threadPool.absoluteTimeInMillis());
+        return dummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()), randomMillisUpToYear9999());
     }
 
     private SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
@@ -154,34 +143,27 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         );
     }
 
-    public void testEnqueueCreatesNewWorkersIfNecessary() throws Exception {
-        int maxSize = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
-        CountDownLatch snapshotBlocker = new CountDownLatch(1);
-        MockedRepo repo = new MockedRepo(snapshotBlocker);
-        ShardSnapshotWorkers workers = new ShardSnapshotWorkers(maxSize, executor, repo::snapshotShard, repo::snapshotFile);
-        repo.setWorkers(workers);
-        int enqueuedSnapshots = maxSize - 1; // So that it is possible to create at least one more worker
+    public void testShardSnapshotTaskRunner() throws Exception {
+        int maxTasks = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
+        MockedRepo repo = new MockedRepo();
+        ShardSnapshotTaskRunner taskRunner = new ShardSnapshotTaskRunner(maxTasks, executor, repo::snapshotShard, repo::snapshotFile);
+        repo.setTaskRunner(taskRunner);
+        int enqueuedSnapshots = randomIntBetween(maxTasks * 2, maxTasks * 10);
         for (int i = 0; i < enqueuedSnapshots; i++) {
-            workers.enqueueShardSnapshot(dummyContext());
+            threadPool.generic().execute(() -> taskRunner.enqueueShardSnapshot(dummyContext()));
         }
-        assertBusy(() -> assertThat(workers.size(), equalTo(maxSize - 1)));
-        // Adding at least one new shard snapshot would create a new worker
-        int newTasks = randomIntBetween(1, 10);
-        for (int i = 0; i < newTasks; i++) {
-            workers.enqueueShardSnapshot(dummyContext());
-        }
-        enqueuedSnapshots += newTasks;
-        assertThat(workers.size(), equalTo(maxSize));
-        snapshotBlocker.countDown();
-        // Eventually all workers exit
-        assertBusy(() -> assertThat(workers.size(), equalTo(0)));
+        // Eventually all snapshots are finished
+        assertBusy(() -> {
+            assertThat(repo.finishedShardSnapshots(), equalTo(enqueuedSnapshots));
+            assertThat(taskRunner.runningTasks(), equalTo(0));
+        });
+        assertThat(taskRunner.queueSize(), equalTo(0));
         assertThat(repo.finishedFileSnapshotTasks(), equalTo(repo.expectedFileSnapshotTasks()));
         assertThat(repo.finishedShardSnapshotTasks(), equalTo(enqueuedSnapshots));
-        assertThat(repo.finishedShardSnapshots(), equalTo(enqueuedSnapshots));
     }
 
     public void testCompareToShardSnapshotTask() {
-        ShardSnapshotWorkers workers = new ShardSnapshotWorkers(1, executor, context -> {}, (context, fileInfo) -> {});
+        ShardSnapshotTaskRunner workers = new ShardSnapshotTaskRunner(1, executor, context -> {}, (context, fileInfo) -> {});
         SnapshotId s1 = new SnapshotId("s1", UUIDs.randomBase64UUID());
         SnapshotId s2 = new SnapshotId("s2", UUIDs.randomBase64UUID());
         SnapshotId s3 = new SnapshotId("s3", UUIDs.randomBase64UUID());

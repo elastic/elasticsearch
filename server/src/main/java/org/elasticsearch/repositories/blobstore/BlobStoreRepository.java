@@ -377,7 +377,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private final int maxSnapshotCount;
 
-    private final ShardSnapshotWorkers shardSnapshotWorkers;
+    private final ShardSnapshotTaskRunner shardSnapshotTaskRunner;
 
     /**
      * Constructs new BlobStoreRepository
@@ -408,7 +408,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.basePath = basePath;
         this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
         this.repoDataDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
-        shardSnapshotWorkers = new ShardSnapshotWorkers(
+        shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT),
             this::doSnapshotShard,
@@ -2619,7 +2619,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(SnapshotShardContext context) {
-        shardSnapshotWorkers.enqueueShardSnapshot(context);
+        shardSnapshotTaskRunner.enqueueShardSnapshot(context);
     }
 
     private void doSnapshotShard(SnapshotShardContext context) {
@@ -2889,7 +2889,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, filesToSnapshot.size(), allFilesUploadedListener);
             for (FileInfo fileInfo : filesToSnapshot) {
-                shardSnapshotWorkers.enqueueFileSnapshot(context, fileInfo, filesListener);
+                shardSnapshotTaskRunner.enqueueFileSnapshot(context, fileInfo, filesListener);
             }
         } catch (Exception e) {
             context.onFailure(e);
@@ -3084,10 +3084,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static ActionListener<Void> fileQueueListener(
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files,
-        int groupSize,
+        int numberOfFiles,
         ActionListener<Collection<Void>> listener
     ) {
-        return new GroupedActionListener<>(listener, groupSize).delegateResponse((l, e) -> {
+        return new GroupedActionListener<>(listener, numberOfFiles).delegateResponse((l, e) -> {
             files.clear(); // Stop uploading the remaining files if we run into any exception
             l.onFailure(e);
         });

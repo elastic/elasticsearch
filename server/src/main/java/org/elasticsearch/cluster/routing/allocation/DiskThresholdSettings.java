@@ -124,6 +124,19 @@ public class DiskThresholdSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    private static final List<Setting<?>> WATERMARK_VALIDATOR_SETTINGS_LIST = List.of(
+        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING
+    );
+    private static final List<Setting<?>> MAX_HEADROOM_VALIDATOR_SETTINGS_LIST = List.of(
+        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
+    );
 
     private volatile RelativeByteSizeValue lowStageWatermark;
     private volatile ByteSizeValue lowStageMaxHeadroom;
@@ -252,16 +265,10 @@ public class DiskThresholdSettings {
 
         @Override
         public Iterator<Setting<?>> settings() {
-            return watermarkValidatorSettingsList.iterator();
+            return WATERMARK_VALIDATOR_SETTINGS_LIST.iterator();
         }
 
     }
-
-    private static List<Setting<?>> watermarkValidatorSettingsList = List.of(
-        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
-        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING
-    );
 
     /**
      * Validates that low, high and flood stage max headrooms adhere to the comparison: flood &lt; high &lt; low.
@@ -367,19 +374,10 @@ public class DiskThresholdSettings {
 
         @Override
         public Iterator<Setting<?>> settings() {
-            return maxHeadroomValidatorSettingsList.iterator();
+            return MAX_HEADROOM_VALIDATOR_SETTINGS_LIST.iterator();
         }
 
     }
-
-    private static List<Setting<?>> maxHeadroomValidatorSettingsList = List.of(
-        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING,
-        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING,
-        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
-        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
-        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
-    );
 
     private void setRerouteInterval(TimeValue rerouteInterval) {
         this.rerouteInterval = rerouteInterval;

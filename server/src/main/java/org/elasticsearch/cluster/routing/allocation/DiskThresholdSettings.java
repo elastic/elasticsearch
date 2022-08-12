@@ -290,7 +290,10 @@ public class DiskThresholdSettings {
 
             // Ensure that if max headroom values are set, then watermark values are ratios/percentages.
             final RelativeByteSizeValue low = (RelativeByteSizeValue) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
-            if (low.isAbsolute() && (lowHeadroom.getBytes() > 0 || highHeadroom.getBytes() > 0 || floodHeadroom.getBytes() > 0)) {
+            if (low.isAbsolute()
+                && (lowHeadroom.equals(ByteSizeValue.MINUS_ONE) == false
+                    || highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false
+                    || highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false)) {
                 // No need to check that the high or flood stage watermarks are absolute as well, since there is another check in
                 // WatermarkValidator that all low/high/flood watermarks should be either ratios/percentages or absolute values.
                 throw new IllegalArgumentException(
@@ -311,7 +314,7 @@ public class DiskThresholdSettings {
             final RelativeByteSizeValue frozenFlood = (RelativeByteSizeValue) settings.get(
                 CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
             );
-            if (frozenFlood.isAbsolute() && frozenFloodHeadroom.getBytes() > 0) {
+            if (frozenFlood.isAbsolute() && frozenFloodHeadroom.equals(ByteSizeValue.MINUS_ONE) == false) {
                 throw new IllegalArgumentException(
                     "The frozen flood stage disk max headroom setting is set ["
                         + frozenFloodHeadroom.getStringRep()
@@ -322,7 +325,7 @@ public class DiskThresholdSettings {
                 );
             }
 
-            if (lowHeadroom.getBytes() > 0 && highHeadroom.getBytes() < 0) {
+            if (lowHeadroom.equals(ByteSizeValue.MINUS_ONE) == false && highHeadroom.equals(ByteSizeValue.MINUS_ONE)) {
                 throw new IllegalArgumentException(
                     "high disk max headroom ["
                         + highHeadroom.getStringRep()
@@ -331,7 +334,7 @@ public class DiskThresholdSettings {
                         + "]"
                 );
             }
-            if (highHeadroom.getBytes() > 0 && floodHeadroom.getBytes() < 0) {
+            if (highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false && floodHeadroom.equals(ByteSizeValue.MINUS_ONE)) {
                 throw new IllegalArgumentException(
                     "flood disk max headroom ["
                         + floodHeadroom.getStringRep()
@@ -342,7 +345,7 @@ public class DiskThresholdSettings {
             }
 
             // For the comparisons, we need to mind that headroom values can default to -1.
-            if (highHeadroom.compareTo(lowHeadroom) > 0 && lowHeadroom.getBytes() >= 0) {
+            if (highHeadroom.compareTo(lowHeadroom) > 0 && lowHeadroom.equals(ByteSizeValue.MINUS_ONE) == false) {
                 throw new IllegalArgumentException(
                     "high disk max headroom ["
                         + highHeadroom.getStringRep()
@@ -351,7 +354,7 @@ public class DiskThresholdSettings {
                         + "]"
                 );
             }
-            if (floodHeadroom.compareTo(highHeadroom) > 0 && highHeadroom.getBytes() >= 0) {
+            if (floodHeadroom.compareTo(highHeadroom) > 0 && highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false) {
                 throw new IllegalArgumentException(
                     "flood disk max headroom ["
                         + floodHeadroom.getStringRep()
@@ -458,7 +461,7 @@ public class DiskThresholdSettings {
             // Use percentage instead of ratio, and multiply bytes with 100, to make division with double more accurate (issue #88791).
             ByteSizeValue totalBytes = ByteSizeValue.ofBytes((long) Math.ceil((100 * used.getBytes()) / percentThreshold));
 
-            if (maxHeadroom.compareTo(ByteSizeValue.MINUS_ONE) > 0) {
+            if (maxHeadroom.equals(ByteSizeValue.MINUS_ONE) == false) {
                 // If a max headroom is applicable, it can potentially require a smaller total size (used + maxHeadroom) to be stay below
                 // the watermark.
                 totalBytes = ByteSizeValue.min(totalBytes, ByteSizeValue.add(used, maxHeadroom));

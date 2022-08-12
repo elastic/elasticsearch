@@ -352,6 +352,28 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(frozenFloodHeadroom, diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(thousandTb));
     }
 
+    public void testUpdateMaxHeadroomValuesLowValues() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
+
+        Settings newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "0b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "0b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "0b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s")
+            .build();
+        nss.applySettings(newSettings);
+
+        // Test that the max headroom values prevail over default watermark ratios
+        ByteSizeValue hundredBytes = ByteSizeValue.parseBytesSizeValue("100b", "test");
+        assertEquals(ByteSizeValue.ONE, diskThresholdSettings.getFreeBytesThresholdLowStage(hundredBytes));
+        assertEquals(ByteSizeValue.ZERO, diskThresholdSettings.getFreeBytesThresholdHighStage(hundredBytes));
+        assertEquals(ByteSizeValue.ZERO, diskThresholdSettings.getFreeBytesThresholdFloodStage(hundredBytes));
+        assertEquals(ByteSizeValue.ZERO, diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(hundredBytes));
+    }
+
     public void testUpdateWatermarkAndMaxHeadroomValues() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);

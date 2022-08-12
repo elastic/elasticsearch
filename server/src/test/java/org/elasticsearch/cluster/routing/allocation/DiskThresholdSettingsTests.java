@@ -803,6 +803,8 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             ? DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey() + "="
             : "max_headroom=";
 
+        // Test default settings for watermarks
+
         DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, clusterSettings);
         assertThat(diskThresholdSettings.describeLowThreshold(hundredBytes, includeKey), equalTo(lowWatermarkPrefix + "85%"));
         assertThat(diskThresholdSettings.describeHighThreshold(hundredBytes, includeKey), equalTo(highWatermarkPrefix + "90%"));
@@ -819,6 +821,8 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             diskThresholdSettings.describeFrozenFloodStageThreshold(thousandTb, includeKey),
             equalTo(frozenFloodMaxHeadroomPrefix + "20gb")
         );
+
+        // Test a mixture of percentages without max headroom values
 
         diskThresholdSettings = new DiskThresholdSettings(
             Settings.builder()
@@ -859,7 +863,37 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             equalTo(frozenFloodWatermarkPrefix + "91.5%")
         );
 
+        // Test absolute values
+
+        diskThresholdSettings = new DiskThresholdSettings(
+            Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1GB")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "10MB")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "2B")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey(), "1B")
+                .build(),
+            clusterSettings
+        );
+
+        assertThat(diskThresholdSettings.describeLowThreshold(hundredBytes, includeKey), equalTo(lowWatermarkPrefix + "1gb"));
+        assertThat(diskThresholdSettings.describeHighThreshold(hundredBytes, includeKey), equalTo(highWatermarkPrefix + "10mb"));
+        assertThat(diskThresholdSettings.describeFloodStageThreshold(hundredBytes, includeKey), equalTo(floodWatermarkPrefix + "2b"));
+        assertThat(
+            diskThresholdSettings.describeFrozenFloodStageThreshold(hundredBytes, includeKey),
+            equalTo(frozenFloodWatermarkPrefix + "1b")
+        );
+
+        // Even for 1000TB, the watermarks apply since they are set (any max headroom does not apply)
+        assertThat(diskThresholdSettings.describeLowThreshold(thousandTb, includeKey), equalTo(lowWatermarkPrefix + "1gb"));
+        assertThat(diskThresholdSettings.describeHighThreshold(thousandTb, includeKey), equalTo(highWatermarkPrefix + "10mb"));
+        assertThat(diskThresholdSettings.describeFloodStageThreshold(thousandTb, includeKey), equalTo(floodWatermarkPrefix + "2b"));
+        assertThat(
+            diskThresholdSettings.describeFrozenFloodStageThreshold(thousandTb, includeKey),
+            equalTo(frozenFloodWatermarkPrefix + "1b")
+        );
+
         // Test a mixture of percentages and max headroom values
+
         diskThresholdSettings = new DiskThresholdSettings(
             Settings.builder()
                 .put(

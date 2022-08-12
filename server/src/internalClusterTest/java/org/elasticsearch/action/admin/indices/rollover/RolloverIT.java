@@ -472,6 +472,7 @@ public class RolloverIT extends ESIntegTestCase {
                 .indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES))
+                .addMinIndexDocsCondition(1)
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-000002"));
             assertThat(response.getNewIndex(), equalTo("test-000003"));
@@ -532,6 +533,7 @@ public class RolloverIT extends ESIntegTestCase {
                 .indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES))
+                .addMinIndexDocsCondition(1)
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-000002"));
             assertThat(response.getNewIndex(), equalTo("test-000003"));
@@ -597,6 +599,7 @@ public class RolloverIT extends ESIntegTestCase {
                 .indices()
                 .prepareRolloverIndex("test_alias")
                 .addMaxPrimaryShardDocsCondition(randomNonNegativeLong())
+                .addMinIndexDocsCondition(1)
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-000002"));
             assertThat(response.getNewIndex(), equalTo("test-000003"));

@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationSerializationHelper;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -37,31 +37,26 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFrom, not(sameInstance(user)));
         assertThat(readFrom.principal(), is(user.principal()));
         assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
-        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testWriteToAndReadFromWithRunAs() throws Exception {
-        User authUser = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
-        User user = new Authentication.RunAsUser(
-            new User(randomAlphaOfLengthBetween(4, 30), randomBoolean() ? generateRandomStringArray(20, 30, false) : null),
-            authUser
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder().runAs().build();
+        assertThat(authentication.isRunAs(), is(true));
 
         BytesStreamOutput output = new BytesStreamOutput();
+        authentication.writeTo(output);
+        final Authentication readFrom = new Authentication(output.bytes().streamInput());
+        assertThat(readFrom.isRunAs(), is(true));
 
-        AuthenticationSerializationHelper.writeUserTo(user, output);
-        User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
+        assertThat(readFrom, not(sameInstance(authentication)));
+        final User readFromEffectiveUser = readFrom.getEffectiveSubject().getUser();
+        assertThat(readFromEffectiveUser, not(sameInstance(authentication.getEffectiveSubject().getUser())));
+        assertThat(readFromEffectiveUser, equalTo(authentication.getEffectiveSubject().getUser()));
 
-        assertThat(readFrom, not(sameInstance(user)));
-        assertThat(readFrom.principal(), is(user.principal()));
-        assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
-
-        assertThat(readFrom, instanceOf(Authentication.RunAsUser.class));
-        User readFromAuthUser = ((Authentication.RunAsUser) readFrom).authenticatingUser;
-        assertThat(authUser, is(notNullValue()));
-        assertThat(readFromAuthUser.principal(), is(authUser.principal()));
-        assertThat(Arrays.equals(readFromAuthUser.roles(), authUser.roles()), is(true));
-        assertThat(readFromAuthUser, not(instanceOf(Authentication.RunAsUser.class)));
+        User readFromAuthenticatingUser = readFrom.getAuthenticatingSubject().getUser();
+        assertThat(readFromAuthenticatingUser, is(notNullValue()));
+        assertThat(readFromAuthenticatingUser, not(sameInstance(authentication.getAuthenticatingSubject().getUser())));
+        assertThat(readFromAuthenticatingUser, equalTo(authentication.getAuthenticatingSubject().getUser()));
     }
 
     public void testSystemUserReadAndWrite() throws Exception {
@@ -71,7 +66,6 @@ public class AuthenticationSerializationTests extends ESTestCase {
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
-        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testXPackUserReadAndWrite() throws Exception {
@@ -81,7 +75,6 @@ public class AuthenticationSerializationTests extends ESTestCase {
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
-        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testAsyncSearchUserReadAndWrite() throws Exception {
@@ -91,7 +84,6 @@ public class AuthenticationSerializationTests extends ESTestCase {
         User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(AsyncSearchUser.INSTANCE)));
-        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testFakeInternalUserSerialization() throws Exception {

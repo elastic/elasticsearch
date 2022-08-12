@@ -188,7 +188,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Settings.writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         if (out.getVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
             out.writeOptionalFloat(processors);
             out.writeOptionalWriteable(processorsRange);

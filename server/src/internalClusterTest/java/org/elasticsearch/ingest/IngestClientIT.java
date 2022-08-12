@@ -115,7 +115,7 @@ public class IngestClientIT extends ESIntegTestCase {
         source.put("processed", true);
         IngestDocument ingestDocument = new IngestDocument("index", "id", Versions.MATCH_ANY, null, null, source);
         assertThat(simulateDocumentBaseResult.getIngestDocument().getSource(), equalTo(ingestDocument.getSource()));
-        assertThat(simulateDocumentBaseResult.getIngestDocument().getMetadataMap(), equalTo(ingestDocument.getMetadataMap()));
+        assertThat(simulateDocumentBaseResult.getIngestDocument().getMetadata().getMap(), equalTo(ingestDocument.getMetadata().getMap()));
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
 
         // cleanup

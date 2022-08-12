@@ -93,7 +93,12 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 }
 
                 @Override
-                public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                public Decision canRemain(
+                    IndexMetadata indexMetadata,
+                    ShardRouting shardRouting,
+                    RoutingNode node,
+                    RoutingAllocation allocation
+                ) {
                     return canRemain.get().test(shardRouting, node, allocation);
                 }
 

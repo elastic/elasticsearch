@@ -68,12 +68,12 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         Map<ShardRouting, String> routingToDataPath,
         Map<NodeAndPath, ReservedSpace> reservedSpace
     ) {
-        this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
-        this.shardSizes = shardSizes;
-        this.shardDataSetSizes = shardDataSetSizes;
-        this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
-        this.routingToDataPath = routingToDataPath;
-        this.reservedSpace = reservedSpace;
+        this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
+        this.shardSizes = Map.copyOf(shardSizes);
+        this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
+        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
+        this.routingToDataPath = Map.copyOf(routingToDataPath);
+        this.reservedSpace = Map.copyOf(reservedSpace);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {

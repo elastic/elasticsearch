@@ -1,7 +1,7 @@
 keyword:
   - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
 
   - do:
       indices.create:
@@ -9,7 +9,7 @@ keyword:
         body:
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -58,7 +58,7 @@ force_synthetic_source_ok:
         body:
           mappings:
             _source:
-              synthetic: false
+              mode: stored
             properties:
               kwd:
                 type: keyword
@@ -118,7 +118,7 @@ force_synthetic_source_bad_mapping:
             number_of_shards: 1 # Use a single shard to get consistent error messages
           mappings:
             _source:
-              synthetic: false
+              mode: stored
             properties:
               text:
                 type: text

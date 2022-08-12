@@ -192,21 +192,11 @@ See <<grok,Grokking grok>>.
 
 // [START] Security redirects
 
-[role="exclude",id="security-minimal-setup"]
-=== Set up minimal security for {es}
-
-Refer to <<manually-configure-security,Manually configure security for the {stack}>>.
-
 [role="exclude",id="get-started-users"]
 ==== Create users
 
 Refer to the <<reset-password,`elasticsearch-reset-password`>> tool for resetting
 passwords of built-in users.
-
-[role="exclude",id="add-built-in-users"]
-==== Configure {kib} to connect to {es} with a password
-
-Refer to <<configuring-stack-security,Start the {stack} with security enabled>>.
 
 [role="exclude",id="encrypting-communications-certificates"]
 === Generate certificates

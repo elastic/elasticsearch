@@ -122,8 +122,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 continue;
             }
             DocIdSetIterator childDocsIter = childDocsScorer.iterator();
-
-            final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
+            final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(new AggregationExecutionContext(ctx, null, null));
 
             final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
             // Set the scorer, since we now replay only the child docIds

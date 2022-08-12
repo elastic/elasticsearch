@@ -9,18 +9,18 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene93.Lucene93HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.KnnVectorFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -46,7 +45,6 @@ import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -280,18 +278,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexVersionCreated, dims, indexed);
         }
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            if (indexed) {
-                return new KnnVectorFieldExistsQuery(name());
-            } else {
-                assert hasDocValues();
-                return new DocValuesFieldExistsQuery(name());
-            }
+            return new FieldExistsQuery(name());
         }
 
         @Override
@@ -529,7 +522,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene93HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            return new Lucene92HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
     }
 }

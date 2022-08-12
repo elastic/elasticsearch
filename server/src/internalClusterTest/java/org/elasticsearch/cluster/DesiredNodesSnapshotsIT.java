@@ -73,7 +73,8 @@ public class DesiredNodesSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     ByteSizeValue.ofGb(randomIntBetween(128, 256)),
                     Version.CURRENT
                 )
-            )
+            ),
+            false
         );
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -144,8 +145,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         /**
-         * Used by the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} for ILM
-         * {@link ImmutableLifecycleAction}
+         * Used by the {@link ReservedClusterStateHandler} for ILM
+         * {@link ReservedLifecycleAction}
          * <p>
          * It disables verbose logging and has no filtered headers.
          */
@@ -310,8 +311,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected Optional<String> immutableStateHandlerName() {
-        return Optional.of(ImmutableLifecycleAction.NAME);
+    protected Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedLifecycleAction.NAME);
     }
 
     @Override

@@ -1,0 +1,38 @@
+{
+  "security.update_api_key": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-update-api-key.html",
+      "description": "Updates attributes of an existing API key."
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/api_key/{id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the API key to update"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The API key request to update attributes of an API key.",
+      "required": false
+    }
+  }
+}

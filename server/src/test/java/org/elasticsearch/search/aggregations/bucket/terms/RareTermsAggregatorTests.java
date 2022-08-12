@@ -18,7 +18,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -250,7 +250,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                         RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name").field(fieldNames[i]);
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
                         aggregator.preCollection();
-                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
                         aggregator.postCollection();
                         RareTerms result = (RareTerms) aggregator.buildTopLevel();
                         assertEquals("_name", result.getName());
@@ -403,7 +403,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     InternalNested result = searchAndReduce(
                         newIndexSearcher(indexReader),
                         // match root document only
-                        new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
+                        new FieldExistsQuery(PRIMARY_TERM_NAME),
                         nested,
                         fieldType
                     );
@@ -447,7 +447,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 () -> searchAndReduce(
                                     newIndexSearcher(indexReader),
                                     // match root document only
-                                    new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
+                                    new FieldExistsQuery(PRIMARY_TERM_NAME),
                                     nested,
                                     fieldType
                                 )
@@ -464,7 +464,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                             InternalNested result = searchAndReduce(
                                 newIndexSearcher(indexReader),
                                 // match root document only
-                                new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
+                                new FieldExistsQuery(PRIMARY_TERM_NAME),
                                 nested,
                                 fieldType
                             );

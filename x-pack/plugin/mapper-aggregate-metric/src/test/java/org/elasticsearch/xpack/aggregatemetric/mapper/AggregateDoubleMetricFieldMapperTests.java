@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -20,12 +20,16 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +37,7 @@ import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetr
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -393,7 +398,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
-        assertEquals(AggregateDoubleMetricFieldMapper.Metric.sum, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric());
+        assertEquals(Metric.sum, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric());
     }
 
     /**
@@ -406,7 +411,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
-        assertEquals(AggregateDoubleMetricFieldMapper.Metric.value_count, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric);
+        assertEquals(Metric.value_count, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric);
     }
 
     /**
@@ -416,7 +421,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
-        assertEquals(AggregateDoubleMetricFieldMapper.Metric.max, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric);
+        assertEquals(Metric.max, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric);
     }
 
     /**
@@ -505,8 +510,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
      *  subfields of aggregate_metric_double should not be searchable or exposed in field_caps
      */
     public void testNoSubFieldsIterated() throws IOException {
-        AggregateDoubleMetricFieldMapper.Metric[] values = AggregateDoubleMetricFieldMapper.Metric.values();
-        List<AggregateDoubleMetricFieldMapper.Metric> subset = randomSubsetOf(randomIntBetween(1, values.length), values);
+        Metric[] values = Metric.values();
+        List<Metric> subset = randomSubsetOf(randomIntBetween(1, values.length), values);
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, subset).field(DEFAULT_METRIC, subset.get(0)))
         );
@@ -527,11 +532,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
      *  sub-field, we override this method so that testExistsQueryMinimalMapping() passes successfully.
      */
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        assertThat(query, Matchers.instanceOf(DocValuesFieldExistsQuery.class));
-        DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
+        assertThat(query, Matchers.instanceOf(FieldExistsQuery.class));
+        FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
         String defaultMetric = ((AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) fieldType).getDefaultMetric().name();
         assertEquals("field." + defaultMetric, fieldExistsQuery.getField());
-        assertDocValuesField(fields, "field." + defaultMetric);
         assertNoFieldNamesField(fields);
     }
 
@@ -590,11 +594,58 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        throw new AssumptionViolatedException("not supported");
+        return new AggregateDoubleMetricSyntheticSourceSupport();
     }
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    protected final class AggregateDoubleMetricSyntheticSourceSupport implements SyntheticSourceSupport {
+
+        private final EnumSet<Metric> storedMetrics = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(Metric.values())));
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            // aggregate_metric_double field does not support arrays
+            Map<String, Object> value = randomAggregateMetric();
+            return new SyntheticSourceExample(value, value, this::mapping);
+        }
+
+        private Map<String, Object> randomAggregateMetric() {
+            Map<String, Object> value = new LinkedHashMap<>(storedMetrics.size());
+            for (Metric m : storedMetrics) {
+                if (Metric.value_count == m) {
+                    value.put(m.name(), randomLongBetween(1, 1_000_000));
+                } else {
+                    value.put(m.name(), randomDouble());
+                }
+            }
+            return value;
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            String[] metrics = storedMetrics.stream().map(Metric::toString).toArray(String[]::new);
+            b.field("type", CONTENT_TYPE).array(METRICS_FIELD, metrics).field(DEFAULT_METRIC, metrics[0]);
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
+                    b -> {
+                        mapping(b);
+                        b.field("ignore_malformed", true);
+                    }
+                )
+            );
+        }
+    }
+
+    @Override
+    protected boolean supportsCopyTo() {
+        return false;
     }
 }

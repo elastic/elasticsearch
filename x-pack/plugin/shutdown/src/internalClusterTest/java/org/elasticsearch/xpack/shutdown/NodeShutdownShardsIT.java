@@ -11,8 +11,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
@@ -37,6 +38,7 @@ import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Stat
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.STALLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class NodeShutdownShardsIT extends ESIntegTestCase {
@@ -56,28 +58,14 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
 
-        // Mark the node for shutdown
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeToRestartId,
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            this.getTestName(),
-            null,
-            null
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
+        putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
 
         internalCluster().stopNode(nodeToRestartName);
 
         NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeToRestartId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
     }
 
     /**
@@ -96,16 +84,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         internalCluster().restartNode(nodeToRestartName, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-                    nodeToRestartId,
-                    SingleNodeShutdownMetadata.Type.REMOVE,
-                    "testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline",
-                    null,
-                    null
-                );
-                AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-                assertTrue(putShutdownResponse.isAcknowledged());
-
+                putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -115,12 +94,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeToRestartId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
     }
 
     /**
@@ -133,23 +107,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(); // Just to have at least one other node
         final String nodeToRestartId = getNodeId(nodeToShutDownName);
 
-        // Mark the node for shutdown
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeToRestartId,
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            this.getTestName(),
-            null,
-            null
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
-
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeToRestartId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
     }
 
     /**
@@ -170,79 +129,29 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         indexRandomData(indexName);
 
         String nodeToStopId = findIdOfNodeWithPrimaryShard(indexName);
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeToStopId,
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            this.getTestName(),
-            null,
-            null
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response getResp = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeToStopId)
-            ).get();
-
-            assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        putNodeShutdown(nodeToStopId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+        assertBusy(() -> assertNodeShutdownStatus(nodeToStopId, COMPLETE));
     }
 
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
-        Settings.Builder nodeASettings = Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1);
-        createIndex("myindex", nodeASettings.build());
+        createIndex("myindex", Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
 
-        // Mark the nodeA as being replaced
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeAId,
-            SingleNodeShutdownMetadata.Type.REPLACE,
-            this.getTestName(),
-            null,
-            nodeB
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
-
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeAId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
+        assertNodeShutdownStatus(nodeAId, STALLED);
 
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
         final String nodeBId = getNodeId(nodeB);
 
-        logger.info("--> NodeA: {} -- {}", nodeA, nodeAId);
-        logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
+        logger.info("Started NodeB [{}] to replace NodeA [{}]", nodeBId, nodeAId);
 
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
-            int active = 0;
-            for (ShardRouting sr : state.routingTable().allShards("myindex")) {
-                if (sr.active()) {
-                    active++;
-                    assertThat(
-                        "expected shard on nodeB (" + nodeBId + ") but it was on a different node",
-                        sr.currentNodeId(),
-                        equalTo(nodeBId)
-                    );
-                }
-            }
-            assertThat("expected all 3 of the primary shards to be allocated", active, equalTo(3));
+            assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId);
+            assertIndexReplicaShardsAreNotAllocated("myindex");
         });
-
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response shutdownStatus = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeAId)
-            ).get();
-            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
 
         final String nodeC = internalCluster().startNode();
 
@@ -291,31 +200,19 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         // Create an index and pin it to nodeA, when we replace it with nodeB,
         // it'll move the data, overridding the `_name` allocation filter
-        Settings.Builder nodeASettings = Settings.builder()
-            .put("index.routing.allocation.require._name", nodeA)
-            .put("index.number_of_shards", 3)
-            .put("index.number_of_replicas", 0);
-        createIndex("myindex", nodeASettings.build());
+        createIndex(
+            "myindex",
+            Settings.builder()
+                .put("index.routing.allocation.require._name", nodeA)
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 0)
+                .build()
+        );
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t2"; // TODO: fix this to so it's actually overrideable
 
-        // Mark the nodeA as being replaced
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeAId,
-            SingleNodeShutdownMetadata.Type.REPLACE,
-            this.getTestName(),
-            null,
-            nodeB
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
-
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeAId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
+        assertNodeShutdownStatus(nodeAId, STALLED);
 
         final String nodeC = internalCluster().startNode();
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
@@ -324,24 +221,9 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         logger.info("--> NodeA: {} -- {}", nodeA, nodeAId);
         logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
 
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
-            for (ShardRouting sr : state.routingTable().allShards("myindex")) {
-                assertThat(
-                    "expected shard on nodeB (" + nodeBId + ") but it was on a different node",
-                    sr.currentNodeId(),
-                    equalTo(nodeBId)
-                );
-            }
-        });
-
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response shutdownStatus = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeAId)
-            ).get();
-            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        assertBusy(() -> assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId));
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
+        assertIndexSetting("myindex", "index.routing.allocation.require._name", nodeA);
 
         createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
 
@@ -384,33 +266,48 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
     }
 
+    public void testNodeReplacementAcceptIndexThatCouldNotBeAllocatedAnywhere() throws Exception {
+        String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
+        // Create an index on nodeA, then create allocation filter that could not be satisfied.
+        // when we replace it with nodeB, it'll move the data, overridding the `_name` allocation filter
+        createIndex(
+            "myindex",
+            Settings.builder()
+                .put("index.routing.allocation.require._name", nodeA)
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 0)
+                .build()
+        );
+
+        var fakeNodeName = UUIDs.randomBase64UUID();
+        updateIndexSettings("myindex", Settings.builder().put("index.routing.allocation.require._name", fakeNodeName));
+
+        final String nodeAId = getNodeId(nodeA);
+        final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
+
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
+        assertNodeShutdownStatus(nodeAId, STALLED);
+
+        internalCluster().startNode(Settings.builder().put("node.name", nodeB));
+        final String nodeBId = getNodeId(nodeB);
+
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
+        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId);
+        assertIndexSetting("myindex", "index.routing.allocation.require._name", fakeNodeName);
+    }
+
     public void testNodeReplacementOnlyToTarget() throws Exception {
         String nodeA = internalCluster().startNode(
             Settings.builder().put("node.name", "node-a").put("cluster.routing.rebalance.enable", "none")
         );
-        Settings.Builder nodeASettings = Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0);
-        createIndex("myindex", nodeASettings.build());
+        createIndex("myindex", Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
         final String nodeC = "node_t2"; // TODO: fix this to so it's actually overrideable
 
-        // Mark the nodeA as being replaced
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeAId,
-            SingleNodeShutdownMetadata.Type.REPLACE,
-            this.getTestName(),
-            null,
-            nodeB
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
 
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeAId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
+        assertNodeShutdownStatus(nodeAId, STALLED);
 
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
         internalCluster().startNode(Settings.builder().put("node.name", nodeC));
@@ -421,24 +318,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
         logger.info("--> NodeC: {} -- {}", nodeC, nodeCId);
 
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
-            for (ShardRouting sr : state.routingTable().allShards("myindex")) {
-                assertThat(
-                    "expected all shards for index to be on node B (" + nodeBId + ") but " + sr.toString() + " is on " + sr.currentNodeId(),
-                    sr.currentNodeId(),
-                    equalTo(nodeBId)
-                );
-            }
-        });
-
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response shutdownStatus = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeAId)
-            ).get();
-            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        assertBusy(() -> assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId));
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
     }
 
     public void testReallocationForReplicaDuringNodeReplace() throws Exception {
@@ -453,24 +334,10 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         final String nodeC = internalCluster().startNode();
 
-        // Register a replace for nodeA, with nodeC as the target
-        PutShutdownNodeAction.Request shutdownRequest = new PutShutdownNodeAction.Request(
-            nodeAId,
-            SingleNodeShutdownMetadata.Type.REPLACE,
-            "testing",
-            null,
-            nodeC
-        );
-        client().execute(PutShutdownNodeAction.INSTANCE, shutdownRequest).get();
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeC);
 
         // Wait for the node replace shutdown to be complete
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response shutdownStatus = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeAId)
-            ).get();
-            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
 
         // Remove nodeA from the cluster (it's been terminated)
         internalCluster().stopNode(nodeA);
@@ -512,13 +379,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
         ensureGreen("myindex");
 
-        // Mark the node for shutdown
-        assertAcked(
-            client().execute(
-                PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, this.getTestName(), null, null)
-            ).get()
-        );
+        putNodeShutdown(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, null);
 
         // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
         // that auto-expansion has run.
@@ -582,5 +443,65 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .map(DiscoveryNode::getId)
             .findFirst()
             .orElseThrow();
+    }
+
+    private void putNodeShutdown(String nodeId, SingleNodeShutdownMetadata.Type type, String nodeReplacementName) throws Exception {
+        assertAcked(
+            client().execute(
+                PutShutdownNodeAction.INSTANCE,
+                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName)
+            ).get()
+        );
+    }
+
+    private void assertNodeShutdownStatus(String nodeId, SingleNodeShutdownMetadata.Status status) throws Exception {
+        var response = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(nodeId)).get();
+        assertThat(response.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(status));
+    }
+
+    private void assertIndexPrimaryShardsAreAllocatedOnNode(String indexName, String nodeId) {
+        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var indexRoutingTable = state.routingTable().index(indexName);
+        for (int p = 0; p < indexRoutingTable.size(); p++) {
+            var primaryShard = indexRoutingTable.shard(p).primaryShard();
+            assertThat(
+                "expected all primary shards for index ["
+                    + indexName
+                    + "] to be on node ["
+                    + nodeId
+                    + "] but "
+                    + primaryShard
+                    + " is on "
+                    + primaryShard.currentNodeId(),
+                primaryShard.currentNodeId(),
+                equalTo(nodeId)
+            );
+        }
+    }
+
+    private void assertIndexReplicaShardsAreNotAllocated(String indexName) {
+        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var indexRoutingTable = state.routingTable().index(indexName);
+        for (int p = 0; p < indexRoutingTable.size(); p++) {
+            for (ShardRouting replicaShard : indexRoutingTable.shard(p).replicaShards()) {
+                assertThat(replicaShard.unassigned(), equalTo(true));
+
+                assertThat(
+                    "expected all replica shards for index ["
+                        + indexName
+                        + "] to be unallocated but "
+                        + replicaShard
+                        + " is on "
+                        + replicaShard.currentNodeId(),
+                    replicaShard.currentNodeId(),
+                    nullValue()
+                );
+            }
+        }
+    }
+
+    private void assertIndexSetting(String index, String setting, String expectedValue) {
+        var response = client().admin().indices().getSettings(new GetSettingsRequest().indices(index)).actionGet();
+        assertThat(response.getSetting(index, setting), equalTo(expectedValue));
     }
 }

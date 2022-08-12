@@ -24,7 +24,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -307,6 +309,9 @@ public abstract class TransportTasksAction<
         }
 
         private void finishHim() {
+            if ((task instanceof CancellableTask t) && t.notifyIfCancelled(listener)) {
+                return;
+            }
             TasksResponse finalResponse;
             try {
                 finalResponse = newResponse(request, responses);
@@ -335,7 +340,7 @@ public abstract class TransportTasksAction<
     }
 
     private class NodeTaskRequest extends TransportRequest {
-        private TasksRequest tasksRequest;
+        private final TasksRequest tasksRequest;
 
         protected NodeTaskRequest(StreamInput in) throws IOException {
             super(in);
@@ -351,6 +356,11 @@ public abstract class TransportTasksAction<
         protected NodeTaskRequest(TasksRequest tasksRequest) {
             super();
             this.tasksRequest = tasksRequest;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
 
     }

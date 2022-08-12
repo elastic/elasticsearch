@@ -90,7 +90,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         disableAllocation(index);
         logger.info("--> stop random node");
         int num = client().admin().cluster().prepareState().get().getState().nodes().getSize();
-        internalCluster().stopRandomNode(new IndexNodePredicate(index));
+        internalCluster().stopNode(internalCluster().getNodeNameThat(new IndexNodePredicate(index)));
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes("" + (num - 1)));
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> unassignedShards = clusterState.routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);

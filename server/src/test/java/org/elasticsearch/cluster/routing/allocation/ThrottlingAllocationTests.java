@@ -413,6 +413,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 restoreUUID,
                 snapshot,
                 RestoreInProgress.State.INIT,
+                false,
                 new ArrayList<>(snapshotIndices),
                 restoreShards
             );

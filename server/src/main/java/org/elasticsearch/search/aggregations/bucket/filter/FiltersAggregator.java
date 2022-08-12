@@ -170,12 +170,12 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         List<QueryToFilterAdapter> filters,
         boolean keyed,
         String otherBucketKey,
-        AggregationContext context,
+        AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
+        super(name, factories, aggCtx, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
         this.filters = List.copyOf(filters);
         this.keyed = keyed;
         this.otherBucketKey = otherBucketKey;

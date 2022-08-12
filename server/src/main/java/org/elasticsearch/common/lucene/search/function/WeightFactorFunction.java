@@ -86,41 +86,4 @@ public class WeightFactorFunction extends ScoreFunction {
     protected int doHashCode() {
         return Objects.hash(weight, scoreFunction);
     }
-
-    private static class ScoreOne extends ScoreFunction {
-
-        protected ScoreOne() {
-            super(CombineFunction.MULTIPLY);
-        }
-
-        @Override
-        public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
-            return new LeafScoreFunction() {
-                @Override
-                public double score(int docId, float subQueryScore) {
-                    return 1.0;
-                }
-
-                @Override
-                public Explanation explainScore(int docId, Explanation subQueryScore) {
-                    return Explanation.match(1.0f, "constant score 1.0 - no function provided");
-                }
-            };
-        }
-
-        @Override
-        public boolean needsScores() {
-            return false;
-        }
-
-        @Override
-        protected boolean doEquals(ScoreFunction other) {
-            return true;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return 0;
-        }
-    }
 }

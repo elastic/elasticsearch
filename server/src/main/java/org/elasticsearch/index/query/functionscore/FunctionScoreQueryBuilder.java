@@ -463,6 +463,22 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                         );
                     }
                     query = parseInnerQueryBuilder(parser);
+                } else if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (singleFunctionFound) {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "failed to parse [{}] query. already found function [{}], now encountering [{}]. use [functions] "
+                                + "array if you want to define several functions.",
+                            NAME,
+                            singleFunctionName,
+                            currentFieldName
+                        );
+                    }
+                    singleFunctionFound = true;
+                    singleFunctionName = currentFieldName;
+
+                    ScoreFunctionBuilder<?> scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName, null);
+                    filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));
                 } else {
                     if (singleFunctionFound) {
                         throw new ParsingException(
@@ -530,9 +546,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                         handleMisplacedFunctionsDeclaration(parser.getTokenLocation(), errorString);
                     }
                     if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        filterFunctionBuilders.add(
-                            new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(parser.floatValue()))
-                        );
+                        ScoreFunctionBuilder<?> scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName, null);
+                        filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));
+
                         singleFunctionFound = true;
                         singleFunctionName = currentFieldName;
                     } else {
@@ -586,7 +602,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             QueryBuilder filter = null;
             ScoreFunctionBuilder<?> scoreFunction = null;
-            Float functionWeight = null;
+            ScoreFunctionBuilder<?> weightFunction = null;
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(
                     parser.getTokenLocation(),
@@ -602,6 +618,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (FILTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             filter = parseInnerQueryBuilder(parser);
+                        } else if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            weightFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName, null);
                         } else {
                             if (scoreFunction != null) {
                                 throw new ParsingException(
@@ -615,7 +633,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                         }
                     } else if (token.isValue()) {
                         if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            functionWeight = parser.floatValue();
+                            weightFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName, null);
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
@@ -626,11 +644,11 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                         }
                     }
                 }
-                if (functionWeight != null) {
+                if (weightFunction != null) {
                     if (scoreFunction == null) {
-                        scoreFunction = new WeightBuilder().setWeight(functionWeight);
+                        scoreFunction = weightFunction;
                     } else {
-                        scoreFunction.setWeight(functionWeight);
+                        scoreFunction.setWeightBuilder((WeightBuilder) weightFunction);
                     }
                 }
             }

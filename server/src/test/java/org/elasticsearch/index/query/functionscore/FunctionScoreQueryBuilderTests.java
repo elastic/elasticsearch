@@ -204,7 +204,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             default -> throw new UnsupportedOperationException();
         }
         if (randomBoolean()) {
-            functionBuilder.setWeight(randomFloat());
+            functionBuilder.setWeightBuilder(new WeightBuilder().setWeight(randomFloat()));
         }
         return functionBuilder;
     }
@@ -364,7 +364,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             RandomScoreFunctionBuilder randomScoreFunctionBuilder = (RandomScoreFunctionBuilder) functionScoreQueryBuilder
                 .filterFunctionBuilders()[0].getScoreFunction();
             assertThat(randomScoreFunctionBuilder.getSeed(), equalTo(123456));
-            assertThat(randomScoreFunctionBuilder.getWeight(), equalTo(3f));
+            assertThat(randomScoreFunctionBuilder.getWeightBuilder().getWeight(), equalTo(3f));
             assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[1].getScoreFunction(), instanceOf(WeightBuilder.class));
             WeightBuilder weightBuilder = (WeightBuilder) functionScoreQueryBuilder.filterFunctionBuilders()[1].getScoreFunction();
             assertThat(weightBuilder.getWeight(), equalTo(9f));
@@ -429,7 +429,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             GaussDecayFunctionBuilder gaussDecayFunctionBuilder = (GaussDecayFunctionBuilder) functionScoreQueryBuilder
                 .filterFunctionBuilders()[0].getScoreFunction();
             assertThat(gaussDecayFunctionBuilder.getFieldName(), equalTo("field_name"));
-            assertThat(gaussDecayFunctionBuilder.getWeight(), nullValue());
+            assertThat(gaussDecayFunctionBuilder.getWeightBuilder(), nullValue());
             assertThat(functionScoreQueryBuilder.boost(), equalTo(3f));
             assertThat(functionScoreQueryBuilder.scoreMode(), equalTo(FunctionScoreQuery.ScoreMode.AVG));
             assertThat(functionScoreQueryBuilder.boostMode(), equalTo(CombineFunction.REPLACE));
@@ -531,7 +531,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertThat(fieldValueFactorFunctionBuilder.fieldName(), equalTo(INT_FIELD_NAME));
         assertThat(fieldValueFactorFunctionBuilder.factor(), equalTo(FieldValueFactorFunctionBuilder.DEFAULT_FACTOR));
         assertThat(fieldValueFactorFunctionBuilder.modifier(), equalTo(FieldValueFactorFunctionBuilder.DEFAULT_MODIFIER));
-        assertThat(fieldValueFactorFunctionBuilder.getWeight(), equalTo(1f));
+        assertThat(fieldValueFactorFunctionBuilder.getWeightBuilder().getWeight(), equalTo(1f));
         assertThat(fieldValueFactorFunctionBuilder.missing(), nullValue());
 
         Query luceneQuery = query.toQuery(createSearchExecutionContext());

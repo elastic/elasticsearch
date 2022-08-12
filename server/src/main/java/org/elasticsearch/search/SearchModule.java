@@ -978,10 +978,13 @@ public class SearchModule {
                 FieldValueFactorFunctionBuilder::fromXContent
             )
         );
-
-        // weight doesn't have its own parser, so every function supports it out of the box.
-        // Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
-        namedWriteables.add(new NamedWriteableRegistry.Entry(ScoreFunctionBuilder.class, WeightBuilder.NAME, WeightBuilder::new));
+        registerScoreFunction(
+            new ScoreFunctionSpec<>(
+                WeightBuilder.NAME,
+                WeightBuilder::new,
+                WeightBuilder::fromXContent
+            )
+        );
 
         registerFromPlugin(plugins, SearchPlugin::getScoreFunctions, this::registerScoreFunction);
     }

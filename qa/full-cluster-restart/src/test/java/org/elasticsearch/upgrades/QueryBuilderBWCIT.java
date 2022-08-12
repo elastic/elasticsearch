@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.SpanNearQueryBuilder;
 import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -115,7 +116,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                     new FunctionScoreQueryBuilder.FilterFunctionBuilder(
                         new MatchAllQueryBuilder(),
-                        new RandomScoreFunctionBuilder().setWeight(0.2f)
+                        new RandomScoreFunctionBuilder().setWeightBuilder(new WeightBuilder().setWeight(0.2f))
                     ) }
             )
         );

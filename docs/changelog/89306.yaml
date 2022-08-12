@@ -1,0 +1,5 @@
+pr: 89306
+summary: Add weight field support on function scores
+area: Search
+type: feature
+issues: [89305]

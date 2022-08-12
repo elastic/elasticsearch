@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,7 +21,7 @@ import java.util.Objects;
 
 public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> implements ToXContentFragment, VersionedNamedWriteable {
 
-    private Float weight;
+    private WeightBuilder weightBuilder;
 
     /**
      * Standard empty constructor.
@@ -33,12 +32,12 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
      * Read from a stream.
      */
     public ScoreFunctionBuilder(StreamInput in) throws IOException {
-        weight = checkWeight(in.readOptionalFloat());
+        weightBuilder = in.readOptionalWriteable(WeightBuilder::new);
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalFloat(weight);
+        out.writeOptionalWriteable(weightBuilder);
         doWriteTo(out);
     }
 
@@ -53,32 +52,25 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
     public abstract String getName();
 
     /**
-     * Set the weight applied to the function before combining.
+     * Set the weightBuilder applied to the function before combining.
      */
     @SuppressWarnings("unchecked")
-    public final FB setWeight(float weight) {
-        this.weight = checkWeight(weight);
+    public final FB setWeightBuilder(WeightBuilder weightBuilder) {
+        this.weightBuilder = weightBuilder;
         return (FB) this;
     }
 
-    private static Float checkWeight(Float weight) {
-        if (weight != null && Float.compare(weight, 0) < 0) {
-            throw new IllegalArgumentException("[weight] cannot be negative for a filtering function");
-        }
-        return weight;
-    }
-
     /**
-     * The weight applied to the function before combining.
+     * The weightBuilder applied to the function before combining.
      */
-    public final Float getWeight() {
-        return weight;
+    public final WeightBuilder getWeightBuilder() {
+        return weightBuilder;
     }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (weight != null) {
-            builder.field(FunctionScoreQueryBuilder.WEIGHT_FIELD.getPreferredName(), weight);
+        if (weightBuilder != null) {
+            weightBuilder.doXContent(builder, params);
         }
         doXContent(builder, params);
         return builder;
@@ -104,7 +96,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
         }
         @SuppressWarnings("unchecked")
         FB other = (FB) obj;
-        return Objects.equals(weight, other.getWeight()) && doEquals(other);
+        return (weightBuilder == null || weightBuilder.doEquals(other.getWeightBuilder())) && doEquals(other);
     }
 
     /**
@@ -115,7 +107,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), weight, doHashCode());
+        return Objects.hash(getClass(), weightBuilder == null ? 0 : weightBuilder.doHashCode(), doHashCode());
     }
 
     /**
@@ -129,10 +121,14 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
      */
     public final ScoreFunction toFunction(SearchExecutionContext context) throws IOException {
         ScoreFunction scoreFunction = doToFunction(context);
-        if (weight == null) {
+
+        if (weightBuilder == null) {
             return scoreFunction;
         }
-        return new WeightFactorFunction(weight, scoreFunction);
+
+        weightBuilder.setScoreFunction(scoreFunction);
+
+        return weightBuilder.doToFunction(context);
     }
 
     /**

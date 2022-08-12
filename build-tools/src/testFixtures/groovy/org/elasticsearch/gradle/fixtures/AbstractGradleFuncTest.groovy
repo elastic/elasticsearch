@@ -79,17 +79,16 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
         return new NormalizeOutputGradleRunner(
-                new ConfigurationCacheCompatibleAwareGradleRunner(
-                        new InternalAwareGradleRunner(
-                                GradleRunner.create()
-                                        .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                                .toString().indexOf("-agentlib:jdwp") > 0
-                                        )
-                                        .withProjectDir(projectDir)
-                                        .withPluginClasspath()
-                                        .forwardOutput()
-                        ), configurationCacheCompatible),
-                projectDir
+            new ConfigurationCacheCompatibleAwareGradleRunner(
+                    new InternalAwareGradleRunner(
+                            GradleRunner.create()
+                                    .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                                            .toString().indexOf("-agentlib:jdwp") > 0
+                                    )
+                                    .withProjectDir(projectDir)
+                                    .withPluginClasspath()
+                                    .forwardOutput()
+                    ), configurationCacheCompatible),
         ).withArguments(arguments.collect { it.toString() })
     }
 

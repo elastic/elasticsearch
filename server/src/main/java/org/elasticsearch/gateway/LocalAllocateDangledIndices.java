@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -104,21 +105,10 @@ public class LocalAllocateDangledIndices {
             }
             final String source = "allocation dangled indices " + Arrays.toString(indexNames);
 
-            var listener = new AllocationActionListener<>(ActionListener.<AllocateDangledResponse>wrap(response -> {
-                try {
-                    channel.sendResponse(new AllocateDangledResponse());
-                } catch (IOException e) {
-                    logger.warn("failed send response for allocating dangled", e);
-                }
-            }, exception -> {
-                logger.error(() -> "unexpected failure during [" + source + "]", exception);
-                try {
-                    channel.sendResponse(exception);
-                } catch (Exception inner) {
-                    inner.addSuppressed(exception);
-                    logger.warn("failed send response for allocating dangled", inner);
-                }
-            }), transportService.getThreadPool().getThreadContext());
+            var listener = new AllocationActionListener<AllocateDangledResponse>(
+                new ChannelActionListener<>(channel, task.getAction(), request),
+                transportService.getThreadPool().getThreadContext()
+            );
 
             submitUnbatchedTask(source, new ClusterStateUpdateTask() {
                 @Override

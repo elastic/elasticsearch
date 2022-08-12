@@ -29,25 +29,6 @@ public class TransportEntSearchAction extends HandledTransportAction<EntSearchRe
         this.client = client;
     }
 
-    private static void performQuery(EntSearchRequest request, NodeClient client, EntSearchResponse entSearchResponse, ActionListener<EntSearchResponse> listener) {
-        final QueryBuilder queryBuilder = EntSearchQueryBuilder.getQueryBuilder(request);
-
-        SearchRequest searchRequest = client.prepareSearch(request.getIndex())
-            .setQuery(queryBuilder)
-            .setSize(1000)
-            .setFetchSource(true)
-            .request();
-
-        client.search(searchRequest, listener.delegateFailure((l, searchResponse) -> {
-            try {
-                entSearchResponse.setSearchResponse(searchResponse);
-                l.onResponse(entSearchResponse);
-            } catch (Exception t) {
-                l.onFailure(t);
-            }
-        }));
-    }
-
     @Override
     protected void doExecute(Task task, EntSearchRequest request, ActionListener<EntSearchResponse> listener) {
 
@@ -68,5 +49,24 @@ public class TransportEntSearchAction extends HandledTransportAction<EntSearchRe
                 }
             }));
 
+    }
+
+    private static void performQuery(EntSearchRequest request, NodeClient client, EntSearchResponse entSearchResponse, ActionListener<EntSearchResponse> listener) {
+        final QueryBuilder queryBuilder = EntSearchQueryBuilder.getQueryBuilder(request);
+
+        SearchRequest searchRequest = client.prepareSearch(request.getIndex())
+            .setQuery(queryBuilder)
+            .setSize(1000)
+            .setFetchSource(true)
+            .request();
+
+        client.search(searchRequest, listener.delegateFailure((l, searchResponse) -> {
+            try {
+                entSearchResponse.setSearchResponse(searchResponse);
+                l.onResponse(entSearchResponse);
+            } catch (Exception t) {
+                l.onFailure(t);
+            }
+        }));
     }
 }

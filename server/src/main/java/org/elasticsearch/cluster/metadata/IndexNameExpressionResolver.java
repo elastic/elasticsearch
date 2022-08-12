@@ -1131,6 +1131,7 @@ public class IndexNameExpressionResolver {
                 return expressions;
             }
 
+            // all indices
             if (isEmptyOrTrivialWildcard(expressions)) {
                 List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(context);
                 if (context.includeDataStreams() == false) {
@@ -1150,22 +1151,18 @@ public class IndexNameExpressionResolver {
                     );
                     return resolvedIncludingDataStreams;
                 }
+            } else {
+                Collection<String> result = innerResolve(context, expressions);
+                if (result.isEmpty() && context.getOptions().allowNoIndices() == false) {
+                    IndexNotFoundException infe = new IndexNotFoundException((String) null);
+                    infe.setResources("index_or_alias", expressions.toArray(new String[0]));
+                    throw infe;
+                }
+                return result;
             }
-
-            Set<String> result = innerResolve(context, expressions);
-
-            if (result == null) {
-                return expressions;
-            }
-            if (result.isEmpty() && context.getOptions().allowNoIndices() == false) {
-                IndexNotFoundException infe = new IndexNotFoundException((String) null);
-                infe.setResources("index_or_alias", expressions.toArray(new String[0]));
-                throw infe;
-            }
-            return result;
         }
 
-        private static Set<String> innerResolve(Context context, List<String> expressions) {
+        private static Collection<String> innerResolve(Context context, List<String> expressions) {
             Set<String> result = null;
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
@@ -1177,16 +1174,16 @@ public class IndexNameExpressionResolver {
                     }
                     continue;
                 }
+                if (result == null) {
+                    // add all the previous ones...
+                    result = new HashSet<>(expressions.subList(0, i));
+                }
                 final boolean add;
                 if (expression.charAt(0) == '-' && wildcardSeen) {
                     add = false;
                     expression = expression.substring(1);
                 } else {
                     add = true;
-                }
-                if (result == null) {
-                    // add all the previous ones...
-                    result = new HashSet<>(expressions.subList(0, i));
                 }
                 if (Regex.isSimpleMatchPattern(expression) == false) {
                     // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
@@ -1213,7 +1210,11 @@ public class IndexNameExpressionResolver {
                     result.removeAll(expand);
                 }
             }
-            return result;
+            if (result != null) {
+                return result;
+            } else {
+                return expressions;
+            }
         }
 
         private static void validateAliasOrIndex(String expression) {

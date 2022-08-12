@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.fixtures
 import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
+import org.elasticsearch.gradle.internal.test.TestResultExtension
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
@@ -46,7 +47,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     def cleanup() {
-        if (Boolean.getBoolean('test.keep.samplebuild')) {
+        if (featureFailed()) {
             FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
         }
     }
@@ -188,6 +189,13 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
               }
             }
             '''
+    }
+
+    boolean featureFailed() {
+        specificationContext.currentSpec.listeners
+            .findAll { it instanceof TestResultExtension.ErrorListener }
+            .any {
+                (it as TestResultExtension.ErrorListener).errorInfo != null }
     }
 
     static class ProjectConfigurer {

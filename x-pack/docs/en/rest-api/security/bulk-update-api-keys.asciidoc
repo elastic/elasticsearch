@@ -350,10 +350,10 @@ For example:
        },
        "Os4gg4IBGgpHBfLe2I7j": {
          "type": "exception",
-         "reason": "error occurred while updating API key",
+         "reason": "bulk request execution failure",
          "caused_by": { <3>
-           "type": "illegal_argument_exception",
-           "reason": "security index failure"
+           "type" : "version_conflict_engine_exception",
+           "reason" : "[1]: version conflict, required seqNo [1], primary term [1]. current document has seqNo [2] and primary term [1]"
          }
        }
     }

@@ -822,6 +822,13 @@ public class Node implements Closeable {
                 transportService,
                 indicesService
             );
+
+            FileSettingsService fileSettingsService = new FileSettingsService(
+                clusterService,
+                actionModule.getReservedClusterStateService(),
+                environment
+            );
+
             RestoreService restoreService = new RestoreService(
                 clusterService,
                 repositoryService,
@@ -831,7 +838,8 @@ public class Node implements Closeable {
                 indexMetadataVerifier,
                 shardLimitValidator,
                 systemIndices,
-                indicesService
+                indicesService,
+                fileSettingsService
             );
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,
@@ -953,12 +961,6 @@ public class Node implements Closeable {
             LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
                 ? new LocalHealthMonitor(settings, clusterService, nodeService, threadPool)
                 : null;
-
-            FileSettingsService fileSettingsService = new FileSettingsService(
-                clusterService,
-                actionModule.getReservedClusterStateService(),
-                environment
-            );
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);

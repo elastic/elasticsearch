@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
@@ -27,6 +29,8 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -47,7 +51,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
     private static final String SETTINGS_FILE_NAME = "settings.json";
-    static final String NAMESPACE = "file_settings";
+    public static final String NAMESPACE = "file_settings";
 
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
@@ -133,15 +137,49 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     private void startIfMaster(ClusterState clusterState) {
-        setWatching(currentNodeMaster(clusterState), initialState);
-        initialState = false;
-    }
-
-    private void setWatching(boolean watching, boolean initialState) {
-        if (watching) {
+        if (currentNodeMaster(clusterState)) {
             startWatcher(initialState);
         } else {
             stopWatcher();
+        }
+        initialState = false;
+    }
+
+    /**
+     * Used by snapshot restore service {@link org.elasticsearch.snapshots.RestoreService} to prepare the reserved
+     * state of the snapshot for the current cluster.
+     * <p>
+     * If the current cluster where we are restoring the snapshot into has any operator file based settings, we'll
+     * reset the reserved state version to 0 and 'touch' the settings file so the file watcher re-processes it. The file
+     * processing will be asynchronous, but since this method is called from RestoreService, we are already in cluster
+     * state update and the file state update is guaranteed to happen after.
+     * <p>
+     * If there's no file based settings file in this cluster, we'll remove all state reservations for
+     * file based settings from the cluster state.
+     * @param clusterState the cluster state before snapshot restore
+     * @param mdBuilder the current metadata builder for the new cluster state
+     */
+    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
+        assert currentNodeMaster(clusterState);
+
+        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
+
+        if (fileSettingsMetadata != null) {
+            // When we restore from a snapshot we remove the reserved cluster state for file settings,
+            // since we don't know the current operator configuration, e.g. file settings could be disabled
+            // on the target cluster. If file settings exist and the cluster state has lost it's reserved
+            // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
+            if (active && Files.exists(operatorSettingsFile())) {
+                ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
+                mdBuilder.put(withResetVersion);
+                try {
+                    Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
+                } catch (IOException e) {
+                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
+                }
+            } else {
+                mdBuilder.removeReservedState(fileSettingsMetadata);
+            }
         }
     }
 
@@ -152,6 +190,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     synchronized void startWatcher(boolean onStartup) {
         if (watching() || active == false) {
+            assert initialState == false;
             // already watching or inactive, nothing to do
             return;
         }

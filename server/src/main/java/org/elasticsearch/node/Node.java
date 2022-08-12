@@ -832,7 +832,8 @@ public class Node implements Closeable {
                 indexMetadataVerifier,
                 shardLimitValidator,
                 systemIndices,
-                indicesService
+                indicesService,
+                threadPool
             );
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,

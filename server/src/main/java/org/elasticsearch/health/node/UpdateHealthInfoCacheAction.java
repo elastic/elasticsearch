@@ -40,7 +40,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<UpdateHealthInfoCach
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            this.diskHealthInfo = new DiskHealthInfo(in);
+            this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
         }
 
         public String getNodeId() {
@@ -54,6 +54,13 @@ public class UpdateHealthInfoCacheAction extends ActionType<UpdateHealthInfoCach
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(nodeId);
+            out.writeOptionalWriteable(diskHealthInfo);
         }
     }
 

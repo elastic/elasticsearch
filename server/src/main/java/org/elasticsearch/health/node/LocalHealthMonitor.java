@@ -162,7 +162,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     }
 
     private void monitorHealth() {
-        if (inProgress.compareAndSet(false, true)) {
+        if (inProgress.compareAndSet(false, true) && healthNodeSelected) {
             ClusterState clusterState = clusterService.state();
             HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
             assert healthMetadata != null : "health metadata should have been initialized.";

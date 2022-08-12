@@ -28,13 +28,13 @@ public record DiskHealthInfo(HealthStatus healthStatus, Cause cause) implements 
     }
 
     public DiskHealthInfo(StreamInput in) throws IOException {
-        this(HealthStatus.from(in), DiskHealthInfo.Cause.from(in));
+        this(HealthStatus.from(in), in.readOptionalWriteable(Cause::from));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         healthStatus.writeTo(out);
-        cause.writeTo(out);
+        out.writeOptionalWriteable(cause);
     }
 
     public enum Cause implements Writeable {

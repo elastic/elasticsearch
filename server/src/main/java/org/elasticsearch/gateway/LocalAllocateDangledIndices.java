@@ -56,21 +56,18 @@ public class LocalAllocateDangledIndices {
     private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final IndexMetadataVerifier indexMetadataVerifier;
-    private final ThreadPool threadPool;
 
     @Inject
     public LocalAllocateDangledIndices(
         TransportService transportService,
         ClusterService clusterService,
         AllocationService allocationService,
-        IndexMetadataVerifier indexMetadataVerifier,
-        ThreadPool threadPool
+        IndexMetadataVerifier indexMetadataVerifier
     ) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.indexMetadataVerifier = indexMetadataVerifier;
-        this.threadPool = threadPool;
         transportService.registerRequestHandler(
             ACTION_NAME,
             ThreadPool.Names.SAME,
@@ -121,7 +118,7 @@ public class LocalAllocateDangledIndices {
                     inner.addSuppressed(exception);
                     logger.warn("failed send response for allocating dangled", inner);
                 }
-            }), threadPool.getThreadContext());
+            }), transportService.getThreadPool().getThreadContext());
 
             submitUnbatchedTask(source, new ClusterStateUpdateTask() {
                 @Override

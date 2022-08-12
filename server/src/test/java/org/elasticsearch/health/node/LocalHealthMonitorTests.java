@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -123,8 +124,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         DiskHealthInfo green = new DiskHealthInfo(HealthStatus.GREEN, null);
         doAnswer(invocation -> {
             DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
-            ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
-                UpdateHealthInfoCacheAction.Response>) invocation.getArguments()[2];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             assertThat(diskHealthInfo, equalTo(green));
             listener.onResponse(null);
             return null;
@@ -140,8 +140,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testDoNotUpdateHealthInfoOnFailure() {
         doAnswer(invocation -> {
-            ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
-                UpdateHealthInfoCacheAction.Response>) invocation.getArguments()[2];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onFailure(new RuntimeException("simulated"));
             return null;
         }).when(client).execute(any(), any(), any());
@@ -165,8 +164,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         AtomicInteger counter = new AtomicInteger(0);
         doAnswer(invocation -> {
             DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
-            ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
-                UpdateHealthInfoCacheAction.Response>) invocation.getArguments()[2];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             assertThat(diskHealthInfo, equalTo(green));
             counter.incrementAndGet();
             listener.onResponse(null);
@@ -186,8 +184,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     public void testEnablingAndDisabling() throws Exception {
         DiskHealthInfo green = new DiskHealthInfo(HealthStatus.GREEN, null);
         doAnswer(invocation -> {
-            ActionListener<UpdateHealthInfoCacheAction.Response> listener = (ActionListener<
-                UpdateHealthInfoCacheAction.Response>) invocation.getArguments()[2];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onResponse(null);
             return null;
         }).when(client).execute(any(), any(), any());

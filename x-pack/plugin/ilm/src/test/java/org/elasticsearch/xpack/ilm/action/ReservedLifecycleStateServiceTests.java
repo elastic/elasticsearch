@@ -268,7 +268,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
                 }
             };
 
-            task.execute(state, List.of(context));
+            task.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(context)));
 
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(), any());

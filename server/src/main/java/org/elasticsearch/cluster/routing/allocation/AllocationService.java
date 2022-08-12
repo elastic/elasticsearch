@@ -398,30 +398,6 @@ public class AllocationService {
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 
-    // TODO remove
-    public CommandsResult reroute(final ClusterState clusterState, AllocationCommands commands, boolean explain, boolean retryFailed) {
-        // we don't shuffle the unassigned shards here, to try and get as close as possible to
-        // a consistent result of the effect the commands have on the routing
-        // this allows systems to dry run the commands, see the resulting cluster state, and act on it
-        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
-        // don't short circuit deciders, we want a full explanation
-        allocation.debugDecision(true);
-        // we ignore disable allocation, because commands are explicit
-        allocation.ignoreDisable(true);
-
-        if (retryFailed) {
-            allocation.resetFailedAllocationCounter();
-        }
-
-        RoutingExplanations explanations = commands.execute(allocation, explain);
-        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
-        allocation.ignoreDisable(false);
-        // the assumption is that commands will move / act on shards (or fail through exceptions)
-        // so, there will always be shard "movements", so no need to check on reroute
-        reroute(allocation, DesiredBalanceShardsAllocator.REMOVE_ME);
-        return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
-    }
-
     /**
      * Computes the next step towards a fully allocated and balanced cluster and records this step in the routing table of the returned
      * state. Should be called after every change to the cluster that affects the routing table and/or the balance of shards.

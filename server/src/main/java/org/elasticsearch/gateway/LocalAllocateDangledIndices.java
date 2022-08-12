@@ -217,6 +217,7 @@ public class LocalAllocateDangledIndices {
                         sb.append("[").append(newIndexMetadata.getIndex()).append("/").append(newIndexMetadata.getState()).append("]");
                     }
                     if (importNeeded == false) {
+                        listener.reroute().onResponse(null);
                         return currentState;
                     }
                     logger.info("importing dangled indices {} from [{}]", sb.toString(), request.fromNode);

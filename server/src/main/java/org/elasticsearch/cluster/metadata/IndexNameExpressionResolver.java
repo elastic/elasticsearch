@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -1131,9 +1132,8 @@ public class IndexNameExpressionResolver {
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     // dedup backing indices if expand hidden indices option is true
                     Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
-                    resolvedIncludingDataStreams.addAll(
-                        expand(context, dataStreamsAbstractions, expressions.isEmpty() ? "_all" : expressions.get(0))
-                    );
+                    expandMatches(context, dataStreamsAbstractions.values(), expressions.isEmpty() ? "_all" : expressions.get(0),
+                        resolvedIncludingDataStreams::add);
                     return resolvedIncludingDataStreams;
                 }
             } else {
@@ -1183,17 +1183,18 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 wildcardSeen = true;
-
                 final Map<String, IndexAbstraction> matches = matches(context, expression);
                 if (context.getOptions().allowNoIndices() == false && matches.isEmpty()) {
                     throw indexNotFoundException(expression);
                 }
-                Set<String> expand = expand(context, matches, expression);
-                if (add) {
-                    result.addAll(expand);
-                } else {
-                    result.removeAll(expand);
-                }
+                Set<String> finalResult = result;
+                expandMatches(context, matches.values(), expression, expanded -> {
+                    if (add) {
+                        finalResult.add(expanded);
+                    } else {
+                        finalResult.remove(expanded);
+                    }
+                });
             }
             if (result != null) {
                 return result;
@@ -1322,11 +1323,15 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static Set<String> expand(Context context, Map<String, IndexAbstraction> matches, String expression) {
+        private static void expandMatches(
+            Context context,
+            Collection<IndexAbstraction> matches,
+            String expression,
+            Consumer<String> expandConsumer
+        ) {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
             final boolean includeHidden = context.getOptions().expandWildcardsHidden();
-            Set<String> expand = new HashSet<>();
-            for (IndexAbstraction indexAbstraction : matches.values()) {
+            for (IndexAbstraction indexAbstraction : matches) {
 
                 if (indexAbstraction.isSystem()
                     && (indexAbstraction.getType() == Type.DATA_STREAM
@@ -1343,20 +1348,19 @@ public class IndexNameExpressionResolver {
                 }
 
                 if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-                    expand.add(indexAbstraction.getName());
+                    expandConsumer.accept(indexAbstraction.getName());
                 } else {
                     for (Index index : indexAbstraction.getIndices()) {
                         IndexMetadata meta = context.state.metadata().index(index);
                         if (excludeState == null || meta.getState() != excludeState) {
-                            expand.add(meta.getIndex().getName());
+                            expandConsumer.accept(meta.getIndex().getName());
                         }
                     }
                     if (context.isPreserveDataStreams() && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                        expand.add(indexAbstraction.getName());
+                        expandConsumer.accept(indexAbstraction.getName());
                     }
                 }
             }
-            return expand;
         }
 
         private static boolean implicitHiddenMatch(String itemName, String expression) {

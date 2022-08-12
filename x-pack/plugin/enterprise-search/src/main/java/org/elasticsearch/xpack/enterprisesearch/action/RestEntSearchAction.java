@@ -28,8 +28,8 @@ public class RestEntSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/{index}/_entsearch"),
-            new Route(POST, "/{index}/_entsearch")
+            new Route(GET, "/{index}/_xsearch"),
+            new Route(POST, "/{index}/_xsearch")
         );
     }
 

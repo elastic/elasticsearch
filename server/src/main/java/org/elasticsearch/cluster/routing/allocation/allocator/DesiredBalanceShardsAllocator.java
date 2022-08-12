@@ -18,7 +18,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -62,6 +65,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
+    private final SynchronizedListBuffer<MoveAllocationCommand> pendingDesiredBalanceMoves = new SynchronizedListBuffer<>();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
 
@@ -90,7 +94,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                 logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
 
-                setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, this::isFresh));
+                setCurrentDesiredBalance(
+                    desiredBalanceComputer.compute(
+                        currentDesiredBalance,
+                        desiredBalanceInput,
+                        pendingDesiredBalanceMoves.clearAndGetAll(),
+                        this::isFresh
+                    )
+                );
                 var isFresh = isFresh(desiredBalanceInput);
 
                 if (isFresh) {
@@ -159,7 +170,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     @Override
     public RoutingExplanations execute(RoutingAllocation allocation, AllocationCommands commands, boolean explain, boolean retryFailed) {
         var explanations = ShardsAllocator.super.execute(allocation, commands, explain, retryFailed);
-        PendingAllocationCommandsService.INSTANCE.addCommands(commands);
+        for (AllocationCommand command : commands.commands()) {
+            if (command instanceof MoveAllocationCommand move) {
+                pendingDesiredBalanceMoves.add(move);
+            }
+        }
         return explanations;
     }
 
@@ -171,7 +186,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         } else {
             reset();
             queue.completeAllAsNotMaster();
-            PendingAllocationCommandsService.INSTANCE.onNoLongerMaster();
+            pendingDesiredBalanceMoves.clearAndGetAll();
         }
     }
 
@@ -219,5 +234,20 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
         }
         return builder.append(newLine).toString();
+    }
+
+    private static class SynchronizedListBuffer<T> {
+
+        private final List<T> buffer = new ArrayList<>();
+
+        private synchronized void add(T item) {
+            buffer.add(item);
+        }
+
+        private synchronized List<T> clearAndGetAll() {
+            var copy = new ArrayList<T>(buffer);
+            buffer.clear();
+            return copy;
+        }
     }
 }

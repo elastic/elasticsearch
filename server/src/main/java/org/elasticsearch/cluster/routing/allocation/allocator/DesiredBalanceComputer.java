@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -44,6 +45,7 @@ public class DesiredBalanceComputer {
     public DesiredBalance compute(
         DesiredBalance previousDesiredBalance,
         DesiredBalanceInput desiredBalanceInput,
+        List<MoveAllocationCommand> pendingDesiredBalanceMoves,
         Predicate<DesiredBalanceInput> isFresh
     ) {
 
@@ -167,7 +169,13 @@ public class DesiredBalanceComputer {
             }
         }
 
-        PendingAllocationCommandsService.INSTANCE.applyMoveCommandsToDesiredBalanceCalculation(routingAllocation);
+        for (MoveAllocationCommand command : pendingDesiredBalanceMoves) {
+            try {
+                command.execute(routingAllocation, false);
+            } catch (RuntimeException e) {
+                logger.debug("[{}] command failed during applying it to the desired balance", command);
+            }
+        }
 
         // TODO must also bypass ResizeAllocationDecider
         // TODO must also bypass RestoreInProgressAllocationDecider

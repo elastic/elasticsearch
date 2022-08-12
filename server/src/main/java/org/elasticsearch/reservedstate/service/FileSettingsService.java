@@ -164,22 +164,22 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
 
-        if (fileSettingsMetadata != null) {
-            // When we restore from a snapshot we remove the reserved cluster state for file settings,
-            // since we don't know the current operator configuration, e.g. file settings could be disabled
-            // on the target cluster. If file settings exist and the cluster state has lost it's reserved
-            // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-            if (active && Files.exists(operatorSettingsFile())) {
+        // When we restore from a snapshot we remove the reserved cluster state for file settings,
+        // since we don't know the current operator configuration, e.g. file settings could be disabled
+        // on the target cluster. If file settings exist and the cluster state has lost it's reserved
+        // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
+        if (watching() && Files.exists(operatorSettingsFile())) {
+            if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
-                try {
-                    Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
-                } catch (IOException e) {
-                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
-                }
-            } else {
-                mdBuilder.removeReservedState(fileSettingsMetadata);
             }
+            try {
+                Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
+            } catch (IOException e) {
+                logger.warn("encountered I/O error trying to update file settings timestamp", e);
+            }
+        } else if (fileSettingsMetadata != null) {
+            mdBuilder.removeReservedState(fileSettingsMetadata);
         }
     }
 

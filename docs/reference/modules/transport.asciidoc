@@ -62,14 +62,6 @@ Configures the compression scheme for `transport.compress`. The options are
 upgraded to a version supporting `lz4`, the traffic will be sent uncompressed.
 Defaults to `lz4`.
 
-`transport.ping_schedule`::
-(<<static-cluster-setting,Static>>, <<time-units,time value>>)
-Schedule a regular application-level ping message to ensure that transport
-connections between nodes are kept alive. Defaults to `5s` in the transport
-client and `-1` (disabled) elsewhere. It is preferable to correctly configure
-TCP keep-alives instead of using this feature, because TCP keep-alives apply to
-all kinds of long-lived connections and not just to transport connections.
-
 `transport.tcp.keep_alive`::
 (<<static-cluster-setting,Static>>, boolean)
 Configures the `SO_KEEPALIVE` option for transport sockets, which determines
@@ -121,6 +113,14 @@ The size of the TCP send buffer for transport traffic. Defaults to
 (<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
 The size of the TCP receive buffer for transport traffic. Defaults to
 `network.tcp.receive_buffer_size`.
+
+`transport.ping_schedule`::
+(<<static-cluster-setting,Static>>, <<time-units,time value>>)
+Configures the time between sending application-level pings on all transport
+connections to promptly detect when a transport connection has failed. Defaults
+to `-1` meaning that application-level pings are not sent. You should use TCP
+keepalives (see `transport.tcp.keep_alive`) instead of application-level pings
+wherever possible.
 
 [[transport-profiles]]
 ===== Transport profiles

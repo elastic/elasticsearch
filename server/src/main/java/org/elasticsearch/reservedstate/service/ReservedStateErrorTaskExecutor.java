@@ -27,10 +27,9 @@ record ReservedStateErrorTaskExecutor() implements ClusterStateTaskExecutor<Rese
     @Override
     public ClusterState execute(ClusterState currentState, List<TaskContext<ReservedStateErrorTask>> taskContexts) {
         for (final var taskContext : taskContexts) {
-            currentState = taskContext.getTask().execute(currentState);
-            taskContext.success(
-                () -> taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
-            );
+            final var task = taskContext.getTask();
+            currentState = task.execute(currentState);
+            taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
         }
         return currentState;
     }

@@ -20,7 +20,7 @@ public class AuthenticateRequest extends ActionRequest {
 
     public AuthenticateRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_4_0)) {
+        if (in.getVersion().before(Version.V_8_5_0)) {
             // Older versions included the username as a field
             in.readString();
         }
@@ -37,7 +37,7 @@ public class AuthenticateRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_4_0)) {
+        if (out.getVersion().before(Version.V_8_5_0)) {
             throw new IllegalStateException("cannot send authenticate request to a node of earlier version");
         }
     }

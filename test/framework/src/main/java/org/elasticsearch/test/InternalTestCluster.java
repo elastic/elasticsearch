@@ -524,7 +524,7 @@ public final class InternalTestCluster extends TestCluster {
 
         builder.put(
             EsExecutors.NODE_PROCESSORS_SETTING.getKey(),
-            RandomNumbers.randomIntBetween(random, 1, Runtime.getRuntime().availableProcessors())
+            RandomNumbers.randomIntBetween(random, 1, Math.min(4, Runtime.getRuntime().availableProcessors()))
         );
         if (random.nextBoolean()) {
             if (random.nextBoolean()) {

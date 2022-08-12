@@ -1123,17 +1123,21 @@ public class IndexNameExpressionResolver {
                 if (context.includeDataStreams() == false) {
                     return resolvedExpressions;
                 } else {
-                    final Map<String, IndexAbstraction> dataStreamsAbstractions = context.getState()
+                    final List<IndexAbstraction> dataStreamsAbstractions = context.getState()
                         .metadata()
                         .getIndicesLookup()
-                        .entrySet()
+                        .values()
                         .stream()
-                        .filter(entry -> entry.getValue().getType() == IndexAbstraction.Type.DATA_STREAM)
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                        .filter(indexAbstraction -> indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM)
+                        .collect(Collectors.toList());
                     // dedup backing indices if expand hidden indices option is true
                     Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
-                    expandMatches(context, dataStreamsAbstractions.values(), expressions.isEmpty() ? "_all" : expressions.get(0),
-                        resolvedIncludingDataStreams::add);
+                    expandMatches(
+                        context,
+                        dataStreamsAbstractions,
+                        expressions.isEmpty() ? "_all" : expressions.get(0),
+                        resolvedIncludingDataStreams::add
+                    );
                     return resolvedIncludingDataStreams;
                 }
             } else {

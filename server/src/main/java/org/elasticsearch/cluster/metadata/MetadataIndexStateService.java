@@ -230,8 +230,8 @@ public class MetadataIndexStateService {
         public ClusterState execute(BatchExecutionContext<CloseIndicesTask> batchExecutionContext) throws Exception {
             ClusterState state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
+                final var task = taskContext.getTask();
                 try {
-                    final var task = taskContext.getTask();
                     final Tuple<ClusterState, List<IndexResult>> closingResult = closeRoutingTable(
                         state,
                         task.blockedIndices,

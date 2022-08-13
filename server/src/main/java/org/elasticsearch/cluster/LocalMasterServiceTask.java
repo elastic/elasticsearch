@@ -39,7 +39,7 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
             ClusterStateTaskConfig.build(priority),
             // Uses a new executor each time so that these tasks are not batched, but they never change the cluster state anyway so they
             // don't trigger the publication process and hence batching isn't really needed.
-            new ClusterStateTaskExecutor<LocalMasterServiceTask>() {
+            new ClusterStateTaskExecutor<>() {
 
                 @Override
                 public boolean runOnlyOnMaster() {

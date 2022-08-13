@@ -1566,8 +1566,8 @@ public class MasterServiceTests extends ESTestCase {
                     "node-ack-fail-test",
                     new Task(),
                     ClusterStateTaskConfig.build(Priority.NORMAL),
-                    (currentState, taskContexts, dropHeadersContextSupplier) -> {
-                        for (final var taskContext : taskContexts) {
+                    batchExecutionContext -> {
+                        for (final var taskContext : batchExecutionContext.taskContexts()) {
                             final var responseHeaderValue = randomAlphaOfLength(10);
                             try (var ignored = taskContext.captureResponseHeaders()) {
                                 threadPool.getThreadContext().addResponseHeader(responseHeaderName, responseHeaderValue);
@@ -1590,7 +1590,7 @@ public class MasterServiceTests extends ESTestCase {
                                 }
                             });
                         }
-                        return ClusterState.builder(currentState).build();
+                        return ClusterState.builder(batchExecutionContext.initialState()).build();
                     }
                 );
 

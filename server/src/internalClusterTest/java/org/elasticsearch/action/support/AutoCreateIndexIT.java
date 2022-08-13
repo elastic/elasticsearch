@@ -32,11 +32,11 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
             "block",
             e -> { assert false : e; },
             ClusterStateTaskConfig.build(Priority.NORMAL),
-            (currentState, taskContexts, dropHeadersContextSupplier) -> {
+            batchExecutionContext -> {
                 barrier.await(10, TimeUnit.SECONDS);
                 barrier.await(10, TimeUnit.SECONDS);
-                taskContexts.forEach(c -> c.success(() -> {}));
-                return currentState;
+                batchExecutionContext.taskContexts().forEach(c -> c.success(() -> {}));
+                return batchExecutionContext.initialState();
             }
         );
 

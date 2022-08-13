@@ -22,11 +22,12 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * {/@link org.elasticsearch.core.internal.provider.EmbeddedImplClassLoaderTests}
  *   - creates jars for tests
  */
+@ESTestCase.WithoutSecurityManager
 public class StablePluginClassLoaderTests extends ESTestCase {
 
     // This test is just to see that there's a jar with a compiled class in it
@@ -44,9 +46,8 @@ public class StablePluginClassLoaderTests extends ESTestCase {
     public void testJarWithURLClassLoader() throws Exception {
 
         Path topLevelDir = createTempDir(getTestName());
-        Path outerJar = topLevelDir.resolve("modular.jar");
-        boolean modular = randomBoolean();
-        createJar(outerJar);
+        Path outerJar = topLevelDir.resolve("my-jar.jar");
+        createJar(outerJar, "MyClass");
 
         // loading it with a URL classloader (just checking the jar, remove
         // this block)
@@ -55,68 +56,62 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         try {
             PrivilegedAction<URLClassLoader> pa = () -> URLClassLoader.newInstance(urls, parent);
             URLClassLoader loader = AccessController.doPrivileged(pa);
-            Class<?> c = loader.loadClass("p.Modular");
+            Class<?> c = loader.loadClass("p.MyClass");
             Object instance = c.getConstructor().newInstance();
-            assertThat(instance.toString(), equalTo(modular ? "Modular" : "NonModular"));
+            assertThat(instance.toString(), equalTo("MyClass"));
         } finally {
             PrivilegedOperations.closeURLClassLoader(parent);
         }
     }
 
-    // We should be able to pass a URI for the jar and load a class from it.
-    public void testLoadFromModularizedJar() throws Exception {
+    // lets me look inside the module system classloader to see how it works
+    // TODO: remove
+    public void testLoadWithModuleLayer() throws Exception {
         Path topLevelDir = createTempDir(getTestName());
-        Path jar = topLevelDir.resolve("modular.jar");
-        createJar(jar);
+        Path jar = topLevelDir.resolve("my-jar.jar");
+        createModularJar(jar, "MyClass");
 
-        // load it with a module -- we don't actually want to do this, remove
+        // load it with a module
         ModuleFinder moduleFinder = ModuleFinder.of(jar);
         ModuleLayer mparent = ModuleLayer.boot();
         Configuration cf = mparent.configuration().resolve(moduleFinder, ModuleFinder.of(), Set.of("p"));
-        var resolvedModule = cf.findModule("p").orElseThrow();
         // we have the module, but how do we load the class?
+
+        PrivilegedAction<ClassLoader> pa =
+            () -> ModuleLayer.defineModulesWithOneLoader(cf, List.of(mparent), this.getClass().getClassLoader()).layer().findLoader("p");
+        ClassLoader loader = AccessController.doPrivileged(pa);
+        Class<?> c = loader.loadClass("p.MyClass");
+        assertThat(c, notNullValue());
+        Object instance = c.getConstructor().newInstance();
+        assertThat("MyClass", equalTo(instance.toString()));
+
+    }
+
+    // We should be able to pass a URI for the jar and load a class from it.
+    public void testLoadFromJar() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("modular.jar");
+        createJar(jar, "MyClass");
 
         StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
             StablePluginClassLoaderTests.class.getClassLoader(),
-            resolvedModule.reference()
-        );
-
-        URL location = loader.findResource("p/Modular.class");
-        assertThat(location, notNullValue());
-        Class<?> c = loader.loadClass("p.Modular");
-        assertThat(c, notNullValue());
-        Object instance = c.getConstructor().newInstance();
-        assertThat("Modular", equalTo(instance.toString()));
-    }
-
-    public void testLoadFromNonModularizedJar() throws Exception {
-        Path topLevelDir = createTempDir(getTestName());
-        Path jar = topLevelDir.resolve("non-modular.jar");
-        createJar(jar);
-
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
-            StablePluginClassLoader.class.getClassLoader(),
             jar
         );
 
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> loader.findResource("p/NonModular" +
-            ".class"));
-
-        assertThat(e, notNullValue());
-        /*
-        URL location = loader.findResource("p/Modular.class");
+        URL location = loader.findResource("p/MyClass.class");
         assertThat(location, notNullValue());
-        Class<?> c = loader.loadClass("p.Modular");
+        Class<?> c = loader.loadClass("p.MyClass");
         assertThat(c, notNullValue());
         Object instance = c.getConstructor().newInstance();
-        assertThat("Modular", equalTo(instance.toString()));
-        */
+        assertThat(instance.toString(), equalTo("MyClass"));
+
+        // HOW DO WE ASSOCIATE MODULE WITH CLASS?
+        assertThat(c.getModule().getName(), equalTo("synthetic"));
     }
 
-    private static void createJar(Path outerJar) throws IOException {
-        String name = "NonModular";
+    private static void createJar(Path outerJar, String className) throws IOException {
         Map<String, CharSequence> sources = new HashMap<>();
-        sources.put("p." + name, String.format(Locale.ENGLISH, """
+        sources.put("p." + className, String.format(Locale.ENGLISH, """
             package p;
             public class %s {
                 @Override
@@ -124,12 +119,34 @@ public class StablePluginClassLoaderTests extends ESTestCase {
                     return "%s";
                 }
             }
-            """, name, name));
+            """, className, className));
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();
-        jarEntries.put("p/Modular.class", classToBytes.get("p.Modular"));
+        jarEntries.put("p/" + className + ".class", classToBytes.get("p." + className));
         JarUtils.createJarWithEntries(outerJar, jarEntries);
+    }
+
+    private static void createModularJar(Path jar, String className) throws IOException {
+        Map<String, CharSequence> sources = new HashMap<>();
+        sources.put("p." + className, String.format(Locale.ENGLISH, """
+            package p;
+            public class %s {
+                @Override
+                public String toString() {
+                    return "%s";
+                }
+            }
+            """, className, className));
+        sources.put("module-info", String.format(Locale.ENGLISH, """
+            module p {exports p;}
+            """));
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
+
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("p/" + className + ".class", classToBytes.get("p." + className));
+        jarEntries.put("module-info.class", classToBytes.get("module-info"));
+        JarUtils.createJarWithEntries(jar, jarEntries);
     }
 
     // test that we don't use parent-first delegation (load from package if module has it)

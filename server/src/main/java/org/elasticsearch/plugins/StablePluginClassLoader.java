@@ -9,16 +9,20 @@
 package org.elasticsearch.plugins;
 
 import java.io.IOException;
-import java.lang.module.ModuleReader;
+import java.io.InputStream;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.net.URL;
-import java.nio.ByteBuffer;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.security.AccessController;
+import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -66,22 +70,19 @@ import java.util.Set;
 public class StablePluginClassLoader extends SecureClassLoader {
 
     private ModuleReference module;
-
-    static StablePluginClassLoader getInstance(ClassLoader parent, ModuleReference module) {
-        // TODO: we should take jars, not a module reference
-        // TODO: delegate reading from jars to a URL class loader
-        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(module);
-        return AccessController.doPrivileged(pa);
-    }
+    private URLClassLoader internalLoader;
+    private CodeSource codeSource;
+    private ModuleLayer.Controller moduleController;
 
     // TODO: we should take multiple jars
     static StablePluginClassLoader getInstance(ClassLoader parent, Path jar) {
-        return getInstance(parent, buildSyntheticModule(jar));
+        // TODO: we should take jars, not a module reference
+        // TODO: delegate reading from jars to a URL class loader
+        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(parent, jar);
+        return AccessController.doPrivileged(pa);
     }
     /**
      * Constructor
-     *
-     * Do we need an access controller?
      *
      * The constructors for URLClassLoader and jdk.internal.loader.Loader take or construct an object that does the
      * heavy lifting. jdk.internal.loader.Loader takes ResolvedModules for its argument, while URLClassLoader constructs
@@ -91,9 +92,25 @@ public class StablePluginClassLoader extends SecureClassLoader {
      * Second cut: main jar plus dependencies (can we have modularized main jar with unmodularized dependencies?)
      * Third cut: link it up with the "crate/bundle" descriptor
      */
-    public StablePluginClassLoader(ModuleReference module) {
+    public StablePluginClassLoader(ClassLoader parent, Path jar) {
+        super(parent);
+        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", new Path[]{jar}, Set.of());
         // TODO: here, we need to figure out if our jar/jars are modules are not
-        this.module = module;
+        try {
+            this.internalLoader = new URLClassLoader(new URL[]{jar.toUri().toURL()});
+            this.module = finder.find("synthetic").orElseThrow();
+            this.codeSource = new CodeSource(jar.toUri().toURL(), (CodeSigner[]) null);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+
+        // load it with a module
+        ModuleLayer mparent = ModuleLayer.boot();
+        Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of("synthetic"));
+        PrivilegedAction<ModuleLayer.Controller> pa =
+            () -> ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
+        // this will bind the module to the classloader, I hope...
+        this.moduleController = AccessController.doPrivileged(pa);
     }
 
     private static ModuleReference buildSyntheticModule(Path jar) {
@@ -146,23 +163,15 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // jdk.internal.loader.Loader can pull a class out of a loaded module pretty easily;
         // ModuleReference does a lot of the work
 
-        // from jdk.internal.loader.Loader#defineClass
-        try (ModuleReader reader = module.open()) {
+        String rn = name.replace('.', '/').concat(".class");
 
-            String rn = name.replace('.', '/').concat(".class");
-            ByteBuffer bb = reader.read(rn).orElse(null);
-            if (bb == null) {
-                // class not found
-                return null;
-            }
-
-            try {
-                return defineClass(name, bb, (CodeSource) null);
-            } finally {
-                reader.release(bb);
-            }
-        } catch (IOException e) {
-            return null;
+        try (InputStream in = internalLoader.getResourceAsStream(rn)) {
+            // TODO: null handling
+            byte[] bytes = in.readAllBytes();
+            return defineClass(name, bytes, 0, bytes.length, codeSource);
+        } catch (IOException e){
+            // TODO
+            throw new IllegalStateException(e);
         }
     }
 
@@ -197,12 +206,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
         // searching the current module, then other modules, and checking access levels
 
-        // TODO: what if we can't find the resource?
-        try (ModuleReader reader = module.open()) {
-            return reader.find(name).orElseThrow().toURL();
-        } catch (IOException e) {
-            return null;
-        }
+        return internalLoader.findResource(name);
     }
 
     @Override

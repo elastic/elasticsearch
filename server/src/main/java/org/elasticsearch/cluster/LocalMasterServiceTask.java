@@ -52,14 +52,14 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
                 }
 
                 @Override
-                public ClusterState execute(ClusterState currentState, List<TaskContext<LocalMasterServiceTask>> taskContexts)
-                    throws Exception {
-                    final LocalMasterServiceTask thisTask = LocalMasterServiceTask.this;
+                public ClusterState execute(BatchExecutionContext<LocalMasterServiceTask> batchExecutionContext) throws Exception {
+                    final var thisTask = LocalMasterServiceTask.this;
+                    final var taskContexts = batchExecutionContext.taskContexts();
                     assert taskContexts.size() == 1 && taskContexts.get(0).getTask() == thisTask
                         : "expected one-element task list containing current object but was " + taskContexts;
-                    thisTask.execute(currentState);
+                    thisTask.execute(batchExecutionContext.initialState());
                     taskContexts.get(0).success(() -> onPublicationComplete());
-                    return currentState;
+                    return batchExecutionContext.initialState();
                 }
             }
         );

@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -70,7 +69,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -224,15 +222,11 @@ public class MasterServiceTests extends ESTestCase {
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterState execute(
-                        ClusterState currentState,
-                        List<TaskContext<ExpectSuccessTask>> taskContexts,
-                        Supplier<Releasable> dropHeadersContextSupplier
-                    ) {
-                        for (final var taskContext : taskContexts) {
+                    public ClusterState execute(BatchExecutionContext<ExpectSuccessTask> batchExecutionContext) {
+                        for (final var taskContext : batchExecutionContext.taskContexts()) {
                             taskContext.success(() -> {});
                         }
-                        return ClusterState.builder(currentState).build();
+                        return ClusterState.builder(batchExecutionContext.initialState()).build();
                     }
 
                     @Override
@@ -347,15 +341,11 @@ public class MasterServiceTests extends ESTestCase {
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterState execute(
-                        ClusterState currentState,
-                        List<TaskContext<ExpectSuccessTask>> taskContexts,
-                        Supplier<Releasable> dropHeadersContextSupplier
-                    ) {
-                        for (final var taskContext : taskContexts) {
+                    public ClusterState execute(BatchExecutionContext<ExpectSuccessTask> batchExecutionContext) {
+                        for (final var taskContext : batchExecutionContext.taskContexts()) {
                             taskContext.success(() -> { throw new RuntimeException("testing exception handling"); });
                         }
-                        return ClusterState.builder(currentState).build();
+                        return ClusterState.builder(batchExecutionContext.initialState()).build();
                     }
 
                     @Override
@@ -552,18 +542,14 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public ClusterState execute(
-                ClusterState currentState,
-                List<TaskContext<ExpectSuccessTask>> taskContexts,
-                Supplier<Releasable> dropHeadersContextSupplier
-            ) {
+            public ClusterState execute(BatchExecutionContext<ExpectSuccessTask> batchExecutionContext) {
                 assertTrue("Should execute all tasks at once", executed.compareAndSet(false, true));
-                assertThat("Should execute all tasks at once", taskContexts.size(), equalTo(expectedTaskCount));
+                assertThat("Should execute all tasks at once", batchExecutionContext.taskContexts().size(), equalTo(expectedTaskCount));
                 executionCountDown.countDown();
-                for (final var taskContext : taskContexts) {
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     taskContext.success(() -> {});
                 }
-                return currentState;
+                return batchExecutionContext.initialState();
             }
         }
 
@@ -580,13 +566,13 @@ public class MasterServiceTests extends ESTestCase {
                 "block",
                 new ExpectSuccessTask(),
                 ClusterStateTaskConfig.build(Priority.NORMAL),
-                (currentState, taskContexts, dropHeadersContextSupplier) -> {
+                batchExecutionContext -> {
                     executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
                     executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
-                    for (final var taskContext : taskContexts) {
+                    for (final var taskContext : batchExecutionContext.taskContexts()) {
                         taskContext.success(() -> {});
                     }
-                    return currentState;
+                    return batchExecutionContext.initialState();
                 }
             );
 
@@ -723,16 +709,12 @@ public class MasterServiceTests extends ESTestCase {
             private final List<Task> assignments = new ArrayList<>();
 
             @Override
-            public ClusterState execute(
-                ClusterState currentState,
-                List<TaskContext<Task>> taskContexts,
-                Supplier<Releasable> dropHeadersContextSupplier
-            ) {
-                for (final var taskContext : taskContexts) {
+            public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) {
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     assertThat("All tasks should belong to this executor", assignments, hasItem(taskContext.getTask()));
                 }
 
-                for (final var taskContext : taskContexts) {
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     if (randomBoolean()) {
                         try (var ignored = taskContext.captureResponseHeaders()) {
                             threadPool.getThreadContext().addResponseHeader(responseHeaderName, randomAlphaOfLength(10));
@@ -748,10 +730,10 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 }
 
-                executed.addAndGet(taskContexts.size());
-                ClusterState maybeUpdatedClusterState = currentState;
+                executed.addAndGet(batchExecutionContext.taskContexts().size());
+                ClusterState maybeUpdatedClusterState = batchExecutionContext.initialState();
                 if (randomBoolean()) {
-                    maybeUpdatedClusterState = ClusterState.builder(currentState).build();
+                    maybeUpdatedClusterState = ClusterState.builder(batchExecutionContext.initialState()).build();
                     batches.incrementAndGet();
                     assertThat(
                         "All cluster state modifications should be executed on a single thread",
@@ -760,7 +742,7 @@ public class MasterServiceTests extends ESTestCase {
                     );
                 }
 
-                for (final var taskContext : taskContexts) {
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     taskContext.success(() -> {
                         assertThat(
                             threadPool.getThreadContext().getResponseHeaders().get(responseHeaderName),
@@ -881,14 +863,14 @@ public class MasterServiceTests extends ESTestCase {
             }
         }
 
-        final ClusterStateTaskExecutor<Task> executor = (currentState, taskContexts, dropHeadersContextSupplier) -> {
+        final ClusterStateTaskExecutor<Task> executor = batchExecutionContext -> {
             if (randomBoolean()) {
                 throw new RuntimeException("simulated");
             } else {
-                for (final var taskContext : taskContexts) {
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     taskContext.onFailure(new RuntimeException("simulated"));
                 }
-                return currentState;
+                return batchExecutionContext.initialState();
             }
         };
 
@@ -964,18 +946,14 @@ public class MasterServiceTests extends ESTestCase {
         final var executor = new ClusterStateTaskExecutor<Task>() {
             @Override
             @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
-            public ClusterState execute(
-                ClusterState currentState,
-                List<TaskContext<Task>> taskContexts,
-                Supplier<Releasable> dropHeadersContextSupplier
-            ) {
-                for (final var taskContext : taskContexts) {
+            public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) {
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         threadPool.getThreadContext().addResponseHeader(testResponseHeaderName, taskContext.getTask().responseHeaderValue);
                     }
                     taskContext.success(taskContext.getTask().publishListener::onResponse);
                 }
-                return ClusterState.builder(currentState).build();
+                return ClusterState.builder(batchExecutionContext.initialState()).build();
             }
         };
 
@@ -1094,8 +1072,8 @@ public class MasterServiceTests extends ESTestCase {
                 "testBlockingCallInClusterStateTaskListenerFails",
                 new ExpectSuccessTask(),
                 ClusterStateTaskConfig.build(Priority.NORMAL),
-                (currentState, taskContexts, dropHeadersContextSupplier) -> {
-                    for (final var taskContext : taskContexts) {
+                batchExecutionContext -> {
+                    for (final var taskContext : batchExecutionContext.taskContexts()) {
                         taskContext.success(() -> {
                             BaseFuture<Void> future = new BaseFuture<Void>() {
                             };
@@ -1113,7 +1091,7 @@ public class MasterServiceTests extends ESTestCase {
                             }
                         });
                     }
-                    return ClusterState.builder(currentState).build();
+                    return ClusterState.builder(batchExecutionContext.initialState()).build();
                 }
             );
 
@@ -1452,8 +1430,8 @@ public class MasterServiceTests extends ESTestCase {
                     "success-test",
                     new Task(),
                     ClusterStateTaskConfig.build(Priority.NORMAL),
-                    (currentState, taskContexts, dropHeadersContextSupplier) -> {
-                        for (final var taskContext : taskContexts) {
+                    batchExecutionContext -> {
+                        for (final var taskContext : batchExecutionContext.taskContexts()) {
                             final var responseHeaderValue = randomAlphaOfLength(10);
                             try (var ignored = taskContext.captureResponseHeaders()) {
                                 threadPool.getThreadContext().addResponseHeader(responseHeaderName, responseHeaderValue);
@@ -1466,7 +1444,9 @@ public class MasterServiceTests extends ESTestCase {
                                 latch.countDown();
                             }, taskContext.getTask());
                         }
-                        return randomBoolean() ? currentState : ClusterState.builder(currentState).build();
+                        return randomBoolean()
+                            ? batchExecutionContext.initialState()
+                            : ClusterState.builder(batchExecutionContext.initialState()).build();
                     }
                 );
 
@@ -1502,11 +1482,13 @@ public class MasterServiceTests extends ESTestCase {
                     "success-test",
                     new Task(),
                     ClusterStateTaskConfig.build(Priority.NORMAL),
-                    (currentState, taskContexts, dropHeadersContextSupplier) -> {
-                        for (final var taskContext : taskContexts) {
+                    batchExecutionContext -> {
+                        for (final var taskContext : batchExecutionContext.taskContexts()) {
                             taskContext.success(latch::countDown, new LatchAckListener(latch));
                         }
-                        return randomBoolean() ? currentState : ClusterState.builder(currentState).build();
+                        return randomBoolean()
+                            ? batchExecutionContext.initialState()
+                            : ClusterState.builder(batchExecutionContext.initialState()).build();
                     }
                 );
 
@@ -1542,11 +1524,13 @@ public class MasterServiceTests extends ESTestCase {
                     "success-test",
                     new Task(),
                     ClusterStateTaskConfig.build(Priority.NORMAL),
-                    (currentState, taskContexts, dropHeadersContextSupplier) -> {
-                        for (final var taskContext : taskContexts) {
+                    batchExecutionContext -> {
+                        for (final var taskContext : batchExecutionContext.taskContexts()) {
                             taskContext.success(new LatchAckListener(latch));
                         }
-                        return randomBoolean() ? currentState : ClusterState.builder(currentState).build();
+                        return randomBoolean()
+                            ? batchExecutionContext.initialState()
+                            : ClusterState.builder(batchExecutionContext.initialState()).build();
                     }
                 );
 
@@ -1885,15 +1869,11 @@ public class MasterServiceTests extends ESTestCase {
                 final Semaphore semaphore = new Semaphore(0);
 
                 @Override
-                public ClusterState execute(
-                    ClusterState currentState,
-                    List<TaskContext<Task>> taskContexts,
-                    Supplier<Releasable> dropHeadersContextSupplier
-                ) {
-                    for (final var taskContext : taskContexts) {
+                public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) {
+                    for (final var taskContext : batchExecutionContext.taskContexts()) {
                         taskContext.success(() -> semaphore.release());
                     }
-                    return currentState;
+                    return batchExecutionContext.initialState();
                 }
             }
 

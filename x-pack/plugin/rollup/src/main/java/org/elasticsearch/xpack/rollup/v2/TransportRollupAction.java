@@ -91,12 +91,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     /**
      * This is the cluster state task executor for cluster state update actions.
      */
-    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = (
-        currentState,
-        taskContexts,
-        dropHeadersContextSupplier) -> {
-        ClusterState state = currentState;
-        for (final var taskContext : taskContexts) {
+    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = batchExecutionContext -> {
+        ClusterState state = batchExecutionContext.initialState();
+        for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
                 final var task = taskContext.getTask();
                 try (var ignored = taskContext.captureResponseHeaders()) {

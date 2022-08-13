@@ -31,18 +31,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * surprisingly many tasks to process in the batch. If it's possible to accumulate the effects of the tasks at a lower level then you
      * should do that instead.
      *
-     * @param currentState The initial cluster state on which the tasks should be executed.
-     *
-     * @param taskContexts A {@link TaskContext} for each task in the batch. Implementations must complete every context in the list.
-     *
-     * @param dropHeadersContextSupplier Supplies a context (a resource for use in a try-with-resources block) which captures and drops any
-     *                                   emitted response headers, for cases where things like deprecation warnings may be emitted but
-     *                                   cannot be associated with any specific task.
-     *
-     * @return The resulting cluster state after executing all the tasks. If {code currentState} is returned then no update is published.
+     * @return The resulting cluster state after executing all the tasks. If {code initialState} is returned then no update is published.
      */
-    ClusterState execute(ClusterState currentState, List<TaskContext<T>> taskContexts, Supplier<Releasable> dropHeadersContextSupplier)
-        throws Exception;
+    ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception;
 
     /**
      * @return {@code true} iff this executor should only run on the elected master.
@@ -217,4 +208,19 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          */
         Releasable captureResponseHeaders();
     }
+
+    /**
+     * Encapsulates the context in which a batch of tasks executes.
+     *
+     * @param initialState The initial cluster state on which the tasks should be executed.
+     * @param taskContexts A {@link TaskContext} for each task in the batch. Implementations must complete every context in the list.
+     * @param dropHeadersContextSupplier Supplies a context (a resource for use in a try-with-resources block) which captures and drops any
+     *                                   emitted response headers, for cases where things like deprecation warnings may be emitted but
+     *                                   cannot be associated with any specific task.
+     */
+    record BatchExecutionContext<T extends ClusterStateTaskListener> (
+        ClusterState initialState,
+        List<TaskContext<T>> taskContexts,
+        Supplier<Releasable> dropHeadersContextSupplier
+    ) {}
 }

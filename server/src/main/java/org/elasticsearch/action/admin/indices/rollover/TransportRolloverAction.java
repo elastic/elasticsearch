@@ -37,7 +37,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -52,7 +51,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -261,14 +259,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         ActiveShardsObserver activeShardsObserver
     ) implements ClusterStateTaskExecutor<RolloverTask> {
         @Override
-        public ClusterState execute(
-            ClusterState currentState,
-            List<TaskContext<RolloverTask>> taskContexts,
-            Supplier<Releasable> dropHeadersContextSupplier
-        ) {
-            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(taskContexts.size());
-            var state = currentState;
-            for (final var taskContext : taskContexts) {
+        public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) throws Exception {
+            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {
                     state = executeTask(state, results, taskContext);
                 } catch (Exception e) {
@@ -276,7 +270,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
             }
 
-            if (state != currentState) {
+            if (state != batchExecutionContext.initialState()) {
                 var reason = new StringBuilder();
                 Strings.collectionToDelimitedStringWithLimit(
                     (Iterable<String>) () -> results.stream().map(t -> t.sourceIndexName() + "->" + t.rolloverIndexName()).iterator(),
@@ -286,7 +280,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     1024,
                     reason
                 );
-                try (var ignored = dropHeadersContextSupplier.get()) {
+                try (var ignored = batchExecutionContext.dropHeadersContextSupplier().get()) {
                     state = allocationService.reroute(state, reason.toString());
                 }
             }

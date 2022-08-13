@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -32,10 +31,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -202,16 +199,12 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     private class UpdateTimeSeriesExecutor implements ClusterStateTaskExecutor<UpdateTimeSeriesTask> {
         @Override
-        public ClusterState execute(
-            ClusterState currentState,
-            List<TaskContext<UpdateTimeSeriesTask>> taskContexts,
-            Supplier<Releasable> dropHeadersContextSupplier
-        ) throws Exception {
+        public ClusterState execute(BatchExecutionContext<UpdateTimeSeriesTask> batchExecutionContext) throws Exception {
             final ClusterState result;
-            try (var ignored = dropHeadersContextSupplier.get()) {
-                result = updateTimeSeriesTemporalRange(currentState, Instant.now());
+            try (var ignored = batchExecutionContext.dropHeadersContextSupplier().get()) {
+                result = updateTimeSeriesTemporalRange(batchExecutionContext.initialState(), Instant.now());
             }
-            for (final var taskContext : taskContexts) {
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(() -> taskContext.getTask().listener().accept(null));
             }
             return result;

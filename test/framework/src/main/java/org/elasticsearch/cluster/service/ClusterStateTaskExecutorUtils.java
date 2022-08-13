@@ -65,7 +65,9 @@ public class ClusterStateTaskExecutorUtils {
         final var taskContexts = StreamSupport.stream(tasks.spliterator(), false).<ClusterStateTaskExecutor.TaskContext<T>>map(
             TestTaskContext::new
         ).toList();
-        final var resultingState = executor.execute(originalState, taskContexts, () -> null);
+        final var resultingState = executor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(originalState, taskContexts, () -> null)
+        );
         assertNotNull(resultingState);
         for (final var taskContext : taskContexts) {
             final var testTaskContext = (TestTaskContext<T>) taskContext;

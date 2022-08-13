@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -40,12 +39,10 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
@@ -63,19 +60,17 @@ class IndexLifecycleRunner {
         new ClusterStateTaskExecutor<>() {
             @Override
             @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
-            public ClusterState execute(
-                ClusterState currentState,
-                List<TaskContext<IndexLifecycleClusterStateUpdateTask>> taskContexts,
-                Supplier<Releasable> dropHeadersContextSupplier
-            ) {
-                ClusterState state = currentState;
-                for (final var taskContext : taskContexts) {
+            public ClusterState execute(BatchExecutionContext<IndexLifecycleClusterStateUpdateTask> batchExecutionContext) {
+                ClusterState state = batchExecutionContext.initialState();
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     try {
                         final var task = taskContext.getTask();
                         try (var ignored = taskContext.captureResponseHeaders()) {
                             state = task.execute(state);
                         }
-                        taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+                        taskContext.success(
+                            new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, batchExecutionContext.initialState())
+                        );
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }

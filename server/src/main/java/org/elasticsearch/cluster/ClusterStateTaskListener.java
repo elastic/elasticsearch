@@ -30,7 +30,7 @@ public interface ClusterStateTaskListener {
     void onFailure(Exception e);
 
     /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute} method have been processed properly by all listeners.
+     * Called when the result of the {@link ClusterStateTaskExecutor#execute} method has been processed properly by all listeners.
      *
      * The {@param newState} parameter is the state that was ultimately published. This can lead to surprising behaviour if tasks are
      * batched together: a later task in the batch may undo or overwrite the changes made by an earlier task. In general you should prefer

@@ -232,7 +232,7 @@ public class JoinHelper {
 
             // If this node is under excessive heap pressure then the state it receives for join validation will trip a circuit breaker and
             // fail the join attempt, resulting in retrying in a loop which makes the master just send a constant stream of cluster states
-            // to this node in a loop. We try and keep the problem local to this node by checking that we can at least allocate one byte:
+            // to this node. We try and keep the problem local to this node by checking that we can at least allocate one byte:
             final var breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
             try {
                 breaker.addEstimateBytesAndMaybeBreak(1L, "pre-flight join request");
@@ -243,10 +243,10 @@ public class JoinHelper {
                     final var attempt = new FailedJoinAttempt(destination, joinRequest, elasticsearchException);
                     attempt.logNow();
                     lastFailedJoinAttempt.set(attempt);
-                    assert elasticsearchException instanceof CircuitBreakingException : e; // shouldn't happen, handle them anyway
+                    assert elasticsearchException instanceof CircuitBreakingException : e; // others shouldn't happen, handle them anyway
                 } else {
                     logger.error("join failed during pre-flight circuit breaker check", e);
-                    assert false : e; // should not happen, but handle it anyway
+                    assert false : e; // shouldn't happen, handle it anyway
                 }
                 return;
             }

@@ -524,12 +524,16 @@ public class MasterService extends AbstractLifecycleComponent {
     private static class UnbatchedExecutor implements ClusterStateTaskExecutor<ClusterStateUpdateTask> {
         @Override
         @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
-        public ClusterState execute(ClusterState currentState, List<TaskContext<ClusterStateUpdateTask>> taskContexts) throws Exception {
-            assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
-            final var taskContext = taskContexts.get(0);
+        public ClusterState execute(BatchExecutionContext<ClusterStateUpdateTask> batchExecutionContext) throws Exception {
+            assert batchExecutionContext.taskContexts().size() == 1
+                : "this only supports a single task but received " + batchExecutionContext.taskContexts();
+            final var taskContext = batchExecutionContext.taskContexts().get(0);
             final var task = taskContext.getTask();
-            final var newState = task.execute(currentState);
-            final Consumer<ClusterState> publishListener = publishedState -> task.clusterStateProcessed(currentState, publishedState);
+            final var newState = task.execute(batchExecutionContext.initialState());
+            final Consumer<ClusterState> publishListener = publishedState -> task.clusterStateProcessed(
+                batchExecutionContext.initialState(),
+                publishedState
+            );
             if (task instanceof ClusterStateAckListener ackListener) {
                 taskContext.success(publishListener, ackListener);
             } else {
@@ -972,7 +976,7 @@ public class MasterService extends AbstractLifecycleComponent {
     ) {
         final var taskContexts = castTaskContexts(executionResults);
         try {
-            return executor.execute(previousClusterState, taskContexts);
+            return executor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(previousClusterState, taskContexts));
         } catch (Exception e) {
             logger.trace(
                 () -> format(

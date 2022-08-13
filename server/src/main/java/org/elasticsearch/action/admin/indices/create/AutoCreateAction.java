@@ -107,9 +107,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            this.executor = (currentState, taskContexts) -> {
-                ClusterState state = currentState;
+            this.executor = batchExecutionContext -> {
+                final var taskContexts = batchExecutionContext.taskContexts();
                 final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
+                ClusterState state = batchExecutionContext.initialState();
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
                     try {
@@ -119,7 +120,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         taskContext.onFailure(e);
                     }
                 }
-                if (state != currentState) {
+                if (state != batchExecutionContext.initialState()) {
                     state = allocationService.reroute(state, "auto-create");
                 }
                 return state;

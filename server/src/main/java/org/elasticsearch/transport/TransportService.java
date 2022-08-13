@@ -796,7 +796,7 @@ public class TransportService extends AbstractLifecycleComponent
             // should not happen
             innerException.addSuppressed(transportException);
             logger.error("unexpected exception from handler.handleException", innerException);
-            assert false : innerException;
+            // assert false : innerException; TODO AwaitsFix https://github.com/elastic/elasticsearch/issues/89325
         }
     }
 

@@ -201,7 +201,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
         @Override
         public ClusterState execute(BatchExecutionContext<UpdateTimeSeriesTask> batchExecutionContext) throws Exception {
             final ClusterState result;
-            try (var ignored = batchExecutionContext.dropHeadersContextSupplier().get()) {
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 result = updateTimeSeriesTemporalRange(batchExecutionContext.initialState(), Instant.now());
             }
             for (final var taskContext : batchExecutionContext.taskContexts()) {

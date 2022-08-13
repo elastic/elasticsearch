@@ -71,7 +71,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
             return initialState;
         }
 
-        try (var ignored = batchExecutionContext.dropHeadersContextSupplier().get()) {
+        try (var ignored = batchExecutionContext.dropHeadersContext()) {
             // suppress deprecation warnings e.g. from reroute()
 
             final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);

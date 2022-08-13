@@ -405,7 +405,7 @@ public class ShardStateAction {
             assert tasksToBeApplied.size() == failedShardsToBeApplied.size() + staleShardsToBeApplied.size();
 
             ClusterState maybeUpdatedState = initialState;
-            try (var ignored = batchExecutionContext.dropHeadersContextSupplier().get()) {
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 // drop deprecation warnings arising from the computation (reroute etc).
                 maybeUpdatedState = applyFailedShards(initialState, failedShardsToBeApplied, staleShardsToBeApplied);
                 for (final var taskContext : tasksToBeApplied) {

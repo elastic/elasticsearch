@@ -279,7 +279,7 @@ public class MetadataIndexStateService {
                 }
             }
 
-            try (var ignored = batchExecutionContext.dropHeadersContextSupplier().get()) {
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 // reroute may encounter deprecated features but the resulting warnings are not associated with any particular task
                 return allocationService.reroute(state, "indices closed");
             }
@@ -1106,7 +1106,7 @@ public class MetadataIndexStateService {
         public ClusterState execute(BatchExecutionContext<OpenIndicesTask> batchExecutionContext) {
             ClusterState state = batchExecutionContext.initialState();
 
-            try (var ignored = batchExecutionContext.dropHeadersContextSupplier().get()) {
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 // we may encounter deprecated settings but they are not directly related to opening the indices, nor are they really
                 // associated with any particular tasks, so we drop them
 

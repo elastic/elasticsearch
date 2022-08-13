@@ -1076,9 +1076,9 @@ public class MasterService extends AbstractLifecycleComponent {
             } finally {
                 assert threadContext.getResponseHeaders().isEmpty()
                     : """
-                        batched task executors must marshal response headers to the appropriate task context (e.g. using \
-                        TaskContext#captureResponseHeaders) or suppress them (e.g. using dropHeadersContextSupplier.get()) and must \
-                        not leak them to the master service, but executor ["""
+                        Batched task executors must marshal response headers to the appropriate task context (e.g. using \
+                        TaskContext#captureResponseHeaders) or suppress them (e.g. using BatchExecutionContext#dropHeadersContext) and \
+                        must not leak them to the master service, but executor ["""
                         + executor
                         + "] leaked the following headers: "
                         + threadContext.getResponseHeaders();

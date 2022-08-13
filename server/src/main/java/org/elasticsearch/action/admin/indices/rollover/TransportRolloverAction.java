@@ -280,7 +280,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     1024,
                     reason
                 );
-                try (var ignored = batchExecutionContext.dropHeadersContextSupplier().get()) {
+                try (var ignored = batchExecutionContext.dropHeadersContext()) {
                     state = allocationService.reroute(state, reason.toString());
                 }
             }

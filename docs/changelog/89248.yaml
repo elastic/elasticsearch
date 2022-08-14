@@ -1,0 +1,6 @@
+pr: 89248
+summary: fix a typo in Security.java
+area: Bootstrap
+type: bug
+issues:
+  - 89327

@@ -48,7 +48,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -813,18 +812,10 @@ public class SSLService {
      * Invalidates the sessions in the provided {@link SSLSessionContext}
      */
     static void invalidateSessions(SSLSessionContext sslSessionContext) {
-        Enumeration<byte[]> sessionIds = sslSessionContext.getIds();
-        while (sessionIds.hasMoreElements()) {
-            byte[] sessionId = sessionIds.nextElement();
-            SSLSession session = sslSessionContext.getSession(sessionId);
-            // an SSLSession could be null as there is no lock while iterating, the session cache
-            // could have evicted a value, the session could be timed out, or the session could
-            // have already been invalidated, which removes the value from the session cache in the
-            // sun implementation
-            if (session != null) {
-                session.invalidate();
-            }
-        }
+        Collections.list(sslSessionContext.getIds()).stream()
+            .map(sslSessionContext::getSession)
+            .filter(Objects::nonNull)
+            .forEach(SSLSession::invalidate);
     }
 
     /**

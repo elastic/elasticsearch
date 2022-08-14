@@ -458,7 +458,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         );
         assertThat(e.getMessage(), containsString("Values less than -1 bytes are not supported: -2b"));
 
-        e = expectThrows(ArithmeticException.class, () -> ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ONE));
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ONE));
         assertThat(e.getMessage(), containsString("subtraction result has -1 bytes"));
 
         String exceptionMessage = "one of the arguments has -1 bytes";

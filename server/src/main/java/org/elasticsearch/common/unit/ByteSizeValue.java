@@ -346,8 +346,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     /**
      * @return Constructs a {@link ByteSizeValue} with the bytes resulting from the difference of the arguments' bytes. Note that the
      *         resulting {@link ByteSizeUnit} is bytes.
-     * @throws IllegalArgumentException if any of the arguments have -1 bytes
-     * @throws ArithmeticException if result has -1 bytes
+     * @throws IllegalArgumentException if any of the arguments or the result have -1 bytes
      */
     public static ByteSizeValue subtract(ByteSizeValue x, ByteSizeValue y) {
         if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
@@ -356,7 +355,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         // No need to use Math.subtractExact here, since we know both arguments are >= 0.
         ByteSizeValue res = ByteSizeValue.ofBytes(x.getBytes() - y.getBytes());
         if (res.equals(ByteSizeValue.MINUS_ONE)) {
-            throw new ArithmeticException("subtraction result has -1 bytes");
+            throw new IllegalArgumentException("subtraction result has -1 bytes");
         }
         return res;
     }

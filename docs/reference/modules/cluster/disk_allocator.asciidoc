@@ -79,7 +79,7 @@ Controls the low watermark for disk usage. It defaults to `85%`, meaning that {e
 (<<dynamic-cluster-setting,Dynamic>>) Controls the max headroom for the low watermark (in case of a percentage/ratio value).
 Defaults to 200GB when `cluster.routing.allocation.disk.watermark.low` is not explicitly set.
 This caps the amount of free space required.
-If set, the `cluster.routing.allocation.disk.watermark.high.max_headroom` needs to be set as well.
+If the low max headroom is set, the `cluster.routing.allocation.disk.watermark.high.max_headroom` needs to be set as well.
 
 [[cluster-routing-watermark-high]]
 // tag::cluster-routing-watermark-high-tag[]
@@ -92,7 +92,7 @@ Controls the high watermark. It defaults to `90%`, meaning that {es} will attemp
 (<<dynamic-cluster-setting,Dynamic>>) Controls the max headroom for the high watermark (in case of a percentage/ratio value).
 Defaults to 150GB when `cluster.routing.allocation.disk.watermark.high` is not explicitly set.
 This caps the amount of free space required.
-If set, the `cluster.routing.allocation.disk.watermark.flood_stage.max_headroom` needs to be set as well.
+If the high max headroom is set, the `cluster.routing.allocation.disk.watermark.flood_stage.max_headroom` needs to be set as well.
 
 `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`::
     (<<static-cluster-setting,Static>>)

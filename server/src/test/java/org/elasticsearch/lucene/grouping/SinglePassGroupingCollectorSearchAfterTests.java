@@ -104,8 +104,8 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
 
         FieldDoc after = new FieldDoc(Integer.MAX_VALUE, 0, new Object[] { sortedValues.get(randomIndex) });
         SinglePassGroupingCollector<?> collapsingCollector = numeric
-            ? SinglePassGroupingCollector.createNumeric("field", fieldType, sort, expectedNumGroups, after)
-            : SinglePassGroupingCollector.createKeyword("field", fieldType, sort, expectedNumGroups, after);
+            ? SinglePassGroupingCollector.createNumeric("field", fieldType, sort, null, expectedNumGroups, after)
+            : SinglePassGroupingCollector.createKeyword("field", fieldType, sort, null, expectedNumGroups, after);
 
         TopFieldCollector topFieldCollector = TopFieldCollector.create(sort, totalHits, after, Integer.MAX_VALUE);
         Query query = new MatchAllDocsQuery();

@@ -119,6 +119,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                 collapseField.getField(),
                 fieldType,
                 sort,
+                null,
                 expectedNumGroups,
                 null
             );
@@ -127,6 +128,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                 collapseField.getField(),
                 fieldType,
                 sort,
+                null,
                 expectedNumGroups,
                 null
             );
@@ -198,9 +200,21 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             final SegmentSearcher subSearcher = subSearchers[shardIDX];
             final SinglePassGroupingCollector<?> c;
             if (numeric) {
-                c = SinglePassGroupingCollector.createNumeric(collapseField.getField(), fieldType, sort, expectedNumGroups, null);
+                c = SinglePassGroupingCollector.createNumeric(
+                    collapseField.getField(),
+                    fieldType,
+                    sort,
+                    null,
+                    expectedNumGroups,
+                    null);
             } else {
-                c = SinglePassGroupingCollector.createKeyword(collapseField.getField(), fieldType, sort, expectedNumGroups, null);
+                c = SinglePassGroupingCollector.createKeyword(
+                    collapseField.getField(),
+                    fieldType,
+                    sort,
+                    null,
+                    expectedNumGroups,
+                    null);
             }
             subSearcher.search(weight, c);
             shardHits[shardIDX] = c.getTopGroups(0);
@@ -388,6 +402,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             "group",
             fieldType,
             sort,
+            null,
             10,
             null
         );
@@ -433,6 +448,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             "group",
             fieldType,
             sort,
+            null,
             10,
             null
         );

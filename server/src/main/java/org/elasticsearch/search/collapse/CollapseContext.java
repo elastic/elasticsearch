@@ -24,10 +24,13 @@ public class CollapseContext {
     private final MappedFieldType fieldType;
     private final List<InnerHitBuilder> innerHits;
 
-    public CollapseContext(String fieldName, MappedFieldType fieldType, List<InnerHitBuilder> innerHits) {
+    private final Sort collapseSort;
+
+    public CollapseContext(String fieldName, MappedFieldType fieldType, List<InnerHitBuilder> innerHits, Sort collapseSort) {
         this.fieldName = fieldName;
         this.fieldType = fieldType;
         this.innerHits = innerHits;
+        this.collapseSort = collapseSort;
     }
 
     /**
@@ -47,11 +50,16 @@ public class CollapseContext {
         return innerHits;
     }
 
+    /** The collapse sort options for selecting top docs per group **/
+    public Sort getCollapseSort() {
+        return collapseSort;
+    }
+
     public SinglePassGroupingCollector<?> createTopDocs(Sort sort, int topN, FieldDoc after) {
         if (fieldType.collapseType() == CollapseType.KEYWORD) {
-            return SinglePassGroupingCollector.createKeyword(fieldName, fieldType, sort, topN, after);
+            return SinglePassGroupingCollector.createKeyword(fieldName, fieldType, sort, collapseSort, topN, after);
         } else if (fieldType.collapseType() == CollapseType.NUMERIC) {
-            return SinglePassGroupingCollector.createNumeric(fieldName, fieldType, sort, topN, after);
+            return SinglePassGroupingCollector.createNumeric(fieldName, fieldType, sort, collapseSort, topN, after);
         } else {
             throw new IllegalStateException("collapse is not supported on this field type");
         }

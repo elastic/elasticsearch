@@ -86,6 +86,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      *                          The grouping keeps only the top sorted document per grouping key.
      *                          This must be non-null, ie, if you want to groupSort by relevance
      *                          use Sort.RELEVANCE.
+     * @param collapseSort      {@link Sort}
      * @param topN              How many top groups to keep.
      * @param after             The field values to search after. Can be null.
      */
@@ -93,10 +94,17 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         String groupField,
         MappedFieldType groupFieldType,
         Sort groupSort,
+        @Nullable Sort collapseSort,
         int topN,
         @Nullable FieldDoc after
     ) {
-        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Numeric(groupFieldType), groupField, groupSort, topN, after);
+        return new SinglePassGroupingCollector<>(
+            new GroupingDocValuesSelector.Numeric(groupFieldType),
+            groupField,
+            groupSort,
+            collapseSort,
+            topN,
+            after);
     }
 
     /**
@@ -108,6 +116,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      * @param groupFieldType    The {@link MappedFieldType} for this sort field.
      * @param groupSort         The {@link Sort} used to sort the groups. The grouping keeps only the top sorted
      *                          document per grouping key.
+     * @param collapseSort      {@link Sort}
      *                          This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
      * @param topN              How many top groups to keep.
      * @param after             The field values to search after. Can be null.
@@ -116,23 +125,35 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         String groupField,
         MappedFieldType groupFieldType,
         Sort groupSort,
+        @Nullable Sort collapseSort,
         int topN,
         @Nullable FieldDoc after
     ) {
-        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Keyword(groupFieldType), groupField, groupSort, topN, after);
+        return new SinglePassGroupingCollector<>(
+            new GroupingDocValuesSelector.Keyword(groupFieldType),
+            groupField,
+            groupSort,
+            collapseSort,
+            topN,
+            after);
     }
 
     private final String groupField;
     private final FieldDoc after;
     private final Sort groupSort;
+    protected final Sort collapseSort;
     private final GroupSelector<T> groupSelector;
     private final FieldComparator<?>[] comparators;
+    private final FieldComparator<?>[] topComparators;
     private final LeafFieldComparator[] leafComparators;
+    private final LeafFieldComparator[] topLeafComparators;
     private final int[] reversed;
+    private final int[] topReversed;
     private final int topNGroups;
     private final boolean needsScores;
     private final Map<T, SearchGroup<T>> groupMap;
     private final int compIDXEnd;
+    private final int topCompIDXEnd;
 
     private int totalHitCount;
 
@@ -146,6 +167,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         GroupSelector<T> groupSelector,
         String groupField,
         Sort groupSort,
+        @Nullable Sort collapseSort,
         int topNGroups,
         @Nullable FieldDoc after
     ) {
@@ -153,6 +175,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         this.groupSelector = groupSelector;
         this.groupField = groupField;
         this.groupSort = groupSort;
+        this.collapseSort = collapseSort == null ? groupSort : collapseSort;
         this.after = after;
 
         if (topNGroups < 1) {
@@ -161,16 +184,28 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
 
         this.topNGroups = topNGroups;
         this.needsScores = groupSort.needsScores();
-        final SortField[] sortFields = groupSort.getSort();
+        final SortField[] sortFields = this.collapseSort.getSort();
+        final SortField[] topSortFields = groupSort.getSort();
         comparators = new FieldComparator<?>[sortFields.length];
+        topComparators = new FieldComparator<?>[topSortFields.length];
         leafComparators = new LeafFieldComparator[sortFields.length];
+        topLeafComparators = new LeafFieldComparator[topSortFields.length];
         compIDXEnd = comparators.length - 1;
+        topCompIDXEnd = topLeafComparators.length - 1;
         reversed = new int[sortFields.length];
+        topReversed = new int[topSortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             final SortField sortField = sortFields[i];
             // use topNGroups + 1 so we have a spare slot to use for comparing (tracked by this.spareSlot):
             comparators[i] = sortField.getComparator(topNGroups + 1, false);
             reversed[i] = sortField.getReverse() ? -1 : 1;
+        }
+        for (int i = 0; i < topSortFields.length; i++) {
+            final SortField sortField = topSortFields[i];
+
+            // use topNGroups + 1 so we have a spare slot to use for comparing (tracked by this.spareSlot):
+            topComparators[i] = sortField.getComparator(topNGroups + 1, false);
+            topReversed[i] = sortField.getReverse() ? -1 : 1;
         }
         if (after != null) {
             @SuppressWarnings("unchecked")
@@ -220,7 +255,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         int size = Math.max(0, orderedGroups.size() - groupOffset);
         final FieldDoc[] topDocs = new FieldDoc[size];
         Object[] groupValues = new Object[size];
-        final int sortFieldCount = comparators.length;
+        final int sortFieldCount = topComparators.length;
         int upto = 0;
         int pos = 0;
         for (SearchGroup<T> group : orderedGroups) {
@@ -230,7 +265,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
             float score = Float.NaN;
             final Object[] sortValues = new Object[sortFieldCount];
             for (int sortFieldIDX = 0; sortFieldIDX < sortFieldCount; sortFieldIDX++) {
-                sortValues[sortFieldIDX] = comparators[sortFieldIDX].value(group.slot);
+                sortValues[sortFieldIDX] = topComparators[sortFieldIDX].value(group.slot);
                 if (sortFieldIDX == scorePos) {
                     score = (float) sortValues[sortFieldIDX];
                 }
@@ -246,6 +281,9 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
     public void setScorer(Scorable scorer) throws IOException {
         groupSelector.setScorer(scorer);
         for (LeafFieldComparator comparator : leafComparators) {
+            comparator.setScorer(scorer);
+        }
+        for (LeafFieldComparator comparator : topLeafComparators) {
             comparator.setScorer(scorer);
         }
     }
@@ -269,14 +307,14 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         // wasted effort as we will most likely be updating an existing group.
         if (orderedGroups != null) {
             for (int compIDX = 0;; compIDX++) {
-                final int c = reversed[compIDX] * leafComparators[compIDX].compareBottom(doc);
+                final int c = topReversed[compIDX] * topLeafComparators[compIDX].compareBottom(doc);
                 if (c < 0) {
                     // Definitely not competitive. So don't even bother to continue
                     return false;
                 } else if (c > 0) {
                     // Definitely competitive.
                     break;
-                } else if (compIDX == compIDXEnd) {
+                } else if (compIDX == topCompIDXEnd) {
                     // Here c=0. If we're at the last comparator, this doc is not
                     // competitive, since docs are visited in doc Id order, which means
                     // this doc cannot compete with any other document in the queue.
@@ -319,6 +357,9 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
                 for (LeafFieldComparator fc : leafComparators) {
                     fc.copy(sg.slot, doc);
                 }
+                for (LeafFieldComparator fc : topLeafComparators) {
+                    fc.copy(sg.slot, doc);
+                }
                 groupMap.put(sg.groupValue, sg);
 
                 if (groupMap.size() == topNGroups) {
@@ -345,6 +386,9 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
             for (LeafFieldComparator fc : leafComparators) {
                 fc.copy(bottomGroup.slot, doc);
             }
+            for (LeafFieldComparator fc : topLeafComparators) {
+                fc.copy(bottomGroup.slot, doc);
+            }
 
             groupMap.put(bottomGroup.groupValue, bottomGroup);
             orderedGroups.add(bottomGroup);
@@ -354,6 +398,9 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
             for (LeafFieldComparator fc : leafComparators) {
                 fc.setBottom(lastComparatorSlot);
             }
+            for (LeafFieldComparator fc : topLeafComparators) {
+                fc.setBottom(lastComparatorSlot);
+            }
 
             return;
         }
@@ -361,6 +408,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         // Update existing group:
         for (int compIDX = 0;; compIDX++) {
             leafComparators[compIDX].copy(spareSlot, doc);
+            topLeafComparators[compIDX].copy(spareSlot, doc);
 
             final int c = reversed[compIDX] * comparators[compIDX].compare(group.slot, spareSlot);
             if (c < 0) {
@@ -370,6 +418,9 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
                 // Definitely competitive; set remaining comparators:
                 for (int compIDX2 = compIDX + 1; compIDX2 < comparators.length; compIDX2++) {
                     leafComparators[compIDX2].copy(spareSlot, doc);
+                }
+                for (int compIDX2 = compIDX + 1; compIDX2 < topComparators.length; compIDX2++) {
+                    topLeafComparators[compIDX2].copy(spareSlot, doc);
                 }
                 break;
             } else if (compIDX == compIDXEnd) {
@@ -410,6 +461,9 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
                 for (LeafFieldComparator fc : leafComparators) {
                     fc.setBottom(newLast.slot);
                 }
+                for (LeafFieldComparator fc : topLeafComparators) {
+                    fc.setBottom(newLast.slot);
+                }
             }
         }
     }
@@ -417,11 +471,11 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
     private void buildSortedSet() throws IOException {
         final Comparator<SearchGroup<?>> comparator = (o1, o2) -> {
             for (int compIDX = 0;; compIDX++) {
-                FieldComparator<?> fc = comparators[compIDX];
-                final int c = reversed[compIDX] * fc.compare(o1.slot, o2.slot);
+                FieldComparator<?> fc = topComparators[compIDX];
+                final int c = topReversed[compIDX] * fc.compare(o1.slot, o2.slot);
                 if (c != 0) {
                     return c;
-                } else if (compIDX == compIDXEnd) {
+                } else if (compIDX == topCompIDXEnd) {
                     return o1.doc - o2.doc;
                 }
             }
@@ -431,7 +485,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         orderedGroups.addAll(groupMap.values());
         assert orderedGroups.size() > 0;
 
-        for (LeafFieldComparator fc : leafComparators) {
+        for (LeafFieldComparator fc : topLeafComparators) {
             fc.setBottom(orderedGroups.last().slot);
         }
     }
@@ -441,6 +495,9 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         docBase = readerContext.docBase;
         for (int i = 0; i < comparators.length; i++) {
             leafComparators[i] = comparators[i].getLeafComparator(readerContext);
+        }
+        for (int i = 0; i < topComparators.length; i++) {
+            topLeafComparators[i] = topComparators[i].getLeafComparator(readerContext);
         }
         groupSelector.setNextReader(readerContext);
     }

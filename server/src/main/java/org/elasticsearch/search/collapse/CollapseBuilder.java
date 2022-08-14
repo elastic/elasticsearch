@@ -16,6 +16,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A builder that enables field collapsing on search request.
@@ -58,11 +64,14 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                 builder.setInnerHits(innerHitBuilders);
             }
         }, INNER_HITS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
+        PARSER.declareField((p, i, c) -> i.setSorts(SortBuilder.fromXContent(p)), SearchSourceBuilder.SORT_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY);
     }
 
     private String field;
     private List<InnerHitBuilder> innerHits = Collections.emptyList();
     private int maxConcurrentGroupRequests = 0;
+    private List<SortBuilder<?>> sorts = Collections.emptyList();
 
     private CollapseBuilder() {}
 
@@ -111,6 +120,11 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return this;
     }
 
+    public CollapseBuilder setSorts(List<SortBuilder<?>> sorts) {
+        this.sorts = sorts;
+        return this;
+    }
+
     public CollapseBuilder setMaxConcurrentGroupRequests(int num) {
         if (num < 1) {
             throw new IllegalArgumentException("maxConcurrentGroupRequests` must be positive");
@@ -140,6 +154,13 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return maxConcurrentGroupRequests;
     }
 
+    /**
+     * The sorts options to sort outer level with the collapsed results
+     */
+    public List<SortBuilder<?>> getSorts() {
+        return sorts;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -164,6 +185,17 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                 builder.endArray();
             }
         }
+        if (sorts.isEmpty() == false) {
+            if (sorts.size() == 1) {
+                builder.field(SearchSourceBuilder.SORT_FIELD.getPreferredName(), sorts.get(0));
+            } else {
+                builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName());
+                for (SortBuilder<?> sort : sorts) {
+                    sort.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                }
+                builder.endArray();
+            }
+        }
     }
 
     @Override
@@ -175,17 +207,17 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
 
         if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
         if (field.equals(that.field) == false) return false;
-        return Objects.equals(innerHits, that.innerHits);
+        return Objects.equals(innerHits, that.innerHits) && Objects.equals(sorts, that.sorts);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(field, innerHits);
+        int result = Objects.hash(field, innerHits, sorts);
         result = 31 * result + maxConcurrentGroupRequests;
         return result;
     }
 
-    public CollapseContext build(SearchExecutionContext searchExecutionContext) {
+    public CollapseContext build(SearchExecutionContext searchExecutionContext, SearchShardTarget shardTarget) {
         MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
@@ -203,7 +235,17 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                 "cannot expand `inner_hits` for collapse field `" + field + "`, " + "only indexed field can retrieve `inner_hits`"
             );
         }
+        if (sorts != null) {
+            try {
+                Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(sorts, searchExecutionContext);
+                if (optionalSort.isPresent()) {
+                    return new CollapseContext(field, fieldType, innerHits, optionalSort.get().sort);
+                }
+            } catch (IOException e) {
+                throw new SearchException(shardTarget, "failed to create sort elements", e);
+            }
+        }
 
-        return new CollapseContext(field, fieldType, innerHits);
+        return new CollapseContext(field, fieldType, innerHits, null);
     }
 }

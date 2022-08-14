@@ -1,5 +1,5 @@
 pr: 89248
-summary: fix a typo in Security.java
+summary: fix "path.conf'" typo in Security.java
 area: Bootstrap
 type: bug
 issues:

@@ -1150,18 +1150,13 @@ public class IndexNameExpressionResolver {
                     return resolvedIncludingDataStreams;
                 }
             } else {
-                Collection<String> result = innerResolve(context, expressions);
-                if (result.isEmpty() && context.getOptions().allowNoIndices() == false) {
-                    IndexNotFoundException infe = new IndexNotFoundException((String) null);
-                    infe.setResources("index_or_alias", expressions.toArray(new String[0]));
-                    throw infe;
-                }
-                return result;
+                return innerResolve(context, expressions);
             }
         }
 
         private static Collection<String> innerResolve(Context context, List<String> expressions) {
-            Set<String> result = null;
+            Objects.requireNonNull(expressions);
+            Collection<String> result = null;
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
@@ -1200,7 +1195,7 @@ public class IndexNameExpressionResolver {
                 if (context.getOptions().allowNoIndices() == false && matches.isEmpty()) {
                     throw indexNotFoundException(expression);
                 }
-                Set<String> finalResult = result;
+                Collection<String> finalResult = result;
                 expandMatches(context, matches.values(), expression.startsWith("."), expanded -> {
                     if (add) {
                         finalResult.add(expanded);
@@ -1209,11 +1204,15 @@ public class IndexNameExpressionResolver {
                     }
                 });
             }
-            if (result != null) {
-                return result;
-            } else {
-                return expressions;
+            if (result == null) {
+                result = expressions;
             }
+            if (result.isEmpty() && context.getOptions().allowNoIndices() == false) {
+                IndexNotFoundException infe = new IndexNotFoundException((String) null);
+                infe.setResources("index_or_alias", expressions.toArray(new String[0]));
+                throw infe;
+            }
+            return result;
         }
 
         private static void validateAliasOrIndex(String expression) {

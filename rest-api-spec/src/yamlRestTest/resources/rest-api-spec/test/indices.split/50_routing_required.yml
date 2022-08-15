@@ -99,6 +99,10 @@ routing required:
 
 ---
 nested:
+  - skip:
+      version: " - 8.4.99"
+      reason: "fixed in 8.5.0"
+
   - do:
       indices.create:
         index: source

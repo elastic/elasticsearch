@@ -1130,29 +1130,34 @@ public class IndexNameExpressionResolver {
         }
 
         public static Collection<String> resolve(Context context, List<String> expressions) {
+            Objects.requireNonNull(expressions);
             // only check open/closed since if we do not expand to open or closed it doesn't make sense to
             // expand to hidden
             if (context.getOptions().expandWildcardsClosed() == false && context.getOptions().expandWildcardsOpen() == false) {
                 return expressions;
             } else if (isEmptyOrTrivialWildcard(expressions)) {
-                List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(context);
-                if (context.includeDataStreams() == false) {
-                    return resolvedExpressions;
-                } else {
-                    final List<IndexAbstraction> dataStreamsAbstractions = context.getState()
-                        .metadata()
-                        .getIndicesLookup()
-                        .values()
-                        .stream()
-                        .filter(indexAbstraction -> indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM)
-                        .collect(Collectors.toList());
-                    // dedup backing indices if expand hidden indices option is true
-                    Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
-                    expandMatches(context, dataStreamsAbstractions, false, resolvedIncludingDataStreams::add);
-                    return resolvedIncludingDataStreams;
-                }
+                return innerResolveAll(context);
             } else {
                 return innerResolve(context, expressions);
+            }
+        }
+
+        private static Collection<String> innerResolveAll(Context context) {
+            List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(context);
+            if (context.includeDataStreams() == false) {
+                return resolvedExpressions;
+            } else {
+                final List<IndexAbstraction> dataStreamsAbstractions = context.getState()
+                    .metadata()
+                    .getIndicesLookup()
+                    .values()
+                    .stream()
+                    .filter(indexAbstraction -> indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM)
+                    .collect(Collectors.toList());
+                // dedup backing indices if expand hidden indices option is true
+                Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
+                expandMatches(context, dataStreamsAbstractions, false, resolvedIncludingDataStreams::add);
+                return resolvedIncludingDataStreams;
             }
         }
 

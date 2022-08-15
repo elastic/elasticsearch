@@ -865,7 +865,8 @@ public class Node implements Closeable {
                 environment.configFile(),
                 gatewayMetaState,
                 rerouteService,
-                fsHealthService
+                fsHealthService,
+                circuitBreakerService
             );
             this.nodeService = new NodeService(
                 settings,

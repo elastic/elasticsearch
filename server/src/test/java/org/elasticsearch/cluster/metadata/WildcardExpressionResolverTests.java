@@ -21,12 +21,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
@@ -531,31 +531,24 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             SystemIndexAccessLevel.NONE
         );
 
-        {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext, "*").keySet();
-            assertEquals(newHashSet("bar_bar", "foo_foo", "foo_index", "bar_index", "foo_alias"), matches);
-        }
-        {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext, "*").keySet();
-            assertEquals(newHashSet("bar_bar", "foo_foo", "foo_index", "bar_index"), matches);
-        }
-        {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext, "foo*").keySet();
-            assertEquals(newHashSet("foo_foo", "foo_index", "foo_alias"), matches);
-        }
-        {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext, "foo*").keySet();
-            assertEquals(newHashSet("foo_foo", "foo_index"), matches);
-        }
-        {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext, "foo_alias")
-                .keySet();
-            assertEquals(newHashSet("foo_alias"), matches);
-        }
-        {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext, "foo_alias").keySet();
-            assertEquals(newHashSet(), matches);
-        }
+        Collection<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.resolve(indicesAndAliasesContext, List.of("*"));
+        assertThat(matches, containsInAnyOrder("bar_bar", "foo_foo", "foo_index", "bar_index"));
+        matches = IndexNameExpressionResolver.WildcardExpressionResolver.resolve(onlyIndicesContext, List.of("*"));
+        assertThat(matches, containsInAnyOrder("bar_bar", "foo_foo", "foo_index", "bar_index"));
+        matches = IndexNameExpressionResolver.WildcardExpressionResolver.resolve(indicesAndAliasesContext, List.of("foo*"));
+        assertThat(matches, containsInAnyOrder("foo_foo", "foo_index", "bar_index"));
+        matches = IndexNameExpressionResolver.WildcardExpressionResolver.resolve(onlyIndicesContext, List.of("foo*"));
+        assertThat(matches, containsInAnyOrder("foo_foo", "foo_index"));
+        matches = IndexNameExpressionResolver.WildcardExpressionResolver.resolve(indicesAndAliasesContext, List.of("foo_alias"));
+        assertThat(matches, containsInAnyOrder("foo_alias"));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexNameExpressionResolver.WildcardExpressionResolver.resolve(onlyIndicesContext, List.of("foo_alias"))
+        );
+        assertThat(
+            iae.getMessage(),
+            containsString("The provided expression [foo_alias] matches an alias, specify the corresponding " + "concrete indices instead")
+        );
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {

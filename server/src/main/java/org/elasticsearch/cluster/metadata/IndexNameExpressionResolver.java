@@ -1282,7 +1282,7 @@ public class IndexNameExpressionResolver {
             return excludeState;
         }
 
-        public static Map<String, IndexAbstraction> matches(Context context, String expression) {
+        private static Map<String, IndexAbstraction> matches(Context context, String expression) {
             SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
             if (Regex.isMatchAllPattern(expression)) {
                 return filterIndicesLookup(indicesLookup, null, context.getOptions().ignoreAliases(), context.includeDataStreams());

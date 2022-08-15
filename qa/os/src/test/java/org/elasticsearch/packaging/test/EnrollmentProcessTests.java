@@ -19,6 +19,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -44,7 +45,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         setFileSuperuser("test_superuser", "test_superuser_password");
         sh.getEnv().put("ES_JAVA_OPTS", "-Xms1g -Xmx1g");
         Shell.Result startFirstNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, List.of(), false)
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of(), null, false)
         );
         assertThat(startFirstNode.isSuccess(), is(true));
         // Verify that the first node was auto-configured for security
@@ -62,6 +63,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             sh,
             null,
             List.of("--enrollment-token", "some-invalid-token-here"),
+            null,
             false
         );
         assertThat(
@@ -72,7 +74,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
 
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), null, false)
         );
         // ugly hack, wait for the second node to actually start and join the cluster, all of our current tooling expects/assumes
         // a single installation listening on 9200
@@ -93,12 +95,9 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         waitForElasticsearch(installation);
         final String node1ContainerId = Docker.getContainerId();
 
-        final String enrollmentToken = installation.executables().createEnrollmentToken.run("-s node")
-            .stdout()
-            .lines()
-            .filter(line -> line.startsWith("WARNING:") == false)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Failing to find any non-warning output lines"));
+        Docker.waitForNodeStarted(node1ContainerId);
+
+        String enrollmentToken = getEnrollmentToken();
 
         // installation refers to second node from now on
         installation = runAdditionalContainer(distribution(), builder().envVar("ENROLLMENT_TOKEN", enrollmentToken), 9201, 9301);
@@ -122,6 +121,34 @@ public class EnrollmentProcessTests extends PackagingTestCase {
 
         // Cleanup the first node that is still running
         removeContainer(node1ContainerId);
+    }
+
+    private String getEnrollmentToken() throws Exception {
+        final AtomicReference<String> enrollmentTokenHolder = new AtomicReference<>();
+
+        assertBusy(() -> {
+            // `assertBusy` only retries on assertion errors, not exceptions, and `Executable#run(String)`
+            // throws a `Shell.ShellException` if the command isn't successful.
+            final Shell.Result result = installation.executables().createEnrollmentToken.run("-s node", null, true);
+
+            if (result.isSuccess() == false) {
+                if (result.stdout().contains("Failed to determine the health of the cluster")) {
+                    throw new AssertionError("Elasticsearch is not ready yet");
+                }
+                throw new Shell.ShellException(
+                    "Command was not successful: [elasticsearch-create-enrollment-token -s node]\n   result: " + result
+                );
+            }
+
+            final String tokenValue = result.stdout()
+                .lines()
+                .filter(line -> line.startsWith("WARNING:") == false)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Failed to find any non-warning output lines"));
+            enrollmentTokenHolder.set(tokenValue);
+        }, 30, TimeUnit.SECONDS);
+
+        return enrollmentTokenHolder.get();
     }
 
     private void waitForSecondNode() {

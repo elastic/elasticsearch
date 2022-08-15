@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -245,8 +246,8 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
                     .startObject()
                     .field(
                         "field",
-                        "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869037, 18.9401790919517 "
-                            + "-33.9681188869037, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
+                        "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869036, 18.9401790919517 "
+                            + "-33.9681188869036, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
                     )
                     .endObject()
             );
@@ -254,7 +255,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
             ParsedDocument document = ignoreMapper.parse(sourceToParse);
             assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
             MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
-            assertThat(exception.getCause().getMessage(), containsString("Cannot determine orientation"));
+            assertThat(exception.getCause().getMessage(), containsString("at least three non-collinear points required"));
         }
     }
 
@@ -403,6 +404,15 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
     }
 
+    public void testSelfIntersectPolygon() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", "POLYGON((0 0, 1 1, 0 1, 1 0, 0 0))")))
+        );
+        assertThat(ex.getCause().getMessage(), containsString("Polygon self-intersection at lat=0.5 lon=0.5"));
+    }
+
     public String toXContentString(GeoShapeWithDocValuesFieldMapper mapper, boolean includeDefaults) {
         if (includeDefaults) {
             ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
@@ -425,5 +435,15 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

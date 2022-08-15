@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -30,6 +31,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class InternalStringStatsTests extends InternalAggregationTestCase<InternalStringStats> {
 
@@ -56,16 +58,19 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected List<InternalStringStats> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalStringStats> randomResultsToReduce(String name, int size) {
         /*
          * Pick random count and length that are less than
          * Long.MAX_VALUE because reduction adds them together and sometimes
          * serializes them and that serialization would fail if the sum has
          * wrapped to a negative number.
          */
-        return Stream.generate(() -> createTestInstance(name, null, Long.MAX_VALUE / size, Long.MAX_VALUE / size))
-            .limit(size)
-            .collect(toList());
+        return new BuilderAndToReduce<>(
+            mock(AggregationBuilder.class),
+            Stream.generate(() -> createTestInstance(name, null, Long.MAX_VALUE / size, Long.MAX_VALUE / size))
+                .limit(size)
+                .collect(toList())
+        );
     }
 
     private InternalStringStats createTestInstance(String name, Map<String, Object> metadata, long maxCount, long maxTotalLength) {

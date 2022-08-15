@@ -76,9 +76,9 @@ field as a runtime field in the mapping. The following runtime script defines a
 grok pattern that extracts structured fields out of the `message` field. 
 
 The script matches on the `%{COMMONAPACHELOG}` log pattern, which understands
-the structure of Apache logs. If the pattern matches, the script emits the
-value matching the IP address. If the pattern doesn't match
-(`clientip != null`), the script just returns the field value without crashing.
+the structure of Apache logs. If the pattern matches (`clientip != null`), the
+script emits the value of the matching IP address. If the pattern doesn't match,
+the script just returns the field value without crashing.
 
 [source,console]
 ----

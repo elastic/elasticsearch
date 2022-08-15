@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -130,10 +129,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             listener.onResponse(new StepResponse(false));
         }, error -> {
             if (isTaskStopping() && isTaskCancelledException(error)) {
-                LOGGER.debug(
-                    new ParameterizedMessage("[{}] Caught task cancelled exception while task is stopping", config.getId()),
-                    error
-                );
+                LOGGER.debug(() -> "[" + config.getId() + "] Caught task cancelled exception while task is stopping", error);
                 listener.onResponse(new StepResponse(true));
             } else {
                 listener.onFailure(error);
@@ -324,7 +320,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         getTaskRequest.setTaskId(reindexTaskId);
         client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(taskResponse -> {
             TaskResult taskResult = taskResponse.getTask();
-            BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
+            BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().status();
             int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
             listener.onResponse(progress);
         }, error -> {

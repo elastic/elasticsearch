@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateObserver.Listener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -29,6 +28,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,6 +52,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
     ) {
         super(
             ClearVotingConfigExclusionsAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,
@@ -111,7 +112,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(
                         new ElasticsearchTimeoutException(
-                            "timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. "
+                            "timed out waiting for removal of nodes; if nodes should not be removed, set ?wait_for_removal=false. "
                                 + initialState.getVotingConfigExclusions()
                         )
                     );
@@ -127,7 +128,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
         long startTimeMillis,
         ActionListener<ActionResponse.Empty> listener
     ) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "clear-voting-config-exclusions",
             new ClusterStateUpdateTask(
                 Priority.URGENT,
@@ -153,9 +154,13 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(ActionResponse.Empty.INSTANCE);
                 }
-            },
-            ClusterStateTaskExecutor.unbatched()
+            }
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override

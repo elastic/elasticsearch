@@ -18,7 +18,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -35,7 +34,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
             new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
             settings
         );
-        List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).map(MockFieldMapper::new).collect(Collectors.toList());
+        List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).<FieldMapper>map(MockFieldMapper::new).toList();
         MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,

@@ -18,7 +18,7 @@ public class KeywordAnalyzerProvider extends AbstractIndexAnalyzerProvider<Keywo
     private final KeywordAnalyzer keywordAnalyzer;
 
     public KeywordAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.keywordAnalyzer = new KeywordAnalyzer();
     }
 

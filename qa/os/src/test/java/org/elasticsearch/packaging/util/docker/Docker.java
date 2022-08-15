@@ -8,6 +8,7 @@
 
 package org.elasticsearch.packaging.util.docker;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -37,10 +38,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.test.PackagingTestCase.assertBusy;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.p444;
 import static org.elasticsearch.packaging.util.FileMatcher.p555;
@@ -344,6 +347,9 @@ public class Docker {
      * @param containerPath The path to mount localPath inside the container.
      */
     private static void executePrivilegeEscalatedShellCmd(String shellCmd, Path localPath, Path containerPath) {
+        final String image = "alpine:3.13";
+        ensureImageIsPulled(image);
+
         final List<String> args = new ArrayList<>();
 
         args.add("docker run");
@@ -355,7 +361,7 @@ public class Docker {
         args.add("--volume \"" + localPath.getParent() + ":" + containerPath.getParent() + "\"");
 
         // Use a lightweight musl libc based small image
-        args.add("alpine:3.13");
+        args.add(image);
 
         // And run inline commands via the POSIX shell
         args.add("/bin/sh -c \"" + shellCmd + "\"");
@@ -363,6 +369,33 @@ public class Docker {
         final String command = String.join(" ", args);
         logger.info("Running command: " + command);
         sh.run(command);
+    }
+
+    private static void ensureImageIsPulled(String image) {
+        // Don't pull if the image already exists. This does also mean that we never refresh it, but that
+        // isn't an issue in CI.
+        if (sh.runIgnoreExitCode("docker image inspect -f '{{ .Id }}' " + image).isSuccess()) {
+            return;
+        }
+
+        Shell.Result result = null;
+        int i = 0;
+        while (true) {
+            result = sh.runIgnoreExitCode("docker pull " + image);
+            if (result.isSuccess()) {
+                return;
+            }
+
+            if (++i == 3) {
+                throw new RuntimeException("Failed to pull Docker image [" + image + "]: " + result);
+            }
+
+            try {
+                Thread.sleep(10_000L);
+            } catch (InterruptedException e) {
+                // ignore
+            }
+        }
     }
 
     /**
@@ -677,6 +710,10 @@ public class Docker {
     }
 
     public static Shell.Result getContainerLogs() {
+        return getContainerLogs(containerId);
+    }
+
+    public static Shell.Result getContainerLogs(String containerId) {
         return sh.run("docker logs " + containerId);
     }
 
@@ -721,7 +758,44 @@ public class Docker {
         return dockerShell.run("ls -1 --color=never " + path).stdout().lines().collect(Collectors.toList());
     }
 
+    /**
+     * Returns a list of the file contents of the supplied path.
+     * @param path the path to list
+     * @return the listing
+     */
     public static List<String> listContents(Path path) {
         return listContents(path.toString());
+    }
+
+    /**
+     * Waits for an Elasticsearch node start by looking at the cluster logs. This is useful if the
+     * container is not available on an external port, or authentication is in force and credentials
+     * are not available.
+     * @param containerId the container to check
+     */
+    public static void waitForNodeStarted(String containerId) throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        // Some lines are not JSON, filter those out
+        assertBusy(() -> assertTrue(getContainerLogs(containerId).stdout().lines().filter(line -> line.startsWith("{")).map(line -> {
+            try {
+                return mapper.readTree(line);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        })
+            .anyMatch(
+                json -> json.get("message").textValue().contains("started")
+                    && json.get("log.logger").textValue().equals("org.elasticsearch.node.Node")
+            )), 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Runs a readiness probe on a given port
+     * @param port
+     * @return the ready status
+     */
+    public static boolean readinessProbe(int port) {
+        Shell.Result result = dockerShell.runIgnoreExitCode("nc -z localhost " + port);
+        return result.exitCode() == 0;
     }
 }

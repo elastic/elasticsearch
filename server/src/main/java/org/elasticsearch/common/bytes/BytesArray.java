@@ -56,6 +56,16 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     @Override
+    public int indexOf(byte marker, int from) {
+        for (int i = offset + from; i < offset + length; i++) {
+            if (bytes[i] == marker) {
+                return i - offset;
+            }
+        }
+        return -1;
+    }
+
+    @Override
     public int length() {
         return length;
     }

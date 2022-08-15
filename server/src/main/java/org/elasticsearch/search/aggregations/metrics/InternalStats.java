@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -55,12 +56,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.count = count;
         this.sum = sum;
         this.min = min;
         this.max = max;
-        this.format = formatter;
     }
 
     /**
@@ -68,7 +68,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
      */
     public InternalStats(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         count = in.readVLong();
         min = in.readDouble();
         max = in.readDouble();
@@ -171,6 +170,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             kahanSummation.add(stats.getSum());
         }
         return new InternalStats(name, count, kahanSummation.value(), min, max, format, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalStats(name, samplingContext.scaleUp(count), samplingContext.scaleUp(sum), min, max, format, getMetadata());
     }
 
     static class Fields {

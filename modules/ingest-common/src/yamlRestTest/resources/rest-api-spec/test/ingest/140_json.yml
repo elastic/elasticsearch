@@ -58,7 +58,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "1"
         body: {
           foo_object: "{\"hello\": \"world\"}",
@@ -72,7 +72,7 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.foo_object.hello: "world" }
   - match: { _source.foo_array.0: 1 }
   - match: { _source.foo_string: "bla bla" }
@@ -101,7 +101,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         pipeline: "2"
         body: {
           json: "{\"dupe\": 1, \"dupe\": 2}",
@@ -110,7 +110,7 @@ teardown:
   - do:
       get:
         index: test
-        id: 2
+        id: "2"
   - match: { _source.dupe: 2 }
 
 ---
@@ -134,7 +134,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         pipeline: "3"
         body: {
           json: "{\"foo\": {\"bar\": \"baz\"} }",
@@ -147,6 +147,6 @@ teardown:
   - do:
       get:
         index: test
-        id: 3
+        id: "3"
   - match: { _source.foo.bar: "baz" }
   - match: { _source.foo.qux: "quux" }

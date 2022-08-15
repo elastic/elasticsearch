@@ -22,8 +22,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileMatcher;
@@ -63,11 +63,9 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -206,20 +204,26 @@ public abstract class PackagingTestCase extends Assert {
         // move log file so we can avoid false positives when grepping for
         // messages in logs during test
         if (installation != null && failed == false) {
+
             if (Files.exists(installation.logs)) {
                 Path logFile = installation.logs.resolve("elasticsearch.log");
                 String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
                 if (Files.exists(logFile)) {
                     Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
-                    FileUtils.mv(logFile, newFile);
+                    try {
+                        FileUtils.mv(logFile, newFile);
+                    } catch (Exception e) {
+                        // There was a problem cleaning up log files. This usually means Windows wackiness
+                        // where something still has the file open. Here we dump what we can of the log files to see
+                        // if ES is still running.
+                        dumpDebug();
+                        throw e;
+                    }
                 }
                 for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
                     Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());
                     FileUtils.mv(rotatedLogFile, newRotatedLogFile);
                 }
-            }
-            if (Files.exists(Archives.getPowershellErrorPath(installation))) {
-                FileUtils.rmWithRetries(Archives.getPowershellErrorPath(installation));
             }
         }
 
@@ -260,26 +264,33 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
+     * Prints all available information about the installed Elasticsearch process, including pid, logs and stdout/stderr.
+     */
+    protected void dumpDebug() {
+        if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
+            String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
+            logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+            sh.runIgnoreExitCode("jstack " + pid);
+        }
+        if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
+            logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+        }
+        if (Files.exists(installation.logs.resolve("output.out"))) {
+            logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
+        }
+        if (Files.exists(installation.logs.resolve("output.err"))) {
+            logger.warn("Stderr:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.err")));
+        }
+    }
+
+    /**
      * Starts and stops elasticsearch, and performs assertions while it is running.
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
             awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
         } catch (Exception e) {
-            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
-                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
-                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
-                sh.runIgnoreExitCode("jstack " + pid);
-            }
-            if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
-                logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
-            }
-            if (Files.exists(installation.logs.resolve("output.out"))) {
-                logger.warn("Stdout:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.out")));
-            }
-            if (Files.exists(installation.logs.resolve("output.err"))) {
-                logger.warn("Stderr:\n" + FileUtils.slurpTxtorGz(installation.logs.resolve("output.err")));
-            }
+            dumpDebug();
             throw e;
         }
 
@@ -313,7 +324,7 @@ public abstract class PackagingTestCase extends Assert {
             case TAR:
             case ZIP:
                 if (useTty) {
-                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), daemonize);
+                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), null, daemonize);
                 } else {
                     return Archives.runElasticsearchStartCommand(installation, sh, password, List.of(), daemonize);
                 }
@@ -407,7 +418,9 @@ public abstract class PackagingTestCase extends Assert {
             // error should be in the logs
             assertThat(installation.logs.resolve("elasticsearch.log"), fileExists());
             String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
-
+            if (logfile.isBlank()) {
+                // bootstrap errors still
+            }
             assertThat(logfile, anyOf(stringMatchers));
 
         } else if (distribution().isPackage() && Platforms.isSystemd()) {
@@ -416,19 +429,6 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(result.stderr(), containsString("Job for elasticsearch.service failed"));
             Shell.Result error = journaldWrapper.getLogs();
             assertThat(error.stdout(), anyOf(stringMatchers));
-
-        } else if (Platforms.WINDOWS && Files.exists(Archives.getPowershellErrorPath(installation))) {
-
-            // In Windows, we have written our stdout and stderr to files in order to run
-            // in the background
-            String wrapperPid = result.stdout().trim();
-            sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
-            sh.runIgnoreExitCode(
-                "Get-EventSubscriber | "
-                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} | "
-                    + "Unregister-Event -Force"
-            );
-            assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), anyOf(stringMatchers));
 
         } else {
 
@@ -629,22 +629,21 @@ public abstract class PackagingTestCase extends Assert {
      * @param es the {@link Installation} to check
      */
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
-        Optional<String> autoConfigDirName = getAutoConfigDirName(es);
-        assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
+        final String autoConfigDirName = "certs";
         final Settings settings;
         if (es.distribution.isArchive()) {
             // We chown the installation on Windows to Administrators so that we can auto-configure it.
             String owner = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
-            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, owner, owner, p750));
+            assertThat(es.config(autoConfigDirName), FileMatcher.file(Directory, owner, owner, p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
-                .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
+                .forEach(file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, owner, owner, p660)));
             settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         } else if (es.distribution.isDocker()) {
-            assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
+            assertThat(es.config(autoConfigDirName), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
                     file -> assertThat(
-                        es.config(autoConfigDirName.get()).resolve(file),
+                        es.config(autoConfigDirName).resolve(file),
                         DockerFileMatcher.file(File, "elasticsearch", "root", p660)
                     )
                 );
@@ -655,13 +654,10 @@ public abstract class PackagingTestCase extends Assert {
             rm(localTempDir);
         } else {
             assert es.distribution.isPackage();
-            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, "root", "elasticsearch", p750));
+            assertThat(es.config(autoConfigDirName), FileMatcher.file(Directory, "root", "elasticsearch", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
-                    file -> assertThat(
-                        es.config(autoConfigDirName.get()).resolve(file),
-                        FileMatcher.file(File, "root", "elasticsearch", p660)
-                    )
+                    file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
                 );
             assertThat(
                 sh.run(es.executables().keystoreTool + " list").stdout(),
@@ -677,7 +673,7 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
 
         if (es.distribution.isDocker() == false) {
-            assertThat(settings.get("http.host"), equalTo("[_local_, _site_]"));
+            assertThat(settings.get("http.host"), equalTo("0.0.0.0"));
         }
     }
 
@@ -687,7 +683,7 @@ public abstract class PackagingTestCase extends Assert {
      * @param es the {@link Installation} to check
      */
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
-        assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
+        assertThat(Files.exists(es.config("certs")), Matchers.is(false));
         if (es.distribution.isPackage()) {
             if (Files.exists(es.config("elasticsearch.keystore"))) {
                 assertThat(
@@ -706,16 +702,4 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(caCert.toString(), Matchers.not(Matchers.containsString("certs")));
         }
     }
-
-    public static Optional<String> getAutoConfigDirName(Installation es) {
-        final Shell.Result lsResult;
-        if (es.distribution.platform.equals(Distribution.Platform.WINDOWS)) {
-            lsResult = sh.run("Get-ChildItem -Path " + es.config + " -Name");
-        } else {
-            lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
-        }
-        assertNotNull(lsResult.stdout());
-        return Arrays.stream(lsResult.stdout().split("\n")).filter(f -> f.contains("certs")).findFirst();
-    }
-
 }

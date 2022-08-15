@@ -11,6 +11,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -59,6 +60,18 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         assertEquals(totalCount, reduced.count());
     }
 
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalGeoCentroid sampled, InternalGeoCentroid reduced, SamplingContext samplingContext) {
+        assertEquals(sampled.centroid().getLat(), reduced.centroid().getLat(), 1e-12);
+        assertEquals(sampled.centroid().getLon(), reduced.centroid().getLon(), 1e-12);
+        assertEquals(sampled.count(), samplingContext.scaleUp(reduced.count()), 0);
+    }
+
     public void testReduceMaxCount() {
         InternalGeoCentroid maxValueGeoCentroid = new InternalGeoCentroid(
             "agg",
@@ -85,19 +98,17 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         GeoPoint centroid = instance.centroid();
         long count = instance.count();
         Map<String, Object> metadata = instance.getMetadata();
-        switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+        switch (between(0, 3)) {
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 count += between(1, 100);
                 if (centroid == null) {
                     // if the new count is > 0 then we need to make sure there is a
                     // centroid or the constructor will throw an exception
                     centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
                 }
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (centroid == null) {
                     centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
                     count = between(1, 100);
@@ -110,17 +121,16 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
                     }
                     centroid = newCentroid;
                 }
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
                     metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoCentroid(name, centroid, count, metadata);
     }

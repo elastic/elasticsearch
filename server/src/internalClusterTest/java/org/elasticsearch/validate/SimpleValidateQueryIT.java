@@ -183,7 +183,11 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setSource("foo", "text", "bar", i, "baz", "blort").execute().actionGet();
+            client().prepareIndex("test")
+                .setSource("foo", "text", "bar", i, "baz", "blort")
+                .setId(Integer.toString(i))
+                .execute()
+                .actionGet();
         }
         refresh();
 

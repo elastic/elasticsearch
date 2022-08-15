@@ -11,10 +11,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncodingTests;
@@ -267,14 +267,14 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
 
     public void testEnsembleSchemaDeserialization() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ENSEMBLE_MODEL);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), ENSEMBLE_MODEL);
         TrainedModelDefinition definition = TrainedModelDefinition.fromXContent(parser, false).build();
         assertThat(definition.getTrainedModel().getClass(), equalTo(Ensemble.class));
     }
 
     public void testTreeSchemaDeserialization() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, TREE_MODEL);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), TREE_MODEL);
         TrainedModelDefinition definition = TrainedModelDefinition.fromXContent(parser, false).build();
         assertThat(definition.getTrainedModel().getClass(), equalTo(Tree.class));
     }

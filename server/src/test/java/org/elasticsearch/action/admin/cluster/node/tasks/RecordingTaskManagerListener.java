@@ -17,7 +17,6 @@ import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * MockTaskManagerListener that records all task registration/unregistration events
@@ -56,12 +55,12 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
     }
 
     public synchronized List<TaskInfo> getRegistrationEvents() {
-        List<TaskInfo> events = this.events.stream().filter(Tuple::v1).map(Tuple::v2).collect(Collectors.toList());
+        List<TaskInfo> events = this.events.stream().filter(Tuple::v1).map(Tuple::v2).toList();
         return Collections.unmodifiableList(events);
     }
 
     public synchronized List<TaskInfo> getUnregistrationEvents() {
-        List<TaskInfo> events = this.events.stream().filter(event -> event.v1() == false).map(Tuple::v2).collect(Collectors.toList());
+        List<TaskInfo> events = this.events.stream().filter(event -> event.v1() == false).map(Tuple::v2).toList();
         return Collections.unmodifiableList(events);
     }
 

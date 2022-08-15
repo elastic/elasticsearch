@@ -1,11 +1,11 @@
 [[repository-azure]]
-=== Azure Repository
+=== Azure repository
 
 You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
 [[repository-azure-usage]]
-==== Azure Repository
+==== Setup
 
 To enable Azure repositories, you have first to define your azure storage settings as
 {ref}/secure-settings.html[secure settings], before starting up the node:
@@ -158,6 +158,10 @@ The Azure repository supports following settings:
 
     Specifies the path within container to repository data. Defaults to empty
     (root directory).
++
+NOTE: Don't set `base_path` when configuring a snapshot repository for {ECE}.
+{ECE} automatically generates the `base_path` for each deployment so that
+multiple deployments may share the same bucket.
 
 `chunk_size`::
 

@@ -19,8 +19,15 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 
 public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpResponse {
 
-    Netty4HttpResponse(HttpVersion version, RestStatus status, BytesReference content) {
+    private final int sequence;
+
+    Netty4HttpResponse(int sequence, HttpVersion version, RestStatus status, BytesReference content) {
         super(version, HttpResponseStatus.valueOf(status.getStatus()), Netty4Utils.toByteBuf(content));
+        this.sequence = sequence;
+    }
+
+    public int getSequence() {
+        return sequence;
     }
 
     @Override

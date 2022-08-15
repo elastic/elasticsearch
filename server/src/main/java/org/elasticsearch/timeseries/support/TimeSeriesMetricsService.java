@@ -88,7 +88,7 @@ public class TimeSeriesMetricsService {
         );
     }
 
-    private void collectField(
+    private static void collectField(
         List<String> dimensions,
         Map<String, TimeSeriesParams.MetricType> metrics,
         String fieldName,

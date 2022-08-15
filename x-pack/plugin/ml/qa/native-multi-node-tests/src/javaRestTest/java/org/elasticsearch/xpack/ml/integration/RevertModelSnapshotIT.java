@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -18,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
@@ -301,8 +301,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(hits.getTotalHits().value, equalTo(1L));
         try {
             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                null,
-                LoggingDeprecationHandler.INSTANCE,
+                XContentParserConfiguration.EMPTY,
                 hits.getAt(0).getSourceAsString()
             );
             return Quantiles.LENIENT_PARSER.apply(parser, null);

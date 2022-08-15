@@ -12,17 +12,11 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -37,22 +31,13 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.analytics.InferencePipelineAggregationBuilder;
-import org.elasticsearch.client.analytics.ParsedInference;
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.client.analytics.StringStatsAggregationBuilder;
@@ -63,29 +48,20 @@ import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
-import org.elasticsearch.client.core.MultiTermVectorsRequest;
-import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsResponse;
-import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.index.rankeval.RankEvalRequest;
-import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
-import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
-import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
-import org.elasticsearch.script.mustache.SearchTemplateRequest;
-import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
@@ -187,6 +163,8 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.ParsedTimeSeries;
+import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
@@ -199,6 +177,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
@@ -266,35 +245,12 @@ public class RestHighLevelClient implements Closeable {
 
     // To be called using performClientRequest and performClientRequestAsync to ensure version compatibility check
     private final RestClient client;
-    private final NamedXContentRegistry registry;
+    private final XContentParserConfiguration parserConfig;
     private final CheckedConsumer<RestClient, IOException> doClose;
     private final boolean useAPICompatibility;
 
     /** Do not access directly but through getVersionValidationFuture() */
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
-
-    private final IndicesClient indicesClient = new IndicesClient(this);
-    private final ClusterClient clusterClient = new ClusterClient(this);
-    private final IngestClient ingestClient = new IngestClient(this);
-    private final SnapshotClient snapshotClient = new SnapshotClient(this);
-    private final TasksClient tasksClient = new TasksClient(this);
-    private final XPackClient xPackClient = new XPackClient(this);
-    private final WatcherClient watcherClient = new WatcherClient(this);
-    private final GraphClient graphClient = new GraphClient(this);
-    private final LicenseClient licenseClient = new LicenseClient(this);
-    private final MigrationClient migrationClient = new MigrationClient(this);
-    private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
-    private final SecurityClient securityClient = new SecurityClient(this);
-    private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
-    private final RollupClient rollupClient = new RollupClient(this);
-    private final CcrClient ccrClient = new CcrClient(this);
-    private final TransformClient transformClient = new TransformClient(this);
-    private final EnrichClient enrichClient = new EnrichClient(this);
-    private final EqlClient eqlClient = new EqlClient(this);
-    private final AsyncSearchClient asyncSearchClient = new AsyncSearchClient(this);
-    private final TextStructureClient textStructureClient = new TextStructureClient(this);
-    private final SearchableSnapshotsClient searchableSnapshotsClient = new SearchableSnapshotsClient(this);
-    private final FeaturesClient featuresClient = new FeaturesClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -342,11 +298,19 @@ public class RestHighLevelClient implements Closeable {
     ) {
         this.client = Objects.requireNonNull(restClient, "restClient must not be null");
         this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
-        this.registry = new NamedXContentRegistry(
+        NamedXContentRegistry registry = new NamedXContentRegistry(
             Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
                 .flatMap(Function.identity())
                 .collect(toList())
         );
+        /*
+         * Ignores deprecation warnings. This is appropriate because it is only
+         * used to parse responses from Elasticsearch. Any deprecation warnings
+         * emitted there just mean that you are talking to an old version of
+         * Elasticsearch. There isn't anything you can do about the deprecation.
+         */
+        this.parserConfig = XContentParserConfiguration.EMPTY.withRegistry(registry)
+            .withDeprecationHandler(DeprecationHandler.IGNORE_DEPRECATIONS);
         if (useAPICompatibility == null && "true".equals(System.getenv(API_VERSIONING_ENV_VARIABLE))) {
             this.useAPICompatibility = true;
         } else {
@@ -364,249 +328,6 @@ public class RestHighLevelClient implements Closeable {
     @Override
     public final void close() throws IOException {
         doClose.accept(client);
-    }
-
-    /**
-     * Provides an {@link IndicesClient} which can be used to access the Indices API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
-     */
-    public final IndicesClient indices() {
-        return indicesClient;
-    }
-
-    /**
-     * Provides a {@link ClusterClient} which can be used to access the Cluster API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
-     */
-    public final ClusterClient cluster() {
-        return clusterClient;
-    }
-
-    /**
-     * Provides a {@link IngestClient} which can be used to access the Ingest API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
-     */
-    public final IngestClient ingest() {
-        return ingestClient;
-    }
-
-    /**
-     * Provides a {@link SnapshotClient} which can be used to access the Snapshot API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
-     */
-    public final SnapshotClient snapshot() {
-        return snapshotClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Rollup APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-apis.html">
-     * Watcher APIs on elastic.co</a> for more information.
-     */
-    public RollupClient rollup() {
-        return rollupClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed CCR APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-api.html">
-     * CCR APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making CCR API calls
-     */
-    public final CcrClient ccr() {
-        return ccrClient;
-    }
-
-    /**
-     * Provides a {@link TasksClient} which can be used to access the Tasks API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
-     */
-    public final TasksClient tasks() {
-        return tasksClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed X-Pack Info
-     * and Usage APIs that are shipped with the default distribution of
-     * Elasticsearch. All of these APIs will 404 if run against the OSS
-     * distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
-     * Info APIs on elastic.co</a> for more information.
-     */
-    public final XPackClient xpack() {
-        return xPackClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Watcher APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api.html">
-     * Watcher APIs on elastic.co</a> for more information.
-     */
-    public WatcherClient watcher() {
-        return watcherClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Graph explore API that
-     * is shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">
-     * Graph API on elastic.co</a> for more information.
-     */
-    public GraphClient graph() {
-        return graphClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Licensing APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
-     * Licensing APIs on elastic.co</a> for more information.
-     */
-    public LicenseClient license() {
-        return licenseClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Index Lifecycle APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management-api.html"> X-Pack APIs
-     * on elastic.co</a> for more information.
-     */
-    public IndexLifecycleClient indexLifecycle() {
-        return ilmClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Index Async Search APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"> X-Pack APIs on elastic.co</a>
-     * for more information.
-     */
-    public AsyncSearchClient asyncSearch() {
-        return asyncSearchClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Text Structure APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html"> X-Pack APIs on elastic.co</a>
-     * for more information.
-     */
-    public TextStructureClient textStructure() {
-        return textStructureClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Searchable Snapshots APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
-     * APIs on elastic.co</a> for more information.
-     */
-    public SearchableSnapshotsClient searchableSnapshots() {
-        return searchableSnapshotsClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Searchable Snapshots APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
-     * APIs on elastic.co</a> for more information.
-     */
-    public FeaturesClient features() {
-        return featuresClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Migration APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api.html">
-     * Migration APIs on elastic.co</a> for more information.
-     */
-    public MigrationClient migration() {
-        return migrationClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Machine Learning APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html">
-     * Machine Learning APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Machine Learning API calls
-     */
-    public MachineLearningClient machineLearning() {
-        return machineLearningClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Security APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api.html">
-     * Security APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Security API calls
-     */
-    public SecurityClient security() {
-        return securityClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Data Frame APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-apis.html">
-     *     Transform APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Data Frame API calls
-     */
-    public TransformClient transform() {
-        return transformClient;
-    }
-
-    public EnrichClient enrich() {
-        return enrichClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic EQL APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/eql.html">
-     *     EQL APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Data Frame API calls
-     */
-    public final EqlClient eql() {
-        return eqlClient;
     }
 
     /**
@@ -657,46 +378,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Submits a reindex task.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
-     * @param reindexRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the submission response
-     */
-    public final TaskSubmissionResponse submitReindexTask(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            reindexRequest,
-            RequestConverters::submitReindex,
-            options,
-            TaskSubmissionResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously executes a reindex request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
-     * @param reindexRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable reindexAsync(
-        ReindexRequest reindexRequest,
-        RequestOptions options,
-        ActionListener<BulkByScrollResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            reindexRequest,
-            RequestConverters::reindex,
-            options,
-            BulkByScrollResponse::fromXContent,
-            listener,
-            singleton(409)
-        );
-    }
-
-    /**
      * Executes a update by query request.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
      *     Update By Query API on elastic.co</a>
@@ -710,49 +391,6 @@ public class RestHighLevelClient implements Closeable {
             RequestConverters::updateByQuery,
             options,
             BulkByScrollResponse::fromXContent,
-            singleton(409)
-        );
-    }
-
-    /**
-     * Submits a update by query task.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
-     * @param updateByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the submission response
-     */
-    public final TaskSubmissionResponse submitUpdateByQueryTask(UpdateByQueryRequest updateByQueryRequest, RequestOptions options)
-        throws IOException {
-        return performRequestAndParseEntity(
-            updateByQueryRequest,
-            RequestConverters::submitUpdateByQuery,
-            options,
-            TaskSubmissionResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously executes an update by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
-     * @param updateByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable updateByQueryAsync(
-        UpdateByQueryRequest updateByQueryRequest,
-        RequestOptions options,
-        ActionListener<BulkByScrollResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            updateByQueryRequest,
-            RequestConverters::updateByQuery,
-            options,
-            BulkByScrollResponse::fromXContent,
-            listener,
             singleton(409)
         );
     }
@@ -772,191 +410,6 @@ public class RestHighLevelClient implements Closeable {
             options,
             BulkByScrollResponse::fromXContent,
             singleton(409)
-        );
-    }
-
-    /**
-     * Submits a delete by query task
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *      Delete By Query API on elastic.co</a>
-     * @param deleteByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the submission response
-     */
-    public final TaskSubmissionResponse submitDeleteByQueryTask(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options)
-        throws IOException {
-        return performRequestAndParseEntity(
-            deleteByQueryRequest,
-            RequestConverters::submitDeleteByQuery,
-            options,
-            TaskSubmissionResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously executes a delete by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *     Delete By Query API on elastic.co</a>
-     * @param deleteByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable deleteByQueryAsync(
-        DeleteByQueryRequest deleteByQueryRequest,
-        RequestOptions options,
-        ActionListener<BulkByScrollResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            deleteByQueryRequest,
-            RequestConverters::deleteByQuery,
-            options,
-            BulkByScrollResponse::fromXContent,
-            listener,
-            singleton(409)
-        );
-    }
-
-    /**
-     * Executes a delete by query rethrottle request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *     Delete By Query API on elastic.co</a>
-     * @param rethrottleRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final ListTasksResponse deleteByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            rethrottleRequest,
-            RequestConverters::rethrottleDeleteByQuery,
-            options,
-            ListTasksResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously execute an delete by query rethrottle request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *     Delete By Query API on elastic.co</a>
-     * @param rethrottleRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable deleteByQueryRethrottleAsync(
-        RethrottleRequest rethrottleRequest,
-        RequestOptions options,
-        ActionListener<ListTasksResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            rethrottleRequest,
-            RequestConverters::rethrottleDeleteByQuery,
-            options,
-            ListTasksResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a update by query rethrottle request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
-     * @param rethrottleRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final ListTasksResponse updateByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            rethrottleRequest,
-            RequestConverters::rethrottleUpdateByQuery,
-            options,
-            ListTasksResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously execute an update by query rethrottle request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
-     * @param rethrottleRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable updateByQueryRethrottleAsync(
-        RethrottleRequest rethrottleRequest,
-        RequestOptions options,
-        ActionListener<ListTasksResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            rethrottleRequest,
-            RequestConverters::rethrottleUpdateByQuery,
-            options,
-            ListTasksResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a reindex rethrottling request.
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
-     * Reindex rethrottling API on elastic.co</a>
-     *
-     * @param rethrottleRequest the request
-     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final ListTasksResponse reindexRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            rethrottleRequest,
-            RequestConverters::rethrottleReindex,
-            options,
-            ListTasksResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a reindex rethrottling request.
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#docs-reindex-rethrottle">
-     * Reindex rethrottling API on elastic.co</a>
-     * @param rethrottleRequest the request
-     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener          the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable reindexRethrottleAsync(
-        RethrottleRequest rethrottleRequest,
-        RequestOptions options,
-        ActionListener<ListTasksResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            rethrottleRequest,
-            RequestConverters::rethrottleReindex,
-            options,
-            ListTasksResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Pings the remote Elasticsearch cluster and returns true if the ping succeeded, false otherwise
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return <code>true</code> if the ping succeeded, false otherwise
-     */
-    public final boolean ping(RequestOptions options) throws IOException {
-        return performRequest(
-            new MainRequest(),
-            (request) -> RequestConverters.ping(),
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            emptySet()
         );
     }
 
@@ -984,25 +437,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final GetResponse get(GetRequest getRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, singleton(404));
-    }
-
-    /**
-     * Asynchronously retrieves a document by id using the Get API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
-     * @param getRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable getAsync(GetRequest getRequest, RequestOptions options, ActionListener<GetResponse> listener) {
-        return performRequestAsyncAndParseEntity(
-            getRequest,
-            RequestConverters::get,
-            options,
-            GetResponse::fromXContent,
-            listener,
-            singleton(404)
-        );
     }
 
     /**
@@ -1084,32 +518,12 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously checks for the existence of a document. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
-     * @param getRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable existsAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        return performRequestAsync(
-            getRequest,
-            RequestConverters::exists,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
      * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
      * on elastic.co</a>
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
-     * @deprecated use {@link #existsSource(GetSourceRequest, RequestOptions)} instead
      */
     @Deprecated
     public boolean existsSource(GetRequest getRequest, RequestOptions options) throws IOException {
@@ -1131,53 +545,10 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
-     * @deprecated use {@link #existsSourceAsync(GetSourceRequest, RequestOptions, ActionListener)} instead
      */
     @Deprecated
     public final Cancellable existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
         GetSourceRequest getSourceRequest = GetSourceRequest.from(getRequest);
-        return performRequestAsync(
-            getSourceRequest,
-            RequestConverters::sourceExists,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
-     * on elastic.co</a>
-     * @param getSourceRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
-     */
-    public boolean existsSource(GetSourceRequest getSourceRequest, RequestOptions options) throws IOException {
-        return performRequest(
-            getSourceRequest,
-            RequestConverters::sourceExists,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
-     * on elastic.co</a>
-     * @param getSourceRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable existsSourceAsync(
-        GetSourceRequest getSourceRequest,
-        RequestOptions options,
-        ActionListener<Boolean> listener
-    ) {
         return performRequestAsync(
             getSourceRequest,
             RequestConverters::sourceExists,
@@ -1207,30 +578,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously retrieves the source field only of a document using GetSource API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Get Source API
-     * on elastic.co</a>
-     * @param getSourceRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable getSourceAsync(
-        GetSourceRequest getSourceRequest,
-        RequestOptions options,
-        ActionListener<GetSourceResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            getSourceRequest,
-            RequestConverters::getSource,
-            options,
-            GetSourceResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
      * Index a document using the Index API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
      * @param indexRequest the request
@@ -1239,25 +586,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Asynchronously index a document using the Index API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
-     * @param indexRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
-        return performRequestAsyncAndParseEntity(
-            indexRequest,
-            RequestConverters::index,
-            options,
-            IndexResponse::fromXContent,
-            listener,
-            emptySet()
-        );
     }
 
     /**
@@ -1272,25 +600,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously executes a count request using the Count API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html">Count API on elastic.co</a>
-     * @param countRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable countAsync(CountRequest countRequest, RequestOptions options, ActionListener<CountResponse> listener) {
-        return performRequestAsyncAndParseEntity(
-            countRequest,
-            RequestConverters::count,
-            options,
-            CountResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
      * Updates a document using the Update API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
      * @param updateRequest the request
@@ -1299,25 +608,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final UpdateResponse update(UpdateRequest updateRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Asynchronously updates a document using the Update API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
-     * @param updateRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable updateAsync(UpdateRequest updateRequest, RequestOptions options, ActionListener<UpdateResponse> listener) {
-        return performRequestAsyncAndParseEntity(
-            updateRequest,
-            RequestConverters::update,
-            options,
-            UpdateResponse::fromXContent,
-            listener,
-            emptySet()
-        );
     }
 
     /**
@@ -1334,25 +624,6 @@ public class RestHighLevelClient implements Closeable {
             options,
             DeleteResponse::fromXContent,
             singleton(404)
-        );
-    }
-
-    /**
-     * Asynchronously deletes a document by id using the Delete API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
-     * @param deleteRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable deleteAsync(DeleteRequest deleteRequest, RequestOptions options, ActionListener<DeleteResponse> listener) {
-        return performRequestAsyncAndParseEntity(
-            deleteRequest,
-            RequestConverters::delete,
-            options,
-            DeleteResponse::fromXContent,
-            listener,
-            Collections.singleton(404)
         );
     }
 
@@ -1547,176 +818,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Clears one or more scroll ids using the Clear Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#_clear_scroll_api">
-     * Clear Scroll API on elastic.co</a>
-     * @param clearScrollRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            clearScrollRequest,
-            RequestConverters::clearScroll,
-            options,
-            ClearScrollResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously clears one or more scroll ids using the Clear Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#_clear_scroll_api">
-     * Clear Scroll API on elastic.co</a>
-     * @param clearScrollRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable clearScrollAsync(
-        ClearScrollRequest clearScrollRequest,
-        RequestOptions options,
-        ActionListener<ClearScrollResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            clearScrollRequest,
-            RequestConverters::clearScroll,
-            options,
-            ClearScrollResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Open a point in time before using it in search requests.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html"> Point in time API </a>
-     * @param openRequest the open request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response containing the point in time id
-     */
-    public final OpenPointInTimeResponse openPointInTime(OpenPointInTimeRequest openRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            openRequest,
-            RequestConverters::openPointInTime,
-            options,
-            OpenPointInTimeResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously open a point in time before using it in search requests
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html"> Point in time API </a>
-     * @param openRequest the open request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return a cancellable that may be used to cancel the request
-     */
-    public final Cancellable openPointInTimeAsync(
-        OpenPointInTimeRequest openRequest,
-        RequestOptions options,
-        ActionListener<OpenPointInTimeResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            openRequest,
-            RequestConverters::openPointInTime,
-            options,
-            OpenPointInTimeResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Close a point in time that is opened with {@link #openPointInTime(OpenPointInTimeRequest, RequestOptions)} or
-     * {@link #openPointInTimeAsync(OpenPointInTimeRequest, RequestOptions, ActionListener)}.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html#close-point-in-time-api">
-     * Close point in time API</a>
-     * @param closeRequest the close request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final ClosePointInTimeResponse closePointInTime(ClosePointInTimeRequest closeRequest, RequestOptions options)
-        throws IOException {
-        return performRequestAndParseEntity(
-            closeRequest,
-            RequestConverters::closePointInTime,
-            options,
-            ClosePointInTimeResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously close a point in time that is opened with {@link #openPointInTime(OpenPointInTimeRequest, RequestOptions)} or
-     * {@link #openPointInTimeAsync(OpenPointInTimeRequest, RequestOptions, ActionListener)}.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html#close-point-in-time-api">
-     * Close point in time API</a>
-     * @param closeRequest the close request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return a cancellable that may be used to cancel the request
-     */
-    public final Cancellable closePointInTimeAsync(
-        ClosePointInTimeRequest closeRequest,
-        RequestOptions options,
-        ActionListener<ClosePointInTimeResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            closeRequest,
-            RequestConverters::closePointInTime,
-            options,
-            ClosePointInTimeResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a request using the Search Template API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
-     * on elastic.co</a>.
-     * @param searchTemplateRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest, RequestOptions options)
-        throws IOException {
-        return performRequestAndParseEntity(
-            searchTemplateRequest,
-            RequestConverters::searchTemplate,
-            options,
-            SearchTemplateResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously executes a request using the Search Template API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html">Search Template API
-     * on elastic.co</a>.
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable searchTemplateAsync(
-        SearchTemplateRequest searchTemplateRequest,
-        RequestOptions options,
-        ActionListener<SearchTemplateResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            searchTemplateRequest,
-            RequestConverters::searchTemplate,
-            options,
-            SearchTemplateResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
      * Executes a request using the Explain API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
      * @param explainRequest the request
@@ -1731,25 +832,6 @@ public class RestHighLevelClient implements Closeable {
             );
             return parseEntity(response.getEntity(), entityParser);
         }, singleton(404));
-    }
-
-    /**
-     * Asynchronously executes a request using the Explain API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
-     * @param explainRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable explainAsync(ExplainRequest explainRequest, RequestOptions options, ActionListener<ExplainResponse> listener) {
-        return performRequestAsync(explainRequest, RequestConverters::explain, options, response -> {
-            CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser = parser -> ExplainResponse.fromXContent(
-                parser,
-                convertExistsResponse(response)
-            );
-            return parseEntity(response.getEntity(), entityParser);
-        }, listener, singleton(404));
     }
 
     /**
@@ -1772,156 +854,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously calls the Term Vectors API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-termvectors.html">Term Vectors API on
-     * elastic.co</a>
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable termvectorsAsync(
-        TermVectorsRequest request,
-        RequestOptions options,
-        ActionListener<TermVectorsResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            request,
-            RequestConverters::termVectors,
-            options,
-            TermVectorsResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Calls the Multi Term Vectors API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-termvectors.html">Multi Term Vectors API
-     * on elastic.co</a>
-     *
-     * @param request   the request
-     * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     */
-    public final MultiTermVectorsResponse mtermvectors(MultiTermVectorsRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            request,
-            RequestConverters::mtermVectors,
-            options,
-            MultiTermVectorsResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously calls the Multi Term Vectors API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-termvectors.html">Multi Term Vectors API
-     * on elastic.co</a>
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable mtermvectorsAsync(
-        MultiTermVectorsRequest request,
-        RequestOptions options,
-        ActionListener<MultiTermVectorsResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            request,
-            RequestConverters::mtermVectors,
-            options,
-            MultiTermVectorsResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a request using the Ranking Evaluation API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
-     * on elastic.co</a>
-     * @param rankEvalRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final RankEvalResponse rankEval(RankEvalRequest rankEvalRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            rankEvalRequest,
-            RequestConverters::rankEval,
-            options,
-            RankEvalResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a request using the Multi Search Template API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
-     * on elastic.co</a>.
-     */
-    public final MultiSearchTemplateResponse msearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest, RequestOptions options)
-        throws IOException {
-        return performRequestAndParseEntity(
-            multiSearchTemplateRequest,
-            RequestConverters::multiSearchTemplate,
-            options,
-            MultiSearchTemplateResponse::fromXContext,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously executes a request using the Multi Search Template API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
-     * on elastic.co</a>.
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable msearchTemplateAsync(
-        MultiSearchTemplateRequest multiSearchTemplateRequest,
-        RequestOptions options,
-        ActionListener<MultiSearchTemplateResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            multiSearchTemplateRequest,
-            RequestConverters::multiSearchTemplate,
-            options,
-            MultiSearchTemplateResponse::fromXContext,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously executes a request using the Ranking Evaluation API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
-     * on elastic.co</a>
-     * @param rankEvalRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable rankEvalAsync(
-        RankEvalRequest rankEvalRequest,
-        RequestOptions options,
-        ActionListener<RankEvalResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            rankEvalRequest,
-            RequestConverters::rankEval,
-            options,
-            RankEvalResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
      * Executes a request using the Field Capabilities API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
      * on elastic.co</a>.
@@ -1936,156 +868,6 @@ public class RestHighLevelClient implements Closeable {
             RequestConverters::fieldCaps,
             options,
             FieldCapabilitiesResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Get stored script by id.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
-     *     How to use scripts on elastic.co</a>
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public GetStoredScriptResponse getScript(GetStoredScriptRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            request,
-            RequestConverters::getScript,
-            options,
-            GetStoredScriptResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously get stored script by id.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
-     *     How to use scripts on elastic.co</a>
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable getScriptAsync(
-        GetStoredScriptRequest request,
-        RequestOptions options,
-        ActionListener<GetStoredScriptResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            request,
-            RequestConverters::getScript,
-            options,
-            GetStoredScriptResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Delete stored script by id.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
-     *     How to use scripts on elastic.co</a>
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public AcknowledgedResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            request,
-            RequestConverters::deleteScript,
-            options,
-            AcknowledgedResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously delete stored script by id.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
-     *     How to use scripts on elastic.co</a>
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable deleteScriptAsync(
-        DeleteStoredScriptRequest request,
-        RequestOptions options,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            request,
-            RequestConverters::deleteScript,
-            options,
-            AcknowledgedResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Puts an stored script using the Scripting API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
-     * on elastic.co</a>
-     * @param putStoredScriptRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public AcknowledgedResponse putScript(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            putStoredScriptRequest,
-            RequestConverters::putScript,
-            options,
-            AcknowledgedResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously puts an stored script using the Scripting API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
-     * on elastic.co</a>
-     * @param putStoredScriptRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable putScriptAsync(
-        PutStoredScriptRequest putStoredScriptRequest,
-        RequestOptions options,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            putStoredScriptRequest,
-            RequestConverters::putScript,
-            options,
-            AcknowledgedResponse::fromXContent,
-            listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Asynchronously executes a request using the Field Capabilities API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
-     * on elastic.co</a>.
-     * @param fieldCapabilitiesRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable fieldCapsAsync(
-        FieldCapabilitiesRequest fieldCapabilitiesRequest,
-        RequestOptions options,
-        ActionListener<FieldCapabilitiesResponse> listener
-    ) {
-        return performRequestAsyncAndParseEntity(
-            fieldCapabilitiesRequest,
-            RequestConverters::fieldCaps,
-            options,
-            FieldCapabilitiesResponse::fromXContent,
-            listener,
             emptySet()
         );
     }
@@ -2192,67 +974,12 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Defines a helper method for requests that can 404 and in which case will return an empty Optional
-     * otherwise tries to parse the response body
-     */
-    protected final <Req extends Validatable, Resp> Optional<Resp> performRequestAndParseOptionalEntity(
-        Req request,
-        CheckedFunction<Req, Request, IOException> requestConverter,
-        RequestOptions options,
-        CheckedFunction<XContentParser, Resp, IOException> entityParser
-    ) throws IOException {
-        Optional<ValidationException> validationException = request.validate();
-        if (validationException != null && validationException.isPresent()) {
-            throw validationException.get();
-        }
-        Request req = requestConverter.apply(request);
-        req.setOptions(options);
-        Response response;
-        try {
-            response = performClientRequest(req);
-        } catch (ResponseException e) {
-            if (RestStatus.NOT_FOUND.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
-                return Optional.empty();
-            }
-            throw parseResponseException(e);
-        }
-
-        try {
-            return Optional.of(parseEntity(response.getEntity(), entityParser));
-        } catch (Exception e) {
-            throw new IOException("Unable to parse response body for " + response, e);
-        }
-    }
-
-    /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsyncAndParseEntity(
-        Req request,
-        CheckedFunction<Req, Request, IOException> requestConverter,
-        RequestOptions options,
-        CheckedFunction<XContentParser, Resp, IOException> entityParser,
-        ActionListener<Resp> listener,
-        Set<Integer> ignores
-    ) {
-        return performRequestAsync(
-            request,
-            requestConverter,
-            options,
-            response -> parseEntity(response.getEntity(), entityParser),
-            listener,
-            ignores
-        );
-    }
-
-    /**
-     * Defines a helper method for asynchronously performing a request.
-     * @return Cancellable instance that may be used to cancel the request
-     */
-    protected final <Req extends Validatable, Resp> Cancellable performRequestAsyncAndParseEntity(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -2377,37 +1104,6 @@ public class RestHighLevelClient implements Closeable {
         };
     }
 
-    /**
-     * Asynchronous request which returns empty {@link Optional}s in the case of 404s or parses entity into an Optional
-     * @return Cancellable instance that may be used to cancel the request
-     */
-    protected final <Req extends Validatable, Resp> Cancellable performRequestAsyncAndParseOptionalEntity(
-        Req request,
-        CheckedFunction<Req, Request, IOException> requestConverter,
-        RequestOptions options,
-        CheckedFunction<XContentParser, Resp, IOException> entityParser,
-        ActionListener<Optional<Resp>> listener
-    ) {
-        Optional<ValidationException> validationException = request.validate();
-        if (validationException != null && validationException.isPresent()) {
-            listener.onFailure(validationException.get());
-            return Cancellable.NO_OP;
-        }
-        Request req;
-        try {
-            req = requestConverter.apply(request);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return Cancellable.NO_OP;
-        }
-        req.setOptions(options);
-        ResponseListener responseListener = wrapResponseListener404sOptional(
-            response -> parseEntity(response.getEntity(), entityParser),
-            listener
-        );
-        return performClientRequestAsync(req, responseListener);
-    }
-
     final <Resp> ResponseListener wrapResponseListener404sOptional(
         CheckedFunction<Response, Resp, IOException> responseConverter,
         ActionListener<Optional<Resp>> actionListener
@@ -2456,7 +1152,7 @@ public class RestHighLevelClient implements Closeable {
             elasticsearchException = new ElasticsearchStatusException(responseException.getMessage(), restStatus, responseException);
         } else {
             try {
-                elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
+                elasticsearchException = parseEntity(entity, RestResponse::errorFromXContent);
                 elasticsearchException.addSuppressed(responseException);
             } catch (Exception e) {
                 elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);
@@ -2478,7 +1174,7 @@ public class RestHighLevelClient implements Closeable {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(parserConfig, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }
@@ -2801,17 +1497,6 @@ public class RestHighLevelClient implements Closeable {
                 return Optional.of("Invalid or missing tagline [" + mainResponse.getTagline() + "]");
             }
 
-            if (major == 7) {
-                // >= 7.0 and < 7.14
-                String responseFlavor = mainResponse.getVersion().getBuildFlavor();
-                if ("default".equals(responseFlavor) == false) {
-                    // Flavor is unknown when running tests, and non-mocked responses will return an unknown flavor
-                    if (Build.CURRENT.flavor() != Build.Flavor.UNKNOWN || "unknown".equals(responseFlavor) == false) {
-                        return Optional.of("Invalid or missing build flavor [" + responseFlavor + "]");
-                    }
-                }
-            }
-
             return Optional.empty();
         }
 
@@ -2829,14 +1514,6 @@ public class RestHighLevelClient implements Closeable {
 
         return Optional.empty();
     }
-
-    /**
-     * Ignores deprecation warnings. This is appropriate because it is only
-     * used to parse responses from Elasticsearch. Any deprecation warnings
-     * emitted there just mean that you are talking to an old version of
-     * Elasticsearch. There isn't anything you can do about the deprecation.
-     */
-    private static final DeprecationHandler DEPRECATION_HANDLER = DeprecationHandler.IGNORE_DEPRECATIONS;
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
@@ -2892,7 +1569,7 @@ public class RestHighLevelClient implements Closeable {
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
         map.put(StringStatsAggregationBuilder.NAME, (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c));
         map.put(TopMetricsAggregationBuilder.NAME, (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c));
-        map.put(InferencePipelineAggregationBuilder.NAME, (p, c) -> ParsedInference.fromXContent(p, (String) (c)));
+        map.put(TimeSeriesAggregationBuilder.NAME, (p, c) -> ParsedTimeSeries.fromXContent(p, (String) (c)));
         List<NamedXContentRegistry.Entry> entries = map.entrySet()
             .stream()
             .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))

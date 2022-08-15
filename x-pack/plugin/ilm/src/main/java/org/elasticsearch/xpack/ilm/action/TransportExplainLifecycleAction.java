@@ -24,15 +24,14 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
@@ -114,9 +113,9 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
     ) throws IOException {
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
-        String currentPhase = lifecycleState.getPhase();
-        String stepInfo = lifecycleState.getStepInfo();
+        String policyName = indexMetadata.getLifecyclePolicyName();
+        String currentPhase = lifecycleState.phase();
+        String stepInfo = lifecycleState.stepInfo();
         BytesArray stepInfoBytes = null;
         if (stepInfo != null) {
             stepInfoBytes = new BytesArray(stepInfo);
@@ -125,13 +124,12 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         Long indexCreationDate = indexMetadata.getCreationDate();
 
         // parse existing phase steps from the phase definition in the index settings
-        String phaseDef = lifecycleState.getPhaseDefinition();
+        String phaseDef = lifecycleState.phaseDefinition();
         PhaseExecutionInfo phaseExecutionInfo = null;
         if (Strings.isNullOrEmpty(phaseDef) == false) {
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    xContentRegistry,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry),
                     phaseDef
                 )
             ) {
@@ -143,25 +141,25 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         if (Strings.hasLength(policyName)) {
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false
-                || (ErrorStep.NAME.equals(lifecycleState.getStep()) || indexLifecycleService.policyExists(policyName) == false)) {
+                || (ErrorStep.NAME.equals(lifecycleState.step()) || indexLifecycleService.policyExists(policyName) == false)) {
                 Long originationDate = idxSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
                     indexName,
                     indexCreationDate,
                     policyName,
-                    originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate(),
-                    lifecycleState.getPhase(),
-                    lifecycleState.getAction(),
-                    lifecycleState.getStep(),
-                    lifecycleState.getFailedStep(),
+                    originationDate != -1L ? originationDate : lifecycleState.lifecycleDate(),
+                    lifecycleState.phase(),
+                    lifecycleState.action(),
+                    lifecycleState.step(),
+                    lifecycleState.failedStep(),
                     lifecycleState.isAutoRetryableError(),
-                    lifecycleState.getFailedStepRetryCount(),
-                    lifecycleState.getPhaseTime(),
-                    lifecycleState.getActionTime(),
-                    lifecycleState.getStepTime(),
-                    lifecycleState.getSnapshotRepository(),
-                    lifecycleState.getSnapshotName(),
-                    lifecycleState.getShrinkIndexName(),
+                    lifecycleState.failedStepRetryCount(),
+                    lifecycleState.phaseTime(),
+                    lifecycleState.actionTime(),
+                    lifecycleState.stepTime(),
+                    lifecycleState.snapshotRepository(),
+                    lifecycleState.snapshotName(),
+                    lifecycleState.shrinkIndexName(),
                     stepInfoBytes,
                     phaseExecutionInfo
                 );

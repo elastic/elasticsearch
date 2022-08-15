@@ -103,6 +103,17 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    "traces-apm.sampled-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "monitor",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     ".fleet-*"
                   ],
                   "privileges": [
@@ -132,6 +143,44 @@ public class ServiceAccountIT extends ESRestTestCase {
               }
             }
           }""";
+
+    private static final String ELASTIC_ENTERPRISE_SEARCH_SERVER_ROLE_DESCRIPTOR = """
+        {
+            "cluster": [
+                "manage",
+                "manage_security"
+            ],
+            "indices": [
+                {
+                    "names": [
+                        "search-*",
+                        ".ent-search-*",
+                        ".monitoring-ent-search-*",
+                        "metricbeat-ent-search-*",
+                        "enterprise-search-*",
+                        "logs-app_search.analytics-default",
+                        "logs-enterprise_search.api-default",
+                        "logs-enterprise_search.audit-default",
+                        "logs-app_search.search_relevance_suggestions-default",
+                        "logs-crawler-default",
+                        "logs-workplace_search.analytics-default",
+                        "logs-workplace_search.content_events-default"
+                    ],
+                    "privileges": [
+                        "manage",
+                        "read",
+                        "write"
+                    ],
+                    "allow_restricted_indices": false
+                }
+            ],
+            "applications": [],
+            "run_as": [],
+            "metadata": {},
+            "transient_metadata": {
+                "enabled": true
+            }
+        }""";
 
     @BeforeClass
     public static void init() throws URISyntaxException, FileNotFoundException {
@@ -186,6 +235,19 @@ public class ServiceAccountIT extends ESRestTestCase {
                 ReservedRolesStore.kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)
                     .toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS)
             )
+        );
+
+        final Request getServiceAccountRequestEnterpriseSearchService = new Request(
+            "GET",
+            "_security/service/elastic/enterprise-search-server"
+        );
+        final Response getServiceAccountResponseEnterpriseSearchService = client().performRequest(
+            getServiceAccountRequestEnterpriseSearchService
+        );
+        assertServiceAccountRoleDescriptor(
+            getServiceAccountResponseEnterpriseSearchService,
+            "elastic/enterprise-search-server",
+            ELASTIC_ENTERPRISE_SEARCH_SERVER_ROLE_DESCRIPTOR
         );
 
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");

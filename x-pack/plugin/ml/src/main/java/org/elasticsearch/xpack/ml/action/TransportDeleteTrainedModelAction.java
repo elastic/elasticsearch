@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -17,13 +16,14 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -49,6 +49,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * The action is a master node action to ensure it reads an up-to-date cluster
@@ -98,9 +100,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug(
-            () -> new ParameterizedMessage("[{}] Request to delete trained model{}", request.getId(), request.isForce() ? " (force)" : "")
-        );
+        logger.debug(() -> format("[%s] Request to delete trained model%s", request.getId(), request.isForce() ? " (force)" : ""));
 
         String id = request.getId();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
@@ -134,7 +134,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             }
         }
 
-        if (TrainedModelAllocationMetadata.fromState(state).isAllocated(request.getId())) {
+        if (TrainedModelAssignmentMetadata.fromState(state).isAssigned(request.getId())) {
             if (request.isForce()) {
                 forceStopDeployment(
                     request.getId(),
@@ -180,7 +180,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                     .map(InferenceProcessor::getModelId)
                     .forEach(allReferencedModelKeys::add);
             } catch (Exception ex) {
-                logger.warn(new ParameterizedMessage("failed to load pipeline [{}]", pipelineId), ex);
+                logger.warn(() -> "failed to load pipeline [" + pipelineId + "]", ex);
             }
         }
         return allReferencedModelKeys;
@@ -208,7 +208,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         List<String> modelAliases,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] Deleting model", request.getId()));
+        logger.debug(() -> "[" + request.getId() + "] Deleting model");
 
         ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(
             ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(r -> {
@@ -225,7 +225,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             return;
         }
 
-        clusterService.submitStateUpdateTask("delete-trained-model-alias", new AckedClusterStateUpdateTask(request, nameDeletionListener) {
+        submitUnbatchedTask("delete-trained-model-alias", new AckedClusterStateUpdateTask(request, nameDeletionListener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 final ClusterState.Builder builder = ClusterState.builder(currentState);
@@ -242,7 +242,12 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                 );
                 return builder.build();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override

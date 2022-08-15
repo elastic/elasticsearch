@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -147,6 +148,11 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         collectMode = in.readOptionalWriteable(Aggregator.SubAggCollectionMode::readFromStream);
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
         showTermDocCountError = in.readBoolean();
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     /**
@@ -426,5 +432,10 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
             && Objects.equals(this.order, other.order)
             && Objects.equals(this.collectMode, other.collectMode)
             && Objects.equals(this.bucketCountThresholds, other.bucketCountThresholds);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_12_0;
     }
 }

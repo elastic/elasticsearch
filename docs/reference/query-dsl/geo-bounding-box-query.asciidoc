@@ -10,7 +10,7 @@ intersect a bounding box.
 [discrete]
 [[geo-bounding-box-query-ex]]
 ==== Example
-Assume the following the following documents are indexed:
+Assume the following documents are indexed:
 
 [source,console]
 --------------------------------------------------
@@ -158,7 +158,7 @@ GET my_locations,my_geoshapes/_search
 --------------------------------------------------
 
 [discrete]
-==== Query Options
+==== Query options
 
 [cols="<,<",options="header",]
 |=======================================================================
@@ -173,13 +173,13 @@ accept geo points with invalid latitude or longitude, set to
 
 [[query-dsl-geo-bounding-box-query-accepted-formats]]
 [discrete]
-==== Accepted Formats
+==== Accepted formats
 
 In much the same way the `geo_point` type can accept different
 representations of the geo point, the filter can accept it as well:
 
 [discrete]
-===== Lat Lon As Properties
+===== Lat lon as properties
 
 [source,console]
 --------------------------------------------------
@@ -210,7 +210,7 @@ GET my_locations/_search
 --------------------------------------------------
 
 [discrete]
-===== Lat Lon As Array
+===== Lat lon as array
 
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
 conform with http://geojson.org/[GeoJSON].
@@ -238,7 +238,7 @@ GET my_locations/_search
 --------------------------------------------------
 
 [discrete]
-===== Lat Lon As String
+===== Lat lon as string
 
 Format in `lat,lon`.
 
@@ -254,8 +254,8 @@ GET my_locations/_search
       "filter": {
         "geo_bounding_box": {
           "pin.location": {
-            "top_left": "40.73, -74.1",
-            "bottom_right": "40.01, -71.12"
+            "top_left": "POINT (-74.1 40.73)",
+            "bottom_right": "POINT (-71.12 40.01)"
           }
         }
       }
@@ -265,7 +265,7 @@ GET my_locations/_search
 --------------------------------------------------
 
 [discrete]
-===== Bounding Box as Well-Known Text (WKT)
+===== Bounding box as well-known text (WKT)
 
 [source,console]
 --------------------------------------------------
@@ -348,11 +348,9 @@ corner at `39.375,-67.5`.
 ==== Vertices
 
 The vertices of the bounding box can either be set by `top_left` and
-`bottom_right` or by `top_right` and `bottom_left` parameters. More
-over the names `topLeft`, `bottomRight`, `topRight` and `bottomLeft`
-are supported. Instead of setting the values pairwise, one can use
-the simple names `top`, `left`, `bottom` and `right` to set the
-values separately.
+`bottom_right` or by `top_right` and `bottom_left` parameters. Instead of 
+setting the values pairwise, one can use the simple names `top`, `left`, 
+`bottom` and `right` to set the values separately.
 
 [source,console]
 --------------------------------------------------
@@ -379,14 +377,14 @@ GET my_locations/_search
 --------------------------------------------------
 
 [discrete]
-==== Multi Location Per Document
+==== Multi location per document
 
 The filter can work with multiple locations / points per document. Once
 a single location / point matches the filter, the document will be
 included in the filter
 
 [discrete]
-==== Ignore Unmapped
+==== Ignore unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field
 and will not match any documents for this query. This can be useful when
@@ -395,7 +393,7 @@ querying multiple indexes which might have different mappings. When set to
 is not mapped.
 
 [discrete]
-==== Notes on Precision
+==== Notes on precision
 
 Geopoints have limited precision and are always rounded down during index time.
 During the query time, upper boundaries of the bounding boxes are rounded down,

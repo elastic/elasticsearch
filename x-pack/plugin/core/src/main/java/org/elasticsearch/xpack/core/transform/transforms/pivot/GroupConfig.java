@@ -92,7 +92,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(source);
+        out.writeGenericMap(source);
         out.writeMap(groups, StreamOutput::writeString, (stream, value) -> {
             stream.writeByte(value.getType().getId());
             value.writeTo(stream);

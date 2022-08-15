@@ -40,11 +40,11 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.join.query.HasChildQueryBuilder.LateParsingQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -55,7 +55,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.join.query.HasChildQueryBuilder.LateParsingQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -77,7 +76,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class);
     }
 
     @Override
@@ -229,6 +228,58 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "_name" : "WNzYMJKRwePuRBh",
                 "inner_hits" : {
                   "name" : "inner_hits_name",
+                  "size" : 100,
+                  "sort" : [ {
+                    "mapped_string" : {
+                      "order" : "asc"
+                    }
+                  } ]
+                }
+              }
+            }""";
+        HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
+        checkGeneratedJson(
+            /*
+             * Ignoring unmapped is the default and we don't dump it and can't
+             * change it if we're going to use inner_hits.
+             */
+            query.replaceAll("\"ignore_unmapped\" : false,", ""),
+            queryBuilder
+        );
+        assertEquals(query, queryBuilder.maxChildren(), 1217235442);
+        assertEquals(query, queryBuilder.minChildren(), 883170873);
+        assertEquals(query, queryBuilder.boost(), 2.0f, 0.0f);
+        assertEquals(query, queryBuilder.queryName(), "WNzYMJKRwePuRBh");
+        assertEquals(query, queryBuilder.childType(), "child");
+        assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
+        assertNotNull(query, queryBuilder.innerHit());
+        InnerHitBuilder expected = new InnerHitBuilder("child").setName("inner_hits_name")
+            .setSize(100)
+            .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));
+        assertEquals(query, queryBuilder.innerHit(), expected);
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String query = """
+            {
+              "has_child" : {
+                "query" : {
+                  "range" : {
+                    "mapped_string" : {
+                      "gte" : "agJhRET",
+                      "lte" : "zvqIq",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "type" : "child",
+                "score_mode" : "none",
+                "min_children" : 1,
+                "max_children" : MAX_CHILDREN,
+                "ignore_unmapped" : false,
+                "boost" : 1.0,
+                "inner_hits" : {
+                  "name" : "inner_hits_name",
                   "ignore_unmapped" : false,
                   "from" : 0,
                   "size" : 100,
@@ -243,20 +294,31 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                   } ]
                 }
               }
-            }""";
-        HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
-        checkGeneratedJson(query, queryBuilder);
-        assertEquals(query, queryBuilder.maxChildren(), 1217235442);
-        assertEquals(query, queryBuilder.minChildren(), 883170873);
-        assertEquals(query, queryBuilder.boost(), 2.0f, 0.0f);
-        assertEquals(query, queryBuilder.queryName(), "WNzYMJKRwePuRBh");
-        assertEquals(query, queryBuilder.childType(), "child");
-        assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
-        assertNotNull(query, queryBuilder.innerHit());
-        InnerHitBuilder expected = new InnerHitBuilder("child").setName("inner_hits_name")
-            .setSize(100)
-            .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));
-        assertEquals(query, queryBuilder.innerHit(), expected);
+            }""".replaceAll("MAX_CHILDREN", Integer.toString(Integer.MAX_VALUE));
+        checkGeneratedJson("""
+            {
+              "has_child" : {
+                "query" : {
+                  "range" : {
+                    "mapped_string" : {
+                      "gte" : "agJhRET",
+                      "lte" : "zvqIq",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "type" : "child",
+                "inner_hits" : {
+                  "name" : "inner_hits_name",
+                  "size" : 100,
+                  "sort" : [ {
+                    "mapped_string" : {
+                      "order" : "asc"
+                    }
+                  } ]
+                }
+              }
+            }""", parseQuery(query));
     }
 
     public void testToQueryInnerQueryType() throws IOException {

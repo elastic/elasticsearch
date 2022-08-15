@@ -26,11 +26,10 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -98,7 +97,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81411")
     public void testSecurityNativeRealm() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createUser(true);
@@ -331,7 +329,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82785")
     public void testApiKeySuperuser() throws IOException {
         if (isRunningAgainstOldCluster()) {
             final Request createUserRequest = new Request("PUT", "/_security/user/api_key_super_creator");
@@ -354,10 +351,29 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         )
                     )
             );
-            createApiKeyRequest.setJsonEntity("""
-                {
-                   "name": "super_legacy_key"
-                }""");
+            if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
+                createApiKeyRequest.setJsonEntity("""
+                    {
+                       "name": "super_legacy_key"
+                    }""");
+            } else {
+                createApiKeyRequest.setJsonEntity("""
+                    {
+                       "name": "super_legacy_key",
+                       "role_descriptors": {
+                         "super": {
+                           "cluster": [ "all" ],
+                           "indices": [
+                             {
+                               "names": [ "*" ],
+                               "privileges": [ "all" ],
+                               "allow_restricted_indices": true
+                             }
+                           ]
+                         }
+                       }
+                    }""");
+            }
             final Map<String, Object> createApiKeyResponse = entityAsMap(client().performRequest(createApiKeyRequest));
             final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
                 StandardCharsets.UTF_8
@@ -374,12 +390,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     {
                       "doc_type": "foo"
                     }""");
-                indexRequest.setOptions(
-                    expectWarnings(
-                        "this request accesses system indices: [.security-7], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
-                    ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-                );
+                if (getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
+                    indexRequest.setOptions(
+                        expectWarnings(
+                            "this request accesses system indices: [.security-7], but in a future major "
+                                + "version, direct access to system indices will be prevented by default"
+                        ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
+                    );
+                } else {
+                    indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
+                }
                 assertOK(client().performRequest(indexRequest));
             }
         } else {
@@ -608,11 +628,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
             try (
                 XContentParser parser = xContentType.xContent()
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        response.getEntity().getContent()
-                    )
+                    .createParser(XContentParserConfiguration.EMPTY, response.getEntity().getContent())
             ) {
                 assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));
             }

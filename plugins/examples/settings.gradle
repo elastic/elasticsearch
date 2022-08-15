@@ -6,6 +6,10 @@
  * Side Public License, v 1.
  */
 
+plugins {
+  id "com.gradle.enterprise" version "3.8.1"
+}
+
 // Include all subdirectories as example projects
 rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exists() }.each { subDir ->
   include ":${subDir.name}"
@@ -62,7 +66,7 @@ static def getDefaultDistroProjectName() {
   } else if (os.startsWith("Linux") || os.startsWith("LINUX")) {
     return isArm ? 'linux-aarch64-tar' : 'linux-tar'
   } else if (os.startsWith("Mac")) {
-    return isArm ? 'darwing-aarch64-tar' : 'darwin-tar'
+    return isArm ? 'darwin-aarch64-tar' : 'darwin-tar'
   } else {
     throw new GradleException("Unable to determine system platform type.")
   }

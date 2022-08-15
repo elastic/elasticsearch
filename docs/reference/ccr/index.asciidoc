@@ -195,6 +195,11 @@ You can't manually modify a follower index's mappings or aliases. To make
 changes, you must update the leader index. Because they are read-only, follower
 indices reject writes in all configurations. 
 
+NOTE: Although changes to aliases on the leader index are replicated to follower
+indices, write indices are ignored. Follower indices can't accept direct writes,
+so if any leader aliases have `is_write_index` set to `true`, that value is
+forced to `false`.
+
 For example, you index a document named `doc_1` in Datacenter A, which
 replicates to Datacenter B. If a client connects to Datacenter B and attempts
 to update `doc_1`, the request fails. To update `doc_1`, the client must
@@ -211,19 +216,11 @@ To manage how operations are replicated from the leader index, you can
 configure settings when
 <<ccr-getting-started-follower-index,creating the follower index>>.
 
-The follower index automatically retrieves some updates applied to the leader
-index, while other updates are retrieved as needed:
-
-[cols="3"]
-|===
-h| Update type h| Automatic  h| As needed
-| Alias        | {yes-icon} | {no-icon}
-| Mapping      | {no-icon}  | {yes-icon}
-| Settings     | {no-icon}  | {yes-icon}
-|===
-
-For example, changing the number of replicas on the leader index is not
-replicated by the follower index, so that setting might not be retrieved.
+Changes in the index mapping on the leader index are replicated to the
+follower index as soon as possible. This behavior is true for index
+settings as well, except for some settings that are local to the leader
+index. For example, changing the number of replicas on the leader index is
+not replicated by the follower index, so that setting might not be retrieved.
 
 If you apply a non-dynamic settings change to the leader index that is
 needed by the follower index, the follower index closes itself, applies the

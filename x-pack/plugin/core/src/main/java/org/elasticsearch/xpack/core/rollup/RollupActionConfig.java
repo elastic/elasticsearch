@@ -6,78 +6,144 @@
  */
 package org.elasticsearch.xpack.core.rollup;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.time.ZoneId;
 import java.util.Objects;
-import java.util.Set;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * This class holds the configuration details of a {@link RollupAction} job, such as the groupings, metrics, what
- * index to rollup and where to roll them to.
+ * This class holds the configuration details of a {@link RollupAction} that downsamples time series
+ * (TSDB) indices. We have made great effort to simplify the rollup configuration and currently
+ * only requires a fixed time interval. So, it has the following format:
+ *
+ *  {
+ *    "fixed_interval" : "1d",
+ *  }
+ *
+ * fixed_interval is one or multiples of SI units and has no calendar-awareness (e.g. doesn't account
+ * for leap corrections, does not have variable length months, etc). Calendar-aware interval is not currently
+ * supported.
+ *
+ * Also, the rollup configuration uses the UTC time zone by default and the "@timestamp" field as
+ * the index field that stores the timestamp of the time series index.
+ *
+ * Finally, we have left methods such as {@link RollupActionConfig#getTimestampField()},
+ * {@link RollupActionConfig#getTimeZone()} and  {@link RollupActionConfig#getIntervalType()} for
+ * future extensions.
  */
 public class RollupActionConfig implements NamedWriteable, ToXContentObject {
 
-    private static final String NAME = "xpack/rollup/action/config";
+    private static final String NAME = "rollup/action/config";
+    public static final String FIXED_INTERVAL = "fixed_interval";
+    public static final String TIME_ZONE = "time_zone";
+    public static final String DEFAULT_TIMEZONE = ZoneId.of("UTC").getId();
 
-    private final RollupActionGroupConfig groupConfig;
-    private final List<MetricConfig> metricsConfig;
+    private static final String timestampField = DataStreamTimestampFieldMapper.DEFAULT_PATH;
+    private final DateHistogramInterval fixedInterval;
+    private final String timeZone = DEFAULT_TIMEZONE;
+    private final String intervalType = FIXED_INTERVAL;
 
     private static final ConstructingObjectParser<RollupActionConfig, Void> PARSER;
     static {
-        PARSER = new ConstructingObjectParser<>(NAME, false, (args) -> {
-            RollupActionGroupConfig groupConfig = (RollupActionGroupConfig) args[0];
-            @SuppressWarnings("unchecked")
-            List<MetricConfig> metricsConfig = (List<MetricConfig>) args[1];
-            return new RollupActionConfig(groupConfig, metricsConfig);
+        PARSER = new ConstructingObjectParser<>(NAME, a -> {
+            DateHistogramInterval fixedInterval = (DateHistogramInterval) a[0];
+            if (fixedInterval != null) {
+                return new RollupActionConfig(fixedInterval);
+            } else {
+                throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
+            }
         });
-        PARSER.declareObject(
-            optionalConstructorArg(),
-            (p, c) -> RollupActionGroupConfig.fromXContent(p),
-            new ParseField(RollupActionGroupConfig.NAME)
+
+        PARSER.declareField(
+            constructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            new ParseField(FIXED_INTERVAL),
+            ObjectParser.ValueType.STRING
         );
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> MetricConfig.fromXContent(p), new ParseField(MetricConfig.NAME));
     }
 
-    public RollupActionConfig(final RollupActionGroupConfig groupConfig, final List<MetricConfig> metricsConfig) {
-        if (groupConfig == null && (metricsConfig == null || metricsConfig.isEmpty())) {
-            throw new IllegalArgumentException("At least one grouping or metric must be configured");
-        } else if (metricsConfig == null || metricsConfig.isEmpty()) {
-            throw new IllegalArgumentException("At least one metric must be configured");
+    /**
+     * Create a new {@link RollupActionConfig} using the given configuration parameters.
+     * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
+     */
+    public RollupActionConfig(final DateHistogramInterval fixedInterval) {
+        if (fixedInterval == null) {
+            throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
         }
-        this.groupConfig = groupConfig;
-        this.metricsConfig = metricsConfig != null ? metricsConfig : Collections.emptyList();
+        this.fixedInterval = fixedInterval;
+
+        // validate interval
+        createRounding(this.fixedInterval.toString(), this.timeZone);
     }
 
     public RollupActionConfig(final StreamInput in) throws IOException {
-        groupConfig = in.readOptionalWriteable(RollupActionGroupConfig::new);
-        metricsConfig = in.readList(MetricConfig::new);
+        fixedInterval = new DateHistogramInterval(in);
     }
 
-    public RollupActionGroupConfig getGroupConfig() {
-        return groupConfig;
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        fixedInterval.writeTo(out);
     }
 
-    public List<MetricConfig> getMetricsConfig() {
-        return metricsConfig;
+    /**
+     * Get the timestamp field to be used for rolling up data. Currently,
+     * only the "@timestamp" value is supported.
+     */
+    public String getTimestampField() {
+        return timestampField;
+    }
+
+    /**
+     * Get the interval type. Currently, only fixed_interval is supported
+     */
+    public String getIntervalType() {
+        return intervalType;
+    }
+
+    /**
+     * Get the interval value
+     */
+    public DateHistogramInterval getInterval() {
+        return getFixedInterval();
+    }
+
+    /**
+     * Get the fixed_interval value
+     */
+    public DateHistogramInterval getFixedInterval() {
+        return fixedInterval;
+    }
+
+    /**
+     * Get the timezone to apply
+     */
+    public String getTimeZone() {
+        return timeZone;
+    }
+
+    /**
+     * Create the rounding for this date histogram
+     */
+    public Rounding.Prepared createRounding() {
+        return createRounding(fixedInterval.toString(), timeZone);
     }
 
     @Override
@@ -85,70 +151,36 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         return NAME;
     }
 
-    public Set<String> getAllFields() {
-        final Set<String> fields = new HashSet<>();
-        if (groupConfig != null) {
-            fields.addAll(groupConfig.getAllFields());
-        }
-        if (metricsConfig != null) {
-            for (MetricConfig metric : metricsConfig) {
-                fields.add(metric.getField());
-            }
-        }
-        return Collections.unmodifiableSet(fields);
-    }
-
-    public void validateMappings(
-        final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-        final ActionRequestValidationException validationException
-    ) {
-        groupConfig.validateMappings(fieldCapsResponse, validationException);
-        for (MetricConfig m : metricsConfig) {
-            m.validateMappings(fieldCapsResponse, validationException);
-        }
-    }
-
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         {
-            if (groupConfig != null) {
-                builder.field(RollupActionGroupConfig.NAME, groupConfig);
-            }
-            if (metricsConfig != null) {
-                builder.startArray(MetricConfig.NAME);
-                for (MetricConfig metric : metricsConfig) {
-                    metric.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
+            builder.field(FIXED_INTERVAL, fixedInterval.toString());
         }
-        builder.endObject();
-        return builder;
+        return builder.endObject();
+    }
+
+    public static RollupActionConfig fromXContent(final XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     @Override
-    public void writeTo(final StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(groupConfig);
-        out.writeList(metricsConfig);
-    }
-
-    @Override
-    public boolean equals(Object other) {
+    public boolean equals(final Object other) {
         if (this == other) {
             return true;
         }
-        if (other == null || getClass() != other.getClass()) {
+        if (other == null || other instanceof RollupActionConfig == false) {
             return false;
         }
-
         final RollupActionConfig that = (RollupActionConfig) other;
-        return Objects.equals(this.groupConfig, that.groupConfig) && Objects.equals(this.metricsConfig, that.metricsConfig);
+        return Objects.equals(fixedInterval, that.fixedInterval)
+            && Objects.equals(intervalType, that.intervalType)
+            && ZoneId.of(timeZone, ZoneId.SHORT_IDS).getRules().equals(ZoneId.of(that.timeZone, ZoneId.SHORT_IDS).getRules());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupConfig, metricsConfig);
+        return Objects.hash(fixedInterval, intervalType, ZoneId.of(timeZone));
     }
 
     @Override
@@ -156,7 +188,15 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         return Strings.toString(this, true, true);
     }
 
-    public static RollupActionConfig fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static Rounding.Prepared createRounding(final String expr, final String timeZone) {
+        Rounding.DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expr);
+        final Rounding.Builder rounding;
+        if (timeUnit != null) {
+            rounding = new Rounding.Builder(timeUnit);
+        } else {
+            rounding = new Rounding.Builder(TimeValue.parseTimeValue(expr, "createRounding"));
+        }
+        rounding.timeZone(ZoneId.of(timeZone, ZoneId.SHORT_IDS));
+        return rounding.build().prepareForUnknown();
     }
 }

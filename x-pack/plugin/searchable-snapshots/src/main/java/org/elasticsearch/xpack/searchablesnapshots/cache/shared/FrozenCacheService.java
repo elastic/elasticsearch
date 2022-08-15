@@ -732,7 +732,7 @@ public class FrozenCacheService implements Releasable {
             }
         }
 
-        private void throwAlreadyEvicted() {
+        private static void throwAlreadyEvicted() {
             throw new AlreadyClosedException("File chunk is evicted");
         }
 
@@ -824,7 +824,7 @@ public class FrozenCacheService implements Releasable {
             }, listener::onFailure);
         }
 
-        private void releaseAndFail(ActionListener<Integer> listener, Releasable decrementRef, Exception e) {
+        private static void releaseAndFail(ActionListener<Integer> listener, Releasable decrementRef, Exception e) {
             try {
                 Releasables.close(decrementRef);
             } catch (Exception ex) {

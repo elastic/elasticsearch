@@ -352,6 +352,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
+    @Override
     public boolean equals(Object object) {
         if (this == object) {
             return true;
@@ -443,9 +448,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                         );
                     }
                     fieldName = currentName;
-                    GeoPoint point = new GeoPoint();
-                    GeoUtils.parseGeoPoint(parser, point);
-                    geoPoints.add(point);
+                    geoPoints.add(GeoUtils.parseGeoPoint(parser));
                 }
             } else if (token.isValue()) {
                 if (parser.getRestApiVersion() == RestApiVersion.V_7
@@ -613,7 +616,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
             }
         }
-        return context.getForField(fieldType);
+        return context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
     }
 
     private Nested nested(SearchExecutionContext context) throws IOException {
@@ -659,8 +662,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
-                return new DoubleComparator(numHits, null, null, reversed, sortPos) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+                return new DoubleComparator(numHits, null, null, reversed, false) {
                     @Override
                     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                         return new DoubleLeafComparator(context) {
@@ -723,13 +726,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     );
                 }
                 double lat = parser.doubleValue();
-                GeoPoint point = new GeoPoint();
-                point.reset(lat, lon);
-                geoPoints.add(point);
+                geoPoints.add(new GeoPoint(lat, lon));
             } else {
-                GeoPoint point = new GeoPoint();
-                GeoUtils.parseGeoPoint(parser, point);
-                geoPoints.add(point);
+                geoPoints.add(GeoUtils.parseGeoPoint(parser));
             }
 
         }

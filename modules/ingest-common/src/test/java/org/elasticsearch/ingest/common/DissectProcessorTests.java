@@ -32,7 +32,7 @@ public class DissectProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            null,
+            1,
             null,
             null,
             Collections.singletonMap("message", "foo,bar,baz")
@@ -48,7 +48,7 @@ public class DissectProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            null,
+            1,
             null,
             null,
             MapBuilder.<String, Object>newMapBuilder().put("message", "foo,bar,baz").put("a", "willgetstompped").map()
@@ -65,7 +65,7 @@ public class DissectProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            null,
+            1,
             null,
             null,
             Collections.singletonMap("message", "foo       bar,,,,,,,baz nope:notagain 😊 🐇 🙃")
@@ -90,7 +90,7 @@ public class DissectProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            null,
+            1,
             null,
             null,
             Collections.singletonMap("message", "foo:bar,baz")

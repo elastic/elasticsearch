@@ -84,8 +84,11 @@ This role does not have access to editing tools in {kib}.
 [[built-in-roles-kibana-system]] `kibana_system` ::
 Grants access necessary for the {kib} system user to read from and write to the
 {kib} indices, manage index templates and tokens, and check the availability of
-the {es} cluster. This role grants read access to the `.monitoring-*` indices
-and read and write access to the `.reporting-*` indices. For more information,
+the {es} cluster. It also permits
+activating, searching, and retrieving user profiles,
+as well as updating user profile data for the `kibana-*` namespace.
+This role grants read access to the `.monitoring-*` indices and read and write
+access to the `.reporting-*` indices. For more information,
 see {kibana-ref}/using-kibana-with-security.html[Configuring Security in {kib}].
 +
 NOTE: This role should not be assigned to users as the granted permissions may
@@ -136,6 +139,11 @@ read access to the `.ml-notifications` and `.ml-anomalies*` indices
 {ml-cap} users also need index privileges for source and destination
 indices and roles that grant access to {kib}. See {ml-docs-setup-privileges}.
 
+[[built-in-roles-manage-enrich]] `manage_enrich`::
+Grants privileges to access and use all of the {ref}/enrich-apis.html[enrich APIs].
+Users with this role can manage enrich policies that add data from your existing 
+indices to incoming documents during ingest.
+
 [[built-in-roles-monitoring-user]] `monitoring_user`::
 Grants the minimum privileges required for any user of {monitoring} other than those
 required to use {kib}. This role grants access to the monitoring indices and grants
@@ -170,9 +178,12 @@ to change index settings or to read or update data stream or index data.
 [[built-in-roles-superuser]] `superuser`::
 Grants full access to cluster management and data indices. This role also grants
 direct read-only access to restricted indices like `.security`. A user with the
-`superuser` role can <<run-as-privilege, impersonate>> any other user in the system. 
+`superuser` role can <<run-as-privilege, impersonate>> any other user in the system.
 +
-NOTE: This role can manage security and create roles with unlimited privileges.
+On {ecloud}, all standard users, including those with the `superuser` role are
+restricted from performing <<operator-only-functionality,operator-only>> actions.
++
+IMPORTANT: This role can manage security and create roles with unlimited privileges.
 Take extra care when assigning it to a user.
 
 [[built-in-roles-transform-admin]] `transform_admin`::
@@ -181,8 +192,8 @@ Grants `manage_transform` cluster privileges, which enable you to manage
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-transform-user]] `transform_user`::
-Grants `monitor_transform` cluster privileges, which enable you to use
-{transforms}. This role also includes all
+Grants `monitor_transform` cluster privileges, which enable you to perform
+read-only operations related to {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 
 [[built-in-roles-transport-client]] `transport_client`::

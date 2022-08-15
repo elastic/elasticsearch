@@ -38,6 +38,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final boolean keepOnCompletion;
     private final TimeValue keepAlive;
 
+    private final boolean allowPartialSearchResults;
+
     public SqlQueryRequest(
         String query,
         List<SqlTypedParamValue> params,
@@ -54,7 +56,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         Boolean binaryCommunication,
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
-        TimeValue keepAlive
+        TimeValue keepAlive,
+        boolean allowPartialSearchResults
     ) {
         super(requestInfo);
         this.query = query;
@@ -72,6 +75,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.waitForCompletionTimeout = waitForCompletionTimeout;
         this.keepOnCompletion = keepOnCompletion;
         this.keepAlive = keepAlive;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     public SqlQueryRequest(
@@ -87,7 +91,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         RequestInfo requestInfo,
         boolean fieldMultiValueLeniency,
         boolean indexIncludeFrozen,
-        Boolean binaryCommunication
+        Boolean binaryCommunication,
+        boolean allowPartialSearchResults
     ) {
         this(
             query,
@@ -105,7 +110,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             binaryCommunication,
             CoreProtocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
             CoreProtocol.DEFAULT_KEEP_ON_COMPLETION,
-            CoreProtocol.DEFAULT_KEEP_ALIVE
+            CoreProtocol.DEFAULT_KEEP_ALIVE,
+            allowPartialSearchResults
         );
     }
 
@@ -114,7 +120,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         TimeValue requestTimeout,
         TimeValue pageTimeout,
         RequestInfo requestInfo,
-        boolean binaryCommunication
+        boolean binaryCommunication,
+        boolean allowPartialSearchResults
     ) {
         this(
             "",
@@ -129,7 +136,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             requestInfo,
             CoreProtocol.FIELD_MULTI_VALUE_LENIENCY,
             CoreProtocol.INDEX_INCLUDE_FROZEN,
-            binaryCommunication
+            binaryCommunication,
+            allowPartialSearchResults
         );
     }
 
@@ -219,6 +227,10 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         return keepAlive;
     }
 
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -232,6 +244,10 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         SqlQueryRequest that = (SqlQueryRequest) o;
         return fetchSize == that.fetchSize
+            && fieldMultiValueLeniency == that.fieldMultiValueLeniency
+            && indexIncludeFrozen == that.indexIncludeFrozen
+            && keepOnCompletion == that.keepOnCompletion
+            && allowPartialSearchResults == that.allowPartialSearchResults
             && Objects.equals(query, that.query)
             && Objects.equals(params, that.params)
             && Objects.equals(zoneId, that.zoneId)
@@ -240,11 +256,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             && Objects.equals(pageTimeout, that.pageTimeout)
             && Objects.equals(columnar, that.columnar)
             && Objects.equals(cursor, that.cursor)
-            && fieldMultiValueLeniency == that.fieldMultiValueLeniency
-            && indexIncludeFrozen == that.indexIncludeFrozen
             && Objects.equals(binaryCommunication, that.binaryCommunication)
             && Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout)
-            && keepOnCompletion == that.keepOnCompletion
             && Objects.equals(keepAlive, that.keepAlive);
     }
 
@@ -265,7 +278,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             binaryCommunication,
             waitForCompletionTimeout,
             keepOnCompletion,
-            keepAlive
+            keepAlive,
+            allowPartialSearchResults
         );
     }
 }

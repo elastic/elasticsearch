@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -69,7 +68,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             String fieldName = randomValueOtherThanMany(
                 choice -> choice.equals(GEO_POINT_FIELD_NAME)
                     || choice.equals(GEO_POINT_ALIAS_FIELD_NAME)
-                    || choice.equals(GEO_SHAPE_FIELD_NAME)
                     || choice.equals(INT_RANGE_FIELD_NAME)
                     || choice.equals(DATE_RANGE_FIELD_NAME)
                     || choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
@@ -131,7 +129,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             if (context.getFieldType(fieldName) != null) {
                 expected = new TermInSetQuery(
                     fieldName,
-                    terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList())
+                    terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).toList()
                 );
             } else {
                 expected = new MatchNoDocsQuery();
@@ -264,7 +262,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals("query must be rewritten first", e.getMessage());
 
         // terms lookup removes null values
-        List<Object> nonNullTerms = randomTerms.stream().filter(x -> x != null).collect(Collectors.toList());
+        List<Object> nonNullTerms = randomTerms.stream().filter(x -> x != null).toList();
         QueryBuilder expected;
         if (nonNullTerms.isEmpty()) {
             expected = new MatchNoneQueryBuilder();

@@ -12,7 +12,7 @@
 *Details* +
 To reduce the dependency of the JDBC driver onto Elasticsearch classes, the JDBC driver returns geometry data
 as strings using the WKT (well-known text) format instead of classes from the `org.elasticsearch.geometry`.
-Users can choose the geometry library desired to convert the string represantion into a full-blown objects
+Users can choose the geometry library desired to convert the string representation into a full-blown objects
 either such as the `elasticsearch-geo` library (which returned the object `org.elasticsearch.geo` as before),
 jts or spatial4j.
 

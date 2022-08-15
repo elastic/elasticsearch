@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +35,6 @@ import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
@@ -103,7 +103,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             sameInstance(IndexLongFieldRange.EMPTY)
         );
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(1)));
+        internalCluster().stopNode(nodeNames.get(1));
         assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
         assertAcked(client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder().putNull(excludeSetting)));
         assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
@@ -218,8 +218,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
             .state()
             .nodes()
             .getDataNodes()
+            .values()
             .stream()
-            .map(e -> e.getValue().getName())
+            .map(DiscoveryNode::getName)
             .collect(Collectors.toList());
         final String assignedNode = randomFrom(dataNodes);
         final String indexName = "test";
@@ -316,6 +317,45 @@ public class FrozenIndexIT extends ESIntegTestCase {
             );
         } finally {
             client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
+    }
+
+    public void testOpenPointInTimeWithNoIndexMatched() {
+        createIndex("test-index");
+
+        int numDocs = randomIntBetween(10, 50);
+        for (int i = 0; i < numDocs; i++) {
+            String id = Integer.toString(i);
+            client().prepareIndex("test-index").setId(id).setSource("value", i).get();
+        }
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-index")).actionGet());
+        // include the frozen indices
+        {
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").keepAlive(
+                TimeValue.timeValueMinutes(2)
+            );
+            final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
+            try {
+                SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
+                assertNoFailures(resp);
+                assertHitCount(resp, numDocs);
+            } finally {
+                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+            }
+        }
+        // exclude the frozen indices
+        {
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").indicesOptions(
+                IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled()
+            ).keepAlive(TimeValue.timeValueMinutes(2));
+            final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
+            try {
+                SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
+                assertNoFailures(resp);
+                assertHitCount(resp, 0);
+            } finally {
+                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+            }
         }
     }
 }

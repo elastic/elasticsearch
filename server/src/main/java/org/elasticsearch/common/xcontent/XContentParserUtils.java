@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
@@ -47,17 +46,17 @@ public final class XContentParserUtils {
     /**
      * @throws ParsingException with a "unknown field found" reason
      */
-    public static void throwUnknownField(String field, XContentLocation location) {
+    public static void throwUnknownField(String field, XContentParser parser) {
         String message = "Failed to parse object: unknown field [%s] found";
-        throw new ParsingException(location, String.format(Locale.ROOT, message, field));
+        throw new ParsingException(parser.getTokenLocation(), String.format(Locale.ROOT, message, field));
     }
 
     /**
      * @throws ParsingException with a "unknown token found" reason
      */
-    public static void throwUnknownToken(Token token, XContentLocation location) {
+    public static void throwUnknownToken(Token token, XContentParser parser) {
         String message = "Failed to parse object: unexpected token [%s] found";
-        throw new ParsingException(location, String.format(Locale.ROOT, message, token));
+        throw new ParsingException(parser.getTokenLocation(), String.format(Locale.ROOT, message, token));
     }
 
     /**
@@ -113,7 +112,7 @@ public final class XContentParserUtils {
         } else if (token == Token.START_ARRAY) {
             value = parser.listOrderedMap();
         } else {
-            throwUnknownToken(token, parser.getTokenLocation());
+            throwUnknownToken(token, parser);
         }
         return value;
     }
@@ -141,7 +140,7 @@ public final class XContentParserUtils {
     public static <T> void parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass, Consumer<T> consumer)
         throws IOException {
         if (parser.currentToken() != Token.START_OBJECT && parser.currentToken() != Token.START_ARRAY) {
-            throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
+            throwUnknownToken(parser.currentToken(), parser);
         }
         String currentFieldName = parser.currentName();
         if (Strings.hasLength(currentFieldName)) {

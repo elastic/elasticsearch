@@ -97,6 +97,10 @@ The detailed allocation status given the deployment configuration.
 (integer)
 The current number of nodes where the model is allocated.
 
+`cache_size`:::
+(<<byte-units,byte value>>)
+The inference cache size (in memory outside the JVM heap) per node for the model.
+
 `state`:::
 (string)
 The detailed allocation state related to the nodes.
@@ -112,6 +116,14 @@ The detailed allocation state related to the nodes.
 The desired number of nodes for model allocation.
 ======
 
+`error_count`:::
+(integer)
+The sum of `error_count` for all nodes in the deployment.
+
+`inference_count`:::
+(integer)
+The sum of `inference_count` for all nodes in the deployment.
+
 `model_id`:::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
@@ -126,6 +138,26 @@ The deployment stats for each node that currently has the model allocated.
 `average_inference_time_ms`:::
 (double)
 The average time for each inference call to complete on this node.
+The average is calculated over the lifetime of the deployment.
+
+`average_inference_time_ms_last_minute`:::
+(double)
+The average time for each inference call to complete on this node
+in the last minute.
+
+`error_count`:::
+(integer)
+The number of errors when evaluating the trained model.
+
+`inference_cache_hit_count`:::
+(integer)
+The total number of inference calls made against this node for this
+model that were served from the inference cache.
+
+`inference_cache_hit_count_last_minute`:::
+(integer)
+The number of inference calls made against this node for this model
+in the last minute that were served from the inference cache.
 
 `inference_count`:::
 (integer)
@@ -162,14 +194,32 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ========
 
-`reason`:::
-(string)
-The reason for the current state. Usually only populated when the `routing_state` is `failed`.
+`number_of_allocations`:::
+(integer)
+The number of allocations assigned to this node.
+
+`number_of_pending_requests`:::
+(integer)
+The number of inference requests queued to be processed.
+
+`peak_throughput_per_minute`:::
+(integer)
+The peak number of requests processed in a 1 minute period.
 
 `routing_state`:::
 (object)
 The current routing state and reason for the current routing state for this allocation.
 +
+.Properties of routing_state
+[%collapsible%open]
+========
+`reason`:::
+(string)
+The reason for the current state. Usually only populated when the `routing_state` is `failed`.
+
+`routing_state`:::
+(string)
+The current routing state.
 --
 * `starting`: The model is attempting to allocate on this model, inference calls are not yet accepted.
 * `started`: The model is allocated and ready to accept inference requests.
@@ -177,12 +227,53 @@ The current routing state and reason for the current routing state for this allo
 * `stopped`: The model is fully deallocated from this node.
 * `failed`: The allocation attempt failed, see `reason` field for the potential cause.
 --
+========
+
+`rejected_execution_count`:::
+(integer)
+The number of inference requests that were not processed because the
+queue was full.
 
 `start_time`:::
 (long)
 The epoch timestamp when the allocation started.
 
+`threads_per_allocation`:::
+(integer)
+The number of threads for each allocation during inference.
+This value is limited by the number of hardware threads on the node;
+it might therefore differ from the `threads_per_allocation` value in the <<start-trained-model-deployment>> API.
+
+`timeout_count`:::
+(integer)
+The number of inference requests that timed out before being processed.
+
+`throughput_last_minute`:::
+(integer)
+The number of requests processed in the last 1 minute.
 ======
+
+`number_of_allocations`:::
+(integer)
+The requested number of allocations for the trained model deployment.
+
+`peak_throughput_per_minute`:::
+(integer)
+The peak number of requests processed in a 1 minute period for
+all nodes in the deployment. This is calculated as the sum of
+each node's `peak_throughput_per_minute` value.
+
+`rejected_execution_count`:::
+(integer)
+The sum of `rejected_execution_count` for all nodes in the deployment.
+Individual nodes reject an inference request if the inference queue is full.
+The queue size is controlled by the `queue_capacity` setting in the
+<<start-trained-model-deployment>> API.
+
+`reason`:::
+(string)
+The reason for the current deployment state.
+Usually only populated when the model is not deployed to a node.
 
 `start_time`:::
 (long)
@@ -197,6 +288,19 @@ The overall state of the deployment. The values may be:
 * `started`: The deployment is usable as at least one node has the model allocated.
 * `stopping`: The deployment is preparing to stop and deallocate the model from the relevant nodes.
 --
+
+`threads_per_allocation`:::
+(integer)
+The number of threads per allocation used by the inference process.
+
+`timeout_count`:::
+(integer)
+The sum of `timeout_count` for all nodes in the deployment.
+
+`queue_capacity`:::
+(integer)
+The number of inference requests that may be queued before new requests are
+rejected.
 
 =====
 

@@ -21,16 +21,20 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
@@ -44,6 +48,8 @@ import java.util.zip.Inflater;
 public final class CompressedXContent {
 
     private static final ThreadLocal<InflaterAndBuffer> inflater = ThreadLocal.withInitial(InflaterAndBuffer::new);
+
+    private static final ThreadLocal<BytesStreamOutput> baos = ThreadLocal.withInitial(BytesStreamOutput::new);
 
     private static String sha256(BytesReference data) {
         MessageDigest messageDigest = MessageDigests.sha256();
@@ -85,6 +91,10 @@ public final class CompressedXContent {
         assertConsistent();
     }
 
+    public CompressedXContent(Map<String, Object> map) throws IOException {
+        this(((builder, params) -> builder.mapContents(map)), ToXContent.EMPTY_PARAMS);
+    }
+
     public CompressedXContent(ToXContent xcontent) throws IOException {
         this(xcontent, ToXContent.EMPTY_PARAMS);
     }
@@ -93,19 +103,26 @@ public final class CompressedXContent {
      * Create a {@link CompressedXContent} out of a {@link ToXContent} instance.
      */
     public CompressedXContent(ToXContent xcontent, ToXContent.Params params) throws IOException {
-        BytesStreamOutput bStream = new BytesStreamOutput();
         MessageDigest messageDigest = MessageDigests.sha256();
-        OutputStream checkedStream = new DigestOutputStream(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream), messageDigest);
-        try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {
-            if (xcontent.isFragment()) {
-                builder.startObject();
+        BytesStreamOutput bStream = baos.get();
+        try {
+            OutputStream checkedStream = new DigestOutputStream(
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream),
+                messageDigest
+            );
+            try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {
+                if (xcontent.isFragment()) {
+                    builder.startObject();
+                }
+                xcontent.toXContent(builder, params);
+                if (xcontent.isFragment()) {
+                    builder.endObject();
+                }
             }
-            xcontent.toXContent(builder, params);
-            if (xcontent.isFragment()) {
-                builder.endObject();
-            }
+            this.bytes = bStream.copyBytes().array();
+        } finally {
+            bStream.reset();
         }
-        this.bytes = BytesReference.toBytes(bStream.bytes());
         this.sha256 = Base64.getEncoder().encodeToString(messageDigest.digest());
         assertConsistent();
     }
@@ -220,6 +237,22 @@ public final class CompressedXContent {
 
         CompressedXContent that = (CompressedXContent) o;
         return sha256.equals(that.sha256);
+    }
+
+    /**
+     * Copies the x-content in this instance to the given builder token by token. This operation is equivalent to parsing the contents
+     * of this instance into a map and then writing the map to the given {@link XContentBuilder} functionally but is much more efficient.
+     *
+     * @param builder builder to copy to
+     * @throws IOException on failure
+     */
+    public void copyTo(XContentBuilder builder) throws IOException {
+        try (
+            InputStream decompressed = CompressorFactory.COMPRESSOR.threadLocalInputStream(new ByteArrayInputStream(bytes));
+            XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, decompressed)
+        ) {
+            builder.copyCurrentStructure(parser);
+        }
     }
 
     @Override

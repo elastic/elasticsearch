@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -59,6 +58,7 @@ import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.With;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
@@ -92,13 +92,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * Per-request specific settings needed in some of the functions (timezone, username and clustername),
      * to which they are attached.
      */
-    private final Configuration configuration;
+    private final SqlConfiguration configuration;
     /**
      * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
      */
     private final Verifier verifier;
 
-    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
+    public Analyzer(SqlConfiguration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
@@ -149,7 +149,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
+        Collection<Failure> failures = verifier.verify(plan, configuration.version());
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
@@ -241,8 +241,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             + fa.name()
                             + "] with unsupported type ["
                             + unsupportedField.getOriginalType()
-                            + "] "
-                            + "in hierarchy (field ["
+                            + "] in hierarchy (field ["
                             + unsupportedField.getInherited()
                             + "])"
                     );
@@ -340,7 +339,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class ResolveRefs extends BaseAnalyzerRule {
+    private class ResolveRefs extends BaseAnalyzerRule {
 
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {

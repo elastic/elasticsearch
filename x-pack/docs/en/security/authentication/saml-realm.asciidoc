@@ -17,4 +17,4 @@ chain.
 
 In order to simplify the process of configuring SAML authentication within the
 Elastic Stack, there is a step-by-step guide to
-<<saml-guide, Configuring Elasticsearch and Kibana to use SAML single sign-on>>.
+<<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -372,8 +371,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(actions.size(), is(2));
             Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
             assertThat(allocateDef, nullValue());
-            assertThat(newLifecycleState.getAction(), is(MigrateAction.NAME));
-            assertThat(newLifecycleState.getStep(), is(MigrateAction.CONDITIONAL_SKIP_MIGRATE_STEP));
+            assertThat(newLifecycleState.action(), is(MigrateAction.NAME));
+            assertThat(newLifecycleState.step(), is(MigrateAction.CONDITIONAL_SKIP_MIGRATE_STEP));
 
             // the shrink and set_priority actions are unchanged
             Map<String, Object> shrinkDef = (Map<String, Object>) actions.get(ShrinkAction.NAME);
@@ -428,8 +427,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(shrinkDef.get("number_of_shards"), is(2));
             Map<String, Object> setPriorityDef = (Map<String, Object>) actions.get(SetPriorityAction.NAME);
             assertThat(setPriorityDef.get("priority"), is(100));
-            assertThat(newLifecycleState.getAction(), is(SetPriorityAction.NAME));
-            assertThat(newLifecycleState.getStep(), is(SetPriorityAction.NAME));
+            assertThat(newLifecycleState.action(), is(SetPriorityAction.NAME));
+            assertThat(newLifecycleState.step(), is(SetPriorityAction.NAME));
         }
 
         {
@@ -475,8 +474,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(actions.size(), is(2));
             Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
             assertThat(allocateDef, nullValue());
-            assertThat(newLifecycleState.getAction(), is(ShrinkAction.NAME));
-            assertThat(newLifecycleState.getStep(), is(ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP));
+            assertThat(newLifecycleState.action(), is(ShrinkAction.NAME));
+            assertThat(newLifecycleState.step(), is(ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP));
 
             Map<String, Object> shrinkDef = (Map<String, Object>) actions.get(ShrinkAction.NAME);
             assertThat(shrinkDef.get("number_of_shards"), is(2));
@@ -1174,8 +1173,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             randomInt(),
             List.of("test-*"),
             Settings.builder().put(requireRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         IndexTemplateMetadata templateWithIncludeRouting = new IndexTemplateMetadata(
@@ -1184,8 +1183,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             randomInt(),
             List.of("test-*"),
             Settings.builder().put(includeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         IndexTemplateMetadata templateWithExcludeRouting = new IndexTemplateMetadata(
@@ -1194,8 +1193,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             randomInt(),
             List.of("test-*"),
             Settings.builder().put(excludeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         IndexTemplateMetadata templateWithRequireAndIncludeRoutings = new IndexTemplateMetadata(
@@ -1208,8 +1207,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .put(includeRoutingSetting, "rack1")
                 .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
                 .build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         IndexTemplateMetadata templateWithoutCustomRoutings = new IndexTemplateMetadata(
@@ -1221,8 +1220,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
                 .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                 .build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1253,7 +1252,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
         );
 
-        ImmutableOpenMap<String, IndexTemplateMetadata> migratedTemplates = mb.build().templates();
+        Map<String, IndexTemplateMetadata> migratedTemplates = mb.build().templates();
         assertThat(migratedTemplates.get("template-with-require-routing").settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-include-routing").settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-require-and-include-routing").settings().size(), is(1));
@@ -1492,8 +1491,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             randomInt(),
             List.of("test-*"),
             Settings.builder().put(requireRoutingSetting, "hot").build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         ComponentTemplate compTemplateWithoutCustomRoutings = new ComponentTemplate(
@@ -1622,7 +1621,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         XContentType entityContentType = XContentType.fromMediaType("application/json");
         return (Map<String, Object>) XContentHelper.convertToMap(
             entityContentType.xContent(),
-            new ByteArrayInputStream(newLifecycleState.getPhaseDefinition().getBytes(StandardCharsets.UTF_8)),
+            new ByteArrayInputStream(newLifecycleState.phaseDefinition().getBytes(StandardCharsets.UTF_8)),
             false
         ).get("phase_definition");
     }

@@ -138,7 +138,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                String policyName = indexMetadata.getLifecyclePolicyName();
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     // The index is already a searchable snapshot, let's see if the repository matches
                     String repo = indexMetadata.getSettings().get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
@@ -215,9 +215,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
             waitForDataTierKey,
             (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                String policyName = indexMetadata.getLifecyclePolicyName();
                 LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
-                if (lifecycleExecutionState.getSnapshotName() == null) {
+                if (lifecycleExecutionState.snapshotName() == null) {
                     // No name exists, so it must be generated
                     logger.trace(
                         "no snapshot name for index [{}] in policy [{}] exists, so one will be generated",
@@ -227,7 +227,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     return false;
                 }
 
-                if (this.snapshotRepository.equals(lifecycleExecutionState.getSnapshotRepository()) == false) {
+                if (this.snapshotRepository.equals(lifecycleExecutionState.snapshotRepository()) == false) {
                     // A different repository is being used
                     // TODO: allow this behavior instead of throwing an exception
                     throw new IllegalArgumentException("searchable snapshot indices may be converted only within the same repository");
@@ -238,9 +238,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 logger.debug(
                     "an existing snapshot [{}] in repository [{}] (index name: [{}]) "
                         + "will be used for mounting [{}] as a searchable snapshot",
-                    lifecycleExecutionState.getSnapshotName(),
-                    lifecycleExecutionState.getSnapshotRepository(),
-                    lifecycleExecutionState.getSnapshotIndexName(),
+                    lifecycleExecutionState.snapshotName(),
+                    lifecycleExecutionState.snapshotRepository(),
+                    lifecycleExecutionState.snapshotIndexName(),
                     index.getName()
                 );
                 return true;
@@ -289,7 +289,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         CopySettingsStep copySettingsStep = new CopySettingsStep(
             copyLifecyclePolicySettingKey,
             dataStreamCheckBranchingKey,
-            getRestoredIndexPrefix(copyLifecyclePolicySettingKey),
+            (index, lifecycleState) -> getRestoredIndexPrefix(copyLifecyclePolicySettingKey) + index,
             LifecycleSettings.LIFECYCLE_NAME
         );
         BranchingStep isDataStreamBranchingStep = new BranchingStep(
@@ -344,7 +344,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     /**
      * Resolves the prefix to be used for the mounted index depending on the provided key
      */
-    String getRestoredIndexPrefix(StepKey currentKey) {
+    static String getRestoredIndexPrefix(StepKey currentKey) {
         if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
             return PARTIAL_RESTORED_INDEX_PREFIX;
         } else {
@@ -353,7 +353,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     }
 
     // Resolves the storage type depending on which phase the index is in
-    MountSearchableSnapshotRequest.Storage getConcreteStorageType(StepKey currentKey) {
+    static MountSearchableSnapshotRequest.Storage getConcreteStorageType(StepKey currentKey) {
         if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
             return MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
         } else {

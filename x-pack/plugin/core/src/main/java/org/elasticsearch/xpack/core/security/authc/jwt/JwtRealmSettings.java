@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.authc.jwt;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
@@ -17,13 +16,15 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Settings for JWT realms.
+ * Settings unique to each JWT realm.
  */
 public class JwtRealmSettings {
 
@@ -31,65 +32,59 @@ public class JwtRealmSettings {
 
     public static final String TYPE = "jwt";
 
-    /**
-     * HMAC length NOT by specific SHA-2 lengths.
-     * Example: final byte[] hmacKeyBytes = new byte[randomIntBetween(32,100)];
-     */
-    public static final List<String> SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS = List.of("HS256", "HS384", "HS512");
-
-    /**
-     * RSA lengths NOT by specific SHA-2 lengths.
-     * Example: final Integer rsaBits = randomFrom(2048, 3072, 4096, 6144);
-     */
-    public static final List<String> SUPPORTED_PUBLIC_KEY_RSA_SIGNATURE_ALGORITHMS = List.of(
-        "RS256",
-        "RS384",
-        "RS512",
-        "PS256",
-        "PS384",
-        "PS512"
-    );
-
-    /**
-     * EC curves by specific SHA-2 lengths.
-     * Example: final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm));
-     * Note: Excludes ES256K. The library supports it, but Java 11.0.9, 11.0.10, 17 disabled support for it by default.
-     */
-    public static final List<String> SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS = List.of("ES256", "ES384", "ES512");
-
-    public static final List<String> SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS = Stream.of(
-        SUPPORTED_PUBLIC_KEY_RSA_SIGNATURE_ALGORITHMS,
-        SUPPORTED_PUBLIC_KEY_EC_SIGNATURE_ALGORITHMS
+    // Signature algorithms
+    public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS_HMAC = List.of("HS256", "HS384", "HS512");
+    public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS_RSA = List.of("RS256", "RS384", "RS512", "PS256", "PS384", "PS512");
+    public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS_EC = List.of("ES256", "ES384", "ES512");
+    public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS_PKC = Stream.of(
+        SUPPORTED_SIGNATURE_ALGORITHMS_RSA,
+        SUPPORTED_SIGNATURE_ALGORITHMS_EC
     ).flatMap(Collection::stream).toList();
-
     public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS = Stream.of(
-        SUPPORTED_SECRET_KEY_SIGNATURE_ALGORITHMS,
-        SUPPORTED_PUBLIC_KEY_SIGNATURE_ALGORITHMS
+        SUPPORTED_SIGNATURE_ALGORITHMS_HMAC,
+        SUPPORTED_SIGNATURE_ALGORITHMS_PKC
     ).flatMap(Collection::stream).toList();
 
-    // Header names
-    public static final String HEADER_END_USER_AUTHORIZATION = "Authorization";
-    public static final String HEADER_END_USER_AUTHORIZATION_SCHEME = "Bearer";
+    public enum ClientAuthenticationType {
+        NONE("none"),
+        SHARED_SECRET("shared_secret");
 
-    public static final String HEADER_CLIENT_AUTHORIZATION = "X-Client-Authorization";
+        private final String value;
 
-    public static final String SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET = "SharedSecret";
-    public static final String SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE = "None";
-    public static final List<String> SUPPORTED_CLIENT_AUTHORIZATION_TYPES = List.of(
-        SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
-        SUPPORTED_CLIENT_AUTHORIZATION_TYPE_NONE
-    );
+        ClientAuthenticationType(String value) {
+            this.value = value;
+        }
+
+        public String value() {
+            return value;
+        }
+
+        public static ClientAuthenticationType parse(String value, String settingKey) {
+            for (ClientAuthenticationType type : values()) {
+                if (type.value.equalsIgnoreCase(value)) {
+                    return type;
+                }
+            }
+            throw new IllegalArgumentException(
+                "Invalid value ["
+                    + value
+                    + "] for ["
+                    + settingKey
+                    + "], allowed values are ["
+                    + Stream.of(values()).map(ClientAuthenticationType::value).collect(Collectors.joining(","))
+                    + "]"
+            );
+        }
+    }
 
     // Default values and min/max constraints
 
     private static final TimeValue DEFAULT_ALLOWED_CLOCK_SKEW = TimeValue.timeValueSeconds(60);
     private static final List<String> DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS = Collections.singletonList("RS256");
     private static final boolean DEFAULT_POPULATE_USER_METADATA = true;
-    private static final String DEFAULT_CLIENT_AUTHORIZATION_TYPE = SUPPORTED_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET;
-    private static final TimeValue DEFAULT_CACHE_TTL = TimeValue.timeValueMinutes(20);
-    private static final int DEFAULT_CACHE_MAX_USERS = 100_000;
-    private static final String DEFAULT_CACHE_HASH_ALGO = "ssha256";
-    private static final int MIN_CACHE_MAX_USERS = 0;
+    private static final TimeValue DEFAULT_JWT_CACHE_TTL = TimeValue.timeValueMinutes(20);
+    private static final int DEFAULT_JWT_CACHE_SIZE = 100_000;
+    private static final int MIN_JWT_CACHE_SIZE = 0;
     private static final TimeValue DEFAULT_HTTP_CONNECT_TIMEOUT = TimeValue.timeValueSeconds(5);
     private static final TimeValue DEFAULT_HTTP_CONNECTION_READ_TIMEOUT = TimeValue.timeValueSeconds(5);
     private static final TimeValue DEFAULT_HTTP_SOCKET_TIMEOUT = TimeValue.timeValueSeconds(5);
@@ -105,7 +100,7 @@ public class JwtRealmSettings {
      * @return All secure and non-secure settings.
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
-        final Set<Setting.AffixSetting<?>> set = Sets.newHashSet();
+        final Set<Setting.AffixSetting<?>> set = new HashSet<>();
         set.addAll(JwtRealmSettings.getNonSecureSettings());
         set.addAll(JwtRealmSettings.getSecureSettings());
         return set;
@@ -115,12 +110,12 @@ public class JwtRealmSettings {
      * Get all non-secure settings.
      * @return All non-secure settings.
      */
-    public static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
-        final Set<Setting.AffixSetting<?>> set = Sets.newHashSet();
+    private static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
+        final Set<Setting.AffixSetting<?>> set = new HashSet<>();
         // Standard realm settings: order, enabled
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         // JWT Issuer settings
-        set.addAll(List.of(ALLOWED_ISSUER, ALLOWED_SIGNATURE_ALGORITHMS, ALLOWED_CLOCK_SKEW, JWKSET_PATH));
+        set.addAll(List.of(ALLOWED_ISSUER, ALLOWED_SIGNATURE_ALGORITHMS, ALLOWED_CLOCK_SKEW, PKC_JWKSET_PATH));
         // JWT Audience settings
         set.addAll(List.of(ALLOWED_AUDIENCES));
         // JWT End-user settings
@@ -130,13 +125,19 @@ public class JwtRealmSettings {
                 CLAIMS_PRINCIPAL.getPattern(),
                 CLAIMS_GROUPS.getClaim(),
                 CLAIMS_GROUPS.getPattern(),
+                CLAIMS_DN.getClaim(),
+                CLAIMS_DN.getPattern(),
+                CLAIMS_MAIL.getClaim(),
+                CLAIMS_MAIL.getPattern(),
+                CLAIMS_NAME.getClaim(),
+                CLAIMS_NAME.getPattern(),
                 POPULATE_USER_METADATA
             )
         );
         // JWT Client settings
-        set.addAll(List.of(CLIENT_AUTHORIZATION_TYPE));
+        set.addAll(List.of(CLIENT_AUTHENTICATION_TYPE));
         // JWT Cache settings
-        set.addAll(List.of(CACHE_TTL, CACHE_MAX_USERS, CACHE_HASH_ALGO));
+        set.addAll(List.of(JWT_CACHE_TTL, JWT_CACHE_SIZE));
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
         set.addAll(
             List.of(
@@ -158,8 +159,8 @@ public class JwtRealmSettings {
      * Get all secure settings.
      * @return All secure settings.
      */
-    public static List<Setting.AffixSetting<SecureString>> getSecureSettings() {
-        return List.of(ISSUER_HMAC_SECRET_KEY, CLIENT_AUTHORIZATION_SHARED_SECRET);
+    private static Set<Setting.AffixSetting<SecureString>> getSecureSettings() {
+        return new HashSet<>(List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET));
     }
 
     // JWT issuer settings
@@ -185,16 +186,14 @@ public class JwtRealmSettings {
         )
     );
 
-    public static final Setting.AffixSetting<String> JWKSET_PATH = RealmSettings.simpleString(
+    public static final Setting.AffixSetting<String> PKC_JWKSET_PATH = RealmSettings.simpleString(
         TYPE,
-        "jwkset_path",
+        "pkc_jwkset_path",
         Setting.Property.NodeScope
     );
 
-    public static final Setting.AffixSetting<SecureString> ISSUER_HMAC_SECRET_KEY = RealmSettings.secureString(
-        TYPE,
-        "issuer_hmac_secret_key"
-    );
+    public static final Setting.AffixSetting<SecureString> HMAC_JWKSET = RealmSettings.secureString(TYPE, "hmac_jwkset");
+    public static final Setting.AffixSetting<SecureString> HMAC_KEY = RealmSettings.secureString(TYPE, "hmac_key");
 
     // JWT audience settings
 
@@ -209,6 +208,9 @@ public class JwtRealmSettings {
     // Note: ClaimSetting is a wrapper for two individual settings: getClaim(), getPattern()
     public static final ClaimSetting CLAIMS_PRINCIPAL = new ClaimSetting(TYPE, "principal");
     public static final ClaimSetting CLAIMS_GROUPS = new ClaimSetting(TYPE, "groups");
+    public static final ClaimSetting CLAIMS_DN = new ClaimSetting(TYPE, "dn");
+    public static final ClaimSetting CLAIMS_MAIL = new ClaimSetting(TYPE, "mail");
+    public static final ClaimSetting CLAIMS_NAME = new ClaimSetting(TYPE, "name");
 
     public static final Setting.AffixSetting<Boolean> POPULATE_USER_METADATA = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
@@ -218,41 +220,34 @@ public class JwtRealmSettings {
 
     // Client authentication settings for incoming connections
 
-    public static final Setting.AffixSetting<String> CLIENT_AUTHORIZATION_TYPE = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<ClientAuthenticationType> CLIENT_AUTHENTICATION_TYPE = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "client_authentication.type",
-        key -> Setting.simpleString(key, DEFAULT_CLIENT_AUTHORIZATION_TYPE, value -> {
-            if (SUPPORTED_CLIENT_AUTHORIZATION_TYPES.contains(value) == false) {
-                throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + SUPPORTED_CLIENT_AUTHORIZATION_TYPES + "."
-                );
-            }
-        }, Setting.Property.NodeScope)
+        key -> new Setting<>(
+            key,
+            ClientAuthenticationType.SHARED_SECRET.value,
+            value -> ClientAuthenticationType.parse(value, key),
+            Setting.Property.NodeScope
+        )
     );
 
-    public static final Setting.AffixSetting<SecureString> CLIENT_AUTHORIZATION_SHARED_SECRET = RealmSettings.secureString(
+    public static final Setting.AffixSetting<SecureString> CLIENT_AUTHENTICATION_SHARED_SECRET = RealmSettings.secureString(
         TYPE,
         "client_authentication.shared_secret"
     );
 
     // Individual Cache settings
 
-    public static final Setting.AffixSetting<TimeValue> CACHE_TTL = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<TimeValue> JWT_CACHE_TTL = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "cache.ttl",
-        key -> Setting.timeSetting(key, DEFAULT_CACHE_TTL, Setting.Property.NodeScope)
+        "jwt.cache.ttl",
+        key -> Setting.timeSetting(key, DEFAULT_JWT_CACHE_TTL, Setting.Property.NodeScope)
     );
 
-    public static final Setting.AffixSetting<Integer> CACHE_MAX_USERS = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<Integer> JWT_CACHE_SIZE = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "cache.max_users",
-        key -> Setting.intSetting(key, DEFAULT_CACHE_MAX_USERS, MIN_CACHE_MAX_USERS, Setting.Property.NodeScope)
-    );
-
-    public static final Setting.AffixSetting<String> CACHE_HASH_ALGO = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "cache.hash_algo",
-        key -> Setting.simpleString(key, DEFAULT_CACHE_HASH_ALGO, Setting.Property.NodeScope)
+        "jwt.cache.size",
+        key -> Setting.intSetting(key, DEFAULT_JWT_CACHE_SIZE, MIN_JWT_CACHE_SIZE, Setting.Property.NodeScope)
     );
 
     // Individual outgoing HTTP settings
@@ -321,4 +316,5 @@ public class JwtRealmSettings {
             verifyNonNullNotEmpty(key, value, allowedValues);
         }
     }
+
 }

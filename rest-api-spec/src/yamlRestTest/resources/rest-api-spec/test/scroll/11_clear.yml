@@ -6,7 +6,7 @@
   - do:
       index:
           index:  test_scroll
-          id:     42
+          id:     "42"
           body:   { foo: bar }
 
   - do:
@@ -46,7 +46,7 @@
   - do:
       index:
           index:  test_scroll
-          id:     42
+          id:     "42"
           body:   { foo: bar }
 
   - do:
@@ -87,7 +87,7 @@
   - do:
       index:
           index:  test_scroll
-          id:     42
+          id:     "42"
           body:   { foo: bar }
 
   - do:

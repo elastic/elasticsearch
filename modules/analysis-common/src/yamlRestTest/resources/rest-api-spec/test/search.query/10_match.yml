@@ -33,7 +33,7 @@
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  { "text": "the fox runs across the street" }
         refresh: true
 
@@ -51,7 +51,7 @@
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:  { "text": "run fox run" }
         refresh: true
 

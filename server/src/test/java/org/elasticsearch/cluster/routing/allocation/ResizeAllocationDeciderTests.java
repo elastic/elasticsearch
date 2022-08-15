@@ -77,26 +77,26 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertEquals(prevRoutingTable.index("source").shards().size(), 2);
-        assertEquals(prevRoutingTable.index("source").shard(0).shards().get(0).state(), UNASSIGNED);
-        assertEquals(prevRoutingTable.index("source").shard(1).shards().get(0).state(), UNASSIGNED);
+        assertEquals(prevRoutingTable.index("source").size(), 2);
+        assertEquals(prevRoutingTable.index("source").shard(0).shard(0).state(), UNASSIGNED);
+        assertEquals(prevRoutingTable.index("source").shard(1).shard(0).state(), UNASSIGNED);
 
-        assertEquals(routingTable.index("source").shards().size(), 2);
+        assertEquals(routingTable.index("source").size(), 2);
 
-        assertEquals(routingTable.index("source").shard(0).shards().get(0).state(), INITIALIZING);
-        assertEquals(routingTable.index("source").shard(1).shards().get(0).state(), INITIALIZING);
+        assertEquals(routingTable.index("source").shard(0).shard(0).state(), INITIALIZING);
+        assertEquals(routingTable.index("source").shard(1).shard(0).state(), INITIALIZING);
 
         if (startShards) {
             clusterState = startShardsAndReroute(
                 strategy,
                 clusterState,
-                routingTable.index("source").shard(0).shards().get(0),
-                routingTable.index("source").shard(1).shards().get(0)
+                routingTable.index("source").shard(0).shard(0),
+                routingTable.index("source").shard(1).shard(0)
             );
             routingTable = clusterState.routingTable();
-            assertEquals(routingTable.index("source").shards().size(), 2);
-            assertEquals(routingTable.index("source").shard(0).shards().get(0).state(), STARTED);
-            assertEquals(routingTable.index("source").shard(1).shards().get(0).state(), STARTED);
+            assertEquals(routingTable.index("source").size(), 2);
+            assertEquals(routingTable.index("source").shard(0).shard(0).state(), STARTED);
+            assertEquals(routingTable.index("source").shard(1).shard(0).state(), STARTED);
 
         }
         return clusterState;
@@ -105,7 +105,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
     public void testNonResizeRouting() {
         ClusterState clusterState = createInitialClusterState(true);
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, null, clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
         ShardRouting shardRouting = TestShardRouting.newShardRouting("non-resize", 0, null, true, ShardRoutingState.UNASSIGNED);
         assertEquals(Decision.ALWAYS, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
         assertEquals(
@@ -134,7 +134,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         Index idx = clusterState.metadata().index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, null, clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             new ShardId(idx, 0),
             null,
@@ -173,7 +173,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         Index idx = clusterState.metadata().index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
         int shardId = randomIntBetween(0, 3);
         int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().index("source"), 4).id();
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
@@ -230,7 +230,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         Index idx = clusterState.metadata().index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
         int shardId = randomIntBetween(0, 3);
         int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().index("source"), 4).id();
         ShardRouting shardRouting = TestShardRouting.newShardRouting(

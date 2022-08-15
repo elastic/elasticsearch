@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
@@ -25,7 +24,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
     public void testCreateNewLocalDataStream() {
         DataStream remoteDataStream = generateDataSteam("logs-foobar", 3, false);
         Index backingIndexToFollow = remoteDataStream.getIndices().get(remoteDataStream.getIndices().size() - 1);
-        DataStream result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, null, remoteDataStream);
+        DataStream result = TransportPutFollowAction.updateLocalDataStream(
+            backingIndexToFollow,
+            null,
+            remoteDataStream.getName(),
+            remoteDataStream
+        );
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
         assertThat(result.getTimeStampField(), equalTo(remoteDataStream.getTimeStampField()));
         assertThat(result.getGeneration(), equalTo(remoteDataStream.getGeneration()));
@@ -37,7 +41,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
         DataStream remoteDataStream = generateDataSteam("logs-foobar", 3, false);
         DataStream localDataStream = generateDataSteam("logs-foobar", 2, true);
         Index backingIndexToFollow = remoteDataStream.getIndices().get(remoteDataStream.getIndices().size() - 1);
-        DataStream result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, localDataStream, remoteDataStream);
+        DataStream result = TransportPutFollowAction.updateLocalDataStream(
+            backingIndexToFollow,
+            localDataStream,
+            remoteDataStream.getName(),
+            remoteDataStream
+        );
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
         assertThat(result.getTimeStampField(), equalTo(remoteDataStream.getTimeStampField()));
         assertThat(result.getGeneration(), equalTo(remoteDataStream.getGeneration()));
@@ -52,7 +61,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
         DataStream remoteDataStream = generateDataSteam("logs-foobar", 5, false);
         DataStream localDataStream = generateDataSteam("logs-foobar", 5, true, DataStream.getDefaultBackingIndexName("logs-foobar", 5));
         Index backingIndexToFollow = remoteDataStream.getIndices().get(0);
-        DataStream result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, localDataStream, remoteDataStream);
+        DataStream result = TransportPutFollowAction.updateLocalDataStream(
+            backingIndexToFollow,
+            localDataStream,
+            remoteDataStream.getName(),
+            remoteDataStream
+        );
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
         assertThat(result.getTimeStampField(), equalTo(remoteDataStream.getTimeStampField()));
         assertThat(result.getGeneration(), equalTo(remoteDataStream.getGeneration()));
@@ -63,7 +77,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
         // follow second last backing index:
         localDataStream = result;
         backingIndexToFollow = remoteDataStream.getIndices().get(remoteDataStream.getIndices().size() - 2);
-        result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, localDataStream, remoteDataStream);
+        result = TransportPutFollowAction.updateLocalDataStream(
+            backingIndexToFollow,
+            localDataStream,
+            remoteDataStream.getName(),
+            remoteDataStream
+        );
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
         assertThat(result.getTimeStampField(), equalTo(remoteDataStream.getTimeStampField()));
         assertThat(result.getGeneration(), equalTo(remoteDataStream.getGeneration()));
@@ -78,22 +97,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
             .mapToObj(value -> DataStream.getDefaultBackingIndexName(name, value))
             .map(value -> new Index(value, "uuid"))
             .collect(Collectors.toList());
-        return new DataStream(
-            name,
-            new TimestampField("@timestamp"),
-            backingIndices,
-            backingIndices.size(),
-            Map.of(),
-            false,
-            replicate,
-            false,
-            false
-        );
+        return new DataStream(name, backingIndices, backingIndices.size(), Map.of(), false, replicate, false, false, null);
     }
 
     static DataStream generateDataSteam(String name, int generation, boolean replicate, String... backingIndexNames) {
         List<Index> backingIndices = Arrays.stream(backingIndexNames).map(value -> new Index(value, "uuid")).collect(Collectors.toList());
-        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, generation, Map.of(), false, replicate, false, false);
+        return new DataStream(name, backingIndices, generation, Map.of(), false, replicate, false, false, null);
     }
 
 }

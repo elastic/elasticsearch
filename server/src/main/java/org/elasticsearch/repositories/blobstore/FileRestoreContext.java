@@ -9,9 +9,8 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -31,7 +30,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This context will execute a file restore of the lucene files. It is primarily designed to be used to
@@ -69,7 +68,7 @@ public abstract class FileRestoreContext {
         store.incRef();
         try {
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover = new ArrayList<>();
-            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+            if (store.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
                 for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles.indexFiles()) {
                     assert store.directory().fileLength(fileInfo.physicalName()) == fileInfo.length();
                     recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
@@ -88,8 +87,8 @@ public abstract class FileRestoreContext {
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 } catch (IOException e) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
+                        () -> format(
+                            "[%s] [%s] Can't read metadata from store, will not reuse local files during restore",
                             shardId,
                             snapshotId
                         ),
@@ -216,6 +215,6 @@ public abstract class FileRestoreContext {
 
     @SuppressWarnings("unchecked")
     private static Iterable<StoreFileMetadata> concat(Store.RecoveryDiff diff) {
-        return Iterables.concat(diff.different, diff.missing);
+        return CollectionUtils.concatLists(diff.different, diff.missing);
     }
 }

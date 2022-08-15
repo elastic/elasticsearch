@@ -26,7 +26,6 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
@@ -857,7 +856,7 @@ public class CoordinationStateTests extends ESTestCase {
         new CoordinationStateTestCluster(
             IntStream.range(0, randomIntBetween(1, 5))
                 .mapToObj(i -> new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), Version.CURRENT))
-                .collect(Collectors.toList()),
+                .toList(),
             ElectionStrategy.DEFAULT_INSTANCE
         ).runRandomly();
     }

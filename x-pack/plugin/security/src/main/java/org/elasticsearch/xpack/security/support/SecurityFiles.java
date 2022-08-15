@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;

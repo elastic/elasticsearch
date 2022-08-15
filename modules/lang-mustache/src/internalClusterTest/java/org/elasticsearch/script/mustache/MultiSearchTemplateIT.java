@@ -8,23 +8,30 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
+import org.elasticsearch.search.DummyQueryParserPlugin;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -34,7 +41,15 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(MustachePlugin.class);
+        return List.of(MustachePlugin.class, DummyQueryParserPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            .build();
     }
 
     public void testBasic() throws Exception {
@@ -163,5 +178,28 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         SearchTemplateResponse searchTemplateResponse5 = response5.getResponse();
         assertThat(searchTemplateResponse5.hasResponse(), is(false));
         assertThat(searchTemplateResponse5.getSource().utf8ToString(), equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
+    }
+
+    /**
+    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+    */
+    public void testCCSCheckCompatibility() throws Exception {
+        String templateString = """
+            {
+            "source": "{ \\"query\\":{\\"fail_before_current_version\\":{}} }"
+            }""";
+        SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(
+            createParser(JsonXContent.jsonXContent, templateString)
+        );
+        searchTemplateRequest.setRequest(new SearchRequest());
+        MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
+        request.add(searchTemplateRequest);
+        MultiSearchTemplateResponse multiSearchTemplateResponse = client().execute(MultiSearchTemplateAction.INSTANCE, request).get();
+        Item response = multiSearchTemplateResponse.getResponses()[0];
+        assertTrue(response.isFailure());
+        Exception ex = response.getFailure();
+        assertThat(ex.getMessage(), containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version"));
+        assertThat(ex.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
+        assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
     }
 }

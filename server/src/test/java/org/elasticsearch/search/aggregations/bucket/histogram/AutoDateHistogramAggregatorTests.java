@@ -16,17 +16,18 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -39,8 +40,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -57,7 +58,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -893,7 +893,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 assertThat(histo.getBuckets().size(), equalTo(10));
                 for (int i = 0; i < 10; i++) {
                     assertThat(histo.getBuckets().get(i).key, equalTo((double) i));
-                    assertThat(((InternalMax) histo.getBuckets().get(i).aggregations.get("max")).getValue(), equalTo((double) i));
+                    assertThat(((Max) histo.getBuckets().get(i).aggregations.get("max")).value(), equalTo((double) i));
                     if (i > 0) {
                         assertThat(((InternalSimpleValue) histo.getBuckets().get(i).aggregations.get("deriv")).getValue(), equalTo(1.0));
                     }
@@ -969,7 +969,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
     }
 
     private Map<String, Integer> bucketCountsAsMap(InternalAutoDateHistogram result) {
-        LinkedHashMap<String, Integer> map = new LinkedHashMap<>(result.getBuckets().size());
+        Map<String, Integer> map = Maps.newLinkedHashMapWithExpectedSize(result.getBuckets().size());
         result.getBuckets().stream().forEach(b -> {
             Object old = map.put(b.getKeyAsString(), Math.toIntExact(b.getDocCount()));
             assertNull(old);
@@ -978,10 +978,10 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
     }
 
     private Map<String, Double> maxAsMap(InternalAutoDateHistogram result) {
-        LinkedHashMap<String, Double> map = new LinkedHashMap<>(result.getBuckets().size());
+        Map<String, Double> map = Maps.newLinkedHashMapWithExpectedSize(result.getBuckets().size());
         result.getBuckets().stream().forEach(b -> {
-            InternalMax max = b.getAggregations().get("max");
-            Object old = map.put(b.getKeyAsString(), max.getValue());
+            Max max = b.getAggregations().get("max");
+            Object old = map.put(b.getKeyAsString(), max.value());
             assertNull(old);
         });
         return map;

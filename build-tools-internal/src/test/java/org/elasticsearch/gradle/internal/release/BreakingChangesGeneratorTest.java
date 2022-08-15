@@ -29,40 +29,15 @@ public class BreakingChangesGeneratorTest {
         // given:
         final String template = getResource("/templates/breaking-changes.asciidoc");
         final String expectedOutput = getResource(
-            "/org/elasticsearch/gradle/internal/release/BreakingChangesGeneratorTest.generateIndexFile.asciidoc"
+            "/org/elasticsearch/gradle/internal/release/BreakingChangesGeneratorTest.generateMigrationFile.asciidoc"
         );
 
         final List<ChangelogEntry> entries = getEntries();
 
         // when:
-        final String actualOutput = BreakingChangesGenerator.generateIndexFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, entries);
-
-        // then:
-        assertThat(actualOutput, equalTo(expectedOutput));
-    }
-
-    /**
-     * Check that the breaking changes for a specific area can be correctly generated.
-     */
-    @Test
-    public void generateAreaFile_rendersCorrectMarkup() throws Exception {
-        // given:
-        final String template = getResource("/templates/breaking-changes-area.asciidoc");
-        final String expectedOutput = getResource(
-            "/org/elasticsearch/gradle/internal/release/BreakingChangesGeneratorTest.generateAreaFile.asciidoc"
-        );
-        final String breakingArea = "Cluster and node setting";
-
-        final List<ChangelogEntry.Breaking> entries = getEntries().stream()
-            .map(ChangelogEntry::getBreaking)
-            .filter(each -> each.getArea().equals(breakingArea))
-            .toList();
-
-        // when:
-        final String actualOutput = BreakingChangesGenerator.generateBreakingAreaFile(
+        final String actualOutput = BreakingChangesGenerator.generateMigrationFile(
             QualifiedVersion.of("8.4.0-SNAPSHOT"),
             template,
-            breakingArea,
             entries
         );
 
@@ -112,7 +87,40 @@ public class BreakingChangesGeneratorTest {
         breaking4.setImpact("Breaking change impact description 4");
         breaking4.setEssSettingChange(true);
 
-        return List.of(entry1, entry2, entry3, entry4);
+        ChangelogEntry entry5 = new ChangelogEntry();
+        ChangelogEntry.Deprecation deprecation5 = new ChangelogEntry.Deprecation();
+        entry5.setDeprecation(deprecation5);
+
+        deprecation5.setNotable(true);
+        deprecation5.setTitle("Deprecation change number 5");
+        deprecation5.setArea("Cluster and node setting");
+        deprecation5.setDetails("Deprecation change details 5");
+        deprecation5.setImpact("Deprecation change impact description 5");
+        deprecation5.setEssSettingChange(false);
+
+        ChangelogEntry entry6 = new ChangelogEntry();
+        ChangelogEntry.Deprecation deprecation6 = new ChangelogEntry.Deprecation();
+        entry6.setDeprecation(deprecation6);
+
+        deprecation6.setNotable(true);
+        deprecation6.setTitle("Deprecation change number 6");
+        deprecation6.setArea("Cluster and node setting");
+        deprecation6.setDetails("Deprecation change details 6");
+        deprecation6.setImpact("Deprecation change impact description 6");
+        deprecation6.setEssSettingChange(false);
+
+        ChangelogEntry entry7 = new ChangelogEntry();
+        ChangelogEntry.Deprecation deprecation7 = new ChangelogEntry.Deprecation();
+        entry7.setDeprecation(deprecation7);
+
+        deprecation7.setNotable(false);
+        deprecation7.setTitle("Deprecation change number 7");
+        deprecation7.setArea("Cluster and node setting");
+        deprecation7.setDetails("Deprecation change details 7");
+        deprecation7.setImpact("Deprecation change impact description 7");
+        deprecation7.setEssSettingChange(false);
+
+        return List.of(entry1, entry2, entry3, entry4, entry5, entry6, entry7);
     }
 
     private String getResource(String name) throws Exception {

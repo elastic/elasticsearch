@@ -18,6 +18,7 @@ import org.gradle.api.internal.artifacts.ArtifactAttributes
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 configurations {
   oldesFixture
@@ -37,9 +38,22 @@ jdks {
   }
 }
 
+restResources {
+  restApi {
+    include '_common', 'search'
+  }
+  restTests {
+    includeCore 'search/390_doc_values_search.yml'
+  }
+}
+
+if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+  jdks.legacy.vendor = 'zulu'
+  jdks.legacy.distributionVersion = '8.56.0.23'
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling repository-old-versions tests because we can't get the pid file on windows")
-  tasks.named("testingConventions").configure { enabled = false }
 } else {
   /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
    * zip files here. Using artifact transforms allow a better caching of the downloaded distros as the
@@ -48,10 +62,12 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
    * To avoid testing against too many old versions, always pick first and last version per major
    */
   project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
-    transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
-    transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
+    transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
   });
 
+  int currentMajorVersion = org.elasticsearch.gradle.VersionProperties.elasticsearchVersion.major
+  assert (currentMajorVersion - 2) == 6 : "add archive BWC tests for major version " + (currentMajorVersion - 2)
   for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.20']) {
     Version version = Version.fromString(versionString)
     String packageName = 'org.elasticsearch.distribution.zip'
@@ -60,7 +76,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     String configName = "es${versionNoDots}"
 
     def config = configurations.create(configName)
-    config.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    config.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
     dependencies.add(configName, artifact)
 
     String repoLocation = "${buildDir}/cluster/shared/repo/${versionNoDots}"
@@ -69,6 +85,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     def testClusterProvider = testClusters.register(clusterName) {
       testDistribution = 'DEFAULT'
       numberOfNodes = 2
+      versions = [project.version, project.version] // to test full cluster restart
 
       setting 'path.repo', repoLocation
       setting 'xpack.license.self_generated.type', 'trial'
@@ -90,14 +107,20 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       if (Architecture.current() == Architecture.AARCH64) {
         env 'ES_JAVA_OPTS', '-Xss512k'
       }
+      def dataPath = "${baseDir}/data"
       args 'oldes.OldElasticsearch',
         baseDir,
         "${ -> config.getSingleFile().toPath()}",
         false,
-        "path.repo: ${repoLocation}"
+        "path.repo: ${repoLocation}",
+        "path.data: ${dataPath}"
       if (version.onOrAfter('6.8.0') && Architecture.current() == Architecture.AARCH64) {
         // We need to explicitly disable ML when running old ES versions on ARM
         args 'xpack.ml.enabled: false'
+      }
+      doFirst {
+        delete(dataPath)
+        mkdir(dataPath)
       }
       maxWaitInSeconds 60
       waitCondition = { fixture, ant ->
@@ -107,25 +130,41 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
     }
 
-    tasks.register("javaRestTest#${versionNoDots}", StandaloneRestIntegTestTask) {
+    tasks.register("javaRestTestBeforeRestart#${versionNoDots}", StandaloneRestIntegTestTask) {
       useCluster testClusterProvider
       dependsOn fixture
       doFirst {
         delete(repoLocation)
         mkdir(repoLocation)
       }
-      systemProperty "tests.repo.location", repoLocation
-      systemProperty "tests.es.version", version.toString()
+      systemProperty 'tests.after_restart', 'false'
+    }
+
+    tasks.register("javaRestTestAfterRestart#${versionNoDots}", StandaloneRestIntegTestTask) {
+      useCluster testClusterProvider
+      dependsOn fixture
+      dependsOn "javaRestTestBeforeRestart#${versionNoDots}"
+      systemProperty 'tests.after_restart', 'true'
+
+      doFirst {
+        testClusterProvider.get().goToNextVersion()
+      }
+    }
+
+    tasks.matching { it.name.startsWith("javaRestTest") && it.name.endsWith(versionNoDots) }.configureEach {
+      it.systemProperty "tests.repo.location", repoLocation
+      it.systemProperty "tests.es.version", version.toString()
+
       /* Use a closure on the string to delay evaluation until right before we
        * run the integration tests so that we can be sure that the file is
        * ready. */
-      nonInputProperties.systemProperty "tests.es.port", "${-> fixture.get().addressAndPort}"
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusterProvider.get().allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusterProvider.get().getName()}")
+      it.nonInputProperties.systemProperty "tests.es.port", "${-> fixture.get().addressAndPort}"
+      it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusterProvider.get().allHttpSocketURI.join(",")}")
+      it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusterProvider.get().getName()}")
     }
 
     tasks.named("check").configure {
-      dependsOn "javaRestTest#${versionNoDots}"
+      dependsOn "javaRestTestAfterRestart#${versionNoDots}"
     }
   }
 }

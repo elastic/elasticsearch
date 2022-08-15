@@ -13,19 +13,19 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -56,15 +56,10 @@ public class MetadataMappingService {
         this.indicesService = indicesService;
     }
 
-    static class PutMappingClusterStateUpdateTask implements AckedClusterStateTaskListener {
-
-        private final PutMappingClusterStateUpdateRequest request;
-        private final ActionListener<AcknowledgedResponse> listener;
-
-        PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
-            this.request = request;
-            this.listener = listener;
-        }
+    record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+        implements
+            ClusterStateTaskListener,
+            ClusterStateAckListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -77,8 +72,13 @@ public class MetadataMappingService {
         }
 
         @Override
-        public void onAllNodesAcked(@Nullable Exception e) {
-            listener.onResponse(AcknowledgedResponse.of(e == null));
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.of(true));
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.of(false));
         }
 
         @Override
@@ -94,38 +94,36 @@ public class MetadataMappingService {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateTask> execute(
-            ClusterState currentState,
-            List<PutMappingClusterStateUpdateTask> tasks
-        ) throws Exception {
+        public ClusterState execute(BatchExecutionContext<PutMappingClusterStateUpdateTask> batchExecutionContext) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
-            ClusterTasksResult.Builder<PutMappingClusterStateUpdateTask> builder = ClusterTasksResult.builder();
             try {
-                for (PutMappingClusterStateUpdateTask task : tasks) {
+                var currentState = batchExecutionContext.initialState();
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
+                    final var task = taskContext.getTask();
                     final PutMappingClusterStateUpdateRequest request = task.request;
-                    try {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
                             final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
-                                MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
+                                MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
                                 mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
-                        builder.success(task);
+                        taskContext.success(task);
                     } catch (Exception e) {
-                        builder.failure(task, e);
+                        taskContext.onFailure(e);
                     }
                 }
-                return builder.build(currentState);
+                return currentState;
             } finally {
                 IOUtils.close(indexMapperServices.values());
             }
         }
 
-        private ClusterState applyRequest(
+        private static ClusterState applyRequest(
             ClusterState currentState,
             PutMappingClusterStateUpdateRequest request,
             Map<Index, MapperService> indexMapperServices
@@ -227,9 +225,9 @@ public class MetadataMappingService {
         for (Index index : request.indices()) {
             final IndexMetadata indexMetadata = metadata.index(index);
             if (indexMetadata == null) {
-                // local store recovery sends a mapping update request during application of a cluster state on t he data node which
-                // might we receive here before the CS update that created the index has been applied on all nodes and thus the index
-                // isn't found in the state yet but will be visible to the CS update below
+                // local store recovery sends a mapping update request during application of a cluster state on the data node which we might
+                // receive here before the CS update that created the index has been applied on all nodes and thus the index isn't found in
+                // the state yet, but will be visible to the CS update below
                 noop = false;
                 break;
             }
@@ -253,8 +251,7 @@ public class MetadataMappingService {
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
             task,
             ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
-            putMappingExecutor,
-            task
+            putMappingExecutor
         );
     }
 }

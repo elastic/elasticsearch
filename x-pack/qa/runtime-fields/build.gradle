@@ -6,12 +6,14 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.build'
+
+import org.elasticsearch.gradle.Version
+
+apply plugin: 'elasticsearch.java'
 
 dependencies {
-  api project(":test:framework")
+  api project(":test:yaml-rest-runner")
 }
 
 // We don't currently have any tests for this because they are test utilities.
@@ -22,7 +24,7 @@ subprojects {
     apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
     dependencies {
-      yamlRestTestImplementation xpackProject(":x-pack:qa:runtime-fields")
+      yamlRestTestImplementation project(":x-pack:qa:runtime-fields")
     }
 
     restResources {
@@ -40,9 +42,8 @@ subprojects {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
       setting 'xpack.security.enabled', 'false'
-      if (BuildParams.isSnapshotBuild() == false) {
-        systemProperty 'es.index_mode_feature_flag_registered', 'true'
-      }
+
+      requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
     }
 
     tasks.named("yamlRestTest").configure {
@@ -70,7 +71,7 @@ subprojects {
           /////// TO FIX ///////
           'search.aggregation/40_range/Date range', //source only date field should also emit values for numbers, it expects strings only
           'search/115_multiple_field_collapsing/two levels fields collapsing', // Field collapsing on a runtime field does not work
-          'field_caps/30_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
+          'field_caps/30_index_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
           'search.aggregation/220_filters_bucket/cache busting', // runtime keyword does not support split_queries_on_whitespace
           'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',
           //completion suggester does not return options when the context field is a geo_point runtime field
@@ -78,6 +79,7 @@ subprojects {
 
           //there is something wrong when using dotted document syntax here, passes in main yaml tests
           'search/330_fetch_fields/Test nested field inside object structure',
+
           /////// TO FIX ///////
 
           /////// NOT SUPPORTED ///////
@@ -88,17 +90,28 @@ subprojects {
           'search.aggregation/10_histogram/*',
           'suggest/50_completion_with_multi_fields/Search by suggestion on geofield-hash on sub field should work',
           // Runtime fields don't have global ords
+          'analytics/nested_top_metrics_sort/*',
           'search.aggregation/20_terms/string profiler via global ordinals filters implementation',
           'search.aggregation/20_terms/string profiler via global ordinals native implementation',
           'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
           'search.aggregation/170_cardinality_metric/profiler string',
+          'search.aggregation/170_cardinality_metric/profiler string segment ords hint',
+          'search.aggregation/170_cardinality_metric/profiler string global ords hint',
+          'search.aggregation/170_cardinality_metric/profiler string direct hint',
+          'search.aggregation/170_cardinality_metric/profiler string save memory hint',
+          'search.aggregation/170_cardinality_metric/profiler string save time hint',
           'search.aggregation/235_composite_sorted/*',
+          // timeseries dimensions can't be runtime fields
+          'search.aggregation/450_time_series/*',
           // The error messages are different
           'search/330_fetch_fields/error includes field name',
           'search/330_fetch_fields/error includes glob pattern',
           // we need a @timestamp field to be defined in index mapping
           'search/380_sort_segments_on_timestamp/*',
           'field_caps/40_time_series/*',
+          // Synthetic source needs doc values that runtime fields tests disable
+          'search/400_synthetic_source/*',
+          'search.highlight/50_synthetic_source/*',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

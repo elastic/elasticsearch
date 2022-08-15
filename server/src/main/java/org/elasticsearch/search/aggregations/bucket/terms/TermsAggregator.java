@@ -195,11 +195,14 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         this.order = order;
         partiallyBuiltBucketComparator = order == null ? null : order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);
         this.format = format;
-        if (subAggsNeedScore() && descendsFromNestedAggregator(parent)) {
+        if ((subAggsNeedScore() && descendsFromNestedAggregator(parent)) || context.isInSortOrderExecutionRequired()) {
             /**
              * Force the execution to depth_first because we need to access the score of
              * nested documents in a sub-aggregation and we are not able to generate this score
              * while replaying deferred documents.
+             *
+             * We also force depth_first for time-series aggs executions since they need to be visited in a particular order (index
+             * sort order) which might be changed by the breadth_first execution.
              */
             this.collectMode = SubAggCollectionMode.DEPTH_FIRST;
         } else {

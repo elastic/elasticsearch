@@ -10,11 +10,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
@@ -51,8 +50,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenNegativeNumber() throws IOException {
         String json = "{\"model_memory_limit\": -1}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         assertThat(e.getCause(), notNullValue());
         assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = -1"));
@@ -60,8 +58,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenZero() throws IOException {
         String json = "{\"model_memory_limit\": 0}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         assertThat(e.getCause(), notNullValue());
         assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
@@ -69,8 +66,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenPositiveNumber() throws IOException {
         String json = "{\"model_memory_limit\": 2048}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
 
         AnalysisLimits limits = AnalysisLimits.STRICT_PARSER.apply(parser, null);
 
@@ -79,8 +75,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenNegativeString() throws IOException {
         String json = "{\"model_memory_limit\":\"-4MB\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         // the root cause is wrapped in an intermediate ElasticsearchParseException
         assertThat(e.getCause(), instanceOf(ElasticsearchParseException.class));
@@ -90,8 +85,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenZeroString() throws IOException {
         String json = "{\"model_memory_limit\":\"0MB\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         assertThat(e.getCause(), notNullValue());
         assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
@@ -99,8 +93,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenLessThanOneMBString() throws IOException {
         String json = "{\"model_memory_limit\":\"1000Kb\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         assertThat(e.getCause(), notNullValue());
         assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
@@ -108,8 +101,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenStringMultipleOfMBs() throws IOException {
         String json = "{\"model_memory_limit\":\"4g\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
 
         AnalysisLimits limits = AnalysisLimits.STRICT_PARSER.apply(parser, null);
 
@@ -118,8 +110,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenStringNonMultipleOfMBs() throws IOException {
         String json = "{\"model_memory_limit\":\"1300kb\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
 
         AnalysisLimits limits = AnalysisLimits.STRICT_PARSER.apply(parser, null);
 

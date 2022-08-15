@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.ParseField;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
     public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
     public static final String NAME = "cluster:admin/ilm/delete";
@@ -73,6 +75,11 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
             }
             Request other = (Request) obj;
             return Objects.equals(policyName, other.policyName);
+        }
+
+        @Override
+        public String toString() {
+            return format("delete lifecycle policy [%s]", policyName);
         }
 
     }

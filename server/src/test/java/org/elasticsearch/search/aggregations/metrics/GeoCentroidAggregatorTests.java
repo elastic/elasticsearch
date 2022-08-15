@@ -9,11 +9,12 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -72,7 +73,10 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg").field("another_field")
                 .missing("53.69437,6.475031");
 
-            GeoPoint expectedCentroid = new GeoPoint(53.69437, 6.475031);
+            GeoPoint expectedCentroid = new GeoPoint(
+                GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(53.69437)),
+                GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(6.475031))
+            );
             Document document = new Document();
             document.add(new LatLonDocValuesField("field", 10, 10));
             w.addDocument(document);

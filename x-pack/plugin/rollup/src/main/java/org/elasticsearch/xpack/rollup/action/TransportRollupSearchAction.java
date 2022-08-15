@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -23,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -68,10 +66,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportRollupSearchAction extends TransportAction<SearchRequest, SearchResponse> {
 
@@ -120,30 +121,47 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
-            AggregationReduceContext context = new AggregationReduceContext.ForPartial(
-                bigArrays,
-                scriptService,
-                ((CancellableTask) task)::isCancelled
-            );
-            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, context));
+            AggregationReduceContext.Builder reduceContextBuilder = new AggregationReduceContext.Builder() {
+                @Override
+                public AggregationReduceContext forPartialReduction() {
+                    return new AggregationReduceContext.ForPartial(
+                        bigArrays,
+                        scriptService,
+                        ((CancellableTask) task)::isCancelled,
+                        request.source().aggregations()
+                    );
+                }
+
+                @Override
+                public AggregationReduceContext forFinalReduction() {
+                    return new AggregationReduceContext.ForFinal(
+                        bigArrays,
+                        scriptService,
+                        ((CancellableTask) task)::isCancelled,
+                        request.source().aggregations(),
+                        b -> {}
+                    );
+                }
+            };
+            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
         }, listener::onFailure));
     }
 
     static SearchResponse processResponses(
         RollupSearchContext rollupContext,
         MultiSearchResponse msearchResponse,
-        AggregationReduceContext reduceContext
+        AggregationReduceContext.Builder reduceContextBuilder
     ) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
-            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContext);
+            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContextBuilder);
         } else if (rollupContext.hasLiveIndices()) {
             // Only live
             assert msearchResponse.getResponses().length == 1;
             return RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
         } else if (rollupContext.hasRollupIndices()) {
             // Only rollup
-            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses(), reduceContext);
+            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses(), reduceContextBuilder);
         }
         throw new RuntimeException("MSearch response was empty, cannot unroll RollupSearch results");
     }
@@ -391,7 +409,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    static RollupSearchContext separateIndices(String[] indices, ImmutableOpenMap<String, IndexMetadata> indexMetadata) {
+    static RollupSearchContext separateIndices(String[] indices, Map<String, IndexMetadata> indexMetadata) {
 
         if (indices.length == 0) {
             throw new IllegalArgumentException("Must specify at least one concrete index.");
@@ -444,11 +462,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         channel.sendResponse(e);
                     } catch (Exception e1) {
                         logger.warn(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                "Failed to send error response for action [{}] and request [{}]",
-                                actionName,
-                                request
-                            ),
+                            () -> format("Failed to send error response for action [%s] and request [%s]", actionName, request),
                             e1
                         );
                     }

@@ -39,43 +39,12 @@ public interface ElementVisitor<V> {
     V visit(ScopeBinding binding);
 
     /**
-     * Visit a registration of type converters for matching target types.
-     */
-    V visit(TypeConverterBinding binding);
-
-    /**
-     * Visit a request to inject the instance fields and methods of an instance.
-     */
-    V visit(InjectionRequest<?> request);
-
-    /**
-     * Visit a request to inject the static fields and methods of type.
-     */
-    V visit(StaticInjectionRequest request);
-
-    /**
      * Visit a lookup of the provider for a type.
      */
     <T> V visit(ProviderLookup<T> lookup);
 
     /**
-     * Visit a lookup of the members injector.
-     */
-    <T> V visit(MembersInjectorLookup<T> lookup);
-
-    /**
      * Visit an error message and the context in which it occurred.
      */
     V visit(Message message);
-
-    /**
-     * Visit a collection of configuration elements for a {@linkplain org.elasticsearch.common.inject.PrivateBinder
-     * private binder}.
-     */
-    V visit(PrivateElements elements);
-
-    /**
-     * Visit an injectable type listener binding.
-     */
-    V visit(TypeListenerBinding binding);
 }

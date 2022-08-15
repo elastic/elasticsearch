@@ -6,7 +6,7 @@ functionality in Elasticsearch by adding repositories backed by the cloud or
 by distributed file systems:
 
 [discrete]
-==== Offical repository plugins
+==== Official repository plugins
 
 NOTE: Support for S3, GCS and Azure repositories is now bundled in {es} by
 default.

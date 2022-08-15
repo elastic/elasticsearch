@@ -8,6 +8,9 @@
 
 package org.elasticsearch.test;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
+
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -16,7 +19,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -89,10 +92,10 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -111,6 +114,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -448,7 +452,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 RandomNumbers.randomIntBetween(random, 1, 15) + "ms"
             );
         }
-
+        if (randomBoolean()) {
+            builder.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), randomBoolean());
+        }
         return builder;
     }
 
@@ -1048,6 +1054,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Retrieves the persistent tasks with the requested task name from the given cluster state.
+     */
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, String taskName) {
+        return findTasks(clusterState, Set.of(taskName));
+    }
+
+    /**
+     * Retrieves the persistent tasks with the requested task names from the given cluster state.
+     */
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
+        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        if (tasks == null) {
+            return List.of();
+        }
+        return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
+    }
+
+    /**
      * Prints the current cluster state as debug logging.
      */
     public void logClusterState() {
@@ -1453,6 +1477,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return admin().cluster();
     }
 
+    public void indexRandom(boolean forceRefresh, String index, int numDocs) throws InterruptedException {
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(index).setSource("field", "value");
+        }
+        indexRandom(forceRefresh, Arrays.asList(builders));
+    }
+
     /**
      * Convenience method that forwards to {@link #indexRandom(boolean, List)}.
      */
@@ -1516,6 +1548,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         throws InterruptedException {
         Random random = random();
         Set<String> indices = new HashSet<>();
+        builders = new ArrayList<>(builders);
         for (IndexRequestBuilder builder : builders) {
             indices.add(builder.request().index());
         }
@@ -1625,6 +1658,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build()
             : Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+    }
+
+    /** Sets cluster persistent settings **/
+    public void updateClusterSettings(Settings.Builder persistentSettings) {
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
@@ -2013,11 +2051,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
-    /** Returns {@code true} iff this test cluster should use a dummy geo_shape field mapper */
-    protected boolean addMockGeoShapeFieldMapper() {
-        return true;
-    }
-
     /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
@@ -2059,9 +2092,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
-        if (addMockGeoShapeFieldMapper()) {
-            mocks.add(TestGeoShapeFieldMapperPlugin.class);
-        }
         return Collections.unmodifiableList(mocks);
     }
 
@@ -2136,8 +2166,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Set<String> nodes = new HashSet<>();
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShard.size(); copy++) {
+                    ShardRouting shardRouting = indexShard.shard(copy);
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         nodes.add(name);
@@ -2156,7 +2188,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         IndicesSegmentResponse segmentResponse = client().admin().indices().prepareSegments(indexName).execute().actionGet();
         IndexSegments indexSegments = segmentResponse.getIndices().get(indexName);
         for (IndexShardSegments indexShardSegments : indexSegments.getShards().values()) {
-            for (ShardSegments shardSegments : indexShardSegments.getShards()) {
+            for (ShardSegments shardSegments : indexShardSegments.shards()) {
                 for (Segment segment : shardSegments) {
                     assertThat(expectedIndexSort, equalTo(segment.getSegmentSort()));
                 }
@@ -2197,7 +2229,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         if (isInternalCluster()) {
-            internalCluster().setBootstrapMasterNodeIndex(-1);
+            internalCluster().setBootstrapMasterNodeIndex(InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_AUTO);
         }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
@@ -2221,6 +2253,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
             SUITE_SEED = null;
             currentCluster = null;
             INSTANCE = null;
+        }
+        awaitGlobalNettyThreadsFinish();
+    }
+
+    /**
+     *  After the cluster is stopped, there are a few netty threads that can linger, so we wait for them to finish otherwise these
+     *  lingering threads can intermittently trigger the thread leak detector.
+     */
+    static void awaitGlobalNettyThreadsFinish() {
+        try {
+            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IllegalStateException e) {
+            if (e.getMessage().equals("thread was not started") == false) {
+                throw e;
+            }
+            // ignore since the thread was never started
+        }
+
+        try {
+            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

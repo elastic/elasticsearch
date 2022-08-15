@@ -8,23 +8,24 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public final class RoutingNodesHelper {
 
     private RoutingNodesHelper() {}
 
-    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState... state) {
+    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
         List<ShardRouting> shards = new ArrayList<>();
         for (RoutingNode routingNode : routingNodes) {
             shards.addAll(routingNode.shardsWithState(state));
         }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                routingNodes.unassigned().forEach(shards::add);
-                break;
-            }
+        if (state == ShardRoutingState.UNASSIGNED) {
+            routingNodes.unassigned().forEach(shards::add);
         }
         return shards;
     }
@@ -47,4 +48,23 @@ public final class RoutingNodesHelper {
         return shards;
     }
 
+    /**
+     * Returns a stream over all {@link ShardRouting} in a {@link IndexShardRoutingTable}. This is not part of production code on purpose
+     * as its too costly to iterate the table like this in many production use cases.
+     *
+     * @param indexShardRoutingTable index shard routing table to iterate over
+     * @return stream over {@link ShardRouting}
+     */
+    public static Stream<ShardRouting> asStream(IndexShardRoutingTable indexShardRoutingTable) {
+        return IntStream.range(0, indexShardRoutingTable.size()).mapToObj(indexShardRoutingTable::shard);
+    }
+
+    public static RoutingNode routingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
+        final RoutingNode routingNode = new RoutingNode(nodeId, node, shards.length);
+        for (ShardRouting shardRouting : shards) {
+            routingNode.add(shardRouting);
+        }
+
+        return routingNode;
+    }
 }

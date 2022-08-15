@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -28,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedRunnable;
@@ -46,6 +49,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySnapshotFileRequest;
+import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -61,6 +65,8 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -305,6 +311,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertDocumentsAreEqual(indexName, numDocs);
     }
 
+    @TestLogging(reason = "testing logging on failure", value = "org.elasticsearch.indices.recovery.RecoverySourceHandler:WARN")
     public void testFallbacksToSourceNodeWhenSnapshotDownloadFails() throws Exception {
         String sourceNode = internalCluster().startDataOnlyNode();
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -326,16 +333,37 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createRepo(repoName, TestRepositoryPlugin.FAULTY_TYPE);
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
-        String targetNode = internalCluster().startDataOnlyNode();
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode))
-                .get()
-        );
+        String targetNode;
+        final var recoverySourceHandlerLogger = LogManager.getLogger(RecoverySourceHandler.class);
+        final var mockLogAppender = new MockLogAppender();
+        mockLogAppender.start();
+        try {
+            Loggers.addAppender(recoverySourceHandlerLogger, mockLogAppender);
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected warn log about restore failure",
+                    RecoverySourceHandler.class.getName(),
+                    Level.WARN,
+                    "failed to recover file [*] from snapshot, will recover from primary instead"
+                )
+            );
 
-        ensureGreen();
+            targetNode = internalCluster().startDataOnlyNode();
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode))
+                    .get()
+            );
+
+            ensureGreen();
+
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(recoverySourceHandlerLogger, mockLogAppender);
+            mockLogAppender.stop();
+        }
 
         RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
         assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
@@ -501,6 +529,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertDocumentsAreEqual(indexName, numDocs + docsIndexedAfterSnapshot);
     }
 
+    @TestLogging(reason = "testing logging on cancellation", value = "org.elasticsearch.indices.recovery.RecoverySourceHandler:DEBUG")
     public void testRecoveryIsCancelledAfterDeletingTheIndex() throws Exception {
         updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), "1");
 
@@ -591,7 +620,35 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             recoverSnapshotFileRequestReceived.await();
 
-            assertAcked(client().admin().indices().prepareDelete(indexName).get());
+            final var recoverySourceHandlerLogger = LogManager.getLogger(RecoverySourceHandler.class);
+            final var mockLogAppender = new MockLogAppender();
+            mockLogAppender.start();
+            try {
+                Loggers.addAppender(recoverySourceHandlerLogger, mockLogAppender);
+                mockLogAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "expected debug log about restore cancellation",
+                        RecoverySourceHandler.class.getName(),
+                        Level.DEBUG,
+                        "cancelled while recovering file [*] from snapshot"
+                    )
+                );
+                mockLogAppender.addExpectation(
+                    new MockLogAppender.UnseenEventExpectation(
+                        "expected no WARN logs",
+                        RecoverySourceHandler.class.getName(),
+                        Level.WARN,
+                        "*"
+                    )
+                );
+
+                assertAcked(client().admin().indices().prepareDelete(indexName).get());
+
+                assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            } finally {
+                Loggers.removeAppender(recoverySourceHandlerLogger, mockLogAppender);
+                mockLogAppender.stop();
+            }
 
             respondToRecoverSnapshotFile.countDown();
 

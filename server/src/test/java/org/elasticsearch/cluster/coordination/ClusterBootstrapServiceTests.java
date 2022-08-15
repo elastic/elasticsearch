@@ -7,14 +7,20 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -173,15 +179,16 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testThrowsExceptionOnDuplicates() {
-        final IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () -> {
-            new ClusterBootstrapService(
+        final IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ClusterBootstrapService(
                 builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "duplicate-requirement", "duplicate-requirement").build(),
                 transportService,
                 Collections::emptyList,
                 () -> false,
                 vc -> { throw new AssertionError("should not be called"); }
-            );
-        });
+            )
+        );
 
         assertThat(illegalArgumentException.getMessage(), containsString(INITIAL_MASTER_NODES_SETTING.getKey()));
         assertThat(illegalArgumentException.getMessage(), containsString("duplicate-requirement"));
@@ -195,7 +202,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
-            () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
+            () -> Stream.of(otherNode1, otherNode2).toList(),
             () -> false,
             vc -> {
                 assertTrue(bootstrapped.compareAndSet(false, true));
@@ -231,7 +238,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 assertThat(vc.getNodeIds(), hasItem(localNode.getId()));
                 assertThat(vc.getNodeIds(), hasItem(otherNode1.getId()));
                 assertThat(vc.getNodeIds(), hasItem(allOf(startsWith(BOOTSTRAP_PLACEHOLDER_PREFIX), containsString(otherNode2.getName()))));
-                assertTrue(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).collect(Collectors.toList())));
+                assertTrue(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).toList()));
                 assertFalse(vc.hasQuorum(singletonList(localNode.getId())));
                 assertFalse(vc.hasQuorum(singletonList(otherNode1.getId())));
             }
@@ -263,7 +270,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 )
                 .build(),
             transportService,
-            () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
+            () -> Stream.of(otherNode1, otherNode2).toList(),
             () -> false,
             vc -> {
                 assertTrue(bootstrapped.compareAndSet(false, true));
@@ -272,20 +279,15 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 assertThat(vc.getNodeIds(), hasItem(otherNode1.getId()));
                 assertThat(vc.getNodeIds(), hasItem(otherNode2.getId()));
 
-                final List<String> placeholders = vc.getNodeIds()
-                    .stream()
-                    .filter(ClusterBootstrapService::isBootstrapPlaceholder)
-                    .collect(Collectors.toList());
+                final List<String> placeholders = vc.getNodeIds().stream().filter(ClusterBootstrapService::isBootstrapPlaceholder).toList();
                 assertThat(placeholders.size(), equalTo(2));
                 assertNotEquals(placeholders.get(0), placeholders.get(1));
                 assertThat(placeholders, hasItem(containsString("missing-node-1")));
                 assertThat(placeholders, hasItem(containsString("missing-node-2")));
 
-                assertTrue(
-                    vc.hasQuorum(Stream.of(localNode, otherNode1, otherNode2).map(DiscoveryNode::getId).collect(Collectors.toList()))
-                );
-                assertFalse(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).collect(Collectors.toList())));
-                assertFalse(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).collect(Collectors.toList())));
+                assertTrue(vc.hasQuorum(Stream.of(localNode, otherNode1, otherNode2).map(DiscoveryNode::getId).toList()));
+                assertFalse(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).toList()));
+                assertFalse(vc.hasQuorum(Stream.of(localNode, otherNode1).map(DiscoveryNode::getId).toList()));
             }
         );
 
@@ -329,7 +331,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 )
                 .build(),
             transportService,
-            () -> Stream.of(otherNode1).collect(Collectors.toList()),
+            () -> Stream.of(otherNode1).toList(),
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
@@ -353,7 +355,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 )
                 .build(),
             transportService,
-            () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
+            () -> Stream.of(otherNode1, otherNode2).toList(),
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
@@ -369,7 +371,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
-            () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
+            () -> Stream.of(otherNode1, otherNode2).toList(),
             () -> true,
             vc -> { throw new AssertionError("should not be called"); }
         );
@@ -393,7 +395,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
-            () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
+            () -> Stream.of(localNode, otherNode1, otherNode2).toList(),
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
@@ -406,7 +408,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getName(), otherNode2.getName()).build(),
             transportService,
-            () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
+            () -> Stream.of(localNode, otherNode1, otherNode2).toList(),
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
@@ -419,7 +421,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()).build(),
             transportService,
-            () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
+            () -> Stream.of(localNode, otherNode1, otherNode2).toList(),
             () -> false,
             vc -> { throw new AssertionError("should not be called"); }
         );
@@ -436,7 +438,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
-            () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
+            () -> Stream.of(otherNode1, otherNode2).toList(),
             () -> false,
             vc -> {
                 bootstrappingAttempts.incrementAndGet();
@@ -454,9 +456,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testCancelsBootstrapIfRequirementMatchesMultipleNodes() {
-        AtomicReference<Iterable<DiscoveryNode>> discoveredNodes = new AtomicReference<>(
-            Stream.of(otherNode1, otherNode2).collect(Collectors.toList())
-        );
+        AtomicReference<Iterable<DiscoveryNode>> discoveredNodes = new AtomicReference<>(Stream.of(otherNode1, otherNode2).toList());
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getAddress().getAddress()).build(),
             transportService,
@@ -475,9 +475,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testCancelsBootstrapIfNodeMatchesMultipleRequirements() {
-        AtomicReference<Iterable<DiscoveryNode>> discoveredNodes = new AtomicReference<>(
-            Stream.of(otherNode1, otherNode2).collect(Collectors.toList())
-        );
+        AtomicReference<Iterable<DiscoveryNode>> discoveredNodes = new AtomicReference<>(Stream.of(otherNode1, otherNode2).toList());
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getAddress().toString(), otherNode1.getName())
@@ -510,7 +508,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                     Set.of(DiscoveryNodeRole.MASTER_ROLE),
                     Version.CURRENT
                 )
-            ).collect(Collectors.toList())
+            ).toList()
         );
 
         clusterBootstrapService.onFoundPeersUpdated();
@@ -587,7 +585,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
                 .build(),
             transportService,
-            () -> Stream.of(otherNode1, otherNode2, extraNode).collect(Collectors.toList()),
+            () -> Stream.of(otherNode1, otherNode2, extraNode).toList(),
             () -> false,
             vc -> {
                 assertTrue(bootstrapped.compareAndSet(false, true));
@@ -610,7 +608,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             settings.build(),
             transportService,
-            () -> emptyList(),
+            Collections::emptyList,
             () -> false,
             vc -> {
                 assertTrue(bootstrapped.compareAndSet(false, true));
@@ -640,7 +638,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ClusterBootstrapService(settings.build(), transportService, () -> emptyList(), () -> false, vc -> fail())
+                () -> new ClusterBootstrapService(settings.build(), transportService, Collections::emptyList, () -> false, vc -> fail())
             ).getMessage(),
             containsString(
                 "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed when [discovery.type] is set " + "to [single-node]"
@@ -657,9 +655,85 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ClusterBootstrapService(settings.build(), transportService, () -> emptyList(), () -> false, vc -> fail())
+                () -> new ClusterBootstrapService(settings.build(), transportService, Collections::emptyList, () -> false, vc -> fail())
             ).getMessage(),
             containsString("node with [discovery.type] set to [single-node] must be master-eligible")
         );
+    }
+
+    public void testBootstrapStateLogging() throws IllegalAccessException {
+        final var mockAppender = new MockLogAppender();
+        mockAppender.start();
+        final var serviceLogger = LogManager.getLogger(ClusterBootstrapService.class);
+        Loggers.addAppender(serviceLogger, mockAppender);
+
+        try {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "fresh node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to [node1, node2]"
+                )
+            );
+
+            final var metadataBuilder = Metadata.builder().clusterUUIDCommitted(false);
+            if (randomBoolean()) {
+                metadataBuilder.clusterUUID(UUIDs.randomBase64UUID(random()));
+            }
+            new ClusterBootstrapService(
+                Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "node1", "node2").build(),
+                transportService,
+                Collections::emptyList,
+                () -> false,
+                vc -> { throw new AssertionError("should not be called"); }
+            ).logBootstrapState(metadataBuilder.build());
+
+            mockAppender.assertAllExpectationsMatched();
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "bootstrapped node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node is locked into cluster UUID [test-uuid] and will not attempt further cluster bootstrapping"
+                )
+            );
+
+            new ClusterBootstrapService(
+                Settings.EMPTY,
+                transportService,
+                Collections::emptyList,
+                () -> false,
+                vc -> { throw new AssertionError("should not be called"); }
+            ).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
+
+            mockAppender.assertAllExpectationsMatched();
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "bootstrapped node message if bootstrapping still configured",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.WARN,
+                    """
+                        this node is locked into cluster UUID [test-uuid] but [cluster.initial_master_nodes] is set to [node1, node2]; \
+                        remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts"""
+                )
+            );
+
+            new ClusterBootstrapService(
+                Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "node1", "node2").build(),
+                transportService,
+                Collections::emptyList,
+                () -> false,
+                vc -> { throw new AssertionError("should not be called"); }
+            ).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
+
+            mockAppender.assertAllExpectationsMatched();
+
+        } finally {
+            Loggers.removeAppender(serviceLogger, mockAppender);
+            mockAppender.stop();
+        }
     }
 }

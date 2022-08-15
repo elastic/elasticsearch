@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -165,7 +164,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
         if (isWatchDocument(shardId.getIndexName())) {
-            logger.debug(() -> new ParameterizedMessage("failed to add watch [{}] to trigger service", index.id()), ex);
+            logger.debug(() -> "failed to add watch [" + index.id() + "] to trigger service", ex);
         }
     }
 
@@ -222,7 +221,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                     checkWatchIndexHasChanged(metadata, event);
                 }
             } catch (IllegalStateException e) {
-                logger.error("error loading watches index: [{}]", e.getMessage());
+                logger.error("error loading watches index", e);
                 configuration = INACTIVE;
             }
         }
@@ -338,14 +337,14 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
             // find all allocation ids for this shard id in the cluster state
             List<String> allocationIds = routingTable.shard(shardId.getId())
-                .getActiveShards()
+                .activeShards()
                 .stream()
                 .map(ShardRouting::allocationId)
                 .map(AllocationId::getId)
-                .collect(Collectors.toList());
+                .sorted()
+                .toList();
 
             // sort the list so it is stable
-            Collections.sort(allocationIds);
 
             String allocationId = shardRouting.allocationId().getId();
             int idx = allocationIds.indexOf(allocationId);

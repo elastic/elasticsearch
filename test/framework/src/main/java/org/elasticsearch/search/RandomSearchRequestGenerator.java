@@ -32,12 +32,12 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -50,6 +50,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.mockScript;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
@@ -104,6 +105,9 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             searchRequest.source(randomSearchSourceBuilder.get());
+        }
+        if (randomBoolean()) {
+            searchRequest.setForceSyntheticSource(randomBoolean());
         }
         return searchRequest;
     }
@@ -208,16 +212,16 @@ public class RandomSearchRequestGenerator {
                 excludes[i] = randomAlphaOfLengthBetween(5, 20);
             }
             fetchSourceContext = switch (branch) {
-                case 0 -> new FetchSourceContext(randomBoolean());
-                case 1 -> new FetchSourceContext(true, includes, excludes);
-                case 2 -> new FetchSourceContext(
+                case 0 -> FetchSourceContext.of(randomBoolean());
+                case 1 -> FetchSourceContext.of(true, includes, excludes);
+                case 2 -> FetchSourceContext.of(
                     true,
                     new String[] { randomAlphaOfLengthBetween(5, 20) },
                     new String[] { randomAlphaOfLengthBetween(5, 20) }
                 );
-                case 3 -> new FetchSourceContext(true, includes, excludes);
-                case 4 -> new FetchSourceContext(true, includes, null);
-                case 5 -> new FetchSourceContext(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
+                case 3 -> FetchSourceContext.of(true, includes, excludes);
+                case 4 -> FetchSourceContext.of(true, includes, null);
+                case 5 -> FetchSourceContext.of(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
                 default -> throw new IllegalStateException();
             };
             builder.fetchSource(fetchSourceContext);
@@ -242,6 +246,19 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             builder.postFilter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
         }
+
+        if (randomBoolean()) {
+            String field = randomAlphaOfLength(6);
+            int dim = randomIntBetween(2, 30);
+            float[] vector = new float[dim];
+            for (int i = 0; i < vector.length; i++) {
+                vector[i] = randomFloat();
+            }
+            int k = randomIntBetween(1, 100);
+            int numCands = randomIntBetween(k, 1000);
+            builder.knnSearch(new KnnSearchBuilder(field, vector, k, numCands));
+        }
+
         if (randomBoolean()) {
             int numSorts = randomIntBetween(1, 5);
             for (int i = 0; i < numSorts; i++) {
@@ -292,11 +309,7 @@ public class RandomSearchRequestGenerator {
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(jsonBuilder).streamInput()
-                    );
+                    .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(jsonBuilder).streamInput());
                 parser.nextToken();
                 parser.nextToken();
                 parser.nextToken();

@@ -10,7 +10,6 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
@@ -18,14 +17,14 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.mockfile.FilterFileChannel;
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.util.LineFileDocs;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.mockfile.FilterFileChannel;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.util.LineFileDocs;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,8 +45,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -446,7 +445,12 @@ public class TranslogTests extends ESTestCase {
         assertThat(Translog.findEarliestLastModifiedAge(fixedTime, readers, w), equalTo(LongStream.of(periods).max().orElse(0L)));
     }
 
-    public void testStats() throws IOException {
+    private void waitForPositiveAge() throws Exception {
+        final var lastModifiedTime = translog.getCurrent().getLastModifiedTime();
+        assertBusy(() -> assertThat(System.currentTimeMillis(), greaterThan(lastModifiedTime)));
+    }
+
+    public void testStats() throws Exception {
         // self control cleaning for test
         final long firstOperationPosition = translog.getFirstOperationPosition();
         {
@@ -454,9 +458,10 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.estimatedNumberOfOperations(), equalTo(0));
         }
         assertThat((int) firstOperationPosition, greaterThan(CodecUtil.headerLength(TranslogHeader.TRANSLOG_CODEC)));
-        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
 
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(157L));
@@ -467,6 +472,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.add(new Translog.Delete("2", 1, primaryTerm.get()));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(193L));
@@ -477,6 +483,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.add(new Translog.Delete("3", 2, primaryTerm.get()));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(229L));
@@ -487,6 +494,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.add(new Translog.NoOp(3, 1, randomAlphaOfLength(16)));
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(271L));
@@ -497,6 +505,7 @@ public class TranslogTests extends ESTestCase {
 
         translog.rollGeneration();
         {
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
@@ -532,13 +541,13 @@ public class TranslogTests extends ESTestCase {
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));
         translog.trimUnreferencedReaders();
         {
-            long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
+            waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(0));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
-            assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
     }
 
@@ -943,10 +952,6 @@ public class TranslogTests extends ESTestCase {
         return new Term("_id", Uid.encodeId(doc.id()));
     }
 
-    private Term newUid(String id) {
-        return new Term("_id", Uid.encodeId(id));
-    }
-
     public void testVerifyTranslogIsNotDeleted() throws IOException {
         assertFileIsPresent(translog, 1);
         translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
@@ -1036,7 +1041,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("--> writer [{}] had an error", threadName), e);
+                    logger.error(() -> "--> writer [" + threadName + "] had an error", e);
                     errors.add(e);
                 }
             }, threadName);
@@ -1051,7 +1056,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("--> reader [{}] had an error", threadId), e);
+                    logger.error(() -> "--> reader [" + threadId + "] had an error", e);
                     errors.add(e);
                     try {
                         closeRetentionLock();
@@ -1999,7 +2004,9 @@ public class TranslogTests extends ESTestCase {
         final List<Translog.Operation> allOperations = new ArrayList<>();
 
         for (int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
-            List<Long> ops = LongStream.range(0, allOperations.size() + randomIntBetween(10, 15)).boxed().collect(Collectors.toList());
+            List<Long> ops = LongStream.range(0, allOperations.size() + randomIntBetween(10, 15))
+                .boxed()
+                .collect(Collectors.toCollection(ArrayList::new));
             Randomness.shuffle(ops);
 
             AtomicReference<String> source = new AtomicReference<>();
@@ -2097,11 +2104,11 @@ public class TranslogTests extends ESTestCase {
 
             List<Integer> ops = IntStream.range(translogOperations, translogOperations + extraTranslogOperations)
                 .boxed()
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
             Randomness.shuffle(ops);
             for (int op : ops) {
                 String ascii = randomAlphaOfLengthBetween(1, 50);
-                Translog.Index operation = new Translog.Index("" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"));
+                Translog.Index operation = new Translog.Index("" + op, op, primaryTerm.get(), ascii.getBytes(StandardCharsets.UTF_8));
 
                 failableTLog.add(operation);
             }
@@ -3337,18 +3344,14 @@ public class TranslogTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         long randomSeqNum = randomNonNegativeLong();
         long randomPrimaryTerm = randomBoolean() ? 0 : randomNonNegativeLong();
-        seqID.seqNo.setLongValue(randomSeqNum);
-        seqID.seqNoDocValue.setLongValue(randomSeqNum);
-        seqID.primaryTerm.setLongValue(randomPrimaryTerm);
-        Field idField = new Field("_id", Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE);
+        seqID.set(randomSeqNum, randomPrimaryTerm);
+        Field idField = IdFieldMapper.standardIdField("1");
         Field versionField = new NumericDocValuesField("_version", 1);
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("value", "test", Field.Store.YES));
         document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        seqID.addFields(document);
         ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", null, Arrays.asList(document), B_1, XContentType.JSON, null);
 
         Engine.Index eIndex = new Engine.Index(
@@ -3365,7 +3368,7 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             0
         );
-        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true);
+        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true, eIndex.id());
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
         Version wireVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
@@ -3389,7 +3392,7 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             0
         );
-        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true);
+        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true, doc.id());
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();
@@ -3432,14 +3435,14 @@ public class TranslogTests extends ESTestCase {
             assertFileIsPresent(translog, generation + i);
             final List<Long> storedPrimaryTerms = Stream.concat(translog.getReaders().stream(), Stream.of(translog.getCurrent()))
                 .map(t -> t.getPrimaryTerm())
-                .collect(Collectors.toList());
+                .toList();
             assertThat(storedPrimaryTerms, equalTo(primaryTerms));
         }
 
         final BaseTranslogReader minRetainedReader = randomFrom(
             Stream.concat(translog.getReaders().stream(), Stream.of(translog.getCurrent()))
                 .filter(r -> r.getCheckpoint().minSeqNo >= 0)
-                .collect(Collectors.toList())
+                .toList()
         );
         int retainedOps = Stream.concat(translog.getReaders().stream(), Stream.of(translog.getCurrent()))
             .filter(r -> r.getCheckpoint().generation >= minRetainedReader.generation)
@@ -3462,13 +3465,13 @@ public class TranslogTests extends ESTestCase {
 
     public void testMinSeqNoBasedAPI() throws IOException {
         final int operations = randomIntBetween(1, 512);
-        final List<Long> shuffledSeqNos = LongStream.range(0, operations).boxed().collect(Collectors.toList());
+        final List<Long> shuffledSeqNos = LongStream.range(0, operations).boxed().collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(shuffledSeqNos);
         final List<Tuple<Long, Long>> seqNos = new ArrayList<>();
         final Map<Long, Long> terms = new HashMap<>();
         for (final Long seqNo : shuffledSeqNos) {
             seqNos.add(Tuple.tuple(seqNo, terms.computeIfAbsent(seqNo, k -> 0L)));
-            Long repeatingTermSeqNo = randomFrom(seqNos.stream().map(Tuple::v1).collect(Collectors.toList()));
+            Long repeatingTermSeqNo = randomFrom(seqNos.stream().map(Tuple::v1).toList());
             seqNos.add(Tuple.tuple(repeatingTermSeqNo, terms.get(repeatingTermSeqNo)));
         }
 
@@ -3621,7 +3624,7 @@ public class TranslogTests extends ESTestCase {
         final Map<Long, Translog.Operation> latestOperations = new HashMap<>();
         final int generations = between(2, 20);
         for (int gen = 0; gen < generations; gen++) {
-            List<Long> batch = LongStream.rangeClosed(0, between(0, 500)).boxed().collect(Collectors.toList());
+            List<Long> batch = LongStream.rangeClosed(0, between(0, 500)).boxed().collect(Collectors.toCollection(ArrayList::new));
             Randomness.shuffle(batch);
             for (Long seqNo : batch) {
                 Translog.Index op = new Translog.Index(randomAlphaOfLength(10), seqNo, primaryTerm.get(), new byte[] { 1 });
@@ -3708,7 +3711,9 @@ public class TranslogTests extends ESTestCase {
         Map<Long, Long> maxSeqNoPerGeneration = new HashMap<>();
         for (int iterations = between(1, 10), i = 0; i < iterations; i++) {
             long startSeqNo = randomLongBetween(0, Integer.MAX_VALUE);
-            List<Long> seqNos = LongStream.range(startSeqNo, startSeqNo + randomInt(100)).boxed().collect(Collectors.toList());
+            List<Long> seqNos = LongStream.range(startSeqNo, startSeqNo + randomInt(100))
+                .boxed()
+                .collect(Collectors.toCollection(ArrayList::new));
             Randomness.shuffle(seqNos);
             for (long seqNo : seqNos) {
                 if (frequently()) {
@@ -3849,9 +3854,9 @@ public class TranslogTests extends ESTestCase {
                     phaser.arriveAndAwaitAdvance();
                     int iterations = randomIntBetween(10, 100);
                     for (int i = 0; i < iterations; i++) {
-                        List<Translog.Operation> ops = IntStream.range(0, between(1, 10))
-                            .mapToObj(n -> new Translog.Index("1", nextSeqNo.incrementAndGet(), primaryTerm.get(), new byte[] { 1 }))
-                            .collect(Collectors.toList());
+                        List<Translog.Operation> ops = IntStream.range(0, between(1, 10)).<Translog.Operation>mapToObj(
+                            n -> new Translog.Index("1", nextSeqNo.incrementAndGet(), primaryTerm.get(), new byte[] { 1 })
+                        ).toList();
                         try {
                             Translog.Location location = null;
                             for (Translog.Operation op : ops) {

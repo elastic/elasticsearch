@@ -121,7 +121,7 @@ public abstract class Types {
         return value == null ? defaultValue : Integer.parseInt(value.toString());
     }
 
-    private static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
+    public static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
         if (properties != null && properties.isEmpty() == false) {
             for (Entry<String, EsField> entry : properties.entrySet()) {
                 EsField field = entry.getValue();

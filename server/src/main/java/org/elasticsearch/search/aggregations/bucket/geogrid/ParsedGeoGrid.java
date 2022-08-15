@@ -34,7 +34,7 @@ public abstract class ParsedGeoGrid extends ParsedMultiBucketAggregation<ParsedG
         return parser;
     }
 
-    protected void setName(String name) {
+    public void setName(String name) {
         super.setName(name);
     }
 }

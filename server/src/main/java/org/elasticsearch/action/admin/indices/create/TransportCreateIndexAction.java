@@ -90,23 +90,23 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         }
 
         final long resolvedAt = System.currentTimeMillis();
-        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
+        final String indexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
 
         final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
         final boolean isSystemIndex = mainDescriptor != null;
         final boolean isManagedSystemIndex = isSystemIndex && mainDescriptor.isAutomaticallyManaged();
         if (mainDescriptor != null && mainDescriptor.isNetNew()) {
-            final SystemIndexAccessLevel systemIndexAccessLevel = systemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
+            final SystemIndexAccessLevel systemIndexAccessLevel = SystemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
             if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
                 if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
                     if (systemIndices.getProductSystemIndexNamePredicate(threadPool.getThreadContext()).test(indexName) == false) {
-                        throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
+                        throw SystemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
                     }
                 } else {
                     // BACKWARDS_COMPATIBLE_ONLY should never be a possibility here, it cannot be returned from getSystemIndexAccessLevel
                     assert systemIndexAccessLevel == SystemIndexAccessLevel.NONE
                         : "Expected no system index access but level is " + systemIndexAccessLevel;
-                    throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
+                    throw SystemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
                 }
             }
         }
@@ -171,7 +171,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             .waitForActiveShards(request.waitForActiveShards());
     }
 
-    private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+    private static CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
         CreateIndexRequest request,
         String cause,
         SystemIndexDescriptor descriptor
@@ -182,10 +182,16 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         if (descriptor.getAliasName() == null) {
             aliases = Set.of();
         } else {
-            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true));
+            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true).writeIndex(true));
         }
 
-        // Here, we override the user's requested index with the descriptor's primary index
+        // Throw an error if we are trying to directly create a system index other than the primary system index (or the alias)
+        if (request.index().equals(descriptor.getPrimaryIndex()) == false && request.index().equals(descriptor.getAliasName()) == false) {
+            throw new IllegalArgumentException(
+                "Cannot create system index with name " + request.index() + "; descriptor primary index is " + descriptor.getPrimaryIndex()
+            );
+        }
+
         final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
             cause,
             descriptor.getPrimaryIndex(),

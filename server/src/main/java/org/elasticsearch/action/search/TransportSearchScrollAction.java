@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -25,20 +24,17 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
-    private final SearchPhaseController searchPhaseController;
 
     @Inject
     public TransportSearchScrollAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        SearchTransportService searchTransportService,
-        SearchPhaseController searchPhaseController
+        SearchTransportService searchTransportService
     ) {
-        super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
+        super(SearchScrollAction.NAME, transportService, actionFilters, SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
-        this.searchPhaseController = searchPhaseController;
     }
 
     @Override
@@ -50,7 +46,6 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     logger,
                     clusterService,
                     searchTransportService,
-                    searchPhaseController,
                     request,
                     (SearchTask) task,
                     scrollId,
@@ -61,7 +56,6 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         logger,
                         clusterService,
                         searchTransportService,
-                        searchPhaseController,
                         request,
                         (SearchTask) task,
                         scrollId,

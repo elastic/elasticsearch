@@ -64,7 +64,7 @@ public class RolloverStep extends AsyncActionStep {
                     "index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
                     indexName,
                     dataStream.getName(),
-                    LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())
+                    indexMetadata.getLifecyclePolicyName()
                 );
                 listener.onResponse(null);
                 return;

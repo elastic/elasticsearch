@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,9 +16,8 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-
-import java.util.List;
 
 public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task> {
 
@@ -25,39 +25,16 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
 
     private final AllocationService allocationService;
 
-    public static class Task implements ClusterStateTaskListener {
-
-        private final DiscoveryNode node;
-        private final String reason;
-        private final Runnable onClusterStateProcessed;
-
-        public Task(DiscoveryNode node, String reason, Runnable onClusterStateProcessed) {
-            this.node = node;
-            this.reason = reason;
-            this.onClusterStateProcessed = onClusterStateProcessed;
-        }
-
-        public DiscoveryNode node() {
-            return node;
-        }
-
-        public String reason() {
-            return reason;
-        }
+    public record Task(DiscoveryNode node, String reason, Runnable onClusterStateProcessed) implements ClusterStateTaskListener {
 
         @Override
         public void onFailure(final Exception e) {
-            logger.error("unexpected failure during [node-left]", e);
-        }
-
-        @Override
-        public void onNoLongerMaster() {
-            logger.debug("no longer master while processing node removal [node-left]");
+            logger.log(MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR, "unexpected failure during [node-left]", e);
         }
 
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            onClusterStateProcessed.run();
+            assert false : "not called";
         }
 
         @Override
@@ -74,28 +51,37 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
     }
 
     @Override
-    public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
-        final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
+    public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
+        final ClusterState initialState = batchExecutionContext.initialState();
+        final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
         boolean removed = false;
-        for (final Task task : tasks) {
-            if (currentState.nodes().nodeExists(task.node())) {
+        for (final var taskContext : batchExecutionContext.taskContexts()) {
+            final var task = taskContext.getTask();
+            if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
                 removed = true;
             } else {
                 logger.debug("node [{}] does not exist in cluster state, ignoring", task);
             }
+            taskContext.success(task.onClusterStateProcessed::run);
         }
 
         if (removed == false) {
             // no nodes to remove, keep the current cluster state
-            return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
+            return initialState;
         }
 
-        final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
-        final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
-        final ClusterState finalState = allocationService.disassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks));
+        try (var ignored = batchExecutionContext.dropHeadersContext()) {
+            // suppress deprecation warnings e.g. from reroute()
 
-        return ClusterTasksResult.<Task>builder().successes(tasks).build(finalState);
+            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);
+            final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
+            return allocationService.disassociateDeadNodes(
+                ptasksDisassociatedState,
+                true,
+                describeTasks(batchExecutionContext.taskContexts().stream().map(TaskContext::getTask).toList())
+            );
+        }
     }
 
     // visible for testing

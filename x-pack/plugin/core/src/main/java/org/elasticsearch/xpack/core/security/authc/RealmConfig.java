@@ -6,20 +6,28 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
 public class RealmConfig {
 
     final RealmIdentifier identifier;
-    final @Nullable String domain;
     final boolean enabled;
     final int order;
     private final Environment env;
@@ -28,7 +36,6 @@ public class RealmConfig {
 
     public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext) {
         this.identifier = identifier;
-        this.domain = RealmSettings.getDomainForRealm(settings, identifier);
         this.settings = settings;
         this.env = env;
         this.threadContext = threadContext;
@@ -47,10 +54,6 @@ public class RealmConfig {
 
     public RealmIdentifier identifier() {
         return identifier;
-    }
-
-    public @Nullable String domain() {
-        return domain;
     }
 
     public String name() {
@@ -186,13 +189,18 @@ public class RealmConfig {
      * (e.g. {@code xpack.security.authc.realms.native.native_realm.order}), it is often necessary to be able to
      * pass this pair of variables as a single type (e.g. in method parameters, or return values).
      */
-    public static class RealmIdentifier {
+    public static class RealmIdentifier implements Writeable, ToXContentObject, Comparable<RealmIdentifier> {
         private final String type;
         private final String name;
 
         public RealmIdentifier(String type, String name) {
             this.type = Objects.requireNonNull(type, "Realm type cannot be null");
             this.name = Objects.requireNonNull(name, "Realm name cannot be null");
+        }
+
+        public RealmIdentifier(StreamInput in) throws IOException {
+            this.type = in.readString();
+            this.name = in.readString();
         }
 
         public String getType() {
@@ -227,5 +235,39 @@ public class RealmConfig {
         public String toString() {
             return type + '/' + name;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(type);
+            out.writeString(name);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field("name", name);
+                builder.field("type", type);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public int compareTo(RealmIdentifier other) {
+            int result = name.compareTo(other.name);
+            return (result == 0) ? type.compareTo(other.type) : result;
+        }
+    }
+
+    public static ConstructingObjectParser<RealmIdentifier, Void> REALM_IDENTIFIER_PARSER = new ConstructingObjectParser<>(
+        "realm_identifier",
+        false,
+        (args, v) -> new RealmIdentifier((String) args[0], (String) args[1])
+    );
+
+    static {
+        REALM_IDENTIFIER_PARSER.declareString(constructorArg(), new ParseField("type"));
+        REALM_IDENTIFIER_PARSER.declareString(constructorArg(), new ParseField("name"));
     }
 }

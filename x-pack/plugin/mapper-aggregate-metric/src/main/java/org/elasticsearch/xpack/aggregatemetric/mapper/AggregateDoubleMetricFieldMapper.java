@@ -9,14 +9,18 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
@@ -29,6 +33,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -38,10 +43,9 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,13 +61,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -155,7 +157,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
         }, m -> toType(m).defaultMetric, XContentBuilder::field, Objects::toString);
 
-        public Builder(String name, Boolean ignoreMalformedByDefault) {
+        private final Version indexCreatedVersion;
+
+        public Builder(String name, Boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
             super(name);
             this.ignoreMalformed = Parameter.boolParam(
                 Names.IGNORE_MALFORMED,
@@ -170,11 +174,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 MetricType.counter,
                 MetricType.summary
             );
+
+            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(ignoreMalformed, metrics, defaultMetric, meta, timeSeriesMetric);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { ignoreMalformed, metrics, defaultMetric, meta, timeSeriesMetric };
         }
 
         public Builder metric(MetricType metric) {
@@ -216,7 +222,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         NumberFieldMapper.NumberType.INTEGER,
                         ScriptCompiler.NONE,
                         false,
-                        false
+                        false,
+                        indexCreatedVersion
                     );
                 } else {
                     builder = new NumberFieldMapper.Builder(
@@ -224,7 +231,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         NumberFieldMapper.NumberType.DOUBLE,
                         ScriptCompiler.NONE,
                         false,
-                        true
+                        true,
+                        indexCreatedVersion
                     );
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
@@ -255,7 +263,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     public static final FieldMapper.TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())),
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -384,7 +392,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return (cache, breakerService) -> new IndexAggregateDoubleMetricFieldData(
                 name(),
                 AggregateMetricsValuesSourceType.AGGREGATE_METRIC
@@ -429,7 +437,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public DocValuesField<?> getScriptField(String name) {
+                        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                             // getAggregateMetricValues returns all metric as doubles, including `value_count`
                             return new DelegateDocValuesField(
                                 new ScriptDocValues.Doubles(new DoublesSupplier(getAggregateMetricValues(defaultMetric))),
@@ -516,6 +524,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     private final boolean ignoreMalformedByDefault;
 
+    private final Version indexCreatedVersion;
+
     /** A set of metrics supported */
     private final EnumSet<Metric> metrics;
 
@@ -538,6 +548,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         this.defaultMetric = builder.defaultMetric.getValue();
         this.metricFieldMappers = metricFieldMappers;
         this.metricType = builder.timeSeriesMetric.getValue();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     boolean ignoreMalformed() {
@@ -565,7 +576,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-
         context.path().add(simpleName());
         XContentParser.Token token;
         XContentSubParser subParser = null;
@@ -637,7 +647,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     subParser.close();
                 }
                 // If ignoreMalformed == true, clear all parsed fields
-                Set<String> ignoreFieldNames = new HashSet<>(metricFieldMappers.size());
+                Set<String> ignoreFieldNames = Sets.newHashSetWithExpectedSize(metricFieldMappers.size());
                 for (NumberFieldMapper m : metricFieldMappers.values()) {
                     context.addIgnoredField(m.fieldType().name());
                     ignoreFieldNames.add(m.fieldType().name());
@@ -664,6 +674,97 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault).metric(metricType).init(this);
+        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).metric(metricType).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (ignoreMalformed) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
+            );
+        }
+        return new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics);
+    }
+
+    public static class AggregateMetricSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String name;
+        private final String simpleName;
+        private final EnumSet<Metric> metrics;
+
+        protected AggregateMetricSyntheticFieldLoader(String name, String simpleName, EnumSet<Metric> metrics) {
+            this.name = name;
+            this.simpleName = simpleName;
+            this.metrics = metrics;
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
+            for (Metric m : metrics) {
+                String fieldName = subfieldName(name, m);
+                SortedNumericDocValues dv = NumberFieldMapper.NumericSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
+                if (dv != null) {
+                    metricDocValues.put(m, dv);
+                }
+            }
+
+            if (metricDocValues.isEmpty()) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+
+            return new AggregateMetricSyntheticFieldLoader.ImmediateLeaf(metricDocValues);
+        }
+
+        private class ImmediateLeaf implements Leaf {
+            private final Map<Metric, SortedNumericDocValues> metricDocValues;
+            private final Set<Metric> metricHasValue = EnumSet.noneOf(Metric.class);
+
+            ImmediateLeaf(Map<Metric, SortedNumericDocValues> metricDocValues) {
+                assert metricDocValues.isEmpty() == false : "doc_values for metrics cannot be empty";
+                this.metricDocValues = metricDocValues;
+            }
+
+            @Override
+            public boolean empty() {
+                return false;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                // It is required that all defined metrics must exist. In this case
+                // it is enough to check for the first docValue. However, in the future
+                // we may relax the requirement of all metrics existing. In this case
+                // we should check the doc value for each metric separately
+                metricHasValue.clear();
+                for (Map.Entry<Metric, SortedNumericDocValues> e : metricDocValues.entrySet()) {
+                    if (e.getValue().advanceExact(docId)) {
+                        metricHasValue.add(e.getKey());
+                    }
+                }
+
+                return metricHasValue.isEmpty() == false;
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (metricHasValue.isEmpty()) {
+                    return;
+                }
+                b.startObject(simpleName);
+                for (Map.Entry<Metric, SortedNumericDocValues> entry : metricDocValues.entrySet()) {
+                    if (metricHasValue.contains(entry.getKey())) {
+                        String metricName = entry.getKey().name();
+                        long value = entry.getValue().nextValue();
+                        if (entry.getKey() == Metric.value_count) {
+                            b.field(metricName, value);
+                        } else {
+                            b.field(metricName, NumericUtils.sortableLongToDouble(value));
+                        }
+                    }
+                }
+                b.endObject();
+            }
+        }
     }
 }

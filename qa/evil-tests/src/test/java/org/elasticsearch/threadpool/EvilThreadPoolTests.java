@@ -81,6 +81,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             1,
             10,
             TimeUnit.SECONDS,
+            randomBoolean(),
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext()
         );
@@ -190,6 +191,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             1,
             10,
             TimeUnit.SECONDS,
+            randomBoolean(),
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext()
         );

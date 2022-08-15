@@ -4,8 +4,8 @@
 <titleabbrev>kNN search</titleabbrev>
 ++++
 
+deprecated::[8.4.0,"The kNN search API has been replaced by the <<<<search-api-knn, `knn` option>> in the search API."]
 experimental::[]
-
 Performs a k-nearest neighbor (kNN) search and returns the matching documents.
 
 ////
@@ -42,10 +42,11 @@ GET my-index/_knn_search
     "k": 10,
     "num_candidates": 100
   },
-  "_source": ["name", "date"]
+  "_source": ["name", "file_type"]
 }
 ----
 // TEST[continued]
+// TEST[warning:The kNN search API has been replaced by the `knn` option in the search API.]
 
 [[knn-search-api-request]]
 ==== {api-request-title}
@@ -74,6 +75,9 @@ efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved search speed. This means the
 results returned are not always the true _k_ closest neighbors.
 //end::hnsw-algorithm[]
+
+The kNN search API supports restricting the search using a filter. The search
+will return the top `k` documents that also match the filter query.
 
 [[knn-search-api-path-params]]
 ==== {api-path-parms-title}
@@ -121,6 +125,14 @@ shard. Cannot exceed 10,000. {es} collects `num_candidates` results from each
 shard, then merges them to find the top `k` results. Increasing
 `num_candidates` tends to improve the accuracy of the final `k` results.
 ====
+
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>) Query to filter the documents that
+can match. The kNN search will return the top `k` documents that also match
+this filter. The value can be a single query or a list of queries. If `filter`
+is not provided, all documents are allowed to match.
+
+
 
 include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
 include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]

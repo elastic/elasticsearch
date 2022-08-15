@@ -99,10 +99,7 @@ public class AllocationCommands implements ToXContentFragment {
      * @throws IOException if something happens during write
      */
     public static void writeTo(AllocationCommands commands, StreamOutput out) throws IOException {
-        out.writeVInt(commands.commands.size());
-        for (AllocationCommand command : commands.commands) {
-            out.writeNamedWriteable(command);
-        }
+        out.writeNamedWriteableList(commands.commands);
     }
 
     /**

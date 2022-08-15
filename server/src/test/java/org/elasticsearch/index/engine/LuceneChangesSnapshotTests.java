@@ -11,7 +11,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.store.Store;
@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +60,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         int refreshedSeqNo = -1;
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(i, i + 5));
-            ParsedDocument doc = createParsedDoc(id, null, randomBoolean());
+            ParsedDocument doc = createParsedDoc(id, idFieldType, null, randomBoolean());
             if (randomBoolean()) {
                 engine.index(indexForDoc(doc));
             } else {
@@ -258,7 +257,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         int numOps = frequently() ? scaledRandomIntBetween(1, 1500) : scaledRandomIntBetween(5000, 20_000);
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(0, randomBoolean() ? 10 : numOps * 2));
-            ParsedDocument doc = createParsedDoc(id, randomAlphaOfLengthBetween(1, 5), randomBoolean());
+            ParsedDocument doc = createParsedDoc(id, idFieldType, randomAlphaOfLengthBetween(1, 5), randomBoolean());
             final Engine.Operation op;
             if (onPrimary) {
                 if (randomBoolean()) {
@@ -292,14 +291,14 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             int smallBatch = between(5, 9);
             long seqNo = 0;
             for (int i = 0; i < smallBatch; i++) {
-                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
+                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), idFieldType, null), 1, seqNo, true));
                 seqNo++;
             }
-            engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(1000), null), 1, 1000, true));
+            engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(1000), idFieldType, null), 1, 1000, true));
             seqNo = 11;
             int largeBatch = between(15, 100);
             for (int i = 0; i < largeBatch; i++) {
-                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
+                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), idFieldType, null), 1, seqNo, true));
                 seqNo++;
             }
             // disable optimization for a small batch
@@ -424,10 +423,10 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 // have to verify without source since we are randomly testing without _source
                 List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = getDocIds(engine, true).stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
-                    .collect(Collectors.toList());
+                    .toList();
                 List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = getDocIds(leader, true).stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
-                    .collect(Collectors.toList());
+                    .toList();
                 assertThat(docsWithoutSourceOnFollower, equalTo(docsWithoutSourceOnLeader));
             } catch (Exception ex) {
                 throw new AssertionError(ex);

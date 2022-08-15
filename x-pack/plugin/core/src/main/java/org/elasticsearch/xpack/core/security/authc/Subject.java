@@ -20,10 +20,12 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 /**
  * A subject is a more generic concept similar to user and associated to the current authentication.
@@ -85,6 +87,10 @@ public class Subject {
         return metadata;
     }
 
+    Version getVersion() {
+        return version;
+    }
+
     public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
         switch (type) {
             case USER:
@@ -97,6 +103,80 @@ public class Subject {
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
         }
+    }
+
+    public boolean canAccessResourcesOf(Subject resourceCreatorSubject) {
+        if (API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType())) {
+            final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                .equals(resourceCreatorSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+            assert false == sameKeyId || getUser().principal().equals(resourceCreatorSubject.getUser().principal())
+                : "The same API key ID cannot be attributed to two different usernames";
+            return sameKeyId;
+        } else if ((API_KEY.equals(getType()) && false == API_KEY.equals(resourceCreatorSubject.getType()))
+            || (false == API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType()))) {
+                // an API Key cannot access resources created by non-API Keys or vice-versa
+                return false;
+            } else {
+                if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {
+                    return false;
+                }
+                final Authentication.RealmRef myAuthRealm = getRealm();
+                final Authentication.RealmRef creatorAuthRealm = resourceCreatorSubject.getRealm();
+                if (null == myAuthRealm.getDomain()) {
+                    // the authentication accessing the resource is for a user from a realm not part of any domain
+                    return Authentication.equivalentRealms(
+                        myAuthRealm.getName(),
+                        myAuthRealm.getType(),
+                        creatorAuthRealm.getName(),
+                        creatorAuthRealm.getType()
+                    );
+                } else {
+                    for (RealmConfig.RealmIdentifier domainRealm : myAuthRealm.getDomain().realms()) {
+                        if (Authentication.equivalentRealms(
+                            domainRealm.getName(),
+                            domainRealm.getType(),
+                            creatorAuthRealm.getName(),
+                            creatorAuthRealm.getType()
+                        )) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Subject subject = (Subject) o;
+        return version.equals(subject.version)
+            && user.equals(subject.user)
+            && Objects.equals(realm, subject.realm)
+            && type == subject.type
+            && metadata.equals(subject.metadata);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(version, user, realm, type, metadata);
+    }
+
+    @Override
+    public String toString() {
+        return "Subject{"
+            + "version="
+            + version
+            + ", user="
+            + user
+            + ", realm="
+            + realm
+            + ", type="
+            + type
+            + ", metadata="
+            + metadata
+            + '}';
     }
 
     private RoleReferenceIntersection buildRoleReferencesForUser(AnonymousUser anonymousUser) {
@@ -140,7 +220,7 @@ public class Subject {
         );
     }
 
-    private boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {
+    private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {
         return roleDescriptorsBytes == null || (roleDescriptorsBytes.length() == 2 && "{}".equals(roleDescriptorsBytes.utf8ToString()));
     }
 

@@ -113,17 +113,14 @@ public final class QueryRescorer implements Rescorer {
         return prim;
     }
 
-    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {
-        @Override
-        public int compare(ScoreDoc o1, ScoreDoc o2) {
-            int cmp = Float.compare(o2.score, o1.score);
-            return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
-        }
+    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
+        int cmp = Float.compare(o2.score, o1.score);
+        return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
     };
 
     /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
      *  topN. */
-    private TopDocs topN(TopDocs in, int topN) {
+    private static TopDocs topN(TopDocs in, int topN) {
         if (in.scoreDocs.length < topN) {
             return in;
         }
@@ -135,7 +132,7 @@ public final class QueryRescorer implements Rescorer {
     }
 
     /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
-    private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
+    private static TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
 
         System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
         if (in.scoreDocs.length > resorted.scoreDocs.length) {

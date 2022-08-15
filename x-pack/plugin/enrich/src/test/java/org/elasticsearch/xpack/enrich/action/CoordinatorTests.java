@@ -204,7 +204,7 @@ public class CoordinatorTests extends ESTestCase {
         Coordinator coordinator = new Coordinator(lookupFunction, 1, 1, 1);
 
         // Pre-load the queue to be at capacity and spoof the coordinator state to seem like max requests in flight.
-        coordinator.queue.add(new Coordinator.Slot(new SearchRequest(), ActionListener.wrap(() -> {})));
+        coordinator.queue.add(new Coordinator.Slot(new SearchRequest(), ActionListener.noop()));
         assertTrue(coordinator.remoteRequestPermits.tryAcquire());
 
         // Try to schedule an item into the coordinator, should emit an exception

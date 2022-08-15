@@ -10,17 +10,18 @@ package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 
+import static org.elasticsearch.core.Strings.format;
+
 public final class ChannelActionListener<Response extends TransportResponse, Request extends TransportRequest>
     implements
         ActionListener<Response> {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(ChannelActionListener.class);
 
     private final TransportChannel channel;
     private final Request request;
@@ -47,10 +48,7 @@ public final class ChannelActionListener<Response extends TransportResponse, Req
             channel.sendResponse(e);
         } catch (Exception sendException) {
             sendException.addSuppressed(e);
-            logger.warn(
-                () -> new ParameterizedMessage("Failed to send error response for action [{}] and request [{}]", actionName, request),
-                sendException
-            );
+            logger.warn(() -> format("Failed to send error response for action [%s] and request [%s]", actionName, request), sendException);
         }
     }
 

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -162,7 +161,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp, null);
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
         resultProcessor = new AutodetectResultProcessor(
@@ -282,13 +281,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // 1. one related to creating model snapshot
         // 2. one for {@link Annotation} result
         List<Annotation> annotations = getAnnotations();
-        assertThat("Annotations were: " + annotations.toString(), annotations, hasSize(2));
+        assertThat("Annotations were: " + annotations, annotations, hasSize(2));
         assertThat(
             annotations.stream().map(Annotation::getAnnotation).collect(toList()),
-            containsInAnyOrder(
-                new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage(),
-                annotation.getAnnotation()
-            )
+            containsInAnyOrder("Job model snapshot with id [" + modelSnapshot.getSnapshotId() + "] stored", annotation.getAnnotation())
         );
     }
 
@@ -309,11 +305,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertThat(annotations, hasSize(1));
         assertThat(
             annotations.get(0).getAnnotation(),
-            is(
-                equalTo(
-                    new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage()
-                )
-            )
+            is(equalTo("Job model snapshot with id [" + modelSnapshot.getSnapshotId() + "] stored"))
         );
 
         // Verify that deleting model snapshot also deletes associated annotation
@@ -672,6 +664,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 errorHolder.set(e);
                 latch.countDown();
             },
+            null,
+            null,
             client()
         );
         latch.await();

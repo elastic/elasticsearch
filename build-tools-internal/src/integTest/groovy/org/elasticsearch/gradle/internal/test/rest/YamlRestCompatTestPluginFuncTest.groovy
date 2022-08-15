@@ -28,9 +28,15 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
     def READER = MAPPER.readerFor(ObjectNode.class)
     def WRITER = MAPPER.writerFor(ObjectNode.class)
 
+    def setup() {
+        // not cc compatible due to:
+        // 1. TestClustersPlugin not cc compatible due to listener registration
+        // 2. RestIntegTestTask not cc compatible due to
+        configurationCacheCompatible = false
+    }
     def "yamlRestTestVxCompatTest does nothing when there are no tests"() {
         given:
-        addSubProject(":distribution:bwc:staged") << """
+        subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -53,11 +59,11 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
     }
 
-    def "yamlRestTestVxCompatTest executes and copies api and transforms tests from :bwc:staged"() {
+    def "yamlRestTestVxCompatTest executes and copies api and transforms tests from :bwc:maintenance"() {
         given:
         internalBuild()
 
-        addSubProject(":distribution:bwc:staged") << """
+        subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -90,8 +96,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         String api = "foo.json"
         String test = "10_basic.yml"
         //add the compatible test and api files, these are the prior version's normal yaml rest tests
-        file("distribution/bwc/staged/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
-        file("distribution/bwc/staged/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
+        file("distribution/bwc/maintenance/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
+        file("distribution/bwc/maintenance/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
 
         when:
         def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
@@ -135,8 +141,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTestVxCompatTest is wired into check and checkRestCompat"() {
         given:
-
-        addSubProject(":distribution:bwc:staged") << """
+        withVersionCatalogue()
+        subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -180,7 +186,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
 
-        addSubProject(":distribution:bwc:staged") << """
+        subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -224,7 +230,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         setupRestResources([], [])
 
-        file("distribution/bwc/staged/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
+        file("distribution/bwc/maintenance/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
         "one":
           - do:
               do_.some.key_to_replace:

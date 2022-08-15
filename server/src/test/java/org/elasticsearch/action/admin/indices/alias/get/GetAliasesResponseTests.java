@@ -18,6 +18,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -41,7 +42,7 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         );
     }
 
-    private static ImmutableOpenMap<String, List<AliasMetadata>> mutateAliases(ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
+    private static Map<String, List<AliasMetadata>> mutateAliases(Map<String, List<AliasMetadata>> aliases) {
         if (aliases.isEmpty()) {
             return createIndicesAliasesMap(1, 3).build();
         }
@@ -49,7 +50,7 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         if (randomBoolean()) {
             ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder(aliases);
             ImmutableOpenMap<String, List<AliasMetadata>> list = createIndicesAliasesMap(1, 2).build();
-            list.forEach(e -> builder.put(e.key, e.value));
+            list.entrySet().forEach(e -> builder.put(e.getKey(), e.getValue()));
             return builder.build();
         }
 

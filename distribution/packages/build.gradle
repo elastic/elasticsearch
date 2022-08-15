@@ -43,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "nebula.ospackage-base" version "8.6.1"
+  id "nebula.ospackage-base" version "9.1.1"
 }
 
 ['deb', 'rpm'].each { type ->
@@ -273,7 +273,7 @@ ospackage {
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
       project.file(project.property('signing.secretKeyRingFile')) :
-      new File(new File(project.providers.systemProperty('user.home').orElse('.gnupg').forUseAtConfigurationTime().get()), 'secring.gpg')
+      new File(new File(project.providers.systemProperty('user.home').orElse('.gnupg').get()), 'secring.gpg')
   }
 
   // version found on oldest supported distro, centos-6
@@ -475,15 +475,13 @@ subprojects {
     if (project.name.contains('deb')) {
       checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf dpkgExists
-        final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
-        exec.standardOutput = output
+        exec.getCaptureOutput().set(true)
         doLast {
           String expectedLicense
           expectedLicense = "Elastic-License"
           final Pattern pattern = Pattern.compile("\\s*License: (.+)")
-          final String info = output.toString('UTF-8')
-          final String[] actualLines = info.split("\n")
+          final String[] actualLines = getOutput().split("\n")
           int count = 0
           for (final String actualLine : actualLines) {
             final Matcher matcher = pattern.matcher(actualLine)
@@ -507,11 +505,10 @@ subprojects {
       assert project.name.contains('rpm')
       checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf rpmExists
-        final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"
-        exec.standardOutput = output
+        exec.getCaptureOutput().set(true)
         doLast {
-          String license = output.toString('UTF-8')
+          String license = getOutput()
           String expectedLicense
           expectedLicense = "Elastic License"
           if (license != expectedLicense) {

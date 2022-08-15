@@ -438,7 +438,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(settings, mockClient, mockSecurityIndex, scriptService) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-                listener.onResponse(Arrays.asList(this.buildMapping("m1", new BytesArray("""
+                listener.onResponse(Arrays.asList(NativeRoleMappingStore.buildMapping("m1", new BytesArray("""
                     {
                       "role_templates": [ { "template": { "source": "_role_{{metadata.departmentNumber}}" } } ],
                       "enabled": true,

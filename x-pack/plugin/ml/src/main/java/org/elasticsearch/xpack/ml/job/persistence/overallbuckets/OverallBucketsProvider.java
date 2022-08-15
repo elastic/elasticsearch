@@ -46,8 +46,8 @@ public class OverallBucketsProvider {
             TopNScores topNScores = new TopNScores(bucketTopN);
             for (Terms.Bucket jobsBucket : jobsAgg.getBuckets()) {
                 Max maxScore = jobsBucket.getAggregations().get(OverallBucket.OVERALL_SCORE.getPreferredName());
-                topNScores.insertWithOverflow(maxScore.getValue());
-                jobs.add(new OverallBucket.JobInfo((String) jobsBucket.getKey(), maxScore.getValue()));
+                topNScores.insertWithOverflow(maxScore.value());
+                jobs.add(new OverallBucket.JobInfo((String) jobsBucket.getKey(), maxScore.value()));
             }
 
             double overallScore = topNScores.overallScore();
@@ -56,7 +56,7 @@ public class OverallBucketsProvider {
             }
 
             Max interimAgg = histogramBucketAggs.get(Result.IS_INTERIM.getPreferredName());
-            boolean isInterim = interimAgg.getValue() > 0;
+            boolean isInterim = interimAgg.value() > 0;
 
             overallBuckets.add(
                 new OverallBucket(

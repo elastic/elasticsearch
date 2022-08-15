@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
  * An abstract implementation of {@link SecurityBaseRestHandler} that performs a license check for the SAML realm type
  */
 public abstract class SamlBaseRestHandler extends SecurityBaseRestHandler {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(SamlBaseRestHandler.class);
 
     private static final String SAML_REALM_TYPE = SamlRealmSettings.TYPE;
 

@@ -37,6 +37,7 @@ public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
         extra.put("kuromoji_stemmer", KuromojiKatakanaStemmerFactory::new);
         extra.put("ja_stop", JapaneseStopTokenFilterFactory::new);
         extra.put("kuromoji_number", KuromojiNumberFilterFactory::new);
+        extra.put("kuromoji_completion", KuromojiCompletionFilterFactory::new);
         return extra;
     }
 
@@ -47,6 +48,9 @@ public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
 
     @Override
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
-        return singletonMap("kuromoji", KuromojiAnalyzerProvider::new);
+        Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> extra = new HashMap<>();
+        extra.put("kuromoji", KuromojiAnalyzerProvider::new);
+        extra.put("kuromoji_completion", KuromojiCompletionAnalyzerProvider::new);
+        return extra;
     }
 }

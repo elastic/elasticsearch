@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.sql.jdbc;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 
+import java.math.BigInteger;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Struct;
@@ -39,6 +41,7 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.KEYWORD;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.UNSIGNED_LONG;
 
 public class JdbcPreparedStatementTests extends ESTestCase {
 
@@ -121,6 +124,14 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         jps.setObject(1, (byte) 123, Types.INTEGER);
         assertEquals(123, value(jps));
         assertEquals(INTEGER, jdbcType(jps));
+
+        jps.setObject(1, (byte) 123, Types.BIGINT);
+        assertEquals(123L, value(jps));
+        assertEquals(LONG, jdbcType(jps));
+
+        jps.setObject(1, (byte) 123, Types.BIGINT, 20);
+        assertEquals(BigInteger.valueOf(123), value(jps));
+        assertEquals(UNSIGNED_LONG, jdbcType(jps));
 
         jps.setObject(1, (byte) -128, Types.DOUBLE);
         assertEquals(-128.0, value(jps));
@@ -232,6 +243,55 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         jps.setObject(1, someLong, Types.FLOAT);
         assertEquals((double) someLong, value(jps));
         assertEquals(HALF_FLOAT, jdbcType(jps));
+    }
+
+    public void testSettingBigIntegerValues() throws SQLException {
+        JdbcPreparedStatement jps = createJdbcPreparedStatement();
+
+        BigInteger bi = BigInteger.valueOf(randomLong()).abs();
+
+        jps.setObject(1, bi);
+        assertEquals(bi, value(jps));
+        assertEquals(UNSIGNED_LONG, jdbcType(jps));
+        assertTrue(value(jps) instanceof BigInteger);
+
+        jps.setObject(1, bi, Types.VARCHAR);
+        assertEquals(String.valueOf(bi), value(jps));
+        assertEquals(KEYWORD, jdbcType(jps));
+
+        jps.setObject(1, bi, Types.BIGINT);
+        assertEquals(bi.longValueExact(), value(jps));
+        assertEquals(LONG, jdbcType(jps));
+
+        jps.setObject(1, bi, Types.DOUBLE);
+        assertEquals(bi.doubleValue(), value(jps));
+        assertEquals(DOUBLE, jdbcType(jps));
+
+        jps.setObject(1, bi, Types.FLOAT);
+        assertEquals(bi.doubleValue(), value(jps));
+        assertEquals(HALF_FLOAT, jdbcType(jps));
+
+        jps.setObject(1, bi, Types.REAL);
+        assertEquals(bi.floatValue(), value(jps));
+        assertEquals(FLOAT, jdbcType(jps));
+
+        jps.setObject(1, BigInteger.ZERO, Types.BOOLEAN);
+        assertEquals(false, value(jps));
+        assertEquals(BOOLEAN, jdbcType(jps));
+
+        jps.setObject(1, BigInteger.TEN, Types.BOOLEAN);
+        assertEquals(true, value(jps));
+        assertEquals(BOOLEAN, jdbcType(jps));
+
+        jps.setObject(1, bi.longValueExact(), JDBCType.BIGINT, 19);
+        assertTrue(value(jps) instanceof Long);
+        assertEquals(bi.longValueExact(), value(jps));
+        assertEquals(LONG, jdbcType(jps));
+
+        jps.setObject(1, bi.longValueExact(), JDBCType.BIGINT, 20);
+        assertTrue(value(jps) instanceof BigInteger);
+        assertEquals(bi, value(jps));
+        assertEquals(UNSIGNED_LONG, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingLongValues() throws SQLException {

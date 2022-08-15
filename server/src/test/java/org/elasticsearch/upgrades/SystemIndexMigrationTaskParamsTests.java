@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 
 public class SystemIndexMigrationTaskParamsTests extends AbstractNamedWriteableTestCase<SystemIndexMigrationTaskParams> {
 
@@ -32,15 +31,7 @@ public class SystemIndexMigrationTaskParamsTests extends AbstractNamedWriteableT
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(
-            Collections.singletonList(
-                new NamedWriteableRegistry.Entry(
-                    SystemIndexMigrationTaskParams.class,
-                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                    SystemIndexMigrationTaskParams::new
-                )
-            )
-        );
+        return new NamedWriteableRegistry(SystemIndexMigrationExecutor.getNamedWriteables());
     }
 
     @Override

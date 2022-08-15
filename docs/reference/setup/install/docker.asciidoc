@@ -72,8 +72,15 @@ token, which is valid for 30 minutes. This token automatically applies the
 security settings from your {es} cluster, authenticates to {es} with the
 `kibana_system` user, and writes the security configuration to `kibana.yml`.
 
-The following command starts a single-node {es} cluster for development or
+The following commands start a single-node {es} cluster for development or
 testing.
+
+. Create a new docker network for {es} and {kib}
++
+[source,sh]
+----
+docker network create elastic
+----
 
 . Start {es} in Docker. A password is generated for the `elastic` user and
 output to the terminal, plus an enrollment token for enrolling {kib}.
@@ -141,10 +148,10 @@ start the new node with the generated enrollment token.
 --
 .Generating enrollment tokens
 ****
-The enrollment token is valid for 30 minutes. If you need to generate a 
+The enrollment token is valid for 30 minutes. If you need to generate a
 new enrollment token, run the
 <<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool on your
-existing node. This tool is available in the {es} `bin` directory of the Docker 
+existing node. This tool is available in the {es} `bin` directory of the Docker
 container.
 
 For example, run the following command on the existing `es01` node to
@@ -158,7 +165,7 @@ docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollmen
 --
 
 . In the terminal where you started your first node, copy the generated
-enrollment token for adding new {es} nodes. 
+enrollment token for adding new {es} nodes.
 
 . On your new node, start {es} and include the generated enrollment token.
 +
@@ -185,13 +192,13 @@ endif::[]
 If you experience issues where the container where your first node is running
 exits when your second node starts, explicitly set values for the JVM heap size.
 To <<set-jvm-heap-size,manually configure the heap size>>, include the
-`ES_JAVA_OPTS` variable and set values for `-Xms` and `-Xmx` when starting each
+`CLI_JAVA_OPTS` variable and set values for `-Xms` and `-Xmx` when starting each
 node. For example, the following command starts node `es02` and sets the
 minimum and maximum JVM heap size to 1 GB:
 
 [source,sh,subs="attributes"]
 ----
-docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
+docker run -e CLI_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
 ----
 
 ===== Next steps
@@ -201,25 +208,7 @@ serious development or go into production with {es}, review the
 <<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
 
 [[elasticsearch-security-certificates]]
-===== Security certificates and keys
-
-When you start {es} for the first time, the following certificates and keys are
-generated in the
-`/usr/share/elasticsearch/config/certs`
-directory in the Docker container, and allow you to connect a {kib} instance
-to your secured {es} cluster and encrypt internode communication. The files are
-listed here for reference.
-
-`http_ca.crt`::
-The CA certificate that is used to sign the certificates for the HTTP layer of
-this {es} cluster.
-
-`http.p12`::
-Keystore that contains the key and certificate for the HTTP layer for this node.
-
-`transport.p12`::
-Keystore that contains the key and certificate for the transport layer for all
-the nodes in your cluster.
+include::security-files-reference.asciidoc[]
 
 [[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose
@@ -249,7 +238,7 @@ Settings (Windows).
 
 Create the following configuration files in a new, empty directory. These files
 are also available from the
-https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install[elasticsearch]
+https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install/docker[elasticsearch]
 repository on GitHub.
 
 --
@@ -276,7 +265,7 @@ referenced by the `docker-compose.yml` file.
 
 ["source","txt",subs="attributes"]
 ----
-include::.env[]
+include::docker/.env[]
 ----
 
 [discrete]
@@ -297,7 +286,7 @@ then only be accessible from the host machine itself.
 
 [source,yaml,subs="attributes"]
 ----
-include::docker-compose.yml[]
+include::docker/docker-compose.yml[]
 ----
 
 endif::[]
@@ -356,12 +345,12 @@ The following requirements and recommendations apply when running {es} in Docker
 
 The `vm.max_map_count` kernel setting must be set to at least `262144` for production use.
 
-How you set `vm.max_map_count` depends on your platform:
+How you set `vm.max_map_count` depends on your platform.
 
-* Linux
-+
---
-The `vm.max_map_count` setting should be set permanently in `/etc/sysctl.conf`:
+====== Linux
+
+To view the current value for the `vm.max_map_count` setting, run:
+
 [source,sh]
 --------------------------------------------
 grep vm.max_map_count /etc/sysctl.conf
@@ -374,11 +363,12 @@ To apply the setting on a live system, run:
 --------------------------------------------
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
 
-* macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
-+
---
+To permanently change the value for the `vm.max_map_count` setting, update the
+value in `/etc/sysctl.conf`.
+
+====== macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
+
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 
 . From the command line, run:
@@ -388,7 +378,7 @@ The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
 
-. Press enter and use`sysctl` to configure `vm.max_map_count`:
+. Press enter and use `sysctl` to configure `vm.max_map_count`:
 +
 [source,sh]
 --------------------------------------------
@@ -396,11 +386,9 @@ sysctl -w vm.max_map_count=262144
 --------------------------------------------
 
 . To exit the `screen` session, type `Ctrl a d`.
---
 
-* Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]
-+
---
+====== Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]
+
 The `vm.max_map_count` setting must be set via docker-machine:
 
 [source,sh]
@@ -408,11 +396,9 @@ The `vm.max_map_count` setting must be set via docker-machine:
 docker-machine ssh
 sudo sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
 
-* Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
-+
---
+====== Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
+
 The `vm.max_map_count` setting must be set in the docker-desktop container:
 
 [source,sh]
@@ -420,7 +406,7 @@ The `vm.max_map_count` setting must be set in the docker-desktop container:
 wsl -d docker-desktop
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
+
 
 ===== Configuration files must be readable by the `elasticsearch` user
 
@@ -445,11 +431,17 @@ chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
 
-You can also run an {es} container using both a custom UID and GID. Unless you
-bind-mount each of the `config`, `data` and `logs` directories, you must pass
-the command line option `--group-add 0` to `docker run`. This ensures that the user
-under which {es} is running is also a member of the `root` (GID 0) group inside the
-container.
+You can also run an {es} container using both a custom UID and GID. You
+must ensure that file permissions will not prevent {es} from executing. You
+can use one of two options:
+
+* Bind-mount the `config`, `data` and `logs`
+  directories. If you intend to install plugins and prefer not to
+  <<_c_customized_image, create a custom Docker image>>, you must also
+  bind-mount the `plugins` directory.
+* Pass the `--group-add 0` command line option to `docker run`. This
+  ensures that the user under which {es} is running is also a member of the
+  `root` (GID 0) group inside the container.
 
 ===== Increase ulimits for nofile and nproc
 
@@ -508,10 +500,10 @@ To manually set the heap size in production, bind mount a <<set-jvm-options,JVM
 options>> file under `/usr/share/elasticsearch/config/jvm.options.d` that
 includes your desired <<set-jvm-heap-size,heap size>> settings.
 
-For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
+For testing, you can also manually set the heap size using the `CLI_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
-ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
-overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in 
+CLI_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `CLI_JAVA_OPTS` variable
+overrides all other JVM options. We do not recommend using `CLI_JAVA_OPTS` in
 production. The `docker-compose.yml` file above sets the heap size to 512MB.
 
 

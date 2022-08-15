@@ -50,8 +50,7 @@ Sniff mode is the default connection mode.
 The _gateway nodes_ selection depends on the following criteria:
 
 * *version*: Remote nodes must be compatible with the cluster they are
-registered to, similar to the rules for
-<<rolling-upgrades,rolling upgrades>>:
+registered to:
 ** Any node can communicate with another node on the same
 major version. For example, 7.0 can talk to any 7.x node.
 ** Only nodes on the last minor version of a certain major version can
@@ -87,12 +86,9 @@ are opened to the proxy address. The proxy is required to route those
 connections to the remote cluster. Proxy mode does not require remote cluster
 nodes to have accessible publish addresses.
 
-The proxy mode is not the default connection mode and must be configured. Similar
-to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
-connections are subject to the same version compatibility rules as
-<<rolling-upgrades,rolling upgrades>>.
-
-Proxy mode has the same version compatibility requirements as sniff mode.
+The proxy mode is not the default connection mode and must be configured.
+Proxy mode has the same <<gateway-nodes-selection, version compatibility
+requirements>> as sniff mode. 
 
 [%collapsible]
 [[proxy-mode-version-compatibility]]

@@ -20,20 +20,20 @@ setup:
   - do:
       index:
         index: test-index
-        id: 1
+        id: "1"
         body:
           my_wildcard: hello world
           null_wildcard: null
   - do:
       index:
         index: test-index
-        id: 2
+        id: "2"
         body:
           my_wildcard: goodbye world
   - do:
       index:
         index: test-index
-        id: 3
+        id: "3"
         body:
           my_wildcard: cAsE iNsEnSiTiVe World
           null_wildcard: HAS_VALUE

@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * This decider looks at all indices and ensures a minimum capacity is available if any indices are in the frozen ILM phase, since that
@@ -45,17 +44,19 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
 
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
-        List<String> indicesNeedingFrozen = StreamSupport.stream(context.state().metadata().spliterator(), false)
+        List<String> indicesNeedingFrozen = context.state()
+            .metadata()
+            .stream()
             .filter(this::needsTier)
             .map(imd -> imd.getIndex().getName())
             .limit(10)
             .collect(Collectors.toList());
         AutoscalingCapacity.Builder builder = AutoscalingCapacity.builder();
         if (indicesNeedingFrozen.size() > 0) {
-            builder.total(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY);
-            builder.node(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY);
+            builder.total(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY, null);
+            builder.node(MINIMUM_FROZEN_STORAGE, MINIMUM_FROZEN_MEMORY, null);
         } else {
-            builder.total(0L, 0L);
+            builder.total(0L, 0L, 0f);
         }
 
         return new AutoscalingDeciderResult(builder.build(), new FrozenExistenceReason(indicesNeedingFrozen));
@@ -137,6 +138,6 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
      */
     // visible for testing
     static boolean isFrozenPhase(IndexMetadata indexMetadata) {
-        return FROZEN_PHASE.equals(indexMetadata.getLifecycleExecutionState().getPhase());
+        return FROZEN_PHASE.equals(indexMetadata.getLifecycleExecutionState().phase());
     }
 }

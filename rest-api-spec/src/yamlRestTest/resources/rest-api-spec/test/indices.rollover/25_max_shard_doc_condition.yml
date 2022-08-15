@@ -1,0 +1,59 @@
+---
+"Rollover with max_primary_shard_docs condition":
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  # create index with alias and replica
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          aliases:
+            logs_search: {}
+
+  # index first document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform alias rollover with no result
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_primary_shard_docs: 2
+
+  - match: { conditions: { "[max_primary_shard_docs: 2]": false } }
+  - match: { rolled_over: false }
+
+  # index second document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        id:    "2"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform alias rollover
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_primary_shard_docs: 2
+
+  - match: { conditions: { "[max_primary_shard_docs: 2]": true } }
+  - match: { rolled_over: true }
+

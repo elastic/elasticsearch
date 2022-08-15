@@ -98,7 +98,7 @@ PUT _cluster/settings
 ==== Search a single remote cluster
 
 In the search request, you specify data streams and indices on a remote cluster
-as `<remote_cluster_name>:<target>``.
+as `<remote_cluster_name>:<target>`.
 
 The following <<search-search,search>> API request searches the
 `my-index-000001` index on a single remote cluster, `cluster_one`.
@@ -288,16 +288,29 @@ means the document came from the local cluster.
 
 [discrete]
 [[skip-unavailable-clusters]]
-=== Skip unavailable clusters
+=== Optional remote clusters
 
-By default, a {ccs} returns an error if *any* cluster in the request is
-unavailable.
+By default, a {ccs} fails if a remote cluster in the request returns an
+error or is unavailable. Use the `skip_unavailable` cluster
+setting to mark a specific remote cluster as optional for {ccs}.
 
-To skip an unavailable cluster during a {ccs}, set the
-<<skip-unavailable,`skip_unavailable`>> cluster setting to `true`.
+If `skip_unavailable` is `true`, a {ccs}:
 
-The following <<cluster-update-settings,cluster update settings>> API request
-changes `cluster_two`'s `skip_unavailable` setting to `true`.
+* Skips the remote cluster if its nodes are unavailable during the search. The
+response's `_cluster.skipped` value contains a count of any skipped clusters.
+
+* Ignores errors returned by the remote cluster, such as errors related to
+unavailable shards or indices. This can include errors related to search
+parameters such as <<api-multi-index,`allow_no_indices`>> and
+<<api-multi-index,`ignore_unavailable`>>.
+
+* Ignores the <<search-partial-responses,`allow_partial_search_results`>>
+parameter and the related `search.default_allow_partial_results` cluster setting
+when searching the remote cluster. This means searches on the remote cluster may
+return partial results.
+
+The following <<cluster-update-settings,cluster update settings>>
+API request changes `cluster_two`'s `skip_unavailable` setting to `true`.
 
 [source,console]
 --------------------------------
@@ -417,26 +430,31 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 [[ccs-supported-configurations]]
 === Supported {ccs} configurations
 
-Elastic only supports searches from a local cluster to a remote cluster running:
+In 8.0+, Elastic supports searches from a local cluster to a remote cluster
+running:
 
 * The previous minor version.
 * The same version.
-* A newer version. This version must also be compatible with the local cluster
-as outlined in the following matrix.
-+
-[%collapsible]
+* A newer minor version in the same major version.
+
+Elastic also supports searches from a local cluster running the last minor
+version of a major version to a remote cluster running any minor version in the
+following major version. For example, a local 7.17 cluster can search any
+remote 8.x cluster.
+
 [[ccs-version-compatibility]]
-.Version compatibility matrix
-====
-include::{es-repo-dir}/modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
-====
+include::{es-repo-dir}/search/search-your-data/ccs-version-compat-matrix.asciidoc[]
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.
 
-For example, a local 8.0 cluster can search a remote 7.17, 8.0, or 8.1 cluster.
-However, a search from a local 8.0 cluster to a remote 7.16 or 6.8 cluster is
-not supported.
+For example, a local 8.0 cluster can search a remote 7.17 or any remote 8.x
+cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
+cluster is not supported.
+
+Only features that exist across all searched clusters are supported. Using a
+feature with a remote cluster where the feature is not supported will result in
+undefined behavior.
 
 A {ccs} using an unsupported configuration may still work. However, such
 searches aren't tested by Elastic, and their behavior isn't guaranteed.
@@ -450,9 +468,8 @@ on the same version of {es}. If you need to maintain clusters with different
 versions, you can:
 
 * Maintain a dedicated cluster for {ccs}. Keep this cluster on the earliest
-version needed to search the other clusters. For example, if you have 6.8, 7.14,
-and 7.17 clusters, you can maintain a dedicated 6.8 cluster to use as the local
-cluster for {ccs}.
+version needed to search the other clusters. For example, if you have 7.17 and 8.x clusters, you can maintain a dedicated 7.17 cluster to use
+as the local cluster for {ccs}.
 
 * Keep each cluster no more than one minor version apart. This lets you use any
 cluster as the local cluster when running a {ccs}.
@@ -462,9 +479,12 @@ cluster as the local cluster when running a {ccs}.
 ==== {ccs-cap} during an upgrade
 
 You can still search a remote cluster while performing a
-<<rolling-upgrades,rolling upgrade>> on the local cluster. However, the local
+rolling upgrade on the local cluster. However, the local
 coordinating node's "upgrade from" and "upgrade to" version must be compatible
 with the remote cluster's gateway node.
 
 WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.
+
+For more information about upgrades, see
+{stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].

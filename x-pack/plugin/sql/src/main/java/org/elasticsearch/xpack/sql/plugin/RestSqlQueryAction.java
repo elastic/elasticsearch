@@ -12,8 +12,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
@@ -40,10 +38,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 .replaces(POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
                 .build()
         );
-    }
-
-    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
-        return SqlMediaTypeParser.MEDIA_TYPE_REGISTRY;
     }
 
     @Override

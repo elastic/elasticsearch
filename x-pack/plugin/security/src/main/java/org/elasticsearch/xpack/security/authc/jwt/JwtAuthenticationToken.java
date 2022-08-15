@@ -6,94 +6,119 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 
 import java.text.ParseException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
-    private static final List<String> CLAIMS_TO_REMOVE = List.of("iss", "aud", "exp", "iat", "nbf", "auth_time", "nonce", "jti");
+    private static final Logger LOGGER = LogManager.getLogger(JwtAuthenticationToken.class);
 
     // Stored members
-    protected final SecureString endUserSignedJwt; // required
-    protected final SecureString clientAuthorizationSharedSecret; // optional, nullable
-
-    // Parsed members
-    protected SignedJWT signedJwt;
-    protected JWSHeader jwsHeader;
-    protected JWTClaimsSet jwtClaimsSet;
-    protected byte[] jwtSignature;
-    protected String issuerClaim;
-    protected List<String> audiencesClaim;
-    protected String subjectClaim;
-    protected String principal;
+    protected SecureString endUserSignedJwt; // required
+    protected SecureString clientAuthenticationSharedSecret; // optional, nullable
+    protected String principal; // Defaults to "iss/aud/sub", with an ordered "aud" list
 
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
-     * Throws IllegalArgumentException if bearerString is missing, or if JWT parsing fails.
-     * @param endUserSignedJwt Base64Url-encoded JWT for End-user authorization. Required by all JWT realms.
-     * @param clientAuthorizationSharedSecret URL-safe Shared Secret for Client authorization. Required by some JWT realms.
+     * Compute a token principal, for use as a realm order cache key. For OIDC ID Tokens, cache key is iss/aud/sub.
+     * For other JWTs, {@link JwtRealmsServiceSettings#PRINCIPAL_CLAIMS_SETTING} supports alternative claims for sub.
+     * Throws IllegalArgumentException if principalClaimNames is empty, JWT is missing, or if JWT parsing fails.
+     * @param principalClaimNames Ordered list of string claims to use for principalClaimValue. The first one found is used (ex: sub).
+     * @param endUserSignedJwt Base64Url-encoded JWT for End-user authentication. Required by all JWT realms.
+     * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
-    public JwtAuthenticationToken(final SecureString endUserSignedJwt, @Nullable final SecureString clientAuthorizationSharedSecret) {
-        if (endUserSignedJwt == null) {
-            throw new IllegalArgumentException("JWT bearer token must be non-null");
+    public JwtAuthenticationToken(
+        final List<String> principalClaimNames,
+        final SecureString endUserSignedJwt,
+        @Nullable final SecureString clientAuthenticationSharedSecret
+    ) {
+        if (principalClaimNames.isEmpty()) {
+            throw new IllegalArgumentException("JWT token principal claim names list must be non-empty");
         } else if (endUserSignedJwt.isEmpty()) {
             throw new IllegalArgumentException("JWT bearer token must be non-empty");
-        } else if ((clientAuthorizationSharedSecret != null) && (clientAuthorizationSharedSecret.isEmpty())) {
+        } else if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
             throw new IllegalArgumentException("Client shared secret must be non-empty");
         }
         this.endUserSignedJwt = endUserSignedJwt; // required
-        this.clientAuthorizationSharedSecret = clientAuthorizationSharedSecret; // optional, nullable
+        this.clientAuthenticationSharedSecret = clientAuthenticationSharedSecret; // optional, nullable
+
+        JWTClaimsSet jwtClaimsSet;
         try {
-            final SignedJWT parsed = SignedJWT.parse(this.endUserSignedJwt.toString());
-            this.signedJwt = parsed;
-            this.jwsHeader = parsed.getHeader();
-            this.jwtClaimsSet = parsed.getJWTClaimsSet();
-            this.jwtSignature = parsed.getSignature().decode();
+            jwtClaimsSet = SignedJWT.parse(this.endUserSignedJwt.toString()).getJWTClaimsSet();
         } catch (ParseException e) {
             throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
         }
-        final JWTClaimsSet jwtClaimsSet = this.jwtClaimsSet;
-        this.issuerClaim = jwtClaimsSet.getIssuer();
-        this.audiencesClaim = jwtClaimsSet.getAudience();
-        this.subjectClaim = jwtClaimsSet.getSubject();
 
-        if (Strings.hasText(this.issuerClaim) == false) {
-            throw new IllegalArgumentException("Issuer claim is missing.");
-        } else if ((this.audiencesClaim == null) || (this.audiencesClaim.isEmpty())) {
-            throw new IllegalArgumentException("Audiences claim is missing.");
+        // get and validate iss and aud claims
+        final String issuer = jwtClaimsSet.getIssuer();
+        final List<String> audiences = jwtClaimsSet.getAudience();
+        if (Strings.hasText(issuer) == false) {
+            throw new IllegalArgumentException("Issuer claim 'iss' is missing.");
+        } else if ((audiences == null) || (audiences.isEmpty())) {
+            throw new IllegalArgumentException("Audiences claim 'aud' is missing.");
         }
-        final String orderedAudiences = String.join(",", new TreeSet<>(this.audiencesClaim));
-        final String computedSubject;
-        if (Strings.hasText(this.subjectClaim)) {
-            computedSubject = this.subjectClaim; // principal = "iss/aud/sub"
-        } else {
-            final Map<String, Object> orderedClaimsSubset = new TreeMap<>(jwtClaimsSet.getClaims());
-            for (final String claimToRemove : CLAIMS_TO_REMOVE) {
-                orderedClaimsSubset.remove(claimToRemove);
-            }
-            if (orderedClaimsSubset.isEmpty()) {
+
+        // get and validate sub claim, or the first configured backup claim (if sub is absent)
+        final String principalClaimValue = this.resolvePrincipalClaimName(jwtClaimsSet, principalClaimNames);
+        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + principalClaimValue;
+    }
+
+    private String resolvePrincipalClaimName(final JWTClaimsSet jwtClaimsSet, final List<String> principalClaimNames) {
+        for (final String principalClaimName : principalClaimNames) {
+            final Object claimValue = jwtClaimsSet.getClaim(principalClaimName);
+            if (claimValue instanceof String principalClaimValue) {
+                // found an allowed string claim name
+                if (principalClaimValue.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Allowed principal claim name '"
+                            + principalClaimName
+                            + "' exists but cannot be used because the value of that claim is an empty string"
+                    );
+                }
+                LOGGER.trace("Found allowed principal claim name [{}] with value [{}]", principalClaimName, principalClaimValue);
+                return principalClaimValue;
+            } else if (claimValue != null) {
                 throw new IllegalArgumentException(
-                    "Claim [sub] is absent, and no other claims found besides [" + String.join(",", CLAIMS_TO_REMOVE) + "]."
+                    "Allowed principal claim name '"
+                        + principalClaimName
+                        + "' exists but cannot be used because the value of that claim must be a string, but instead it was a ["
+                        + claimValue.getClass().getSimpleName()
+                        + "]"
                 );
             }
-            computedSubject = orderedClaimsSubset.toString(); // principal = "iss/aud/orderedClaimsSubset"
         }
-        this.principal = this.issuerClaim + "/" + orderedAudiences + "/" + computedSubject;
+
+        // at this point, none of the principalClaimNames were found
+        // throw an exception with a detailed log message about which string claims were available in the JWT
+        final String allClaimNamesWithStringValues = jwtClaimsSet.getClaims()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue() instanceof String)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.joining(","));
+        throw new IllegalArgumentException(
+            "None of these configured principal claim names were found in the JWT Claims Set ["
+                + String.join(",", principalClaimNames)
+                + "] - available claims in the JWT with potential compatible string values are ["
+                + allClaimNamesWithStringValues
+                + "]"
+        );
     }
 
     @Override
@@ -103,59 +128,30 @@ public class JwtAuthenticationToken implements AuthenticationToken {
 
     @Override
     public SecureString credentials() {
-        return this.endUserSignedJwt;
+        return null;
     }
 
     public SecureString getEndUserSignedJwt() {
         return this.endUserSignedJwt;
     }
 
-    public SecureString getClientAuthorizationSharedSecret() {
-        return this.clientAuthorizationSharedSecret;
-    }
-
-    public SignedJWT getSignedJwt() {
-        return this.signedJwt;
-    }
-
-    public JWSHeader getJwsHeader() {
-        return this.jwsHeader;
-    }
-
-    public JWTClaimsSet getJwtClaimsSet() {
-        return this.jwtClaimsSet;
-    }
-
-    public byte[] getSignatureBytes() {
-        return this.jwtSignature;
-    }
-
-    public String getIssuerClaim() {
-        return this.issuerClaim;
-    }
-
-    public List<String> getAudiencesClaim() {
-        return this.audiencesClaim;
-    }
-
-    public String getSubjectClaim() {
-        return this.subjectClaim;
+    public SecureString getClientAuthenticationSharedSecret() {
+        return this.clientAuthenticationSharedSecret;
     }
 
     @Override
     public void clearCredentials() {
         this.endUserSignedJwt.close();
-        if (this.clientAuthorizationSharedSecret != null) {
-            this.clientAuthorizationSharedSecret.close();
+        this.endUserSignedJwt = null;
+        if (this.clientAuthenticationSharedSecret != null) {
+            this.clientAuthenticationSharedSecret.close();
+            this.clientAuthenticationSharedSecret = null;
         }
-        this.signedJwt = null;
-        this.jwsHeader = null;
-        this.jwtClaimsSet = null;
-        Arrays.fill(this.jwtSignature, (byte) 0);
-        this.jwtSignature = null;
-        this.issuerClaim = null;
-        this.audiencesClaim = null;
-        this.subjectClaim = null;
         this.principal = null;
+    }
+
+    @Override
+    public String toString() {
+        return JwtAuthenticationToken.class.getSimpleName() + "=" + this.principal;
     }
 }

@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,16 +104,12 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
 
                 final String taskSource = "delete-dangling-index [" + indexName + "] [" + indexUUID + "]";
 
-                clusterService.submitStateUpdateTask(
-                    taskSource,
-                    new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
-                        @Override
-                        public ClusterState execute(final ClusterState currentState) {
-                            return deleteDanglingIndex(currentState, indexToDelete);
-                        }
-                    },
-                    ClusterStateTaskExecutor.unbatched()
-                );
+                submitUnbatchedTask(taskSource, new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
+                    @Override
+                    public ClusterState execute(final ClusterState currentState) {
+                        return deleteDanglingIndex(currentState, indexToDelete);
+                    }
+                });
             }
 
             @Override
@@ -121,6 +118,11 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                 deleteListener.onFailure(e);
             }
         });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {

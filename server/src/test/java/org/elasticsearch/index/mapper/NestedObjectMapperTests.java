@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -59,7 +60,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> b.startObject("nested1").field("type", "nested").endObject()));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper;
@@ -136,7 +137,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -226,7 +227,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -317,7 +318,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -407,11 +408,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertEquals("nested1", docMapper.mappers().getNestedParent("nested1.nested2"));
-        assertNull(docMapper.mappers().getNestedParent("nonexistent"));
-        assertNull(docMapper.mappers().getNestedParent("nested1"));
+        assertEquals("nested1", docMapper.mappers().nestedLookup().getNestedParent("nested1.nested2"));
+        assertNull(docMapper.mappers().nestedLookup().getNestedParent("nonexistent"));
+        assertNull(docMapper.mappers().nestedLookup().getNestedParent("nested1"));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -745,7 +746,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper, instanceOf(NestedObjectMapper.class));
         assertThat(nested1Mapper.dynamic(), equalTo(Dynamic.STRICT));
@@ -974,7 +975,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             mapping(b -> b.startObject("nested1").field("type", "nested").endObject())
         );
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper, instanceOf(NestedObjectMapper.class));
 
@@ -1380,4 +1381,62 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertThat(doc.docs().get(4).get("_field_names"), nullValue());
     }
 
+    public void testNoDimensionNestedFields() {
+        {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(mapping(b -> {
+                b.startObject("nested");
+                {
+                    b.field("type", "nested");
+                    b.startObject("properties");
+                    {
+                        b.startObject("foo")
+                            .field("type", randomFrom(List.of("keyword", "ip", "long", "short", "integer", "byte")))
+                            .field("time_series_dimension", true)
+                            .endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("time_series_dimension can't be configured in nested field [nested.foo]"));
+        }
+
+        {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(mapping(b -> {
+                b.startObject("nested");
+                {
+                    b.field("type", "nested");
+                    b.startObject("properties");
+                    {
+                        b.startObject("other").field("type", "keyword").endObject();
+                        b.startObject("object").field("type", "object");
+                        {
+                            b.startObject("properties");
+                            {
+                                b.startObject("foo")
+                                    .field("type", randomFrom(List.of("keyword", "ip", "long", "short", "integer", "byte")))
+                                    .field("time_series_dimension", true)
+                                    .endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("time_series_dimension can't be configured in nested field [nested.object.foo]"));
+        }
+    }
+
+    public void testNestedDoesNotSupportSubobjectsParameter() {
+        MapperParsingException exception = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                mapping(b -> b.startObject("nested1").field("type", "nested").field("subobjects", randomBoolean()).endObject())
+            )
+        );
+        assertEquals("Failed to parse mapping: Nested type [nested1] does not support [subobjects] parameter", exception.getMessage());
+    }
 }

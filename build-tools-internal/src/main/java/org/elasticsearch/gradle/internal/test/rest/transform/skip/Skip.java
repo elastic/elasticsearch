@@ -18,7 +18,6 @@ import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformGlobalSetup;
 import org.gradle.api.tasks.Input;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Iterator;
 
@@ -43,7 +42,7 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
     }
 
     @Override
-    public ObjectNode transformSetup(@Nullable ObjectNode setupNodeParent) {
+    public ObjectNode transformSetup(ObjectNode setupNodeParent) {
         // only transform the global setup if there is no named test
         if (testName.isBlank()) {
             ArrayNode setupNode;

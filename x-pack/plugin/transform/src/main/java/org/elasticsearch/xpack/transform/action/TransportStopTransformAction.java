@@ -224,7 +224,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     @Override
-    protected void taskOperation(Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
 
         Set<String> ids = request.getExpandedIds();
         if (ids == null) {
@@ -234,7 +234,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
         if (ids.contains(transformTask.getTransformId())) {
             // move the call to the generic thread pool, so we do not block the network thread
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            threadPool.generic().execute(() -> {
                 transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {
                     try {
                         transformTask.stop(request.isForce(), request.isWaitForCheckpoint());
@@ -295,6 +295,12 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             // If there were failures attempting to stop the tasks, we don't know if they will actually stop.
             // It is better to respond to the user now than allow for the persistent task waiting to timeout
             if (response.getTaskFailures().isEmpty() == false || response.getNodeFailures().isEmpty() == false) {
+                logger.debug(
+                    "[{}] Failure when waiting for transform to stop, task failures: [{}], node failures: [{}]",
+                    request.getId(),
+                    response.getTaskFailures(),
+                    response.getNodeFailures()
+                );
                 RestStatus status = firstNotOKStatus(response.getTaskFailures(), response.getNodeFailures());
                 listener.onFailure(buildException(response.getTaskFailures(), response.getNodeFailures(), status));
                 return;
@@ -315,6 +321,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             taskOperationFailures.stream().map(TaskOperationFailure::getCause),
             elasticsearchExceptions.stream()
         ).collect(Collectors.toList());
+
+        assert exceptions.size() > 0 : "buildException called, but no exception found";
+        assert exceptions.get(0) != null : "exception must not be null";
 
         ElasticsearchStatusException elasticsearchStatusException = new ElasticsearchStatusException(
             exceptions.get(0).getMessage(),

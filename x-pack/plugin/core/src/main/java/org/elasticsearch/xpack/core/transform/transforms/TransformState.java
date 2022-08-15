@@ -247,7 +247,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalWriteable(position);
         } else {
-            out.writeMap(position != null ? position.getIndexerPosition() : null);
+            out.writeGenericMap(position != null ? position.getIndexerPosition() : null);
         }
         out.writeLong(checkpoint);
         out.writeOptionalString(reason);

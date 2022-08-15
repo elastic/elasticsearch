@@ -9,8 +9,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CannedBinaryTokenStream;
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -26,6 +24,8 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
@@ -240,7 +240,11 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
     }
 
-    public void testSimpleMatchQuery() throws IOException {
+    public void testParseDefaultsRemoved() throws IOException {
+        /*
+         * This json includes many defaults. When we parse the query and then
+         * call toString on it all of the defaults are removed.
+         */
         String json = """
             {
               "match" : {
@@ -258,10 +262,31 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
               }
             }""";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, qb);
+        checkGeneratedJson("""
+            {
+              "match": {
+                "message": {
+                  "query": "to be or not to be",
+                  "operator": "AND",
+                  "zero_terms_query": "ALL"
+                }
+              }
+            }""", qb);
 
         assertEquals(json, "to be or not to be", qb.value());
         assertEquals(json, Operator.AND, qb.operator());
+    }
+
+    public void testToXConentWithDefaults() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("foo", "bar");
+        checkGeneratedJson("""
+            {
+              "match": {
+                "foo": {
+                  "query": "bar"
+                }
+              }
+            }""", query);
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {

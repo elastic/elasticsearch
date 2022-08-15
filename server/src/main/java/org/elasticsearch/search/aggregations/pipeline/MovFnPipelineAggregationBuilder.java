@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -166,7 +167,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         if (window <= 0) {
             context.addValidationError("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
         }
-        context.validateParentAggSequentiallyOrdered(NAME, name);
+        context.validateParentAggSequentiallyOrderedWithoutSkips(NAME, name);
     }
 
     @Override
@@ -233,5 +234,10 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

@@ -10,11 +10,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -90,7 +89,7 @@ public class ApplicationPrivilegeDescriptorTests extends ESTestCase {
             builder.flush();
 
             final byte[] bytes = out.toByteArray();
-            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
+            try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, bytes)) {
                 final ApplicationPrivilegeDescriptor clone = ApplicationPrivilegeDescriptor.parse(
                     parser,
                     randomBoolean() ? randomAlphaOfLength(3) : null,
@@ -106,7 +105,7 @@ public class ApplicationPrivilegeDescriptorTests extends ESTestCase {
     public void testParseXContentWithDefaultNames() throws IOException {
         final String json = "{ \"actions\": [ \"data:read\" ], \"metadata\" : { \"num\": 1, \"bool\":false } }";
         final XContent xContent = XContentType.JSON.xContent();
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, json)) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, json)) {
             final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, "my_app", "read", false);
             assertThat(privilege.getApplication(), equalTo("my_app"));
             assertThat(privilege.getName(), equalTo("read"));
@@ -121,7 +120,7 @@ public class ApplicationPrivilegeDescriptorTests extends ESTestCase {
         final String json = """
             {  "application": "your_app",  "name": "write",  "actions": [ "data:write" ]}""";
         final XContent xContent = XContentType.JSON.xContent();
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, json)) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, json)) {
             final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, "my_app", "read", false);
             assertThat(privilege.getApplication(), equalTo("your_app"));
             assertThat(privilege.getName(), equalTo("write"));

@@ -566,7 +566,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                     )
                                 )
                             )
-                            .build()
                     )
             )
             .build();
@@ -611,7 +610,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                     unassignedInfo
                                 )
                             )
-                            .build()
                     )
             )
             .build();
@@ -684,7 +682,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             data.put(
                 node,
                 new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
-                    shardId,
                     new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt()),
                     peerRecoveryRetentionLeases
                 )

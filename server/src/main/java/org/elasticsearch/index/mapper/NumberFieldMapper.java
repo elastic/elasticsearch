@@ -8,17 +8,17 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.lucene.document.DoublePoint;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -26,15 +26,18 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -53,23 +56,22 @@ import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -79,6 +81,8 @@ public class NumberFieldMapper extends FieldMapper {
     private static NumberFieldMapper toType(FieldMapper in) {
         return (NumberFieldMapper) in;
     }
+
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -111,21 +115,31 @@ public class NumberFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
 
-        public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings) {
-            this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
+        private final Version indexCreatedVersion;
+
+        public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings, Version indexCreatedVersion) {
+            this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings), indexCreatedVersion);
         }
 
-        public static Builder docValuesOnly(String name, NumberType type) {
-            Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false);
+        public static Builder docValuesOnly(String name, NumberType type, Version indexCreatedVersion) {
+            Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false, indexCreatedVersion);
             builder.indexed.setValue(false);
             builder.dimension.setValue(false);
             return builder;
         }
 
-        public Builder(String name, NumberType type, ScriptCompiler compiler, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+        public Builder(
+            String name,
+            NumberType type,
+            ScriptCompiler compiler,
+            boolean ignoreMalformedByDefault,
+            boolean coerceByDefault,
+            Version indexCreatedVersion
+        ) {
             super(name);
             this.type = type;
             this.scriptCompiler = Objects.requireNonNull(compiler);
+            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
 
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -203,8 +217,8 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
                 hasDocValues,
                 stored,
@@ -215,8 +229,7 @@ public class NumberFieldMapper extends FieldMapper {
                 onScriptError,
                 meta,
                 dimension,
-                metric
-            );
+                metric };
         }
 
         @Override
@@ -235,13 +248,18 @@ public class NumberFieldMapper extends FieldMapper {
                 return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(result));
             }
 
+            @Override
+            public double reduceToStoredPrecision(double value) {
+                return parse(value, false).doubleValue();
+            }
+
             /**
              * Parse a query parameter or {@code _source} value to a float,
              * keeping float precision. Used by queries which need more
              * precise control over their rounding behavior that
              * {@link #parse(Object, boolean)} provides.
              */
-            private float parseToFloat(Object value) {
+            private static float parseToFloat(Object value) {
                 final float result;
 
                 if (value instanceof Number) {
@@ -337,18 +355,17 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                List<Field> fields = new ArrayList<>();
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                final float f = value.floatValue();
                 if (indexed) {
-                    fields.add(new HalfFloatPoint(name, value.floatValue()));
+                    document.add(new HalfFloatPoint(name, f));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, HalfFloatPoint.halfFloatToSortableShort(value.floatValue())));
+                    document.add(new SortedNumericDocValuesField(name, HalfFloatPoint.halfFloatToSortableShort(f)));
                 }
                 if (stored) {
-                    fields.add(new StoredField(name, value.floatValue()));
+                    document.add(new StoredField(name, f));
                 }
-                return fields;
             }
 
             @Override
@@ -356,10 +373,35 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(name, numericType(), HalfFloatDocValuesField::new);
             }
 
-            private void validateParsed(float value) {
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    HalfFloatDocValuesField::new
+                );
+            }
+
+            private static void validateParsed(float value) {
                 if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value))) == false) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
                 }
+            }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                    @Override
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
+                        b.value(HalfFloatPoint.sortableShortToHalfFloat((short) value));
+                    }
+                };
             }
         },
         FLOAT("float", NumericType.FLOAT) {
@@ -377,6 +419,11 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 validateParsed(result);
                 return result;
+            }
+
+            @Override
+            public double reduceToStoredPrecision(double value) {
+                return parse(value, false).doubleValue();
             }
 
             @Override
@@ -458,18 +505,17 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                List<Field> fields = new ArrayList<>();
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                final float f = value.floatValue();
                 if (indexed) {
-                    fields.add(new FloatPoint(name, value.floatValue()));
+                    document.add(new FloatPoint(name, f));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value.floatValue())));
+                    document.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(f)));
                 }
                 if (stored) {
-                    fields.add(new StoredField(name, value.floatValue()));
+                    document.add(new StoredField(name, f));
                 }
-                return fields;
             }
 
             @Override
@@ -477,10 +523,35 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(name, numericType(), FloatDocValuesField::new);
             }
 
-            private void validateParsed(float value) {
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    FloatDocValuesField::new
+                );
+            }
+
+            private static void validateParsed(float value) {
                 if (Float.isFinite(value) == false) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
                 }
+            }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                    @Override
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
+                        b.value(NumericUtils.sortableIntToFloat((int) value));
+                    }
+                };
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -562,18 +633,17 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                List<Field> fields = new ArrayList<>();
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                final double d = value.doubleValue();
                 if (indexed) {
-                    fields.add(new DoublePoint(name, value.doubleValue()));
+                    document.add(new DoublePoint(name, d));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(value.doubleValue())));
+                    document.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(d)));
                 }
                 if (stored) {
-                    fields.add(new StoredField(name, value.doubleValue()));
+                    document.add(new StoredField(name, d));
                 }
-                return fields;
             }
 
             @Override
@@ -581,10 +651,35 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(name, numericType(), DoubleDocValuesField::new);
             }
 
-            private void validateParsed(double value) {
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    DoubleDocValuesField::new
+                );
+            }
+
+            private static void validateParsed(double value) {
                 if (Double.isFinite(value) == false) {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
                 }
+            }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                    @Override
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
+                        b.value(NumericUtils.sortableLongToDouble(value));
+                    }
+                };
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -645,8 +740,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                return INTEGER.createFields(name, value, indexed, docValued, stored);
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                INTEGER.addFields(document, name, value, indexed, docValued, stored);
             }
 
             @Override
@@ -657,6 +752,26 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), ByteDocValuesField::new);
+            }
+
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    ByteDocValuesField::new
+                );
+            }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName);
             }
         },
         SHORT("short", NumericType.SHORT) {
@@ -713,8 +828,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                return INTEGER.createFields(name, value, indexed, docValued, stored);
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                INTEGER.addFields(document, name, value, indexed, docValued, stored);
             }
 
             @Override
@@ -725,6 +840,26 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), ShortDocValuesField::new);
+            }
+
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    ShortDocValuesField::new
+                );
+            }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -844,23 +979,42 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                List<Field> fields = new ArrayList<>();
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                final int i = value.intValue();
                 if (indexed) {
-                    fields.add(new IntPoint(name, value.intValue()));
+                    document.add(new IntPoint(name, i));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, value.intValue()));
+                    document.add(new SortedNumericDocValuesField(name, i));
                 }
                 if (stored) {
-                    fields.add(new StoredField(name, value.intValue()));
+                    document.add(new StoredField(name, i));
                 }
-                return fields;
             }
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), IntegerDocValuesField::new);
+            }
+
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    IntegerDocValuesField::new
+                );
+            }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -950,23 +1104,42 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
-                List<Field> fields = new ArrayList<>();
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                final long l = value.longValue();
                 if (indexed) {
-                    fields.add(new LongPoint(name, value.longValue()));
+                    document.add(new LongPoint(name, l));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, value.longValue()));
+                    document.add(new SortedNumericDocValuesField(name, l));
                 }
                 if (stored) {
-                    fields.add(new StoredField(name, value.longValue()));
+                    document.add(new StoredField(name, l));
                 }
-                return fields;
             }
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), LongDocValuesField::new);
+            }
+
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    LongDocValuesField::new
+                );
+            }
+
+            @Override
+            SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
+                return syntheticLongFieldLoader(fieldName, fieldSimpleName);
             }
         };
 
@@ -977,7 +1150,10 @@ public class NumberFieldMapper extends FieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings()));
+            this.parser = new TypeParser(
+                (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated()),
+                MINIMUM_COMPATIBILITY_VERSION
+            );
         }
 
         /** Get the associated type name. */
@@ -1015,7 +1191,25 @@ public class NumberFieldMapper extends FieldMapper {
 
         public abstract Number parsePoint(byte[] value);
 
-        public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
+        /**
+         * Maps the given {@code value} to one or more Lucene field values ands them to the given {@code document} under the given
+         * {@code name}.
+         *
+         * @param document document to add fields to
+         * @param name field name
+         * @param value value to map
+         * @param indexed whether or not the field is indexed
+         * @param docValued whether or not doc values should be added
+         * @param stored whether or not the field is stored
+         */
+        public abstract void addFields(
+            LuceneDocument document,
+            String name,
+            Number value,
+            boolean indexed,
+            boolean docValued,
+            boolean stored
+        );
 
         public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
             // only implemented for long and double fields
@@ -1167,6 +1361,33 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public abstract IndexFieldData.Builder getFieldDataBuilder(String name);
+
+        public IndexFieldData.Builder getValueFetcherFieldDataBuilder(String name, SourceLookup sourceLookup, ValueFetcher valueFetcher) {
+            throw new UnsupportedOperationException("not supported for source fallback");
+        }
+
+        /**
+         * Adjusts a value to the value it would have been had it been parsed by that mapper
+         * and then cast up to a double. This is meant to be an entry point to manipulate values
+         * before the actual value is parsed.
+         *
+         * @param value the value to reduce to the field stored value
+         * @return the double value
+         */
+        public double reduceToStoredPrecision(double value) {
+            return ((Number) value).doubleValue();
+        }
+
+        abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName);
+
+        private static SourceLoader.SyntheticFieldLoader syntheticLongFieldLoader(String fieldName, String fieldSimpleName) {
+            return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                @Override
+                protected void writeValue(XContentBuilder b, long value) throws IOException {
+                    b.value(value);
+                }
+            };
+        }
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1204,7 +1425,7 @@ public class NumberFieldMapper extends FieldMapper {
             this(
                 name,
                 builder.type,
-                builder.indexed.getValue(),
+                builder.indexed.getValue() && builder.indexCreatedVersion.isLegacyIndexVersion() == false,
                 builder.stored.getValue(),
                 builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(),
@@ -1241,7 +1462,7 @@ public class NumberFieldMapper extends FieldMapper {
                 // Trying to parse infinite values into ints/longs throws. Understandably.
                 return value;
             }
-            return type.parse(value, false).doubleValue();
+            return type.reduceToStoredPrecision(value);
         }
 
         public NumericType numericType() {
@@ -1294,9 +1515,25 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return type.getFieldDataBuilder(name());
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SEARCH) {
+                failIfNoDocValues();
+            }
+
+            if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
+                return type.getFieldDataBuilder(name());
+            }
+
+            if (operation == FielddataOperation.SCRIPT) {
+                SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+
+                return type.getValueFetcherFieldDataBuilder(name(), searchLookup.source(), sourceValueFetcher(sourcePaths));
+            }
+
+            throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
         }
 
         @Override
@@ -1315,7 +1552,11 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -1375,6 +1616,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Script script;
     private final MetricType metricType;
+    private final Version indexCreatedVersion;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
@@ -1392,6 +1634,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     boolean coerce() {
@@ -1417,7 +1660,7 @@ public class NumberFieldMapper extends FieldMapper {
         Number value;
         try {
             value = value(context.parser(), type, nullValue, coerce());
-        } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+        } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
                 return;
@@ -1432,21 +1675,20 @@ public class NumberFieldMapper extends FieldMapper {
 
     /**
      * Read the value at the current position of the parser.
-     * @throws InputCoercionException if xcontent couldn't convert the value in the required type, for example, integer overflow
-     * @throws JsonParseException if there was any error parsing the json
      * @throws IllegalArgumentException if there was an error parsing the value from the json
      * @throws IOException if there was any other IO error
      */
     private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)
-        throws InputCoercionException, JsonParseException, IllegalArgumentException, IOException {
+        throws IllegalArgumentException, IOException {
 
-        if (parser.currentToken() == Token.VALUE_NULL) {
+        final Token currentToken = parser.currentToken();
+        if (currentToken == Token.VALUE_NULL) {
             return nullValue;
         }
-        if (coerce && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+        if (coerce && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
             return nullValue;
         }
-        if (parser.currentToken() == Token.START_OBJECT) {
+        if (currentToken == Token.START_OBJECT) {
             throw new IllegalArgumentException("Cannot parse object as number");
         }
         return numberType.parse(parser, coerce);
@@ -1454,17 +1696,9 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
-            // Dimension can only be one of byte, short, int, long. So, we encode the tsid
-            // part of the dimension field by using the long value.
-            // Also, there is no point in encoding the tsid value if we do not generate
-            // the _tsid field.
-            BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
-                ? TimeSeriesIdFieldMapper.encodeTsidValue(numericValue.longValue())
-                : null;
-            context.doc().addDimensionBytes(fieldType().name(), bytes);
+            context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
         }
-        List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
-        context.doc().addAll(fields);
+        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());
@@ -1483,8 +1717,177 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault).dimension(dimension)
-            .metric(metricType)
-            .init(this);
+        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion).dimension(
+            dimension
+        ).metric(metricType).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+            );
+        }
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        if (ignoreMalformed.value()) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
+            );
+        }
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return type.syntheticFieldLoader(name(), simpleName());
+    }
+
+    public abstract static class NumericSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String name;
+        private final String simpleName;
+
+        protected NumericSyntheticFieldLoader(String name, String simpleName) {
+            this.name = name;
+            this.simpleName = simpleName;
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            SortedNumericDocValues dv = docValuesOrNull(reader, name);
+            if (dv == null) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+            if (docIdsInLeaf.length > 1) {
+                /*
+                 * The singleton optimization is mostly about looking up all
+                 * values for the field at once. If there's just a single
+                 * document then it's just extra overhead.
+                 */
+                NumericDocValues single = DocValues.unwrapSingleton(dv);
+                if (single != null) {
+                    return singletonLeaf(single, docIdsInLeaf);
+                }
+            }
+            return new ImmediateLeaf(dv);
+        }
+
+        private class ImmediateLeaf implements Leaf {
+            private final SortedNumericDocValues dv;
+            private boolean hasValue;
+
+            ImmediateLeaf(SortedNumericDocValues dv) {
+                this.dv = dv;
+            }
+
+            @Override
+            public boolean empty() {
+                return false;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                return hasValue = dv.advanceExact(docId);
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (false == hasValue) {
+                    return;
+                }
+                if (dv.docValueCount() == 1) {
+                    b.field(simpleName);
+                    writeValue(b, dv.nextValue());
+                    return;
+                }
+                b.startArray(simpleName);
+                for (int i = 0; i < dv.docValueCount(); i++) {
+                    writeValue(b, dv.nextValue());
+                }
+                b.endArray();
+            }
+        }
+
+        /**
+         * Load all values for all docs up front. This should be much more
+         * disk and cpu-friendly than {@link ImmediateLeaf} because it resolves
+         * the values all at once, always scanning forwards on the disk.
+         */
+        private Leaf singletonLeaf(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
+            long[] values = new long[docIdsInLeaf.length];
+            boolean[] hasValue = new boolean[docIdsInLeaf.length];
+            boolean found = false;
+            for (int d = 0; d < docIdsInLeaf.length; d++) {
+                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
+                    hasValue[d] = false;
+                    continue;
+                }
+                hasValue[d] = true;
+                values[d] = singleton.longValue();
+                found = true;
+            }
+            if (found == false) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+            return new Leaf() {
+                private int idx = -1;
+
+                @Override
+                public boolean empty() {
+                    return false;
+                }
+
+                @Override
+                public boolean advanceToDoc(int docId) throws IOException {
+                    idx++;
+                    if (docIdsInLeaf[idx] != docId) {
+                        throw new IllegalArgumentException(
+                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                        );
+                    }
+                    return hasValue[idx];
+                }
+
+                @Override
+                public void write(XContentBuilder b) throws IOException {
+                    if (hasValue[idx] == false) {
+                        return;
+                    }
+                    b.field(simpleName);
+                    writeValue(b, values[idx]);
+                }
+            };
+        }
+
+        /**
+         * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
+         * See {@link DocValues#getSortedNumeric} which is *nearly* the same, but it returns
+         * an "empty" implementation if there aren't any doc values. We need to be able to
+         * tell if there aren't any and return our empty leaf source loader.
+         */
+        public static SortedNumericDocValues docValuesOrNull(LeafReader reader, String fieldName) throws IOException {
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(fieldName);
+            if (dv != null) {
+                return dv;
+            }
+            NumericDocValues single = reader.getNumericDocValues(fieldName);
+            if (single != null) {
+                return DocValues.singleton(single);
+            }
+            return null;
+        }
+
+        protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
     }
 }

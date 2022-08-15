@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.common.blobstore.fs;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterSeekableByteChannel;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;

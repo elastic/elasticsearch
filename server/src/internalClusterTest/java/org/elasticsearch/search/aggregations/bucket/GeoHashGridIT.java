@@ -7,10 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -29,8 +25,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -53,8 +51,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
     private Version version = VersionUtils.randomIndexCompatibleVersion(random());
 
-    static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
-    static ObjectIntMap<String> multiValuedExpectedDocCountsForGeoHash = null;
+    static Map<String, Integer> expectedDocCountsForGeoHash = null;
+    static Map<String, Integer> multiValuedExpectedDocCountsForGeoHash = null;
     static int numDocs = 100;
 
     static String smallestGeoHash = null;
@@ -82,7 +80,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = random();
-        expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
+        expectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
         for (int i = 0; i < numDocs; i++) {
             // generate random point
             double lat = (180d * random.nextDouble()) - 90d;
@@ -107,7 +105,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         );
 
         cities = new ArrayList<>();
-        multiValuedExpectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
+        multiValuedExpectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
         for (int i = 0; i < numDocs; i++) {
             final int numPoints = random.nextInt(4);
             List<String> points = new ArrayList<>();
@@ -256,9 +254,9 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 String geohash = cell.getKeyAsString();
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = 0;
-                for (ObjectIntCursor<String> cursor : expectedDocCountsForGeoHash) {
-                    if (cursor.key.length() == precision) {
-                        expectedBucketCount = Math.max(expectedBucketCount, cursor.value);
+                for (var entry : expectedDocCountsForGeoHash.entrySet()) {
+                    if (entry.getKey().length() == precision) {
+                        expectedBucketCount = Math.max(expectedBucketCount, entry.getValue());
                     }
                 }
                 assertNotSame(bucketCount, 0);

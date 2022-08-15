@@ -15,8 +15,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -55,6 +54,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,7 +82,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static ExecutorService executorService;
     protected Map<String, HttpHandler> handlers;
 
-    private static final Logger log = LogManager.getLogger();
+    private static final Logger log = LogManager.getLogger(ESMockAPIBasedRepositoryIntegTestCase.class);
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
@@ -95,6 +95,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             2,
             60,
             TimeUnit.SECONDS,
+            true,
             threadFactory,
             new ThreadContext(Settings.EMPTY)
         );
@@ -413,8 +414,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
                 handler.handle(exchange);
             } catch (Throwable t) {
                 logger.error(
-                    () -> new ParameterizedMessage(
-                        "Exception when handling request {} {} {}",
+                    () -> format(
+                        "Exception when handling request %s %s %s",
                         exchange.getRemoteAddress(),
                         exchange.getRequestMethod(),
                         exchange.getRequestURI()

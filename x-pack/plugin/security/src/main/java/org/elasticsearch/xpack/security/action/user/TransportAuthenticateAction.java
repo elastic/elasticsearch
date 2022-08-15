@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.stream.Stream;
-
 public class TransportAuthenticateAction extends HandledTransportAction<AuthenticateRequest, AuthenticateResponse> {
 
     private final SecurityContext securityContext;
@@ -43,8 +41,13 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
     @Override
     protected void doExecute(Task task, AuthenticateRequest request, ActionListener<AuthenticateResponse> listener) {
         final Authentication authentication = securityContext.getAuthentication();
-        final User runAsUser = authentication == null ? null : authentication.getUser();
-        final User authUser = runAsUser == null ? null : runAsUser.authenticatedUser();
+        final User runAsUser, authUser;
+        if (authentication == null) {
+            runAsUser = authUser = null;
+        } else {
+            runAsUser = authentication.getEffectiveSubject().getUser();
+            authUser = authentication.getAuthenticatingSubject().getUser();
+        }
         if (authUser == null) {
             listener.onFailure(new ElasticsearchSecurityException("did not find an authenticated user"));
         } else if (User.isInternal(authUser)) {
@@ -52,32 +55,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
         } else if (User.isInternal(runAsUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
         } else {
-            final User user = authentication.getUser();
-            final boolean shouldAddAnonymousRoleNames = anonymousUser.enabled()
-                && false == anonymousUser.equals(user)
-                && false == authentication.isApiKey()
-                && false == authentication.isServiceAccount();
-            if (shouldAddAnonymousRoleNames) {
-                final String[] allRoleNames = Stream.concat(Stream.of(user.roles()), Stream.of(anonymousUser.roles()))
-                    .toArray(String[]::new);
-                listener.onResponse(
-                    new AuthenticateResponse(
-                        new Authentication(
-                            new User(
-                                new User(user.principal(), allRoleNames, user.fullName(), user.email(), user.metadata(), user.enabled()),
-                                user.authenticatedUser()
-                            ),
-                            authentication.getAuthenticatedBy(),
-                            authentication.getLookedUpBy(),
-                            authentication.getVersion(),
-                            authentication.getAuthenticationType(),
-                            authentication.getMetadata()
-                        )
-                    )
-                );
-            } else {
-                listener.onResponse(new AuthenticateResponse(authentication));
-            }
+            listener.onResponse(new AuthenticateResponse(authentication.maybeAddAnonymousRoles(anonymousUser)));
         }
     }
 }

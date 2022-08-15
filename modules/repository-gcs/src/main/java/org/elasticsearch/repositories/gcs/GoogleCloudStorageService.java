@@ -22,7 +22,6 @@ import com.google.cloud.storage.StorageOptions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.util.Maps;
@@ -42,6 +41,7 @@ import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.core.Strings.format;
 
 public class GoogleCloudStorageService {
 
@@ -107,9 +107,7 @@ public class GoogleCloudStorageService {
                 );
             }
 
-            logger.debug(
-                () -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName, settings.getHost())
-            );
+            logger.debug(() -> format("creating GCS client with client_name [%s], endpoint [%s]", clientName, settings.getHost()));
             final Storage storage = createClient(settings, stats);
             clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
             return storage;
@@ -195,7 +193,7 @@ public class GoogleCloudStorageService {
         } else {
             String defaultProjectId = null;
             try {
-                defaultProjectId = ServiceOptions.getDefaultProjectId();
+                defaultProjectId = SocketAccess.doPrivilegedIOException(ServiceOptions::getDefaultProjectId);
                 if (defaultProjectId != null) {
                     storageOptionsBuilder.setProjectId(defaultProjectId);
                 }
@@ -219,7 +217,7 @@ public class GoogleCloudStorageService {
         }
         if (gcsClientSettings.getCredential() == null) {
             try {
-                storageOptionsBuilder.setCredentials(GoogleCredentials.getApplicationDefault());
+                storageOptionsBuilder.setCredentials(SocketAccess.doPrivilegedIOException(GoogleCredentials::getApplicationDefault));
             } catch (Exception e) {
                 logger.warn("failed to load Application Default Credentials", e);
             }

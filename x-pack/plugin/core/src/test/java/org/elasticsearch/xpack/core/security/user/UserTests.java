@@ -19,13 +19,5 @@ public class UserTests extends ESTestCase {
         assertThat(user.toString(), is("User[username=u1,roles=[r1],fullName=null,email=null,metadata={}]"));
         user = new User("u1", new String[] { "r1", "r2" }, "user1", "user1@domain.com", Map.of("key", "val"), true);
         assertThat(user.toString(), is("User[username=u1,roles=[r1,r2],fullName=user1,email=user1@domain.com,metadata={key=val}]"));
-        user = new User("u1", new String[] { "r1" }, new User("u2", "r2", "r3"));
-        assertThat(
-            user.toString(),
-            is(
-                "User[username=u1,roles=[r1],fullName=null,email=null,metadata={},"
-                    + "authenticatedUser=[User[username=u2,roles=[r2,r3],fullName=null,email=null,metadata={}]]]"
-            )
-        );
     }
 }

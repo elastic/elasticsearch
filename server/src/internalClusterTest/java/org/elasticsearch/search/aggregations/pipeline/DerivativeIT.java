@@ -266,7 +266,7 @@ public class DerivativeIT extends ESIntegTestCase {
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             long expectedSum = valueCounts[i] * (i * interval);
-            assertThat(sum.getValue(), equalTo((double) expectedSum));
+            assertThat(sum.value(), equalTo((double) expectedSum));
             SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
             if (i > 0) {
                 assertThat(sumDeriv, notNullValue());

@@ -10,7 +10,7 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -85,7 +85,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
         FetchSearchPhase phase = new FetchSearchPhase(
             results,
-            controller,
             null,
             mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
@@ -188,7 +187,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
         FetchSearchPhase phase = new FetchSearchPhase(
             results,
-            controller,
             null,
             mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
@@ -281,7 +279,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
         FetchSearchPhase phase = new FetchSearchPhase(
             results,
-            controller,
             null,
             mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
@@ -377,7 +374,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         FetchSearchPhase phase = new FetchSearchPhase(
             results,
-            controller,
             null,
             mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
@@ -496,7 +492,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
         FetchSearchPhase phase = new FetchSearchPhase(
             results,
-            controller,
             null,
             mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {
@@ -584,7 +579,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
         };
         FetchSearchPhase phase = new FetchSearchPhase(
             results,
-            controller,
             null,
             mockSearchPhaseContext,
             (searchResponse, scrollId) -> new SearchPhase("test") {

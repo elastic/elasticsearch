@@ -158,11 +158,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     private static FieldMapper createFieldMapper(String parent, String name) {
-        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE).build(MapperBuilderContext.forPath(new ContentPath(parent)));
+        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, Version.CURRENT).build(new MapperBuilderContext(parent));
     }
 
     private static ObjectMapper createObjectMapper(String name) {
-        return new ObjectMapper(name, name, Explicit.IMPLICIT_TRUE, ObjectMapper.Dynamic.FALSE, emptyMap());
+        return new ObjectMapper(name, name, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, ObjectMapper.Dynamic.FALSE, emptyMap());
     }
 
     private static NestedObjectMapper createNestedObjectMapper(String name) {
@@ -175,9 +175,9 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         List<FieldAliasMapper> fieldAliasMappers,
         List<RuntimeField> runtimeFields
     ) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
-        builder.setRuntime(runtimeFieldTypes);
+        builder.addRuntimeFields(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(MapperBuilderContext.ROOT), new MetadataFieldMapper[0], Collections.emptyMap());
         return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers);
     }

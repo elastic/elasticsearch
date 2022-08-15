@@ -9,15 +9,12 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
 
-public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent implements TokenFilterFactory {
+public abstract class AbstractTokenFilterFactory implements TokenFilterFactory {
 
     private final String name;
 
-    public AbstractTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings) {
-        super(indexSettings);
+    public AbstractTokenFilterFactory(String name, Settings settings) {
         this.name = name;
         Analysis.checkForDeprecatedVersion(name, settings);
     }

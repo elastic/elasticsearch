@@ -21,6 +21,16 @@ import static org.hamcrest.Matchers.containsString;
 
 public class TextClassificationConfigTests extends InferenceConfigItemTestCase<TextClassificationConfig> {
 
+    public static TextClassificationConfig mutateForVersion(TextClassificationConfig instance, Version version) {
+        return new TextClassificationConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getClassificationLabels(),
+            instance.getNumTopClasses(),
+            instance.getResultsField()
+        );
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return true;
@@ -48,7 +58,7 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
 
     @Override
     protected TextClassificationConfig mutateInstanceForVersion(TextClassificationConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public void testInvalidClassificationLabels() {
@@ -69,7 +79,9 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
     public static TextClassificationConfig createRandom() {
         return new TextClassificationConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : randomFrom(BertTokenizationTests.createRandom(), MPNetTokenizationTests.createRandom()),
+            randomBoolean()
+                ? null
+                : randomFrom(BertTokenizationTests.createRandomWithSpan(), MPNetTokenizationTests.createRandomWithSpan()),
             randomList(2, 5, () -> randomAlphaOfLength(10)),
             randomBoolean() ? null : randomBoolean() ? -1 : randomIntBetween(1, 10),
             randomBoolean() ? null : randomAlphaOfLength(6)

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -165,12 +167,21 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                 );
             }
             int seed = this.seed == null ? hash(context.nowInMillis()) : this.seed;
-            return new RandomScoreFunction(seed, salt, context.getForField(context.getFieldType(fieldName)));
+            return new RandomScoreFunction(
+                seed,
+                salt,
+                context.getForField(context.getFieldType(fieldName), MappedFieldType.FielddataOperation.SEARCH)
+            );
         }
     }
 
     private static int hash(long value) {
         return Long.hashCode(value);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     public static RandomScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {

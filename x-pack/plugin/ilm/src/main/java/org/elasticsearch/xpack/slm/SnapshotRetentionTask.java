@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.slm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -50,6 +50,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FIELD;
 
 /**
@@ -173,7 +174,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                                     // SnapshotInfo instances can be quite large in case they contain e.g. a large collection of
                                     // exceptions so we extract the only two things (id + policy id) here so they can be GCed
                                     .map(snapshotInfo -> Tuple.tuple(snapshotInfo.snapshotId(), getPolicyId(snapshotInfo)))
-                                    .collect(Collectors.toList())
+                                    .toList()
                             )
                         );
 
@@ -244,7 +245,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         .map(pId -> pId.equals(policyId))
                         .orElse(false)
                 )
-                .collect(Collectors.toList())
+                .toList()
         ).test(snapshot);
         logger.debug(
             "[{}] testing snapshot [{}] deletion eligibility: {}",
@@ -273,6 +274,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setIgnoreUnavailable(true)
             .setPolicies(policies.toArray(Strings.EMPTY_ARRAY))
+            .setIncludeIndexNames(false)
             .execute(ActionListener.wrap(resp -> {
                 if (logger.isTraceEnabled()) {
                     logger.trace(
@@ -284,7 +286,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                                     .filter(info -> repo.equals(info.repository()))
                                     .map(si -> si.snapshotId().getName())
                             )
-                            .collect(Collectors.toList())
+                            .toList()
                     );
                 }
                 Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
@@ -295,7 +297,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 }
                 listener.onResponse(snapshots);
             }, e -> {
-                logger.debug(new ParameterizedMessage("unable to retrieve snapshots for [{}] repositories", repositories), e);
+                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories", e);
                 listener.onFailure(e);
             }));
     }
@@ -387,10 +389,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     } catch (IOException ex) {
                         // This shouldn't happen unless there's an issue with serializing the original exception
                         logger.error(
-                            new ParameterizedMessage(
-                                "failed to record snapshot deletion failure for snapshot lifecycle policy [{}]",
-                                policyId
-                            ),
+                            () -> format("failed to record snapshot deletion failure for snapshot lifecycle policy [%s]", policyId),
                             ex
                         );
                     } finally {
@@ -439,7 +438,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 listener.onResponse(acknowledgedResponse);
             }, e -> {
                 try {
-                    logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention", repo, snapshot), e);
+                    logger.warn(() -> format("[%s] failed to delete snapshot [%s] for retention", repo, snapshot), e);
                     slmStats.snapshotDeleteFailure(slmPolicy);
                 } finally {
                     listener.onFailure(e);
@@ -448,10 +447,11 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     }
 
     void updateStateWithStats(SnapshotLifecycleStats newStats) {
-        clusterService.submitStateUpdateTask(
-            UpdateSnapshotLifecycleStatsTask.TASK_SOURCE,
-            new UpdateSnapshotLifecycleStatsTask(newStats),
-            ClusterStateTaskExecutor.unbatched()
-        );
+        submitUnbatchedTask(UpdateSnapshotLifecycleStatsTask.TASK_SOURCE, new UpdateSnapshotLifecycleStatsTask(newStats));
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

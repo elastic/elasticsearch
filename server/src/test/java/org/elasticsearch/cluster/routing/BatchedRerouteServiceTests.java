@@ -10,13 +10,13 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class BatchedRerouteServiceTests extends ESTestCase {
@@ -78,7 +79,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
     public void testBatchesReroutesTogetherAtPriorityOfHighestSubmittedReroute() throws BrokenBarrierException, InterruptedException {
         final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
-        clusterService.submitStateUpdateTask("block master service", new ClusterStateUpdateTask() {
+        // notify test that we are blocked
+        // wait to be unblocked by test
+        clusterService.submitUnbatchedStateUpdateTask("block master service", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 cyclicBarrier.await(); // notify test that we are blocked
@@ -90,7 +93,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError("block master service", e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
 
         cyclicBarrier.await(); // wait for master thread to be blocked
 
@@ -100,16 +103,24 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             return s;
         });
 
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String contextHeader = "test-context-header";
+
         final int iterations = scaledRandomIntBetween(1, 100);
         final CountDownLatch tasksSubmittedCountDown = new CountDownLatch(iterations);
         final CountDownLatch tasksCompletedCountDown = new CountDownLatch(iterations);
         final List<Runnable> actions = new ArrayList<>(iterations);
         final Function<Priority, Runnable> rerouteFromPriority = priority -> () -> {
             final AtomicBoolean alreadyRun = new AtomicBoolean();
-            batchedRerouteService.reroute("reroute at " + priority, priority, ActionListener.wrap(() -> {
-                assertTrue(alreadyRun.compareAndSet(false, true));
-                tasksCompletedCountDown.countDown();
-            }));
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                final String contextValue = randomAlphaOfLength(10);
+                threadContext.putHeader(contextHeader, contextValue);
+                batchedRerouteService.reroute("reroute at " + priority, priority, ActionListener.wrap(() -> {
+                    assertTrue(alreadyRun.compareAndSet(false, true));
+                    assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
+                    tasksCompletedCountDown.countDown();
+                }));
+            }
             tasksSubmittedCountDown.countDown();
         };
         actions.add(rerouteFromPriority.apply(Priority.URGENT)); // ensure at least one URGENT priority reroute
@@ -124,7 +135,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 }
                 final String source = "other task " + i + " at " + priority;
                 actions.add(() -> {
-                    clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
+                    // else this task might be submitted too late to precede the reroute
+                    // may run either before or after reroute
+                    clusterService.submitUnbatchedStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
 
                         @Override
                         public ClusterState execute(ClusterState currentState) {
@@ -157,7 +170,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             tasksCompletedCountDown.countDown();
                         }
-                    }, ClusterStateTaskExecutor.unbatched());
+                    });
                     if (submittedConcurrentlyWithReroute) {
                         tasksSubmittedCountDown.countDown();
                     }
@@ -213,7 +226,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     return ClusterState.builder(state)
                         .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId()))
                         .build();
-                }, ActionListener.wrap(() -> {}));
+                }, ActionListener.noop());
             }
         }
 

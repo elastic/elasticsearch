@@ -76,7 +76,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> require = instance.getRequire();
         Integer numberOfReplicas = instance.getNumberOfReplicas();
         Integer totalShardsPerNode = instance.getTotalShardsPerNode();
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> {
                 include = new HashMap<>(include);
                 include.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));

@@ -10,7 +10,7 @@ teardown:
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       cluster.put_settings:
@@ -36,7 +36,7 @@ teardown:
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /no such index \[dest\] and \[action.auto_create_index\] \(\[test\]\) doesn't match/
@@ -57,7 +57,7 @@ teardown:
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /no such index \[dest\] and \[action.auto_create_index\] contains \[-dest\] which forbids automatic creation of the index/

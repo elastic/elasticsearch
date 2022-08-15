@@ -1062,6 +1062,58 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
+    public void testMasterFailoverDuringStaleIndicesCleanup() throws Exception {
+        internalCluster().startMasterOnlyNodes(3);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        createFullSnapshot(repoName, "empty-snapshot");
+        // use a few more shards to make master take a little longer to clean up the stale index and simulate more concurrency between
+        // snapshot create and delete below
+        createIndexWithContent("index-test", indexSettingsNoReplicas(randomIntBetween(6, 10)).build());
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        final List<String> fullSnapshotsToDelete = createNSnapshots(repoName, randomIntBetween(1, 5));
+        final String masterName = internalCluster().getMasterName();
+        blockMasterFromDeletingIndexNFile(repoName);
+        final ActionFuture<AcknowledgedResponse> deleteAllSnapshotsWithIndex = startDeleteSnapshots(
+            repoName,
+            fullSnapshotsToDelete,
+            masterName
+        );
+
+        // wait for the delete to show up in the CS so that the below snapshot is queued after it for sure
+        awaitNDeletionsInProgress(1);
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshotFromDataNode(repoName, "new-full-snapshot");
+        waitForBlock(masterName, repoName);
+        awaitNumberOfSnapshotsInProgress(1);
+        networkDisruption.startDisrupting();
+        ensureStableCluster(3, dataNode);
+        // wait for the snapshot to finish while the isolated master is stuck on deleting a data blob
+        try {
+            snapshotFuture.get();
+        } catch (Exception e) {
+            // ignore exceptions here, the snapshot will work out fine in all cases but the API might throw because of the master
+            // fail-over during the snapshot
+            // TODO: remove this leniency once we fix the API to handle master failover cleaner
+        }
+        awaitNoMoreRunningOperations(dataNode);
+
+        // now unblock the stale master and have it continue deleting blobs from the repository
+        unblockNode(repoName, masterName);
+
+        networkDisruption.stopDisrupting();
+        ensureStableCluster(4);
+        try {
+            deleteAllSnapshotsWithIndex.get();
+        } catch (Exception ignored) {
+            // ignored as we had a failover in here and will get all kinds of errors as a result, just making sure the future completes in
+            // all cases for now
+            // TODO: remove this leniency once we fix the API to handle master failover cleaner
+        }
+    }
+
     public void testStatusMultipleSnapshotsMultipleRepos() throws Exception {
         internalCluster().startMasterOnlyNode();
         // We're blocking a some of the snapshot threads when we block the first repo below so we have to make sure we have enough threads
@@ -1951,6 +2003,30 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshot2.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
     }
 
+    public void testQueuedSnapshotAfterPartialWithIndexRecreate() throws Exception {
+        internalCluster().startNodes(3);
+        // create an index with a large number of shards so that the nodes will not be able to start all shard snapshots before the index
+        // is deleted
+        final Settings highShardCountSettings = indexSettingsNoReplicas(randomIntBetween(12, 24)).build();
+        final String index1 = "index-1";
+        createIndexWithContent(index1, highShardCountSettings);
+        final String index2 = "index-2";
+        createIndexWithContent(index2);
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final ActionFuture<CreateSnapshotResponse> partialFuture = startFullSnapshot(repoName, "partial-snapshot", true);
+        blockAllDataNodes(repoName);
+        waitForBlockOnAnyDataNode(repoName);
+        // recreate index and start full snapshot to test that shard state updates from the first partial snapshot are correctly are
+        // correctly applied to the second snapshot that will contain a different index by the same name
+        assertAcked(client().admin().indices().prepareDelete(index1).get());
+        createIndexWithContent(index1, highShardCountSettings);
+        final ActionFuture<CreateSnapshotResponse> nonPartialFuture = startFullSnapshot(repoName, "full-snapshot");
+        unblockAllDataNodes(repoName);
+        assertSuccessful(nonPartialFuture);
+        assertSuccessful(partialFuture);
+    }
+
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {
         final SnapshotsStatusResponse snapshotsStatusResponse = client().admin()
             .cluster()
@@ -1968,6 +2044,16 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromNonMasterClient(String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] to repo [{}] from non master client", snapshotName, repoName);
         return internalCluster().nonMasterClient()
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .execute();
+    }
+
+    private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromDataNode(String repoName, String snapshotName) {
+        logger.info("--> creating full snapshot [{}] to repo [{}] from data node client", snapshotName, repoName);
+        return internalCluster().dataNodeClient()
             .admin()
             .cluster()
             .prepareCreateSnapshot(repoName, snapshotName)

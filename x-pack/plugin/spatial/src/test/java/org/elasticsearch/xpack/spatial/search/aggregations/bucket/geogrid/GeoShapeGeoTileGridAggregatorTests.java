@@ -7,15 +7,22 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGridBucket;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
+
+import java.io.IOException;
 
 public class GeoShapeGeoTileGridAggregatorTests extends GeoShapeGeoGridTestCase<InternalGeoTileGridBucket> {
 
@@ -54,8 +61,20 @@ public class GeoShapeGeoTileGridAggregatorTests extends GeoShapeGeoGridTestCase<
     }
 
     @Override
-    protected Rectangle getTile(double lng, double lat, int precision) {
-        return GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lng, lat, precision));
+    protected boolean intersects(double lng, double lat, int precision, GeoShapeValues.GeoShapeValue value) throws IOException {
+        Rectangle r = GeoGridQueryBuilder.getQueryTile(GeoTileUtils.stringEncode(GeoTileUtils.longEncode(lng, lat, precision)));
+        return value.relate(
+            GeoEncodingUtils.encodeLongitude(r.getMinLon()),
+            GeoEncodingUtils.encodeLongitude(r.getMaxLon()),
+            GeoEncodingUtils.encodeLatitude(r.getMinLat()),
+            GeoEncodingUtils.encodeLatitude(r.getMaxLat())
+        ) != GeoRelation.QUERY_DISJOINT;
+    }
+
+    @Override
+    protected boolean intersectsBounds(double lng, double lat, int precision, GeoBoundingBox box) {
+        GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision, box);
+        return predicate.validTile(GeoTileUtils.getXTile(lng, 1L << precision), GeoTileUtils.getYTile(lat, 1L << precision), precision);
     }
 
     @Override

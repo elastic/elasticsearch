@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -74,14 +73,13 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                     clusterState.getMetadata().settings(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 ),
-                new DataTierAllocationDecider(),
+                DataTierAllocationDecider.INSTANCE,
                 new NodeVersionAllocationDecider(),
                 new NodeShutdownAllocationDecider(),
                 new NodeReplacementAllocationDecider()
             )
         );
-        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, null, null, System.nanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
         String indexName = indexMetadata.getIndex().getName();
         final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()
@@ -90,7 +88,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             .collect(Collectors.groupingBy(ShardRouting::shardId));
 
         if (routingsByShardId.isEmpty() == false) {
-            for (RoutingNode node : routingNodes) {
+            for (RoutingNode node : allocation.routingNodes()) {
                 boolean canAllocateOneCopyOfEachShard = routingsByShardId.values()
                     .stream() // For each shard
                     .allMatch(

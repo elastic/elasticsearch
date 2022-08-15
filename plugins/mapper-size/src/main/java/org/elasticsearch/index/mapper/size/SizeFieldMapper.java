@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.List;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
@@ -38,8 +37,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(enabled);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { enabled };
         }
 
         @Override
@@ -58,7 +57,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             if (hasDocValues() == false) {
                 return (lookup, ignoredValues) -> List.of();
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
     }
 
@@ -84,13 +83,13 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(DocumentParserContext context) throws IOException {
+    public void postParse(DocumentParserContext context) {
         // we post parse it so we get the size stored, possibly compressed (source will be preParse)
         if (enabled.value() == false) {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        context.doc().addAll(NumberType.INTEGER.createFields(name(), value, true, true, true));
+        NumberType.INTEGER.addFields(context.doc(), name(), value, true, true, true);
     }
 
     @Override

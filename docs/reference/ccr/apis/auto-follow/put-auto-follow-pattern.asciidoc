@@ -85,11 +85,14 @@ the new patterns.
   more `leader_index_patterns` and one or more `leader_index_exclusion_patterns` won't be followed.
 
 `follow_index_pattern`::
-  (Optional, string) The name of follower index. The template `{{leader_index}}`
-  can be used to derive the name of the follower index from the name of the
-  leader index. When following a data stream, use `{{leader_index}}`; {ccr-init}
-  does not support changes to the names of a follower data stream's backing
-  indices.
+  (Optional, string) The name of follower index. The template `{{leader_index}}` can be used to
+  derive the name of the follower index from the name of the leader index. When following a data
+  stream, the `follow_index_pattern` will be used for renaming not only the leader index, but also
+  the data stream containing the leader index. For example, a data stream called
+  `logs-mysql-default` with a backing index of `.ds-logs-mysql-default-2022-01-01-000001` and a
+  `follow_index_pattern` of `{{leader_index}}_copy` will replicate the data stream as
+  `logs-mysql-default_copy` and the backing index as
+  `.ds-logs-mysql-default_copy-2022-01-01-000001`.
 
 include::../follow-request-body.asciidoc[]
 

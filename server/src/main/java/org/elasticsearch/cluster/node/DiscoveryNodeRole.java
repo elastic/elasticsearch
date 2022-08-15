@@ -275,7 +275,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     static {
         final List<Field> roleFields = Arrays.stream(DiscoveryNodeRole.class.getFields())
             .filter(f -> f.getType().equals(DiscoveryNodeRole.class))
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         // this will detect duplicate role names
         final Map<String, DiscoveryNodeRole> roleMap = roleFields.stream().map(f -> {
             try {

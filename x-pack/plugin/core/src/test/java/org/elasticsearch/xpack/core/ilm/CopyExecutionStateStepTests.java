@@ -40,7 +40,7 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
         StepKey targetNextStepKey = instance.getTargetNextStepKey();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 2 -> indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
@@ -91,12 +91,12 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
             .getLifecycleExecutionState();
 
         StepKey targetNextStepKey = step.getTargetNextStepKey();
-        assertEquals(newIndexData.getLifecycleDate(), oldIndexData.getLifecycleDate());
-        assertEquals(newIndexData.getPhase(), targetNextStepKey.getPhase());
-        assertEquals(newIndexData.getAction(), targetNextStepKey.getAction());
-        assertEquals(newIndexData.getStep(), targetNextStepKey.getName());
-        assertEquals(newIndexData.getSnapshotRepository(), oldIndexData.getSnapshotRepository());
-        assertEquals(newIndexData.getSnapshotName(), oldIndexData.getSnapshotName());
+        assertEquals(newIndexData.lifecycleDate(), oldIndexData.lifecycleDate());
+        assertEquals(newIndexData.phase(), targetNextStepKey.getPhase());
+        assertEquals(newIndexData.action(), targetNextStepKey.getAction());
+        assertEquals(newIndexData.step(), targetNextStepKey.getName());
+        assertEquals(newIndexData.snapshotRepository(), oldIndexData.snapshotRepository());
+        assertEquals(newIndexData.snapshotName(), oldIndexData.snapshotName());
     }
 
     public void testAllStateCopied() {

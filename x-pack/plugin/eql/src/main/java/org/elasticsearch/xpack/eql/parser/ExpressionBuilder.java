@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -240,10 +239,9 @@ public class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         String text = ctx.getText();
 
-        long value;
-
         try {
-            value = Long.valueOf(StringUtils.parseLong(text));
+            Number value = StringUtils.parseIntegral(text);
+            return new Literal(source, value, DataTypes.fromJava(value));
         } catch (QlIllegalArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
@@ -252,16 +250,6 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
             throw new ParsingException(source, siae.getMessage());
         }
-
-        Object val = Long.valueOf(value);
-        DataType type = DataTypes.LONG;
-
-        // try to downsize to int if possible (since that's the most common type)
-        if ((int) value == value) {
-            type = DataTypes.INTEGER;
-            val = Integer.valueOf((int) value);
-        }
-        return new Literal(source, val, type);
     }
 
     @Override

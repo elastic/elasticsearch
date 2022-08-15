@@ -69,14 +69,14 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(currentStepKey));
-        assertThat(lifecycleState.getPhaseTime(), nullValue());
-        assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepTime(), nullValue());
+        assertThat(lifecycleState.phaseTime(), nullValue());
+        assertThat(lifecycleState.actionTime(), nullValue());
+        assertThat(lifecycleState.stepTime(), nullValue());
 
         XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder();
         stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
         String expectedCauseValue = BytesReference.bytes(infoXContentBuilder).utf8ToString();
-        assertThat(lifecycleState.getStepInfo(), equalTo(expectedCauseValue));
+        assertThat(lifecycleState.stepInfo(), equalTo(expectedCauseValue));
     }
 
     private ToXContentObject getRandomStepInfo() {

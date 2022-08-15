@@ -6,14 +6,14 @@ setup:
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: foo }
 
 ## we index again in order to make the seq# 1 (so we can check for the field existence with is_false)
   - do:
       index:
         index:  test_1
-        id:     1
+        id:     "1"
         body:   { foo: bar }
 
   - do:

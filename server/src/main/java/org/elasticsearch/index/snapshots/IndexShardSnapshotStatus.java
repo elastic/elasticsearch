@@ -178,6 +178,11 @@ public class IndexShardSnapshotStatus {
         processedSize += size;
     }
 
+    public synchronized void addProcessedFiles(int count, long totalSize) {
+        processedFileCount += count;
+        processedSize += totalSize;
+    }
+
     /**
      * Returns a copy of the current {@link IndexShardSnapshotStatus}. This method is
      * intended to be used when a coherent state of {@link IndexShardSnapshotStatus} is needed.

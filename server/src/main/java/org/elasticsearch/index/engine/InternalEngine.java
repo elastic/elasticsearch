@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -29,7 +28,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -57,12 +55,13 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -108,6 +107,8 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class InternalEngine extends Engine {
 
@@ -501,8 +502,8 @@ public class InternalEngine extends Engine {
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
         pendingTranslogRecovery.set(false); // we are good - now we can commit
         logger.trace(
-            () -> new ParameterizedMessage(
-                "flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
+            () -> format(
+                "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
                 opsRecovered,
                 translog.currentFileGeneration()
             )
@@ -600,7 +601,7 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data.
      */
-    private String loadHistoryUUID(Map<String, String> commitData) {
+    private static String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -638,18 +639,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
-        @Override
-        public void onUse(Query query) {
-
-        }
-
-        @Override
-        public boolean shouldCache(Query query) {
-            return false;
-        }
-    };
-
     public final AtomicLong translogGetCount = new AtomicLong(); // number of times realtime get was done on translog
     public final AtomicLong translogInMemorySegmentsCount = new AtomicLong(); // number of times in-memory index needed to be created
 
@@ -675,7 +664,7 @@ public class InternalEngine extends Engine {
             ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
             config().getSimilarity(),
             null /*query cache disabled*/,
-            NEVER_CACHE_POLICY,
+            TrivialQueryCachingPolicy.NEVER,
             inMemoryReader
         );
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
@@ -705,7 +694,7 @@ public class InternalEngine extends Engine {
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         throw new VersionConflictEngineException(
                             shardId,
-                            get.id(),
+                            "[" + get.id() + "]",
                             get.versionType().explainConflictForReads(versionValue.version, get.version())
                         );
                     }
@@ -998,7 +987,8 @@ public class InternalEngine extends Engine {
                             plan.versionForIndexing,
                             index.primaryTerm(),
                             index.seqNo(),
-                            plan.currentNotFoundOrDeleted
+                            plan.currentNotFoundOrDeleted,
+                            index.id()
                         );
                     }
                 }
@@ -1108,7 +1098,7 @@ public class InternalEngine extends Engine {
         if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
             final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
             if (reserveError != null) {
-                plan = IndexingStrategy.failAsTooManyDocs(reserveError);
+                plan = IndexingStrategy.failAsTooManyDocs(reserveError, index.id());
             } else {
                 plan = IndexingStrategy.optimizedAppendOnly(1L, reservingDocs);
             }
@@ -1134,7 +1124,7 @@ public class InternalEngine extends Engine {
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     SequenceNumbers.UNASSIGNED_PRIMARY_TERM
                 );
-                plan = IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion);
+                plan = IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion, index.id());
             } else if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                 && (versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm())) {
                     final VersionConflictEngineException e = new VersionConflictEngineException(
@@ -1145,19 +1135,18 @@ public class InternalEngine extends Engine {
                         versionValue.seqNo,
                         versionValue.term
                     );
-                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
+                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, index.id());
                 } else if (index.versionType().isVersionConflictForWrites(currentVersion, index.version(), currentNotFoundOrDeleted)) {
                     final VersionConflictEngineException e = new VersionConflictEngineException(
                         shardId,
-                        index,
-                        currentVersion,
-                        currentNotFoundOrDeleted
+                        index.parsedDoc().documentDescription(),
+                        index.versionType().explainConflictForWrites(currentVersion, index.version(), true)
                     );
-                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
+                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, index.id());
                 } else {
                     final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
                     if (reserveError != null) {
-                        plan = IndexingStrategy.failAsTooManyDocs(reserveError);
+                        plan = IndexingStrategy.failAsTooManyDocs(reserveError, index.id());
                     } else {
                         plan = IndexingStrategy.processNormally(
                             currentNotFoundOrDeleted,
@@ -1191,7 +1180,7 @@ public class InternalEngine extends Engine {
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                 addDocs(index.docs(), indexWriter);
             }
-            return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
+            return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted, index.id());
         } catch (Exception ex) {
             if (ex instanceof AlreadyClosedException == false
                 && indexWriter.getTragicException() == null
@@ -1209,7 +1198,7 @@ public class InternalEngine extends Engine {
                  * we return a `MATCH_ANY` version to indicate no document was index. The value is
                  * not used anyway
                  */
-                return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), index.seqNo());
+                return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), index.seqNo(), index.id());
             } else {
                 throw ex;
             }
@@ -1221,7 +1210,7 @@ public class InternalEngine extends Engine {
      * If we hit any failure while processing an indexing on a replica, we should treat that error as tragic and fail the engine.
      * However, we prefer to fail a request individually (instead of a shard) if we hit a document failure on the primary.
      */
-    private boolean treatDocumentFailureAsTragicError(Index index) {
+    private static boolean treatDocumentFailureAsTragicError(Index index) {
         // TODO: can we enable this check for all origins except primary on the leader?
         return index.origin() == Operation.Origin.REPLICA
             || index.origin() == Operation.Origin.PEER_RECOVERY
@@ -1314,9 +1303,10 @@ public class InternalEngine extends Engine {
         public static IndexingStrategy skipDueToVersionConflict(
             VersionConflictEngineException e,
             boolean currentNotFoundOrDeleted,
-            long currentVersion
+            long currentVersion,
+            String id
         ) {
-            final IndexResult result = new IndexResult(e, currentVersion);
+            final IndexResult result = new IndexResult(e, currentVersion, id);
             return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, Versions.NOT_FOUND, 0, result);
         }
 
@@ -1340,8 +1330,8 @@ public class InternalEngine extends Engine {
             return new IndexingStrategy(false, false, false, true, versionForIndexing, reservedDocs, null);
         }
 
-        static IndexingStrategy failAsTooManyDocs(Exception e) {
-            final IndexResult result = new IndexResult(e, Versions.NOT_FOUND);
+        static IndexingStrategy failAsTooManyDocs(Exception e, String id) {
+            final IndexResult result = new IndexResult(e, Versions.NOT_FOUND, id);
             return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
         }
     }
@@ -1424,7 +1414,8 @@ public class InternalEngine extends Engine {
                         plan.versionOfDeletion,
                         delete.primaryTerm(),
                         delete.seqNo(),
-                        plan.currentlyDeleted == false
+                        plan.currentlyDeleted == false,
+                        delete.id()
                     );
                 }
                 if (plan.deleteFromLucene) {
@@ -1550,7 +1541,7 @@ public class InternalEngine extends Engine {
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM
             );
-            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true);
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true, delete.id());
         } else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
             && (versionValue.seqNo != delete.getIfSeqNo() || versionValue.term != delete.getIfPrimaryTerm())) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(
@@ -1561,19 +1552,18 @@ public class InternalEngine extends Engine {
                     versionValue.seqNo,
                     versionValue.term
                 );
-                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
+                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());
             } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(
                     shardId,
-                    delete,
-                    currentVersion,
-                    currentlyDeleted
+                    "[" + delete.id() + "]",
+                    delete.versionType().explainConflictForWrites(currentVersion, delete.version(), true)
                 );
-                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
+                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());
             } else {
                 final Exception reserveError = tryAcquireInFlightDocs(delete, 1);
                 if (reserveError != null) {
-                    plan = DeletionStrategy.failAsTooManyDocs(reserveError);
+                    plan = DeletionStrategy.failAsTooManyDocs(reserveError, delete.id());
                 } else {
                     final long versionOfDeletion = delete.versionType().updateVersion(currentVersion, delete.version());
                     plan = DeletionStrategy.processNormally(currentlyDeleted, versionOfDeletion, 1);
@@ -1598,7 +1588,13 @@ public class InternalEngine extends Engine {
             } else {
                 indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
             }
-            return new DeleteResult(plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+            return new DeleteResult(
+                plan.versionOfDeletion,
+                delete.primaryTerm(),
+                delete.seqNo(),
+                plan.currentlyDeleted == false,
+                delete.id()
+            );
         } catch (final Exception ex) {
             /*
              * Document level failures when deleting are unexpected, we likely hit something fatal such as the Lucene index being corrupt,
@@ -1655,14 +1651,16 @@ public class InternalEngine extends Engine {
         public static DeletionStrategy skipDueToVersionConflict(
             VersionConflictEngineException e,
             long currentVersion,
-            boolean currentlyDeleted
+            boolean currentlyDeleted,
+            String id
         ) {
             final DeleteResult deleteResult = new DeleteResult(
                 e,
                 currentVersion,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
-                currentlyDeleted == false
+                currentlyDeleted == false,
+                id
             );
             return new DeletionStrategy(false, false, currentlyDeleted, Versions.NOT_FOUND, 0, deleteResult);
         }
@@ -1680,13 +1678,14 @@ public class InternalEngine extends Engine {
             return new DeletionStrategy(false, true, false, versionOfDeletion, 0, null);
         }
 
-        static DeletionStrategy failAsTooManyDocs(Exception e) {
+        static DeletionStrategy failAsTooManyDocs(Exception e, String id) {
             final DeleteResult deleteResult = new DeleteResult(
                 e,
                 Versions.NOT_FOUND,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
-                false
+                false,
+                id
             );
             return new DeletionStrategy(false, false, false, Versions.NOT_FOUND, 0, deleteResult);
         }
@@ -2159,14 +2158,40 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
-        return new Engine.IndexCommitRef(lastCommit, () -> releaseIndexCommit(lastCommit));
+        store.incRef();
+        boolean success = false;
+        try {
+            final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+            final IndexCommitRef commitRef = new IndexCommitRef(
+                lastCommit,
+                () -> IOUtils.close(() -> releaseIndexCommit(lastCommit), store::decRef)
+            );
+            success = true;
+            return commitRef;
+        } finally {
+            if (success == false) {
+                store.decRef();
+            }
+        }
     }
 
     @Override
     public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
-        final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
-        return new Engine.IndexCommitRef(safeCommit, () -> releaseIndexCommit(safeCommit));
+        store.incRef();
+        boolean success = false;
+        try {
+            final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+            final IndexCommitRef commitRef = new IndexCommitRef(
+                safeCommit,
+                () -> IOUtils.close(() -> releaseIndexCommit(safeCommit), store::decRef)
+            );
+            success = true;
+            return commitRef;
+        } finally {
+            if (success == false) {
+                store.decRef();
+            }
+        }
     }
 
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
@@ -2383,6 +2408,8 @@ public class InternalEngine extends Engine {
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
         }
         iwc.setMergePolicy(mergePolicy);
+        // TODO: Introduce an index setting for setMaxFullFlushMergeWaitMillis
+        iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());

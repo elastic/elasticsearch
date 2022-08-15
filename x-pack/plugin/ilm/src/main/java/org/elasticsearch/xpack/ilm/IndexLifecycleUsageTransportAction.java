@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.ActionConfigStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -73,8 +72,8 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         final IndexLifecycleFeatureSetUsage usage;
         if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
-            metadata.indices().forEach(entry -> {
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(entry.value.getSettings());
+            metadata.indices().values().forEach(value -> {
+                String policyName = value.getLifecyclePolicyName();
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {
                     indicesManaged = 1;
@@ -98,7 +97,7 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                     );
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new IndexLifecycleFeatureSetUsage.PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
-            }).collect(Collectors.toList());
+            }).toList();
             usage = new IndexLifecycleFeatureSetUsage(policyStats);
         } else {
             usage = new IndexLifecycleFeatureSetUsage();
@@ -120,8 +119,14 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                 RolloverAction rolloverAction = (RolloverAction) action;
                 consumer.setRolloverMaxAge(rolloverAction.getMaxAge());
                 consumer.setRolloverMaxDocs(rolloverAction.getMaxDocs());
+                consumer.setRolloverMaxPrimaryShardDocs(rolloverAction.getMaxPrimaryShardDocs());
                 consumer.setRolloverMaxPrimaryShardSize(rolloverAction.getMaxPrimaryShardSize());
                 consumer.setRolloverMaxSize(rolloverAction.getMaxSize());
+                consumer.setRolloverMinAge(rolloverAction.getMinAge());
+                consumer.setRolloverMinDocs(rolloverAction.getMinDocs());
+                consumer.setRolloverMinPrimaryShardDocs(rolloverAction.getMinPrimaryShardDocs());
+                consumer.setRolloverMinPrimaryShardSize(rolloverAction.getMinPrimaryShardSize());
+                consumer.setRolloverMinSize(rolloverAction.getMinSize());
             }
             case SetPriorityAction.NAME -> {
                 SetPriorityAction setPriorityAction = (SetPriorityAction) action;

@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.security.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -18,7 +20,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class SecurityActionMapperTests extends ESTestCase {
 
     public void testThatAllOrdinaryActionsRemainTheSame() {
-        SecurityActionMapper securityActionMapper = new SecurityActionMapper();
         StringBuilder actionNameBuilder = new StringBuilder();
         if (randomBoolean()) {
             actionNameBuilder.append("indices:");
@@ -46,21 +47,19 @@ public class SecurityActionMapperTests extends ESTestCase {
                 || randomAction.equals(AnalyzeAction.NAME + "[s]")
         );
 
-        assertThat(securityActionMapper.action(randomAction, null), equalTo(randomAction));
+        assertThat(SecurityActionMapper.action(randomAction, null), equalTo(randomAction));
     }
 
     public void testClearScroll() {
-        SecurityActionMapper securityActionMapper = new SecurityActionMapper();
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         int scrollIds = randomIntBetween(1, 10);
         for (int i = 0; i < scrollIds; i++) {
             clearScrollRequest.addScrollId(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
-        assertThat(securityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest), equalTo(ClearScrollAction.NAME));
+        assertThat(SecurityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest), equalTo(ClearScrollAction.NAME));
     }
 
     public void testClearScrollAll() {
-        SecurityActionMapper securityActionMapper = new SecurityActionMapper();
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         int scrollIds = randomIntBetween(0, 10);
         for (int i = 0; i < scrollIds; i++) {
@@ -71,13 +70,12 @@ public class SecurityActionMapperTests extends ESTestCase {
         Collections.shuffle(clearScrollRequest.getScrollIds(), random());
 
         assertThat(
-            securityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest),
+            SecurityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest),
             equalTo(SecurityActionMapper.CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME)
         );
     }
 
     public void testIndicesAnalyze() {
-        SecurityActionMapper securityActionMapper = new SecurityActionMapper();
         AnalyzeAction.Request analyzeRequest;
         if (randomBoolean()) {
             analyzeRequest = new AnalyzeAction.Request(randomAlphaOfLength(randomIntBetween(1, 30))).text("text");
@@ -85,15 +83,45 @@ public class SecurityActionMapperTests extends ESTestCase {
             analyzeRequest = new AnalyzeAction.Request(null).text("text");
             analyzeRequest.index(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
-        assertThat(securityActionMapper.action(AnalyzeAction.NAME, analyzeRequest), equalTo(AnalyzeAction.NAME));
+        assertThat(SecurityActionMapper.action(AnalyzeAction.NAME, analyzeRequest), equalTo(AnalyzeAction.NAME));
     }
 
     public void testClusterAnalyze() {
-        SecurityActionMapper securityActionMapper = new SecurityActionMapper();
         AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(null).text("text");
         assertThat(
-            securityActionMapper.action(AnalyzeAction.NAME, analyzeRequest),
+            SecurityActionMapper.action(AnalyzeAction.NAME, analyzeRequest),
             equalTo(SecurityActionMapper.CLUSTER_PERMISSION_ANALYZE)
         );
+    }
+
+    public void testPainlessExecuteWithIndex() {
+        MockPainlessExecuteRequest withIndex = new MockPainlessExecuteRequest("index");
+        assertThat(
+            SecurityActionMapper.action(SecurityActionMapper.CLUSTER_PERMISSION_PAINLESS_EXECUTE, withIndex),
+            equalTo("indices:data/read/scripts/painless/execute")
+        );
+        assertThat(
+            SecurityActionMapper.action(SecurityActionMapper.CLUSTER_PERMISSION_PAINLESS_EXECUTE + "[s]", withIndex),
+            equalTo("indices:data/read/scripts/painless/execute[s]")
+        );
+    }
+
+    public void testPainlessExecuteWithoutIndex() {
+        MockPainlessExecuteRequest withoutIndex = new MockPainlessExecuteRequest(null);
+        assertThat(
+            SecurityActionMapper.action(SecurityActionMapper.CLUSTER_PERMISSION_PAINLESS_EXECUTE, withoutIndex),
+            equalTo(SecurityActionMapper.CLUSTER_PERMISSION_PAINLESS_EXECUTE)
+        );
+    }
+
+    private static class MockPainlessExecuteRequest extends SingleShardRequest<MockPainlessExecuteRequest> {
+        MockPainlessExecuteRequest(String index) {
+            super(index);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
     }
 }

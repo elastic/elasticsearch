@@ -40,9 +40,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.stream.Stream;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
@@ -471,30 +468,30 @@ public class CommonStats implements Writeable, ToXContentFragment {
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final Stream<ToXContent> stream = Arrays.stream(
-            new ToXContent[] {
-                docs,
-                shards,
-                store,
-                indexing,
-                get,
-                search,
-                merge,
-                refresh,
-                flush,
-                warmer,
-                queryCache,
-                fieldData,
-                completion,
-                segments,
-                translog,
-                requestCache,
-                recoveryStats,
-                bulk }
-        ).filter(Objects::nonNull);
-        for (ToXContent toXContent : ((Iterable<ToXContent>) stream::iterator)) {
+        addIfNonNull(builder, params, docs);
+        addIfNonNull(builder, params, shards);
+        addIfNonNull(builder, params, store);
+        addIfNonNull(builder, params, indexing);
+        addIfNonNull(builder, params, get);
+        addIfNonNull(builder, params, search);
+        addIfNonNull(builder, params, merge);
+        addIfNonNull(builder, params, refresh);
+        addIfNonNull(builder, params, flush);
+        addIfNonNull(builder, params, warmer);
+        addIfNonNull(builder, params, queryCache);
+        addIfNonNull(builder, params, fieldData);
+        addIfNonNull(builder, params, completion);
+        addIfNonNull(builder, params, segments);
+        addIfNonNull(builder, params, translog);
+        addIfNonNull(builder, params, requestCache);
+        addIfNonNull(builder, params, recoveryStats);
+        addIfNonNull(builder, params, bulk);
+        return builder;
+    }
+
+    private static void addIfNonNull(XContentBuilder builder, Params params, @Nullable ToXContent toXContent) throws IOException {
+        if (toXContent != null) {
             toXContent.toXContent(builder, params);
         }
-        return builder;
     }
 }

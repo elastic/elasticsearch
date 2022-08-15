@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
@@ -40,7 +41,7 @@ import static java.util.Arrays.stream;
  * unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  * and configure them to build various versions here.
  */
-public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
+public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private static final String BWC_TASK_THROTTLE_SERVICE = "bwcTaskThrottle";
     private ProviderFactory providerFactory;
@@ -235,13 +236,14 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'master' branch", task -> {
+            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'main' branch", task -> {
                 String gitBranch = System.getenv("GIT_BRANCH");
-                return BuildParams.isCi() && (gitBranch == null || gitBranch.endsWith("master") == false);
+                return BuildParams.isCi()
+                    && (gitBranch == null || gitBranch.endsWith("master") == false || gitBranch.endsWith("main") == false);
             });
-            c.args(projectPath.replace('/', ':') + ":" + assembleTaskName);
+            c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
-                c.args("--build-cache");
+                c.getArgs().add("--build-cache");
             }
             c.doLast(new Action<Task>() {
                 @Override

@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -26,8 +25,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -47,6 +46,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -63,12 +63,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
@@ -102,9 +104,10 @@ public class CompositeRolesStore {
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
     private final Role xpackSecurityRole;
+    private final Role securityProfileRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
-    private final Automaton restrictedIndicesAutomaton;
+    private final RestrictedIndices restrictedIndices;
 
     public CompositeRolesStore(
         Settings settings,
@@ -116,7 +119,7 @@ public class CompositeRolesStore {
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         DocumentSubsetBitsetCache dlsBitsetCache,
-        IndexNameExpressionResolver resolver,
+        RestrictedIndices restrictedIndices,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
     ) {
         this.roleProviders = roleProviders;
@@ -148,12 +151,13 @@ public class CompositeRolesStore {
             nlcBuilder.setMaximumWeight(nlcCacheSize);
         }
         this.negativeLookupCache = nlcBuilder.build();
-        this.restrictedIndicesAutomaton = resolver.getSystemNameAutomaton();
-        this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton)
+        this.restrictedIndices = restrictedIndices;
+        this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices)
             .build();
-        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
-        xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
-        asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
+        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
+        securityProfileRole = Role.builder(SecurityProfileUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
+        xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
+        asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
 
         this.roleReferenceResolver = new RoleDescriptorStore(
             roleProviders,
@@ -168,11 +172,10 @@ public class CompositeRolesStore {
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
-        final AuthenticationContext authenticationContext = AuthenticationContext.fromAuthentication(authentication);
-        getRole(authenticationContext.getEffectiveSubject(), ActionListener.wrap(role -> {
-            if (authenticationContext.isRunAs()) {
+        getRole(authentication.getEffectiveSubject(), ActionListener.wrap(role -> {
+            if (authentication.isRunAs()) {
                 getRole(
-                    authenticationContext.getAuthenticatingSubject(),
+                    authentication.getAuthenticatingSubject(),
                     ActionListener.wrap(
                         authenticatingRole -> roleActionListener.onResponse(new Tuple<>(role, authenticatingRole)),
                         roleActionListener::onFailure
@@ -208,15 +211,17 @@ public class CompositeRolesStore {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
-                "the user [" + user.principal() + "] is the system user and we should never try to get its" + " roles"
+                "the user [" + user.principal() + "] is the system user and we should never try to get its roles"
             );
         }
         if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
             return xpackUserRole;
         }
         if (XPackSecurityUser.is(user)) {
             return xpackSecurityRole;
+        }
+        if (SecurityProfileUser.is(user)) {
+            return securityProfileRole;
         }
         if (AsyncSearchUser.is(user)) {
             return asyncSearchUserRole;
@@ -238,6 +243,26 @@ public class CompositeRolesStore {
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();
+            final Consumer<Exception> failureHandler = e -> {
+                // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
+                // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
+                // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
+                // in role retrieval). So if a role reference includes superuser, but role retrieval failed, we fallback to the static
+                // superuser role.
+                if (includesSuperuserRole(roleReference)) {
+                    logger.warn(
+                        () -> format(
+                            "there was a failure resolving the roles [%s], falling back to the [%s] role instead",
+                            roleReference.id(),
+                            Strings.arrayToCommaDelimitedString(superuserRole.names())
+                        ),
+                        e
+                    );
+                    roleActionListener.onResponse(superuserRole);
+                } else {
+                    roleActionListener.onFailure(e);
+                }
+            };
             roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
                 if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
                     roleActionListener.onResponse(Role.EMPTY);
@@ -250,35 +275,16 @@ public class CompositeRolesStore {
                         rolesRetrievalResult.getMissingRoles(),
                         rolesRetrievalResult.isSuccess(),
                         invalidationCounter,
-                        roleActionListener
+                        ActionListener.wrap(roleActionListener::onResponse, failureHandler)
                     );
                 }
-            }, e -> {
-                // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
-                // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
-                // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
-                // in role retrieval). So if a role reference includes superuser, but role retrieval failed, we fallback to the static
-                // superuser role.
-                if (includesSuperuserRole(roleReference)) {
-                    logger.warn(
-                        new ParameterizedMessage(
-                            "there was a failure resolving the roles [{}], falling back to the [{}] role instead",
-                            roleReference.id(),
-                            Strings.arrayToCommaDelimitedString(superuserRole.names())
-                        ),
-                        e
-                    );
-                    roleActionListener.onResponse(superuserRole);
-                } else {
-                    roleActionListener.onFailure(e);
-                }
-            }));
+            }, failureHandler));
         } else {
             roleActionListener.onResponse(existing);
         }
     }
 
-    private boolean includesSuperuserRole(RoleReference roleReference) {
+    private static boolean includesSuperuserRole(RoleReference roleReference) {
         if (roleReference instanceof RoleReference.NamedRoleReference namedRoles) {
             return Arrays.asList(namedRoles.getRoleNames()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         } else {
@@ -301,6 +307,16 @@ public class CompositeRolesStore {
         return asyncSearchUserRole;
     }
 
+    // for testing
+    Role getXpackSecurityRole() {
+        return xpackSecurityRole;
+    }
+
+    // for testing
+    Role getSecurityProfileRole() {
+        return securityProfileRole;
+    }
+
     private void buildThenMaybeCacheRole(
         RoleKey roleKey,
         Collection<RoleDescriptor> roleDescriptors,
@@ -315,45 +331,80 @@ public class CompositeRolesStore {
             roleKey.getNames(),
             roleKey.getSource()
         );
-        buildRoleFromDescriptors(
-            roleDescriptors,
-            fieldPermissionsCache,
-            privilegeStore,
-            restrictedIndicesAutomaton,
-            ActionListener.wrap(role -> {
-                if (role != null && tryCache) {
-                    try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
-                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                         * started the request we don't put a potential stale result in the cache, hence the
-                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                         * be on the safe side and don't cache potentially stale results
-                         */
-                        if (invalidationCounter == numInvalidation.get()) {
-                            roleCache.computeIfAbsent(roleKey, (s) -> role);
-                        }
-                    }
-
-                    for (String missingRole : missing) {
-                        negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
+        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, restrictedIndices, ActionListener.wrap(role -> {
+            if (role != null && tryCache) {
+                try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
+                    /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
+                     * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
+                     * stuff in an async fashion we need to make sure that if the cache got invalidated since we
+                     * started the request we don't put a potential stale result in the cache, hence the
+                     * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
+                     * be on the safe side and don't cache potentially stale results
+                     */
+                    if (invalidationCounter == numInvalidation.get()) {
+                        roleCache.computeIfAbsent(roleKey, (s) -> role);
                     }
                 }
-                listener.onResponse(role);
-            }, listener::onFailure)
+
+                for (String missingRole : missing) {
+                    negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
+                }
+            }
+            listener.onResponse(role);
+        }, listener::onFailure));
+    }
+
+    public void getRoleDescriptorsList(Subject subject, ActionListener<Collection<Set<RoleDescriptor>>> listener) {
+        tryGetRoleDescriptorForInternalUser(subject).ifPresentOrElse(
+            roleDescriptor -> listener.onResponse(List.of(Set.of(roleDescriptor))),
+            () -> {
+                final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
+                final GroupedActionListener<Set<RoleDescriptor>> groupedActionListener = new GroupedActionListener<>(
+                    listener,
+                    roleReferences.size()
+                );
+
+                roleReferences.forEach(roleReference -> {
+                    roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
+                        if (rolesRetrievalResult.isSuccess()) {
+                            groupedActionListener.onResponse(rolesRetrievalResult.getRoleDescriptors());
+                        } else {
+                            groupedActionListener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
+                        }
+                    }, groupedActionListener::onFailure));
+                });
+            }
         );
     }
 
-    // TODO: Temporary to fill the gap
-    public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
-        roleReferenceResolver.getRoleDescriptors(roleNames, listener);
+    // Package private for testing
+    static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
+        final User user = subject.getUser();
+        if (SystemUser.is(user)) {
+            throw new IllegalArgumentException(
+                "the user [" + user.principal() + "] is the system user and we should never try to get its role descriptors"
+            );
+        }
+        if (XPackUser.is(user)) {
+            return Optional.of(XPackUser.ROLE_DESCRIPTOR);
+        }
+        if (XPackSecurityUser.is(user)) {
+            return Optional.of(XPackSecurityUser.ROLE_DESCRIPTOR);
+        }
+        if (SecurityProfileUser.is(user)) {
+            return Optional.of(SecurityProfileUser.ROLE_DESCRIPTOR);
+        }
+        if (AsyncSearchUser.is(user)) {
+            return Optional.of(AsyncSearchUser.ROLE_DESCRIPTOR);
+        }
+        return Optional.empty();
     }
 
     public static void buildRoleFromDescriptors(
         Collection<RoleDescriptor> roleDescriptors,
         FieldPermissionsCache fieldPermissionsCache,
         NativePrivilegeStore privilegeStore,
-        Automaton restrictedIndicesAutomaton,
+        RestrictedIndices restrictedIndices,
         ActionListener<Role> listener
     ) {
         if (roleDescriptors.isEmpty()) {
@@ -398,7 +449,7 @@ public class CompositeRolesStore {
         }
 
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
-        final Role.Builder builder = Role.builder(restrictedIndicesAutomaton, roleNames.toArray(Strings.EMPTY_ARRAY))
+        final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
         indicesPrivilegesMap.forEach(

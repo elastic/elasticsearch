@@ -15,6 +15,4 @@ dependencies {
   api "net.sf.supercsv:super-csv:${versions.supercsv}"
 }
 
-addQaCheckDependencies()
-
-tasks.named("testingConventions").configure { enabled = false }
+addQaCheckDependencies(project)

@@ -14,10 +14,10 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
@@ -44,6 +44,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -76,6 +77,7 @@ import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MAS
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
@@ -615,7 +617,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final int newClusterNodes = between(initialClusterSize + 1, 4);
             logger.info("--> adding [{}] new healthy nodes", newClusterNodes);
             final NodeHealthService alwaysHealthy = () -> new StatusInfo(HEALTHY, "healthy-info");
-            final Set<String> newNodeIds = new HashSet<>(newClusterNodes);
+            final Set<String> newNodeIds = Sets.newHashSetWithExpectedSize(newClusterNodes);
             for (int i = 0; i < newClusterNodes; i++) {
                 final ClusterNode node = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, alwaysHealthy);
                 newNodeIds.add(node.getId());
@@ -1004,7 +1006,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testDiffBasedPublishing() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 
@@ -1040,7 +1042,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 );
                 assertEquals(
                     cn.toString(),
-                    prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
+                    prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + (cn == leader ? 0 : 1),
                     postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount()
                 );
                 assertEquals(
@@ -1480,6 +1482,51 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     @TestLogging(
+        reason = "test includes assertions about ClusterBootstrapService logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
+    )
+    public void testClusterUUIDLogging() throws IllegalAccessException {
+        final var mockAppender = new MockLogAppender();
+        mockAppender.start();
+        final var serviceLogger = LogManager.getLogger(ClusterBootstrapService.class);
+        Loggers.addAppender(serviceLogger, mockAppender);
+
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "fresh node message",
+                ClusterBootstrapService.class.getCanonicalName(),
+                Level.INFO,
+                "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
+            )
+        );
+
+        try (var cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
+
+            final var restartingNode = cluster.getAnyNode();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "restarted node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node is locked into cluster UUID ["
+                        + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
+                        + "] and will not attempt further cluster bootstrapping"
+                )
+            );
+            restartingNode.close();
+            cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(serviceLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
+    @TestLogging(
         reason = "test includes assertions about Coordinator and JoinHelper logging",
         value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
     )
@@ -1632,6 +1679,108 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             );
             cluster1.clusterNodes.replaceAll(cn -> cn == newNode ? detachedNode : cn);
             cluster1.stabilise();
+        }
+    }
+
+    @TestLogging(
+        reason = "test includes assertions about logging",
+        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
+    )
+    public void testReportsConnectBackProblemsDuringJoining() throws IllegalAccessException {
+        try (var cluster = new Cluster(3)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final var partitionedNode = cluster.getAnyNode();
+            partitionedNode.disconnect();
+            cluster.stabilise();
+
+            logger.info("--> healing [{}] but blocking handshakes", partitionedNode);
+            partitionedNode.heal();
+            final var leader = cluster.getAnyLeader();
+            leader.addActionBlock(TransportService.HANDSHAKE_ACTION_NAME);
+
+            final var mockAppender = new MockLogAppender();
+            mockAppender.start();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "connect-back failure",
+                    Coordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*received join request from ["
+                        + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                        + "] but could not connect back to the joining node"
+                )
+            );
+            mockAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                boolean matched = false;
+
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel() != Level.INFO) {
+                        return;
+                    }
+                    if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
+                        return;
+                    }
+
+                    var cause = event.getThrown();
+                    if (cause == null) {
+                        return;
+                    }
+                    cause = cause.getCause();
+                    if (cause == null) {
+                        return;
+                    }
+                    if (Regex.simpleMatch(
+                        "* failure when opening connection back from ["
+                            + leader.getLocalNode().descriptionWithoutAttributes()
+                            + "] to ["
+                            + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                            + "]",
+                        cause.getMessage()
+                    ) == false) {
+                        return;
+                    }
+                    if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
+                        return;
+                    }
+                    matched = true;
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertTrue(matched);
+                }
+            });
+            final var coordinatorLogger = LogManager.getLogger(Coordinator.class);
+            Loggers.addAppender(coordinatorLogger, mockAppender);
+            final var joinHelperLogger = LogManager.getLogger(JoinHelper.class);
+            Loggers.addAppender(joinHelperLogger, mockAppender);
+            try {
+                cluster.runFor(
+                    // This expects 8 tasks to be executed after PeerFinder handling wakeup:
+                    //
+                    // * connectToRemoteMasterNode[0.0.0.0:11]
+                    // * [internal:transport/handshake] from {node1} to {node2}
+                    // * response to [internal:transport/handshake] from {node1} to {node2}
+                    // * [internal:discovery/request_peers] from {node1} to
+                    // * response to [internal:discovery/request_peers] from {node1} to {node2}
+                    // * [internal:cluster/coordination/join] from {node1} to {node2}
+                    // * [internal:transport/handshake] from {node2} to {node1} (rejected due to action block)
+                    // * error response to [internal:cluster/coordination/join] from {node1} to {node2}
+                    //
+                    defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 8 * DEFAULT_DELAY_VARIABILITY,
+                    "allowing time for join attempt"
+                );
+                mockAppender.assertAllExpectationsMatched();
+            } finally {
+                Loggers.removeAppender(joinHelperLogger, mockAppender);
+                Loggers.removeAppender(coordinatorLogger, mockAppender);
+                mockAppender.stop();
+            }
+
+            leader.clearActionBlocks();
         }
     }
 
@@ -1802,7 +1951,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    private static class BrokenCustom extends AbstractDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class BrokenCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         static final String EXCEPTION_MESSAGE = "simulated";
 
@@ -1829,7 +1978,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testClusterRecoversAfterExceptionDuringSerialization() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 
@@ -1924,7 +2073,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                         .<String>getValue(DeterministicTaskQueue.NODE_ID_LOG_CONTEXT_KEY)
                                         .equals(DeterministicTaskQueue.getNodeIdForLogContext(n.getLocalNode()))
                                 )
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(matchingNodes, hasSize(1));
 
                             assertTrue(
@@ -1957,6 +2106,61 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             for (ClusterNode clusterNode : cluster.clusterNodes) {
                 clusterNode.heal();
+            }
+        }
+    }
+
+    @TestLogging(
+        reason = "testing warning of a single-node cluster having discovery seed hosts",
+        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN"
+    )
+    public void testLogsWarningPeriodicallyIfSingleNodeClusterHasSeedHosts() throws IllegalAccessException {
+        final long warningDelayMillis;
+        final Settings settings;
+        final String fakeSeedHost = buildNewFakeTransportAddress().toString();
+        if (randomBoolean()) {
+            settings = Settings.builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), fakeSeedHost).build();
+            warningDelayMillis = Coordinator.SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING.get(settings).millis();
+        } else {
+            warningDelayMillis = randomLongBetween(1, 100000);
+            settings = Settings.builder()
+                .put(ClusterFormationFailureHelper.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.getKey(), warningDelayMillis + "ms")
+                .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), fakeSeedHost)
+                .build();
+        }
+        logger.info("--> emitting warnings every [{}ms]", warningDelayMillis);
+
+        try (Cluster cluster = new Cluster(1, true, settings)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
+                final MockLogAppender mockLogAppender = new MockLogAppender();
+                try {
+                    mockLogAppender.start();
+                    Loggers.addAppender(LogManager.getLogger(Coordinator.class), mockLogAppender);
+                    mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                        String loggedClusterUuid;
+
+                        @Override
+                        public void match(LogEvent event) {
+                            final String message = event.getMessage().getFormattedMessage();
+                            assertThat(message, startsWith("This node is a fully-formed single-node cluster with cluster UUID"));
+                            loggedClusterUuid = (String) event.getMessage().getParameters()[0];
+                        }
+
+                        @Override
+                        public void assertMatched() {
+                            final String clusterUuid = cluster.getAnyNode().getLastAppliedClusterState().metadata().clusterUUID();
+                            assertThat(loggedClusterUuid + " vs " + clusterUuid, clusterUuid, equalTo(clusterUuid));
+                        }
+                    });
+                    cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
+                    mockLogAppender.assertAllExpectationsMatched();
+                } finally {
+                    Loggers.removeAppender(LogManager.getLogger(Coordinator.class), mockLogAppender);
+                    mockLogAppender.stop();
+                }
             }
         }
     }
@@ -2171,6 +2375,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 
             assertFalse(Coordinator.validVotingConfigExclusionState(newState2));
+        }
+    }
+
+    public void testPeerFinderListener() throws Exception {
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            ClusterNode leader = cluster.getAnyLeader();
+            ClusterNode nodeWithListener = cluster.getAnyNodeExcept(leader);
+            AtomicBoolean listenerCalled = new AtomicBoolean(false);
+            nodeWithListener.coordinator.addPeerFinderListener(() -> listenerCalled.set(true));
+            assertFalse(listenerCalled.get());
+            leader.disconnect();
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Letting disconnect take effect");
+            cluster.stabilise();
+            assertTrue(cluster.clusterNodes.contains(nodeWithListener));
+            assertBusy(() -> assertTrue(listenerCalled.get()));
         }
     }
 

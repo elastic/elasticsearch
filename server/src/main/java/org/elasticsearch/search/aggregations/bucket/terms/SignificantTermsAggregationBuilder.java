@@ -101,7 +101,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
-    private QueryBuilder filterBuilder = null;
+    private QueryBuilder backgroundFilter = null;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
@@ -116,7 +116,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         super(in);
         bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();
-        filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        backgroundFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
     }
@@ -129,9 +129,14 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         super(clone, factoriesBuilder, metadata);
         this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
         this.executionHint = clone.executionHint;
-        this.filterBuilder = clone.filterBuilder;
+        this.backgroundFilter = clone.backgroundFilter;
         this.includeExclude = clone.includeExclude;
         this.significanceHeuristic = clone.significanceHeuristic;
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -144,10 +149,11 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
     protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (filterBuilder != null) {
-            QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryRewriteContext);
-            if (rewrittenFilter != filterBuilder) {
+        if (backgroundFilter != null) {
+            QueryBuilder rewrittenFilter = backgroundFilter.rewrite(queryRewriteContext);
+            if (rewrittenFilter != backgroundFilter) {
                 SignificantTermsAggregationBuilder rewritten = shallowCopy(factoriesBuilder, metadata);
                 rewritten.backgroundFilter(rewrittenFilter);
                 return rewritten;
@@ -160,7 +166,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     protected void innerWriteTo(StreamOutput out) throws IOException {
         bucketCountThresholds.writeTo(out);
         out.writeOptionalString(executionHint);
-        out.writeOptionalNamedWriteable(filterBuilder);
+        out.writeOptionalNamedWriteable(backgroundFilter);
         out.writeOptionalWriteable(includeExclude);
         out.writeNamedWriteable(significanceHeuristic);
     }
@@ -259,12 +265,12 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         if (backgroundFilter == null) {
             throw new IllegalArgumentException("[backgroundFilter] must not be null: [" + name + "]");
         }
-        this.filterBuilder = backgroundFilter;
+        this.backgroundFilter = backgroundFilter;
         return this;
     }
 
     public QueryBuilder backgroundFilter() {
-        return filterBuilder;
+        return backgroundFilter;
     }
 
     /**
@@ -314,7 +320,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
             config,
             includeExclude,
             executionHint,
-            filterBuilder,
+            backgroundFilter,
             bucketCountThresholds,
             executionHeuristic,
             context,
@@ -331,8 +337,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         if (executionHint != null) {
             builder.field(TermsAggregationBuilder.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }
-        if (filterBuilder != null) {
-            builder.field(BACKGROUND_FILTER.getPreferredName(), filterBuilder);
+        if (backgroundFilter != null) {
+            builder.field(BACKGROUND_FILTER.getPreferredName(), backgroundFilter);
         }
         if (includeExclude != null) {
             includeExclude.toXContent(builder, params);
@@ -343,7 +349,14 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), bucketCountThresholds, executionHint, filterBuilder, includeExclude, significanceHeuristic);
+        return Objects.hash(
+            super.hashCode(),
+            bucketCountThresholds,
+            executionHint,
+            backgroundFilter,
+            includeExclude,
+            significanceHeuristic
+        );
     }
 
     @Override
@@ -354,7 +367,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         SignificantTermsAggregationBuilder other = (SignificantTermsAggregationBuilder) obj;
         return Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
             && Objects.equals(executionHint, other.executionHint)
-            && Objects.equals(filterBuilder, other.filterBuilder)
+            && Objects.equals(backgroundFilter, other.backgroundFilter)
             && Objects.equals(includeExclude, other.includeExclude)
             && Objects.equals(significanceHeuristic, other.significanceHeuristic);
     }
@@ -367,5 +380,10 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_3_0;
     }
 }

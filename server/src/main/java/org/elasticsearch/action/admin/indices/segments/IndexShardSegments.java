@@ -13,27 +13,10 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Iterator;
 
-public class IndexShardSegments implements Iterable<ShardSegments> {
-
-    private final ShardId shardId;
-
-    private final ShardSegments[] shards;
-
-    IndexShardSegments(ShardId shardId, ShardSegments[] shards) {
-        this.shardId = shardId;
-        this.shards = shards;
-    }
-
-    public ShardId getShardId() {
-        return this.shardId;
-    }
+public record IndexShardSegments(ShardId shardId, ShardSegments[] shards) implements Iterable<ShardSegments> {
 
     public ShardSegments getAt(int i) {
         return shards[i];
-    }
-
-    public ShardSegments[] getShards() {
-        return this.shards;
     }
 
     @Override

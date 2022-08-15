@@ -99,7 +99,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
         currentNodes = allocation.nodes();
         for (FailedShard failedShard : failedShards) {
-            final ShardRouting failedRouting = failedShard.getRoutingEntry();
+            final ShardRouting failedRouting = failedShard.routingEntry();
             Map<ShardId, ShardRouting> nodeAllocations = knownAllocations.get(failedRouting.currentNodeId());
             if (nodeAllocations != null) {
                 nodeAllocations.remove(failedRouting.shardId());

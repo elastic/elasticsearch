@@ -40,11 +40,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * A request to create an index template.
@@ -304,7 +302,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 if (entry.getValue() instanceof String) {
                     patterns(Collections.singletonList((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
-                    List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
+                    List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).toList();
                     patterns(elements);
                 } else {
                     throw new IllegalArgumentException("Malformed [index_patterns] value, should be a string or a list of strings");
@@ -447,7 +445,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeStringCollection(indexPatterns);
         out.writeInt(order);
         out.writeBoolean(create);
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeVInt(mappings == null ? 0 : 1);
             if (mappings != null) {
@@ -457,10 +455,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         } else {
             out.writeOptionalString(mappings);
         }
-        out.writeVInt(aliases.size());
-        for (Alias alias : aliases) {
-            alias.writeTo(out);
-        }
+        out.writeCollection(aliases);
         out.writeOptionalVInt(version);
     }
 }

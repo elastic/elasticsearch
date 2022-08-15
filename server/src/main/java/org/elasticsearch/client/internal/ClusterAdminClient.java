@@ -266,9 +266,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
 
     /**
-     * Returns top N hot-threads samples per node. The hot-threads are only
-     * sampled for the node ids specified in the request. Nodes usage of the
-     * cluster.
+     * Nodes usage of the cluster.
      *
      * @param request
      *            The nodes usage request

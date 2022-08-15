@@ -8,9 +8,9 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -41,7 +42,7 @@ import static java.util.Collections.unmodifiableList;
  * At any point in time there will be at least three such versions and potentially four in the case of a staged release.
  * <p>
  * <ul>
- * <li>the current version on the `master` branch</li>
+ * <li>the current version on the `main` branch</li>
  * <li>the staged next <b>minor</b> on the `M.N` branch</li>
  * <li>the unreleased <b>bugfix</b>, `M.N-1` branch</li>
  * <li>the unreleased <b>maintenance</b>, M-1.d.e ( d &gt; 0, e &gt; 0) on the `(M-1).d` branch</li>
@@ -55,7 +56,7 @@ import static java.util.Collections.unmodifiableList;
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.
  * E.x when M.N.c is released M.N.c+1 is added to the Version class mentioned above in all the following branches:
- *  `M.N`, and `master` so we can reliably assume that the leafs of the version tree are unreleased.
+ *  `M.N`, and `main` so we can reliably assume that the leafs of the version tree are unreleased.
  * This convention is enforced by checking the versions we consider to be unreleased against an
  * authoritative source (maven central).
  * We are then able to map the unreleased version to branches in git and Gradle projects that are capable of checking
@@ -67,6 +68,7 @@ public class BwcVersions {
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*?LUCENE_(\\d+)_(\\d+)_(\\d+)\\);"
     );
     private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
+    private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
 
     private final VersionPair currentVersion;
     private final List<VersionPair> versions;
@@ -134,8 +136,8 @@ public class BwcVersions {
 
     private String getBranchFor(Version version) {
         if (version.equals(currentVersion.elasticsearch)) {
-            // Just assume the current branch is 'master'. It's actually not important, we never check out the current branch.
-            return "master";
+            // Just assume the current branch is 'main'. It's actually not important, we never check out the current branch.
+            return "main";
         } else {
             return version.getMajor() + "." + version.getMinor();
         }
@@ -229,10 +231,21 @@ public class BwcVersions {
         return versions.stream().map(v -> v.elasticsearch).filter(v -> unreleased.containsKey(v) == false).toList();
     }
 
+    /**
+     * Return versions of Elasticsearch which are index compatible with the current version, and also work on the local machine.
+     */
     public List<Version> getIndexCompatible() {
-        return filterSupportedVersions(
-            versions.stream().filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1)).map(v -> v.elasticsearch).toList()
-        );
+        return filterSupportedVersions(getAllIndexCompatible());
+    }
+
+    /**
+     * Return all versions of Elasticsearch which are index compatible with the current version.
+     */
+    public List<Version> getAllIndexCompatible() {
+        return versions.stream()
+            .filter(v -> v.lucene.getMajor() >= (currentVersion.lucene.getMajor() - 1))
+            .map(v -> v.elasticsearch)
+            .toList();
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
@@ -258,9 +271,17 @@ public class BwcVersions {
     }
 
     private List<Version> filterSupportedVersions(List<Version> wireCompat) {
-        return Architecture.current() == Architecture.AARCH64
-            ? wireCompat.stream().filter(version -> version.onOrAfter("7.12.0")).collect(Collectors.toList())
-            : wireCompat;
+        Predicate<Version> supported = v -> true;
+        if (Architecture.current() == Architecture.AARCH64) {
+            final String version;
+            if (ElasticsearchDistribution.CURRENT_PLATFORM.equals(ElasticsearchDistribution.Platform.DARWIN)) {
+                version = "7.16.0";
+            } else {
+                version = "7.12.0"; // linux shipped earlier for aarch64
+            }
+            supported = v -> v.onOrAfter(version);
+        }
+        return wireCompat.stream().filter(supported).collect(Collectors.toList());
     }
 
     public List<Version> getUnreleasedIndexCompatible() {
@@ -284,9 +305,31 @@ public class BwcVersions {
     public record VersionPair(Version elasticsearch, Version lucene) implements Comparable<VersionPair> {
 
         @Override
-        public int compareTo(@NotNull VersionPair o) {
+        public int compareTo(VersionPair o) {
             // For ordering purposes, sort by Elasticsearch version
             return this.elasticsearch.compareTo(o.elasticsearch);
         }
+    }
+
+    /**
+     * Determine whether the given version of Elasticsearch is compatible with ML features on the host system.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/86877">https://github.com/elastic/elasticsearch/issues/86877</a>
+     */
+    public static boolean isMlCompatible(Version version) {
+        Version glibcVersion = Optional.ofNullable(System.getenv(GLIBC_VERSION_ENV_VAR))
+            .map(v -> Version.fromString(v, Version.Mode.RELAXED))
+            .orElse(null);
+
+        // glibc version 2.34 introduced incompatibilities in ML syscall filters that were fixed in 7.17.5+ and 8.2.2+
+        if (glibcVersion != null && glibcVersion.onOrAfter(Version.fromString("2.34", Version.Mode.RELAXED))) {
+            if (version.before(Version.fromString("7.17.5"))) {
+                return false;
+            } else if (version.getMajor() > 7 && version.before(Version.fromString("8.2.2"))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

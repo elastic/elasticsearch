@@ -567,6 +567,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                     msearchDefault.ignoreThrottled()
                 )
             );
+            searchRequest.setForceSyntheticSource(false);
 
             request.add(searchRequest);
         }

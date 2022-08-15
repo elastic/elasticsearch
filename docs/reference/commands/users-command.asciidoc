@@ -2,7 +2,8 @@
 == elasticsearch-users
 
 If you use file-based user authentication, the `elasticsearch-users` command
-enables you to add and remove users, assign user roles, and manage passwords.
+enables you to add and remove users, assign user roles, and manage passwords
+per node.
 
 [discrete]
 === Synopsis

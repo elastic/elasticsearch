@@ -145,7 +145,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             .getSnapshotIds()
             .stream()
             .sorted((s1, s2) -> s1.getName().compareTo(s2.getName()))
-            .collect(Collectors.toList());
+            .toList();
         assertThat(snapshotIds, equalTo(originalSnapshots));
     }
 

@@ -53,8 +53,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         final ShardStateAction shardStateAction,
         final ActionFilters actionFilters,
         final IndexingPressure indexingPressure,
-        final SystemIndices systemIndices,
-        final ExecutorSelector executorSelector
+        final SystemIndices systemIndices
     ) {
         super(
             settings,

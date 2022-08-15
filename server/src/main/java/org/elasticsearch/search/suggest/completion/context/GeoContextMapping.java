@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.geometry.utils.Geohash.addNeighbors;
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
@@ -270,7 +269,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             internalQueryContextList.addAll(
                 locations.stream()
                     .map(location -> new InternalQueryContext(location, queryContext.getBoost(), location.length() < this.precision))
-                    .collect(Collectors.toList())
+                    .toList()
             );
         }
         return internalQueryContextList;

@@ -51,10 +51,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(shapes.size());
-        for (ShapeBuilder<?, ?, ?> shape : shapes) {
-            out.writeNamedWriteable(shape);
-        }
+        out.writeNamedWriteableList(shapes);
     }
 
     public GeometryCollectionBuilder shape(ShapeBuilder<?, ?, ?> shape) {

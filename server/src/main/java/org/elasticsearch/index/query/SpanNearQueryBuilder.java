@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -135,7 +136,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.endArray();
         builder.field(SLOP_FIELD.getPreferredName(), slop);
         builder.field(IN_ORDER_FIELD.getPreferredName(), inOrder);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -252,7 +253,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         return builder.build();
     }
 
-    private String queryFieldName(SearchExecutionContext context, String fieldName) {
+    private static String queryFieldName(SearchExecutionContext context, String fieldName) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         return fieldType != null ? fieldType.name() : fieldName;
     }
@@ -270,6 +271,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     /**
@@ -361,6 +367,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
 
         @Override

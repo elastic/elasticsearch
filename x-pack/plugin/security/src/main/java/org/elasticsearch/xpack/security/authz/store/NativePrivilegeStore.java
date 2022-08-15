@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
@@ -63,13 +63,14 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.Fields.APPLICATION;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
  * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
@@ -130,6 +131,11 @@ public class NativePrivilegeStore {
         Collection<String> names,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
+        if (false == isEmpty(names) && names.stream().noneMatch(ApplicationPrivilege::isValidPrivilegeName)) {
+            logger.debug("no concrete privilege, only action patterns [{}], returning no application privilege descriptors", names);
+            listener.onResponse(Collections.emptySet());
+            return;
+        }
 
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*"))
             ? Set.of("*")
@@ -197,13 +203,7 @@ public class NativePrivilegeStore {
                         .setSize(1000)
                         .setFetchSource(true)
                         .request();
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "Searching for [{}] privileges with query [{}]",
-                            applications,
-                            Strings.toString(query)
-                        )
-                    );
+                    logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
                     request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(
                         client,
@@ -216,7 +216,7 @@ public class NativePrivilegeStore {
         }
     }
 
-    private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
+    private static QueryBuilder getApplicationNameQuery(Collection<String> applications) {
         if (applications.contains("*")) {
             return QueryBuilders.existsQuery(APPLICATION.getPreferredName());
         }
@@ -248,7 +248,7 @@ public class NativePrivilegeStore {
         return boolQuery;
     }
 
-    private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
+    private static ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
         logger.trace("Building privilege from [{}] [{}]", docId, source == null ? "<<null>>" : source.utf8ToString());
         if (source == null) {
             return null;
@@ -270,7 +270,7 @@ public class NativePrivilegeStore {
                 return privilege;
             }
         } catch (IOException | XContentParseException e) {
-            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
+            logger.error(() -> "cannot parse application privilege [" + name + "]", e);
             return null;
         }
     }
@@ -307,7 +307,7 @@ public class NativePrivilegeStore {
     /**
      * Filter to get all privilege descriptors that have any of the given privilege names.
      */
-    private Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForPrivilegeNames(
+    private static Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForPrivilegeNames(
         Collection<ApplicationPrivilegeDescriptor> descriptors,
         Collection<String> privilegeNames
     ) {

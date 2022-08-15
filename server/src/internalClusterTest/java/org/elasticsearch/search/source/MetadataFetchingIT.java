@@ -56,7 +56,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .setQuery(
                 new NestedQueryBuilder("nested", new TermQueryBuilder("nested.title", "foo"), ScoreMode.Total).innerHit(
                     new InnerHitBuilder().setStoredFieldNames(Collections.singletonList("_none_"))
-                        .setFetchSourceContext(new FetchSourceContext(false))
+                        .setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();

@@ -6,16 +6,19 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
@@ -42,12 +45,25 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
         securityContext.requireUser();
-        final Subject subject = securityContext.getAuthentication().getEffectiveSubject();
+        final Authentication authentication = securityContext.getAuthentication();
+        final Subject subject = authentication.getEffectiveSubject();
         if (subject.getUser().principal().equals(request.username()) == false) {
             listener.onFailure(new IllegalArgumentException("users may only list the privileges of their own account"));
             return;
         }
 
-        authorizationService.retrieveUserPrivileges(subject, securityContext.getAuthorizationInfoFromContext(), listener);
+        try {
+            authorizationService.retrieveUserPrivileges(subject, securityContext.getAuthorizationInfoFromContext(), listener);
+        } catch (UnsupportedOperationException e) {
+            if (authentication.isApiKey()) {
+                throw new ElasticsearchSecurityException(
+                    "Cannot retrieve privileges for API keys with assigned role descriptors. "
+                        + "Please use the Get API key information API https://ela.st/es-api-get-api-key",
+                    RestStatus.BAD_REQUEST,
+                    e
+                );
+            }
+            throw e;
+        }
     }
 }

@@ -301,8 +301,6 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         masterTransportService.clearAllRules();
         ensureStableCluster(2, masterName);
 
-        Thread.sleep(20000);
-
         // permit joins again
         victimTransportService.addSendBehavior(null);
 

@@ -214,7 +214,6 @@ public class IndexNameExpressionResolver {
             false,
             false,
             includeDataStreams,
-            true,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
@@ -1365,15 +1364,14 @@ public class IndexNameExpressionResolver {
                 }
                 if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                     expandConsumer.accept(indexAbstraction.getName());
+                } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
+                    expandConsumer.accept(indexAbstraction.getName());
                 } else {
                     for (Index index : indexAbstraction.getIndices()) {
                         IndexMetadata meta = context.state.metadata().index(index);
                         if (excludeState == null || meta.getState() != excludeState) {
                             expandConsumer.accept(meta.getIndex().getName());
                         }
-                    }
-                    if (context.isPreserveDataStreams() && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                        expandConsumer.accept(indexAbstraction.getName());
                     }
                 }
             }

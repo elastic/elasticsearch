@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -61,13 +60,15 @@ class IndexLifecycleRunner {
         new ClusterStateTaskExecutor<>() {
             @Override
             @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
-            public ClusterState execute(ClusterState currentState, List<TaskContext<IndexLifecycleClusterStateUpdateTask>> taskContexts) {
-                ClusterState state = currentState;
-                for (final var taskContext : taskContexts) {
+            public ClusterState execute(BatchExecutionContext<IndexLifecycleClusterStateUpdateTask> batchExecutionContext) {
+                ClusterState state = batchExecutionContext.initialState();
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     try {
                         final var task = taskContext.getTask();
                         state = task.execute(state);
-                        taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+                        taskContext.success(
+                            new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, batchExecutionContext.initialState())
+                        );
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }

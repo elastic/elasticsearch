@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -128,18 +127,19 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
 
     static class Executor implements ClusterStateTaskExecutor<StartBasicClusterTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<StartBasicClusterTask>> taskContexts) throws Exception {
-            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-            final LicensesMetadata originalLicensesMetadata = currentState.metadata().custom(LicensesMetadata.TYPE);
+        public ClusterState execute(BatchExecutionContext<StartBasicClusterTask> batchExecutionContext) throws Exception {
+            final var initialState = batchExecutionContext.initialState();
+            XPackPlugin.checkReadyForXPackCustomMetadata(initialState);
+            final LicensesMetadata originalLicensesMetadata = initialState.metadata().custom(LicensesMetadata.TYPE);
             var currentLicensesMetadata = originalLicensesMetadata;
-            for (final var taskContext : taskContexts) {
-                currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, currentState.nodes(), taskContext);
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState.nodes(), taskContext);
             }
             if (currentLicensesMetadata == originalLicensesMetadata) {
-                return currentState;
+                return initialState;
             } else {
-                return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).putCustom(LicensesMetadata.TYPE, currentLicensesMetadata))
+                return ClusterState.builder(initialState)
+                    .metadata(Metadata.builder(initialState.metadata()).putCustom(LicensesMetadata.TYPE, currentLicensesMetadata))
                     .build();
             }
         }

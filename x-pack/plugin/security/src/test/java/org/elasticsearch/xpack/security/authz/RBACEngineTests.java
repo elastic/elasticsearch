@@ -1519,7 +1519,7 @@ public class RBACEngineTests extends ESTestCase {
         when(role.application()).thenReturn(ApplicationPermission.NONE);
         when(role.runAs()).thenReturn(RunAsPermission.NONE);
 
-        final UnsupportedOperationException unsupportedOperationException = mock(UnsupportedOperationException.class);
+        final UnsupportedOperationException unsupportedOperationException = new UnsupportedOperationException();
         switch (randomIntBetween(0, 3)) {
             case 0 -> when(role.cluster()).thenThrow(unsupportedOperationException);
             case 1 -> when(role.indices()).thenThrow(unsupportedOperationException);
@@ -1528,10 +1528,10 @@ public class RBACEngineTests extends ESTestCase {
             default -> throw new IllegalStateException("unknown case number");
         }
 
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> engine.getUserPrivileges(authorizationInfo, new PlainActionFuture<>())
-        );
+        final PlainActionFuture<GetUserPrivilegesResponse> future = new PlainActionFuture<>();
+        engine.getUserPrivileges(authorizationInfo, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
 
         assertThat(
             e.getMessage(),

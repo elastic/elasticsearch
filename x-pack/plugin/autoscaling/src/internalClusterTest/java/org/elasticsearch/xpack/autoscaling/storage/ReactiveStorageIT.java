@@ -16,7 +16,10 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -39,6 +42,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -110,11 +114,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             .results()
             .get("reactive_storage")
             .reason();
-        System.out.println(reactiveReason.assignedAllocationResults());
-        /* assertEquals(AllocationDecision.NO, .getMoveDecision().getAllocationDecision());
-        Decision decision = reactiveReason.assignedShardAllocateDecision()
-            .getMoveDecision()
-            .getCanRemainDecision()
+        assertEquals(1, reactiveReason.assignedAllocationResults().size());
+        NodeAllocationResult nodeAllocationResult = reactiveReason.assignedAllocationResults().get(0);
+        assertEquals(AllocationDecision.NO, nodeAllocationResult.getNodeDecision());
+        Decision decision = nodeAllocationResult.getCanAllocateDecision()
             .getDecisions()
             .stream()
             .filter(d -> d.type() == Decision.Type.NO)
@@ -125,7 +128,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(
             decision.getExplanation(),
             startsWith("the shard cannot remain on this node because it is above the high watermark cluster setting")
-        );*/
+        );
     }
 
     public void testScaleFromEmptyWarmMove() throws Exception {

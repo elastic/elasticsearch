@@ -251,7 +251,7 @@ public class AllocationService {
     }
 
     /**
-     * unassigned any shards that are associated with nodes that are no longer part of the cluster,
+     * unassigns any shards that are associated with nodes that are no longer part of the cluster,
      * potentially promoting replicas if needed.
      */
     public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason, ActionListener<Void> listener) {

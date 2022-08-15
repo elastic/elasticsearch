@@ -53,6 +53,4 @@ public interface AutoscalingDeciderContext {
      * For long running ops, call this from time to time to check if operation has been cancelled.
       */
     void ensureNotCancelled();
-
-    AllocationService allocationService();
 }

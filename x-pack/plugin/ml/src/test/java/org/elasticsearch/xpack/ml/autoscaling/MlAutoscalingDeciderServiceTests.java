@@ -1538,11 +1538,6 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         public void ensureNotCancelled() {
 
         }
-
-        @Override
-        public AllocationService allocationService() {
-            return mock(AllocationService.class);
-        }
     }
 
     private static long autoBytesForMl(Long nodeSize, Long jvmSize) {

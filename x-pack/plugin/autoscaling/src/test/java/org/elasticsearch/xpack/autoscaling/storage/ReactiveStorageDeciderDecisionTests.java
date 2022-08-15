@@ -670,11 +670,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         public void ensureNotCancelled() {
 
         }
-
-        @Override
-        public AllocationService allocationService() {
-            return allocationService;
-        }
     }
 
     private static ClusterInfo createClusterInfo(ClusterState state) {

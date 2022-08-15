@@ -251,7 +251,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
         private final Runnable ensureNotCancelled;
-        private final AllocationService allocationService;
 
         DefaultAutoscalingDeciderContext(
             SortedSet<String> roles,
@@ -276,7 +275,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             this.currentCapacity = calculateCurrentCapacity();
             this.currentCapacityAccurate = calculateCurrentCapacityAccurate();
             this.ensureNotCancelled = ensureNotCancelled;
-            this.allocationService = allocationService;
         }
 
         @Override
@@ -374,11 +372,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
         public void ensureNotCancelled() {
             ensureNotCancelled.run();
-        }
-
-        @Override
-        public AllocationService allocationService() {
-            return allocationService;
         }
     }
 }

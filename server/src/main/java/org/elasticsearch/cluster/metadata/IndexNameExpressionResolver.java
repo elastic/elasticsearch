@@ -1348,7 +1348,7 @@ public class IndexNameExpressionResolver {
             Consumer<String> expandConsumer
         ) {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
-            final boolean implicitlyIncludeHidden = expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
+            final boolean implicitlyIncludeHidden = expression.startsWith(".");
             for (IndexAbstraction indexAbstraction : matches) {
                 if (indexAbstraction.isSystem()
                     && (indexAbstraction.getType() == Type.DATA_STREAM

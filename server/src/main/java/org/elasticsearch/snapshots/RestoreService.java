@@ -1391,10 +1391,14 @@ public class RestoreService implements ClusterStateApplier {
 
             applyDataStreamRestores(currentState, mdBuilder);
 
+            // The file settings watcher operation is asynchronous. It will do a metadata version check on settings update,
+            // therefore, we must write the new cluster state with a reset metadata version, before we tell the file settings
+            // service to refresh the file state.
+            boolean requiresFileSettingsRefresh = false;
             // Restore global state if needed
             if (request.includeGlobalState()) {
                 applyGlobalStateRestore(currentState, mdBuilder);
-                fileSettingsService.handleSnapshotRestore(currentState, mdBuilder);
+                requiresFileSettingsRefresh = fileSettingsService.handleSnapshotRestore(currentState, mdBuilder);
             }
 
             if (completed(shards)) {
@@ -1412,7 +1416,11 @@ public class RestoreService implements ClusterStateApplier {
             if (searchableSnapshotsIndices.isEmpty() == false) {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
             }
-            return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]");
+            ClusterState updatedState = allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]");
+            if (requiresFileSettingsRefresh) {
+                fileSettingsService.refreshExistingFileState();
+            }
+            return updatedState;
         }
 
         private void applyDataStreamRestores(ClusterState currentState, Metadata.Builder mdBuilder) {

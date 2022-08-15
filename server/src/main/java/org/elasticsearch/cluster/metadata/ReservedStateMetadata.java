@@ -221,11 +221,9 @@ public record ReservedStateMetadata(
          */
         public Builder(ReservedStateMetadata metadata) {
             this(metadata.namespace);
-            if (metadata != null) {
-                this.version = metadata.version;
-                this.handlers = new HashMap<>(metadata.handlers);
-                this.errorMetadata = metadata.errorMetadata;
-            }
+            this.version = metadata.version;
+            this.handlers = new HashMap<>(metadata.handlers);
+            this.errorMetadata = metadata.errorMetadata;
         }
 
         /**

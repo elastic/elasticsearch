@@ -150,16 +150,15 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * state of the snapshot for the current cluster.
      * <p>
      * If the current cluster where we are restoring the snapshot into has any operator file based settings, we'll
-     * reset the reserved state version to 0 and 'touch' the settings file so the file watcher re-processes it. The file
-     * processing will be asynchronous, but since this method is called from RestoreService, we are already in cluster
-     * state update and the file state update is guaranteed to happen after.
+     * reset the reserved state version to 0.
      * <p>
      * If there's no file based settings file in this cluster, we'll remove all state reservations for
      * file based settings from the cluster state.
      * @param clusterState the cluster state before snapshot restore
      * @param mdBuilder the current metadata builder for the new cluster state
+     * @return true if refresh of the file settings is required after the snapshot is restored, otherwise false
      */
-    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
+    public boolean handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
         assert currentNodeMaster(clusterState);
 
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
@@ -173,13 +172,30 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
             }
+            return true;
+        } else if (fileSettingsMetadata != null) {
+            mdBuilder.removeReservedState(fileSettingsMetadata);
+        }
+        return false;
+    }
+
+    /**
+     * 'Touches' the settings file so the file watcher will re-processes it.
+     * <p>
+     * The file processing is asynchronous, the cluster state or the file must be already updated such that
+     * the version information in the file is newer than what's already saved as processed in the
+     * cluster state.
+     *
+     * For snapshot restores we first must restore the snapshot and then force a refresh, since the cluster state
+     * metadata version must be reset to 0 and saved in the cluster state.
+     */
+    public void refreshExistingFileState() {
+        if (watching() && Files.exists(operatorSettingsFile())) {
             try {
                 Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
             } catch (IOException e) {
                 logger.warn("encountered I/O error trying to update file settings timestamp", e);
             }
-        } else if (fileSettingsMetadata != null) {
-            mdBuilder.removeReservedState(fileSettingsMetadata);
         }
     }
 

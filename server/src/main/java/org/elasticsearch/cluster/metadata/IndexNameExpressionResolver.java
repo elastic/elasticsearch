@@ -190,7 +190,7 @@ public class IndexNameExpressionResolver {
         }
 
         final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
-        return ((expressions == null) ? List.<String>of() : expressions).stream()
+        return expressions.stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)
@@ -1134,10 +1134,7 @@ public class IndexNameExpressionResolver {
             // expand to hidden
             if (context.getOptions().expandWildcardsClosed() == false && context.getOptions().expandWildcardsOpen() == false) {
                 return expressions;
-            }
-
-            // all indices
-            if (isEmptyOrTrivialWildcard(expressions)) {
+            } else if (isEmptyOrTrivialWildcard(expressions)) {
                 List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(context);
                 if (context.includeDataStreams() == false) {
                     return resolvedExpressions;

@@ -70,6 +70,13 @@ public class MapperServiceTests extends MapperServiceTestCase {
             () -> merge(mapperService, mapping(b -> b.startObject("newfield").field("type", "long").endObject()))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
+
+        // adding one more runtime field should trigger exception
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, runtimeMapping(b -> b.startObject("newfield").field("type", "long").endObject()))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
     }
 
     private void createMappingSpecifyingNumberOfFields(XContentBuilder b, int numberOfFields) throws IOException {

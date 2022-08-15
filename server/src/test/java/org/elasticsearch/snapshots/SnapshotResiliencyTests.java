@@ -2172,7 +2172,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     random(),
                     rerouteService,
                     ElectionStrategy.DEFAULT_INSTANCE,
-                    () -> new StatusInfo(HEALTHY, "healthy-info")
+                    () -> new StatusInfo(HEALTHY, "healthy-info"),
+                    new NoneCircuitBreakerService()
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

@@ -179,8 +179,7 @@ are automatically set based on it. In some cases it can be useful to override
 the number of detected processors. This can be done by explicitly setting the
 `node.processors` setting. This setting accepts floating point numbers, this
 can be useful in environments where the Elasticsearch nodes are configured
-to run with CPU limits, such as `Cgroups`. If a fractional number of processors
-is provided, the system will round up the value.
+to run with CPU limits, such as `Cgroups`.
 
 [source,yaml]
 --------------------------------------------------

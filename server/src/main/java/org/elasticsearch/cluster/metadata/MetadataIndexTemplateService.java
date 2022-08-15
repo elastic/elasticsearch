@@ -130,7 +130,9 @@ public class MetadataIndexTemplateService {
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
                 final var task = taskContext.getTask();
-                state = task.execute(state);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    state = task.execute(state);
+                }
                 taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);

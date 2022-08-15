@@ -1212,6 +1212,7 @@ public class ApiKeyService {
                 apiKeyIds,
                 true,
                 false,
+                // TODO: instead of parsing the entire API key document, we can just convert the hit to the API key ID
                 this::convertSearchHitToApiKeyInfo,
                 ActionListener.wrap(apiKeys -> {
                     if (apiKeys.isEmpty()) {
@@ -1576,6 +1577,7 @@ public class ApiKeyService {
      * @param username user name
      * @param apiKeyName API key name
      * @param apiKeyIds API key ids
+     * @param withLimitedBy whether to parse and return the limited by role descriptors
      * @param listener listener for {@link GetApiKeyResponse}
      */
     public void getApiKeys(
@@ -1583,6 +1585,7 @@ public class ApiKeyService {
         String username,
         String apiKeyName,
         String[] apiKeyIds,
+        boolean withLimitedBy,
         ActionListener<GetApiKeyResponse> listener
     ) {
         ensureEnabled();
@@ -1593,7 +1596,7 @@ public class ApiKeyService {
             apiKeyIds,
             false,
             false,
-            this::convertSearchHitToApiKeyInfo,
+            hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
@@ -1611,7 +1614,7 @@ public class ApiKeyService {
         );
     }
 
-    public void queryApiKeys(SearchRequest searchRequest, ActionListener<QueryApiKeyResponse> listener) {
+    public void queryApiKeys(SearchRequest searchRequest, boolean withLimitedBy, ActionListener<QueryApiKeyResponse> listener) {
         ensureEnabled();
 
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
@@ -1636,7 +1639,7 @@ public class ApiKeyService {
                             return;
                         }
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
-                            .map(this::convertSearchHitToQueryItem)
+                            .map(hit -> convertSearchHitToQueryItem(hit, withLimitedBy))
                             .toList();
                         listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
                     }, listener::onFailure)
@@ -1645,11 +1648,15 @@ public class ApiKeyService {
         }
     }
 
-    private QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit) {
-        return new QueryApiKeyResponse.Item(convertSearchHitToApiKeyInfo(hit), hit.getSortValues());
+    private QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit, boolean withLimitedBy) {
+        return new QueryApiKeyResponse.Item(convertSearchHitToApiKeyInfo(hit, withLimitedBy), hit.getSortValues());
     }
 
     private ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {
+        return convertSearchHitToApiKeyInfo(hit, false);
+    }
+
+    private ApiKey convertSearchHitToApiKeyInfo(SearchHit hit, boolean withLimitedBy) {
         final ApiKeyDoc apiKeyDoc = convertSearchHitToVersionedApiKeyDoc(hit).doc;
         final String apiKeyId = hit.getId();
         final Map<String, Object> metadata = apiKeyDoc.metadataFlattened != null
@@ -1662,6 +1669,10 @@ public class ApiKeyService {
             RoleReference.ApiKeyRoleType.ASSIGNED
         );
 
+        final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy
+            ? parseRoleDescriptorsBytes(apiKeyId, apiKeyDoc.limitedByRoleDescriptorsBytes, RoleReference.ApiKeyRoleType.LIMITED_BY)
+            : null;
+
         return new ApiKey(
             apiKeyDoc.name,
             apiKeyId,
@@ -1671,7 +1682,8 @@ public class ApiKeyService {
             (String) apiKeyDoc.creator.get("principal"),
             (String) apiKeyDoc.creator.get("realm"),
             metadata,
-            roleDescriptors
+            roleDescriptors,
+            limitedByRoleDescriptors
         );
     }
 

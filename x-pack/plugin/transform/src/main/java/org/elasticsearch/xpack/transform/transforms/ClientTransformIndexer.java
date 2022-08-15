@@ -61,10 +61,8 @@ import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -78,9 +76,6 @@ class ClientTransformIndexer extends TransformIndexer {
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
-
-    // protected for unit tests
-    protected final AtomicInteger statePersistenceFailures = new AtomicInteger();
     private final ConcurrentHashMap<String, PointInTimeBuilder> namedPits = new ConcurrentHashMap<>();
     private volatile long pitCheckpoint;
     private volatile boolean disablePit = false;
@@ -292,7 +287,7 @@ class ClientTransformIndexer extends TransformIndexer {
             seqNoPrimaryTermAndIndex,
             ActionListener.wrap(r -> {
                 updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
-                statePersistenceFailures.set(0);
+                context.resetStatePersistenceFailureCount();
 
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
@@ -335,7 +330,7 @@ class ClientTransformIndexer extends TransformIndexer {
                             + statsExc.getMessage()
                     );
 
-                    if (handleStatePersistenceFailure(statsExc) == false) {
+                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings()) == false) {
                         // get the current seqNo and primary term, however ignore the stored state
                         transformsConfigManager.getTransformStoredDoc(
                             transformConfig.getId(),
@@ -351,31 +346,11 @@ class ClientTransformIndexer extends TransformIndexer {
                 } else {
                     logger.warn(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
-                    handleStatePersistenceFailure(statsExc);
+                    failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings());
                 }
                 listener.onFailure(statsExc);
             })
         );
-    }
-
-    private boolean handleStatePersistenceFailure(Exception statsExc) {
-        // we use the same setting for retries, however a separate counter, because the failure
-        // counter for search/index gets reset after a successful bulk index request
-        int numFailureRetries = Optional.ofNullable(transformConfig.getSettings().getNumFailureRetries())
-            .orElse(context.getNumFailureRetries());
-
-        final int failureCount = statePersistenceFailures.incrementAndGet();
-
-        if (numFailureRetries != -1 && failureCount > numFailureRetries) {
-            failIndexer(
-                "task encountered more than "
-                    + numFailureRetries
-                    + " failures updating internal state; latest failure: "
-                    + statsExc.getMessage()
-            );
-            return true;
-        }
-        return false;
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {

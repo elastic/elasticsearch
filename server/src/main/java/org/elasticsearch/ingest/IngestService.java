@@ -108,11 +108,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Cluster state task executor for ingest pipeline operations
      */
-    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (currentState, taskContexts) -> {
-        final var allIndexMetadata = currentState.metadata().indices().values();
-        final IngestMetadata initialIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = batchExecutionContext -> {
+        final var allIndexMetadata = batchExecutionContext.initialState().metadata().indices().values();
+        final IngestMetadata initialIngestMetadata = batchExecutionContext.initialState().metadata().custom(IngestMetadata.TYPE);
         var currentIngestMetadata = initialIngestMetadata;
-        for (final var taskContext : taskContexts) {
+        for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
                 final var task = taskContext.getTask();
                 currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
@@ -123,8 +123,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
         final var finalIngestMetadata = currentIngestMetadata;
         return finalIngestMetadata == initialIngestMetadata
-            ? currentState
-            : currentState.copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
+            ? batchExecutionContext.initialState()
+            : batchExecutionContext.initialState().copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
     };
 
     /**

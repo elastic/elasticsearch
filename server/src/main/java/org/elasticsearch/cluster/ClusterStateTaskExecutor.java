@@ -29,11 +29,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * surprisingly many tasks to process in the batch. If it's possible to accumulate the effects of the tasks at a lower level then you
      * should do that instead.
      *
-     * @param currentState The initial cluster state on which the tasks should be executed.
-     * @param taskContexts A {@link TaskContext} for each task in the batch. Implementations must complete every context in the list.
-     * @return The resulting cluster state after executing all the tasks. If {code currentState} is returned then no update is published.
+     * @return The resulting cluster state after executing all the tasks. If {code initialState} is returned then no update is published.
      */
-    ClusterState execute(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception;
+    ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception;
 
     /**
      * @return {@code true} iff this executor should only run on the elected master.
@@ -54,7 +52,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
      *
-     * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
+     * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(BatchExecutionContext)}.
      * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
      *
      * @param tasks the tasks to describe.
@@ -203,4 +201,12 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          */
         void onFailure(Exception failure);
     }
+
+    /**
+     * Encapsulates the context in which a batch of tasks executes.
+     *
+     * @param initialState The initial cluster state on which the tasks should be executed.
+     * @param taskContexts A {@link TaskContext} for each task in the batch. Implementations must complete every context in the list.
+     */
+    record BatchExecutionContext<T extends ClusterStateTaskListener> (ClusterState initialState, List<TaskContext<T>> taskContexts) {}
 }

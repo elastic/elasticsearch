@@ -109,10 +109,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            this.executor = (currentState, taskContexts) -> {
-                var listener = new AllocationActionMultiListener<CreateIndexResponse>();
-                ClusterState state = currentState;
+            this.executor = batchExecutionContext -> {
+                final var listener = new AllocationActionMultiListener<CreateIndexResponse>();
+                final var taskContexts = batchExecutionContext.taskContexts();
                 final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
+                ClusterState state = batchExecutionContext.initialState();
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
                     try {
@@ -122,8 +123,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         taskContext.onFailure(e);
                     }
                 }
-                if (state != currentState) {
-                    state = allocationService.reroute(state, "auto-create", listener.reroute());
+                if (state != batchExecutionContext.initialState()) {
+                    state = allocationService.reroute(state, "auto-create");
                 } else {
                     listener.noRerouteNeeded();
                 }

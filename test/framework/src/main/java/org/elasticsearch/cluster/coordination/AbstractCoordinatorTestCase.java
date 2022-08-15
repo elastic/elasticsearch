@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
+import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
@@ -1251,6 +1252,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     getElectionStrategy(),
                     nodeHealthService
                 );
+                coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+                    clusterService,
+                    transportService,
+                    coordinator,
+                    masterHistoryService
+                );
                 client.initialize(
                     Map.of(
                         NodesHotThreadsAction.INSTANCE,
@@ -1258,19 +1265,19 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         MasterHistoryAction.INSTANCE,
                         new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService),
                         ClusterFormationInfoAction.INSTANCE,
-                        new ClusterFormationInfoAction.TransportAction(transportService, new ActionFilters(Set.of()), coordinator)
+                        new ClusterFormationInfoAction.TransportAction(transportService, new ActionFilters(Set.of()), coordinator),
+                        CoordinationDiagnosticsAction.INSTANCE,
+                        new CoordinationDiagnosticsAction.TransportAction(
+                            transportService,
+                            new ActionFilters(Set.of()),
+                            coordinationDiagnosticsService
+                        )
                     ),
                     transportService.getTaskManager(),
                     localNode::getId,
                     transportService.getLocalNodeConnection(),
                     null,
                     getNamedWriteableRegistry()
-                );
-                coordinationDiagnosticsService = new CoordinationDiagnosticsService(
-                    clusterService,
-                    transportService,
-                    coordinator,
-                    masterHistoryService
                 );
                 stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService);
                 masterService.setClusterStatePublisher(coordinator);
@@ -1287,6 +1294,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 coordinator.start();
                 gatewayService.start();
                 clusterService.start();
+                coordinationDiagnosticsService.start();
                 coordinator.startInitialJoin();
             }
 

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -34,7 +33,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(GetApiKeyAction.NAME, transportService, actionFilters, (Writeable.Reader<GetApiKeyRequest>) GetApiKeyRequest::new);
+        super(GetApiKeyAction.NAME, transportService, actionFilters, GetApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }
@@ -58,7 +57,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
             realms = ApiKeyService.getOwnersRealmNames(authentication);
         }
 
-        apiKeyService.getApiKeys(realms, username, apiKeyName, apiKeyIds, listener);
+        apiKeyService.getApiKeys(realms, username, apiKeyName, apiKeyIds, request.withLimitedBy(), listener);
     }
 
 }

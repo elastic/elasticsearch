@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
@@ -43,19 +44,12 @@ public class ReactiveReasonTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
-        var unassignedShardAllocationDecision = List.of(
-            new NodeAllocationResult(
-                new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-                Decision.NO,
-                1
-            )
+        DiscoveryNode discoveryNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        List<NodeAllocationResult> unassignedShardAllocationDecision = List.of(
+            new NodeAllocationResult(discoveryNode, AllocationDecision.NO, Decision.NO, 1)
         );
-        var assignedShardAllocateDecision = List.of(
-            new NodeAllocationResult(
-                new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-                Decision.YES,
-                1
-            )
+        List<NodeAllocationResult> assignedShardAllocateDecision = List.of(
+            new NodeAllocationResult(discoveryNode, AllocationDecision.YES, Decision.YES, 1)
         );
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
@@ -100,10 +94,13 @@ public class ReactiveReasonTests extends ESTestCase {
             assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).toList());
             assertEquals(assignedShardIds.size(), map.get("assigned_shards_count"));
 
-            Map<String, Object> unassignedAllocateDecisionAsMap = (Map<String, Object>) map.get("unassigned_allocation_results");
-            Map<String, Object> assignedAllocateDecisionMap = (Map<String, Object>) map.get("unassigned_allocation_results");
-            System.out.println(unassignedAllocateDecisionAsMap);
-            System.out.println(assignedAllocateDecisionMap);
+            List<Map<String, Object>> unassignedAllocateResults = (List<Map<String, Object>>) map.get("unassigned_allocation_results");
+            assertEquals("no", unassignedAllocateResults.get(0).get("node_decision"));
+            assertEquals("node1", unassignedAllocateResults.get(0).get("node_id"));
+
+            List<Map<String, Object>> assignedAllocateResults = (List<Map<String, Object>>) map.get("assigned_allocation_results");
+            assertEquals("yes", assignedAllocateResults.get(0).get("node_decision"));
+            assertEquals("node1", assignedAllocateResults.get(0).get("node_id"));
         }
     }
 

@@ -302,7 +302,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata("one", Set.of("a", "b"));
         ReservedStateErrorMetadata emOne = new ReservedStateErrorMetadata(
-            1L,
+            2L,
             ReservedStateErrorMetadata.ErrorKind.VALIDATION,
             List.of("Test error 1", "Test error 2")
         );
@@ -316,17 +316,17 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(operatorMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
+        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 2L));
         assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 1L));
-        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 0L));
-        assertTrue(ReservedClusterStateService.isNewError(operatorMetadata, 2L));
-        assertTrue(ReservedClusterStateService.isNewError(null, 0L));
+        assertTrue(ReservedClusterStateService.isNewError(operatorMetadata, 3L));
+        assertTrue(ReservedClusterStateService.isNewError(null, 1L));
 
         // We submit a task with two handler, one will cause an exception, the other will create a new state.
         // When we fail to update the metadata because of version, we ensure that the returned state is equal to the
         // original state by pointer reference to avoid cluster state update task to run.
         ReservedStateUpdateTask task = new ReservedStateUpdateTask(
             "namespace_one",
-            new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(1L, Version.CURRENT)),
+            new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT)),
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             List.of(exceptionThrower.name(), newStateMaker.name()),
             (errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },

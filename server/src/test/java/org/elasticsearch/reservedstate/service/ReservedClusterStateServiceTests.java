@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.checkMetadataVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -370,20 +371,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     public void testCheckMetadataVersion() {
         ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("test").version(123L).build();
 
-        assertTrue(
-            ReservedClusterStateService.checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(124L, Version.CURRENT))
-        );
+        assertTrue(checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(124L, Version.CURRENT)));
+
+        assertFalse(checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(123L, Version.CURRENT)));
 
         assertFalse(
-            ReservedClusterStateService.checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(123L, Version.CURRENT))
-        );
-
-        assertFalse(
-            ReservedClusterStateService.checkMetadataVersion(
-                "operator",
-                operatorMetadata,
-                new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1))
-            )
+            checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)))
         );
     }
 

@@ -50,15 +50,12 @@ import java.util.function.Predicate;
 final class ShardSplittingQuery extends Query {
     private final IndexMetadata indexMetadata;
     private final IndexRouting indexRouting;
-    private final boolean routingRequired;
     private final int shardId;
     private final BitSetProducer nestedParentBitSetProducer;
 
     ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
         this.indexMetadata = indexMetadata;
         this.indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-        // TODO have the IndexRouting build the query and pass routingRequired in
-        this.routingRequired = indexMetadata.mapping() == null ? false : indexMetadata.mapping().routingRequired();
         this.shardId = shardId;
         this.nestedParentBitSetProducer = hasNested ? newParentDocBitSetProducer() : null;
     }
@@ -125,6 +122,8 @@ final class ShardSplittingQuery extends Query {
                             return shardId == targetShardId;
                         }, leafReader, maybeWrapConsumer.apply(bitSet::set));
 
+                        // TODO have the IndexRouting build the query and pass routingRequired in
+                        boolean routingRequired = indexMetadata.mapping() == null ? false : indexMetadata.mapping().routingRequired();
                         // now if we have a mixed index where some docs have a _routing value and some don't we have to exclude the ones
                         // with a routing value from the next iteration and delete / select based on the ID.
                         if (routingRequired == false && terms.getDocCount() != leafReader.maxDoc()) {

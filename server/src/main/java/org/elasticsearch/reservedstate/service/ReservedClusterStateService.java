@@ -200,6 +200,19 @@ public class ReservedClusterStateService {
             return false;
         }
 
+        // Version 0 is special, snapshot restores will reset to 0.
+        if (reservedStateVersion.version() <= 0L) {
+            logger.warn(
+                () -> format(
+                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
+                    namespace,
+                    reservedStateVersion.version(),
+                    existingMetadata.version()
+                )
+            );
+            return false;
+        }
+
         if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
             logger.warn(
                 () -> format(

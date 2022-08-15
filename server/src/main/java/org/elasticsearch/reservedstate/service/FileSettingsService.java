@@ -138,7 +138,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private void startIfMaster(ClusterState clusterState) {
         if (currentNodeMaster(clusterState)) {
-            startWatcher(initialState);
+            startWatcher(clusterState, initialState);
         } else {
             stopWatcher();
         }
@@ -156,9 +156,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * file based settings from the cluster state.
      * @param clusterState the cluster state before snapshot restore
      * @param mdBuilder the current metadata builder for the new cluster state
-     * @return true if refresh of the file settings is required after the snapshot is restored, otherwise false
      */
-    public boolean handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
+    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
         assert currentNodeMaster(clusterState);
 
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
@@ -172,11 +171,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
             }
-            return true;
         } else if (fileSettingsMetadata != null) {
             mdBuilder.removeReservedState(fileSettingsMetadata);
         }
-        return false;
     }
 
     /**
@@ -189,12 +186,17 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * For snapshot restores we first must restore the snapshot and then force a refresh, since the cluster state
      * metadata version must be reset to 0 and saved in the cluster state.
      */
-    public void refreshExistingFileState() {
-        if (watching() && Files.exists(operatorSettingsFile())) {
-            try {
-                Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
-            } catch (IOException e) {
-                logger.warn("encountered I/O error trying to update file settings timestamp", e);
+    private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
+        if (watching()) {
+            ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
+            // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
+            // like snapshot restores.
+            if (fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L && Files.exists(operatorSettingsFile())) {
+                try {
+                    Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
+                } catch (IOException e) {
+                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
+                }
             }
         }
     }
@@ -204,9 +206,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return this.watchService != null;
     }
 
-    synchronized void startWatcher(boolean onStartup) {
+    synchronized void startWatcher(ClusterState clusterState, boolean onStartup) {
         if (watching() || active == false) {
-            // already watching or inactive, nothing to do
+            refreshExistingFileStateIfNeeded(clusterState);
+
             return;
         }
 

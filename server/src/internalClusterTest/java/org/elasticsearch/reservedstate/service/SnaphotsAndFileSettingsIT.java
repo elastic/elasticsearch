@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
  * cluster state
  */
 public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
-    private AtomicLong versionCounter = new AtomicLong(1);
+    private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testFileSettingsJSON = """
         {
@@ -98,9 +97,10 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
                     if (handlerMetadata == null) {
                         fail("Should've found cluster settings in this metadata");
                     }
-                    assertThat(handlerMetadata.keys(), contains("indices.recovery.max_bytes_per_sec"));
-                    clusterService.removeListener(this);
-                    savedClusterState.countDown();
+                    if (handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec")) {
+                        clusterService.removeListener(this);
+                        savedClusterState.countDown();
+                    }
                 }
             }
         });
@@ -224,8 +224,10 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
                     if (handlerMetadata == null) {
                         fail("Should've found cluster settings in this metadata");
                     }
-                    clusterService.removeListener(this);
-                    savedClusterState.countDown();
+                    if (handlerMetadata.keys().isEmpty()) {
+                        clusterService.removeListener(this);
+                        savedClusterState.countDown();
+                    }
                 }
             }
         });

@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Represents the decision taken for the allocation of a single shard.  If
@@ -91,18 +90,5 @@ public final class ShardAllocationDecision implements ToXContentFragment, Writea
             moveDecision.toXContent(builder, params);
         }
         return builder;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == this) return true;
-        return o instanceof ShardAllocationDecision that
-            && Objects.equals(allocateDecision, that.allocateDecision)
-            && Objects.equals(moveDecision, that.moveDecision);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(allocateDecision, moveDecision);
     }
 }

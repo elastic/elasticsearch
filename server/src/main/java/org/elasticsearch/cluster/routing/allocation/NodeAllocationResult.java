@@ -162,22 +162,6 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
         return nodeResultComparator.compare(this, other);
     }
 
-    @Override
-    public String toString() {
-        return "NodeAllocationResult{"
-            + "node="
-            + node
-            + ", shardStoreInfo="
-            + shardStoreInfo
-            + ", nodeDecision="
-            + nodeDecision
-            + ", canAllocateDecision="
-            + canAllocateDecision
-            + ", weightRanking="
-            + weightRanking
-            + '}';
-    }
-
     /** A class that captures metadata about a shard store on a node. */
     public static final class ShardStoreInfo implements ToXContentFragment, Writeable {
         private final boolean inSync;

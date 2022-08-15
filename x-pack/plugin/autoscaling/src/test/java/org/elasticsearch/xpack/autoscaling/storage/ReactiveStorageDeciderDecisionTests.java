@@ -101,9 +101,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private ClusterState state;
     private final int hotNodes = randomIntBetween(1, 8);
     private final int warmNodes = randomIntBetween(1, 3);
-    // these are the shardIds that the decider tests work on
+    // these are the shards that the decider tests work on
     private Set<ShardId> subjectShards;
-    // say NO with disk label for subject shardIds
+    // say NO with disk label for subject shards
     private final AllocationDecider mockCanAllocateDiskDecider = new AllocationDecider() {
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -113,7 +113,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             return super.canAllocate(shardRouting, node, allocation);
         }
     };
-    // say NO with disk label for subject shardIds
+    // say NO with disk label for subject shards
     private final AllocationDecider mockCanRemainDiskDecider = new AllocationDecider() {
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -145,7 +145,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         while (lastState != state && round < maxRounds) {
             var allocatableShards = allocatableShards();
             long numPrevents = allocatableShards.numOfShards();
-            assert round != 0 || numPrevents > 0 : "must have shardIds that can be allocated on first round";
+            assert round != 0 || numPrevents > 0 : "must have shards that can be allocated on first round";
 
             verify(
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
@@ -191,16 +191,16 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     public void testStoragePreventsMove() {
-        // this test moves shardIds to warm nodes and then checks that the reactive decider can calculate the storage necessary to move them
+        // this test moves shards to warm nodes and then checks that the reactive decider can calculate the storage necessary to move them
         // back to hot nodes.
 
-        // allocate all primary shardIds
+        // allocate all primary shards
         allocate();
 
-        // set of shardIds to force on to warm nodes.
+        // set of shards to force on to warm nodes.
         Set<ShardId> warmShards = Sets.union(new HashSet<>(randomSubsetOf(shardIds(state.getRoutingNodes().unassigned()))), subjectShards);
 
-        // start (to be) warm shardIds. Only use primary shardIds for simplicity.
+        // start (to be) warm shards. Only use primary shardIds for simplicity.
         withRoutingAllocation(
             allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
@@ -216,7 +216,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             .map(ShardRouting::shardId)
             .anyMatch(warmShards::contains));
 
-        // relocate warm shardIds to warm nodes and start them
+        // relocate warm shards to warm nodes and start them
         withRoutingAllocation(
             allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.STARTED)
                 .stream()
@@ -267,10 +267,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     public void testMoveToEmpty() {
-        // allocate all primary shardIds
+        // allocate all primary shards
         allocate();
 
-        // start shardIds.
+        // start shards.
         withRoutingAllocation(
             allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
@@ -331,7 +331,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     public void testStoragePreventsRemain() {
         allocate();
-        // we can only decide on a move for started shardIds (due to for instance ThrottlingAllocationDecider assertion).
+        // we can only decide on a move for started shards (due to for instance ThrottlingAllocationDecider assertion).
         for (int i = 0; i < randomIntBetween(1, 4) || hasStartedSubjectShard() == false; ++i) {
             startRandomShards();
         }

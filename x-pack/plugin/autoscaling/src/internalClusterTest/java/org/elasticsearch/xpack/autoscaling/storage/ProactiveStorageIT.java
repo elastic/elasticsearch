@@ -70,7 +70,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         IndicesStatsResponse stats = client().admin().indices().prepareStats(dsName).clear().setStore(true).get();
         long used = stats.getTotal().getStore().getSizeInBytes();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
-        // As long as usage is above low watermark, we will trigger a proactive scale up, since the simulated shardIds have an in-sync
+        // As long as usage is above low watermark, we will trigger a proactive scale up, since the simulated shards have an in-sync
         // set and therefore allocating these do not skip the low watermark check in the disk threshold decider.
         // Fixing this simulation should be done as a separate effort, but we should still ensure that the low watermark is in effect
         // at least when replicas are involved.

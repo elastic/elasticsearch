@@ -257,6 +257,21 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
         assertThat(assignment.isSatisfied(Sets.newHashSet("node-1", "node-2", "node-3")), is(false));
     }
 
+    public void testMaxAssignedAllocations() {
+        TrainedModelAssignment assignment = TrainedModelAssignment.Builder.empty(randomTaskParams(10))
+            .addRoutingEntry("node-1", new RoutingInfo(1, 2, RoutingState.STARTED, ""))
+            .addRoutingEntry("node-2", new RoutingInfo(2, 1, RoutingState.STARTED, ""))
+            .addRoutingEntry("node-3", new RoutingInfo(3, 3, RoutingState.STARTING, ""))
+            .build();
+        assertThat(assignment.getMaxAssignedAllocations(), equalTo(6));
+
+        TrainedModelAssignment assignmentAfterRemovingNode = TrainedModelAssignment.Builder.fromAssignment(assignment)
+            .removeRoutingEntry("node-1")
+            .build();
+        assertThat(assignmentAfterRemovingNode.getMaxAssignedAllocations(), equalTo(6));
+        assertThat(assignmentAfterRemovingNode.totalCurrentAllocations(), equalTo(5));
+    }
+
     private void assertValueWithinPercentageOfExpectedRatio(long value, long totalCount, double ratio, double tolerance) {
         double expected = totalCount * ratio;
         double lowerBound = (1.0 - tolerance) * expected;

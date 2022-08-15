@@ -43,6 +43,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private static final int DEFAULT_USE_PIT = -1;
     private static final int DEFAULT_DEDUCE_MAPPINGS = -1;
     private static final int DEFAULT_NUM_FAILURE_RETRIES = -2;
+    private static final int DEFAULT_UNATTENDED = -1;
 
     private static ConstructingObjectParser<SettingsConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SettingsConfig, Void> parser = new ConstructingObjectParser<>(
@@ -55,7 +56,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 (Integer) args[3],
                 (Integer) args[4],
                 (Integer) args[5],
-                (Integer) args[6]
+                (Integer) args[6],
+                (Integer) args[7]
             )
         );
         parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, TransformField.MAX_PAGE_SEARCH_SIZE);
@@ -89,6 +91,13 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             ValueType.BOOLEAN_OR_NULL
         );
         parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_NUM_FAILURE_RETRIES, TransformField.NUM_FAILURE_RETRIES);
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_UNATTENDED : p.booleanValue() ? 1 : 0,
+            TransformField.UNATTENDED,
+            ValueType.BOOLEAN_OR_NULL
+        );
         return parser;
     }
 
@@ -99,9 +108,10 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private final Integer usePit;
     private final Integer deduceMappings;
     private final Integer numFailureRetries;
+    private final Integer unattended;
 
     public SettingsConfig() {
-        this(null, null, (Integer) null, (Integer) null, (Integer) null, (Integer) null, (Integer) null);
+        this(null, null, (Integer) null, (Integer) null, (Integer) null, (Integer) null, (Integer) null, (Integer) null);
     }
 
     public SettingsConfig(
@@ -111,7 +121,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         Boolean alignCheckpoints,
         Boolean usePit,
         Boolean deduceMappings,
-        Integer numFailureRetries
+        Integer numFailureRetries,
+        Boolean unattended
     ) {
         this(
             maxPageSearchSize,
@@ -120,7 +131,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             alignCheckpoints == null ? null : alignCheckpoints ? 1 : 0,
             usePit == null ? null : usePit ? 1 : 0,
             deduceMappings == null ? null : deduceMappings ? 1 : 0,
-            numFailureRetries
+            numFailureRetries,
+            unattended == null ? null : unattended ? 1 : 0
         );
     }
 
@@ -131,7 +143,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         Integer alignCheckpoints,
         Integer usePit,
         Integer deduceMappings,
-        Integer numFailureRetries
+        Integer numFailureRetries,
+        Integer unattended
     ) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
@@ -140,6 +153,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this.usePit = usePit;
         this.deduceMappings = deduceMappings;
         this.numFailureRetries = numFailureRetries;
+        this.unattended = unattended;
     }
 
     public SettingsConfig(final StreamInput in) throws IOException {
@@ -169,6 +183,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             numFailureRetries = in.readOptionalInt();
         } else {
             numFailureRetries = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            unattended = in.readOptionalInt();
+        } else {
+            unattended = DEFAULT_UNATTENDED;
         }
     }
 
@@ -220,6 +239,14 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return numFailureRetries;
     }
 
+    public Boolean getUnattended() {
+        return unattended != null ? (unattended == DEFAULT_UNATTENDED) ? null : (unattended > 0) : null;
+    }
+
+    public Integer getUnattendedForUpdate() {
+        return unattended;
+    }
+
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
             validationException = addValidationError(
@@ -239,6 +266,17 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 validationException
             );
         }
+
+        // disallow setting unattended to true with explicit num failure retries
+        if (unattended != null && unattended == 1 && numFailureRetries != null && numFailureRetries > 0) {
+            validationException = addValidationError(
+                "settings.num_failure_retries ["
+                    + numFailureRetries
+                    + "] can not be set in unattended mode, unattended retries indefinitely",
+                validationException
+            );
+        }
+
         return validationException;
     }
 
@@ -262,6 +300,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeOptionalInt(numFailureRetries);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeOptionalInt(unattended);
         }
     }
 
@@ -290,6 +331,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (numFailureRetries != null && (numFailureRetries.equals(DEFAULT_NUM_FAILURE_RETRIES) == false)) {
             builder.field(TransformField.NUM_FAILURE_RETRIES.getPreferredName(), numFailureRetries);
         }
+        if (unattended != null && (unattended.equals(DEFAULT_UNATTENDED) == false)) {
+            builder.field(TransformField.UNATTENDED.getPreferredName(), unattended > 0 ? true : false);
+        }
         builder.endObject();
         return builder;
     }
@@ -310,7 +354,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             && Objects.equals(alignCheckpoints, that.alignCheckpoints)
             && Objects.equals(usePit, that.usePit)
             && Objects.equals(deduceMappings, that.deduceMappings)
-            && Objects.equals(numFailureRetries, that.numFailureRetries);
+            && Objects.equals(numFailureRetries, that.numFailureRetries)
+            && Objects.equals(unattended, that.unattended);
     }
 
     @Override
@@ -322,7 +367,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             alignCheckpoints,
             usePit,
             deduceMappings,
-            numFailureRetries
+            numFailureRetries,
+            unattended
         );
     }
 
@@ -343,6 +389,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         private Integer usePit;
         private Integer deduceMappings;
         private Integer numFailureRetries;
+        private Integer unattended;
 
         /**
          * Default builder
@@ -362,6 +409,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             this.usePit = base.usePit;
             this.deduceMappings = base.deduceMappings;
             this.numFailureRetries = base.numFailureRetries;
+            this.unattended = base.unattended;
         }
 
         /**
@@ -456,6 +504,21 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         /**
+         * Whether to run the transform in unattended mode.
+         * In unattended mode the transform does not immediately fail for errors that are classified
+         * as irrecoverable.
+         *
+         * An explicit `null` resets to default.
+         *
+         * @param unattended true if this is a unattended transform.
+         * @return the {@link Builder} with usePit set.
+         */
+        public Builder setUnattended(Boolean unattended) {
+            this.unattended = unattended == null ? DEFAULT_UNATTENDED : unattended ? 1 : 0;
+            return this;
+        }
+
+        /**
          * Update settings according to given settings config.
          *
          * @param update update settings
@@ -495,6 +558,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     ? null
                     : update.getNumFailureRetriesForUpdate();
             }
+            if (update.getUnattendedForUpdate() != null) {
+                this.unattended = update.getUnattendedForUpdate().equals(DEFAULT_UNATTENDED) ? null : update.getUnattendedForUpdate();
+            }
 
             return this;
         }
@@ -507,7 +573,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 alignCheckpoints,
                 usePit,
                 deduceMappings,
-                numFailureRetries
+                numFailureRetries,
+                unattended
             );
         }
     }

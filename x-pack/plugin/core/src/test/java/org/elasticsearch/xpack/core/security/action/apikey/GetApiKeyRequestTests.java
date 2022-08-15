@@ -75,6 +75,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(apiKeyId);
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
+                out.writeBoolean(randomBoolean());
             }
         }
 
@@ -151,13 +152,14 @@ public class GetApiKeyRequestTests extends ESTestCase {
 
     public void testEmptyStringsAreCoercedToNull() {
         Supplier<String> randomBlankString = () -> " ".repeat(randomIntBetween(0, 5));
-        final GetApiKeyRequest request = new GetApiKeyRequest(
-            randomBlankString.get(), // realm name
-            randomBlankString.get(), // user name
-            randomBlankString.get(), // key id
-            randomBlankString.get(), // key name
-            randomBoolean() // owned by user
-        );
+        final GetApiKeyRequest request = GetApiKeyRequest.builder()
+            .realmName(randomBlankString.get())
+            .userName(randomBlankString.get())
+            .apiKeyId(randomBlankString.get())
+            .apiKeyName(randomBlankString.get())
+            .ownedByAuthenticatedUser(randomBoolean())
+            .withLimitedBy(randomBoolean())
+            .build();
         assertThat(request.getRealmName(), nullValue());
         assertThat(request.getUserName(), nullValue());
         assertThat(request.getApiKeyId(), nullValue());

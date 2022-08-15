@@ -11,19 +11,6 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.SortedSet;
 
-record ShardsSize(long sizeInBytes, SortedSet<ShardId> shardIds, List<NodeAllocationResult> nodeAllocationResults) {
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        return o instanceof ShardsSize that && sizeInBytes == that.sizeInBytes && Objects.equals(shardIds, that.shardIds);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(sizeInBytes, shardIds);
-    }
-}
+record ShardsSize(long sizeInBytes, SortedSet<ShardId> shardIds, List<NodeAllocationResult> nodeAllocationResults) {}

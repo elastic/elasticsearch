@@ -370,8 +370,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return nodeTierPredicate.test(allocation.routingNodes().node(s.currentNodeId()).node());
         }
 
-        record CanNotAllocateResult(ShardRouting shard, boolean canNotAllocate, NodeAllocationResult nodeAllocationResult) {}
-
         /**
          * Check that disk decider is only decider for a node preventing allocation of the shard.
          * @return true if and only if a node exists in the tier where only disk decider prevents allocation

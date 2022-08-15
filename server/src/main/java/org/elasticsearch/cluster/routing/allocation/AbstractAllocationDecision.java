@@ -127,9 +127,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
      */
     public static XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
         throws IOException {
-
-        builder = nodeDecisionsToXContent(nodeDecisions, builder, params, "node_allocation_decisions");
-        return builder;
+        return nodeDecisionsToXContent(nodeDecisions, builder, params, "node_allocation_decisions");
     }
 
     public static XContentBuilder nodeDecisionsToXContent(

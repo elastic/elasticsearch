@@ -446,7 +446,10 @@ public class ProfileService {
                 boolQuery.minimumShouldMatch(1);
             }
 
-            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS).setQuery(boolQuery).request();
+            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                .setQuery(boolQuery)
+                .seqNoAndPrimaryTerm(true)
+                .request();
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(

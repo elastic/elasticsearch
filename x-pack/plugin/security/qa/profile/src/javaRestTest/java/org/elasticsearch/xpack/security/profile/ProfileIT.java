@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +22,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,8 +33,12 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIT extends ESRestTestCase {
@@ -349,6 +356,54 @@ public class ProfileIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         final List<String> otherDomainRealms = (List<String>) castToMap(domainsUsage.get("other_domain")).get("realms");
         assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
+    }
+
+    public void testActivateGracePeriodIsPerNode() throws IOException {
+        final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
+        activateProfileRequest.setJsonEntity("""
+            {
+              "grant_type": "password",
+              "username": "rac-user",
+              "password": "x-pack-test-password"
+            }""");
+
+        final RestClient client = adminClient();
+        final List<Node> originalNodes = client.getNodes();
+        assertThat(originalNodes.size(), greaterThan(1));
+        final Node node0 = originalNodes.get(0);
+        // Find a different node which should listen to the same hostname, but is not node0.
+        // It should listen to the same hostname because it can the same host (node0)
+        // when it listens to a different hostname (ipv4 vs ipv6)
+        final Node node1 = originalNodes.subList(1, originalNodes.size() - 1)
+            .stream()
+            .filter(node -> node.getHost().getHostName().equals(node0.getHost().getHostName()))
+            .findFirst()
+            .orElseThrow();
+
+        try {
+            // Initial activate with node0
+            client.setNodes(List.of(node0));
+            final Map<String, Object> responseMap0 = responseAsMap(client.performRequest(activateProfileRequest));
+
+            final Instant start = Instant.now();
+            // Activate again with the same host (node0) should fall within the grace period and skip actual update
+            final Map<String, Object> responseMap1 = responseAsMap(client.performRequest(activateProfileRequest));
+            assertThat(responseMap1.get("_doc"), equalTo(responseMap0.get("_doc")));
+            assertThat(start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()), is(true));
+
+            // Activate with different host (node1) should actually update since node name changes in RealmRef
+            client.setNodes(List.of(node1));
+            final Map<String, Object> responseMap2 = responseAsMap(client.performRequest(activateProfileRequest));
+            assertThat(responseMap2.get("_doc"), not(equalTo(responseMap0.get("_doc"))));
+            assertThat(start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()), is(true));
+
+            // Activate again with node1 should see no update
+            final Map<String, Object> responseMap3 = responseAsMap(client.performRequest(activateProfileRequest));
+            assertThat(responseMap3.get("_doc"), equalTo(responseMap2.get("_doc")));
+            assertThat(Instant.now().toEpochMilli() - (long) responseMap3.get("last_synchronized"), lessThan(30_000L));
+        } finally {
+            client.setNodes(originalNodes);
+        }
     }
 
     private Map<String, Object> doActivateProfile() throws IOException {

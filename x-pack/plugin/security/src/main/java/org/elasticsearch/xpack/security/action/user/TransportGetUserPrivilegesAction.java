@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
@@ -43,12 +42,12 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
         securityContext.requireUser();
-        final Authentication authentication = securityContext.getAuthentication();
-        final Subject subject = authentication.getEffectiveSubject();
+        final Subject subject = securityContext.getAuthentication().getEffectiveSubject();
         if (subject.getUser().principal().equals(request.username()) == false) {
             listener.onFailure(new IllegalArgumentException("users may only list the privileges of their own account"));
             return;
         }
+
         authorizationService.retrieveUserPrivileges(subject, securityContext.getAuthorizationInfoFromContext(), listener);
     }
 }

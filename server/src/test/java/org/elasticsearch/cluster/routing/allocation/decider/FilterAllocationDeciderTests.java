@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -131,7 +132,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         state = service.disassociateDeadNodes(
             ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).remove("node1")).build(),
             true,
-            "test"
+            "test",
+            ActionListener.noop()
         );
         state = service.applyFailedShards(
             state,

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -135,7 +136,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
             if (nodesRemoved) {
-                clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
+                clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
             } else {
                 clusterState = strategy.reroute(clusterState, "reroute");
             }

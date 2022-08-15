@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -100,7 +101,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             nodes.add(newNode("node3"));
         }
         clusterState = ClusterState.builder(clusterState).nodes(nodes).build();
-        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         ClusterState newState = clusterState;
         List<ShardRouting> unassignedShards = RoutingNodesHelper.shardsWithState(newState.getRoutingNodes(), ShardRoutingState.UNASSIGNED);
         if (nodeAvailableForAllocation) {
@@ -160,7 +161,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
 
         // remove node that has replica and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)).build();
-        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         ClusterState stateWithDelayedShard = clusterState;
         // make sure the replica is marked as delayed (i.e. not reallocated)
         assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
@@ -299,7 +300,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         // make sure both replicas are marked as delayed (i.e. not reallocated)
         allocationService.setNanoTimeOverride(baseTimestampNanos);
-        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         final ClusterState stateWithDelayedShards = clusterState;
         assertEquals(2, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShards));
         RoutingNodes.UnassignedShards.UnassignedIterator iter = stateWithDelayedShards.getRoutingNodes().unassigned().iterator();
@@ -461,7 +462,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeIdOfFooReplica))
             .build();
-        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "fake node left");
+        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "fake node left", ActionListener.noop());
         ClusterState stateWithDelayedShard = clusterState;
         // make sure the replica is marked as delayed (i.e. not reallocated)
         assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
@@ -516,7 +517,12 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             clusterState = ClusterState.builder(stateWithDelayedShard)
                 .nodes(DiscoveryNodes.builder(stateWithDelayedShard.nodes()).remove(nodeIdOfBarReplica))
                 .build();
-            ClusterState stateWithShorterDelay = allocationService.disassociateDeadNodes(clusterState, true, "fake node left");
+            ClusterState stateWithShorterDelay = allocationService.disassociateDeadNodes(
+                clusterState,
+                true,
+                "fake node left",
+                ActionListener.noop()
+            );
             delayedAllocationService.setNanoTimeOverride(clusterChangeEventTimestampNanos);
             delayedAllocationService.clusterChanged(
                 new ClusterChangedEvent("fake node left", stateWithShorterDelay, stateWithDelayedShard)

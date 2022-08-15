@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -71,7 +72,8 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
         return allocationService.disassociateDeadNodes(
             ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.getNodes()).remove(nodeName)).build(),
             true,
-            "reroute"
+            "reroute",
+            ActionListener.noop()
         );
     }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -500,7 +501,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     private ClusterState stabilize(ClusterState clusterState, AllocationService service) {
         logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes());
 
-        clusterState = service.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = service.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         assertRecoveryNodeVersions(routingNodes);
 

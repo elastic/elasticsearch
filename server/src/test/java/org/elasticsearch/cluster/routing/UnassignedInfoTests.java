@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -345,7 +346,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         // verify that NODE_LEAVE is the reason for meta
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(true));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
@@ -596,7 +597,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         // make sure both replicas are marked as delayed (i.e. not reallocated)
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         assertThat(clusterState.toString(), UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(2));
     }
 
@@ -638,7 +639,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         final long baseTime = System.nanoTime();
         allocation.setNanoTimeOverride(baseTime);
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         final long delta = randomBoolean() ? 0 : randomInt((int) expectMinDelaySettingsNanos - 1);
 

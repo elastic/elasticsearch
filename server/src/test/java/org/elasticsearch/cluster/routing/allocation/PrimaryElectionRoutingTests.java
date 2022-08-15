@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -67,7 +68,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3")).remove("node1"))
             .build();
         RoutingTable prevRoutingTable = clusterState.routingTable();
-        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         routingNodes = clusterState.getRoutingNodes();
         routingTable = clusterState.routingTable();
 
@@ -119,7 +120,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         String nodeIdToFail = clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId();
         String nodeIdRemaining = nodeIdToFail.equals("node1") ? "node2" : "node1";
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode(nodeIdRemaining))).build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(shardsWithState(routingNodes, STARTED).size(), equalTo(1));

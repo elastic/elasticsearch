@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -74,7 +75,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         String nodeIdRemaining = nodeIdToFail.equals("node1") ? "node2" : "node1";
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode(nodeIdRemaining))).build();
 
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         assertThat(clusterState.getRoutingNodes().node(nodeIdRemaining).iterator().next().primary(), equalTo(true));
         assertThat(clusterState.getRoutingNodes().node(nodeIdRemaining).iterator().next().state(), equalTo(STARTED));
@@ -117,7 +118,8 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                     .nodes(DiscoveryNodes.builder(initialState.nodes()).remove(initialState.nodes().resolveNode("node1")).build())
                     .build(),
                 false,
-                dissociationReason
+                dissociationReason,
+                ActionListener.noop()
             );
 
             appender.assertAllExpectationsMatched();
@@ -198,7 +200,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode(origPrimaryNodeId)).add(newNode(origReplicaNodeId)))
             .build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(STARTED));
         assertThat(clusterState.getRoutingNodes().node(origReplicaNodeId).iterator().next().state(), equalTo(STARTED));
@@ -275,7 +277,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node3")).add(newNode(origReplicaNodeId)))
             .build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         assertThat(clusterState.getRoutingNodes().node(origReplicaNodeId).iterator().next().state(), equalTo(STARTED));
         assertThat(clusterState.getRoutingNodes().node("node3").iterator().next().state(), equalTo(INITIALIZING));

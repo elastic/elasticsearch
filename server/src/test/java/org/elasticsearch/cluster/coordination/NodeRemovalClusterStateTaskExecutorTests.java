@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -52,9 +53,8 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
     public void testRerouteAfterRemovingNodes() throws Exception {
         final AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.disassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class))).thenAnswer(
-            im -> im.getArguments()[0]
-        );
+        when(allocationService.disassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class), ActionListener.noop()))
+            .thenAnswer(im -> im.getArguments()[0]);
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final NodeRemovalClusterStateTaskExecutor executor = new NodeRemovalClusterStateTaskExecutor(allocationService) {
@@ -82,7 +82,12 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, tasks);
 
-        verify(allocationService).disassociateDeadNodes(eq(remainingNodesClusterState.get()), eq(true), any(String.class));
+        verify(allocationService).disassociateDeadNodes(
+            eq(remainingNodesClusterState.get()),
+            eq(true),
+            any(String.class),
+            ActionListener.noop()
+        );
 
         for (final NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
             assertNull(resultingState.nodes().get(task.node().getId()));

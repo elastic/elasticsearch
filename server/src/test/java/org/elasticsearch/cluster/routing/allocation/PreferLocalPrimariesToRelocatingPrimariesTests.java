@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -98,7 +99,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1"))
             .build();
-        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         logger.info("[{}] primaries should be still started but [{}] other primaries should be unassigned", numberOfShards, numberOfShards);
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(numberOfShards));

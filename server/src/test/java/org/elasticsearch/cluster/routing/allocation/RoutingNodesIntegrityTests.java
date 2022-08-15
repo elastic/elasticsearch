@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -347,7 +348,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId()))
             .build();
-        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(assertShardStats(routingNodes), equalTo(true));

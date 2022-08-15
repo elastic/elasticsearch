@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -102,7 +103,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
                     .remove(clusterState.routingTable().index("test2").shard(0).primaryShard().currentNodeId())
             )
             .build();
-        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         routingNodes = clusterState.getRoutingNodes();
 
         for (RoutingNode routingNode : routingNodes) {

@@ -251,10 +251,10 @@ public class AllocationService {
     }
 
     /**
-     * unassigned an shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas
-     * if needed.
+     * unassigned any shards that are associated with nodes that are no longer part of the cluster,
+     * potentially promoting replicas if needed.
      */
-    public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
+    public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason, ActionListener<Void> listener) {
         RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
 
         // first, clear from the shards any node id they used to belong to that is now dead
@@ -264,8 +264,9 @@ public class AllocationService {
             clusterState = buildResultAndLogHealthChange(clusterState, allocation, reason);
         }
         if (reroute) {
-            return reroute(clusterState, reason);
+            return reroute(clusterState, reason, listener);
         } else {
+            listener.onResponse(null);
             return clusterState;
         }
     }

@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
@@ -236,7 +237,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
         allocationService.cleanCaches();
         tmpState = PersistentTasksCustomMetadata.disassociateDeadNodes(tmpState);
-        return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
+        return ClusterState.builder(
+            allocationService.disassociateDeadNodes(
+                tmpState,
+                false,
+                "removed dead nodes on election",
+                rerouteCompletionIsNotRequired() // reroute = false
+            )
+        );
     }
 
     @Override

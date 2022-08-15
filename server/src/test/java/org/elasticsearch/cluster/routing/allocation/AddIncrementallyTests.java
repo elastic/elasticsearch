@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -340,7 +341,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
-        clusterState = service.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = service.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         logger.info("start all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(service, clusterState);

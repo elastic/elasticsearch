@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -85,7 +86,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
             clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId()))
                 .build();
-            clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
+            clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
             logger.info("make sure all the primary shards are active");
             assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().active(), equalTo(true));

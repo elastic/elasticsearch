@@ -590,7 +590,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
     private static AllocationService createAllocationService() {
         final var allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
-        when(allocationService.disassociateDeadNodes(any(), anyBoolean(), any())).then(
+        when(allocationService.disassociateDeadNodes(any(), anyBoolean(), any(), ActionListener.noop())).then(
             invocationOnMock -> invocationOnMock.getArguments()[0]
         );
         return allocationService;

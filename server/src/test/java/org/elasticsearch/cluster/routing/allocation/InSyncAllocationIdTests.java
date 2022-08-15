@@ -95,7 +95,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         logger.info("remove a node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         // in-sync allocation ids should not be updated
         assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(3));
@@ -104,7 +104,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2").remove("node3"))
             .build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         // in-sync allocation ids should not be updated
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(3));
@@ -155,7 +155,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(replicaShard.currentNodeId()))
             .build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(2));
 
         logger.info("fail replica (for which there is no shard routing in the CS anymore)");
@@ -255,7 +255,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(replicaShard.currentNodeId()))
             .build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         // in-sync allocation ids should not be updated
         assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
@@ -275,7 +275,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(replicaShard.currentNodeId()))
                 .build();
-            clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+            clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
         }
 
         // in-sync allocation set is bounded
@@ -303,7 +303,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(replicaShard.currentNodeId()))
             .build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         // in-sync allocation ids should not be updated
         assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
@@ -312,7 +312,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(primaryShard.currentNodeId()))
             .build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         // in-sync allocation ids should not be updated
         assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
@@ -354,7 +354,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(replicaShard.currentNodeId()))
             .build();
-        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
 
         // in-sync allocation ids should not be updated
         assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));

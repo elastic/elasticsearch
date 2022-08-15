@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
+
 public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task> {
 
     private static final Logger logger = LogManager.getLogger(NodeRemovalClusterStateTaskExecutor.class);
@@ -74,7 +76,8 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
             finalState = allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
                 true,
-                describeTasks(batchExecutionContext.taskContexts().stream().map(TaskContext::getTask).toList())
+                describeTasks(batchExecutionContext.taskContexts().stream().map(TaskContext::getTask).toList()),
+                rerouteCompletionIsNotRequired() // the change is not triggered by a user request
             );
         } else {
             // no nodes to remove, keep the current cluster state

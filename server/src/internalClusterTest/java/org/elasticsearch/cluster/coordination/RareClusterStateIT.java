@@ -121,7 +121,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                return allocationService.disassociateDeadNodes(currentState, true, "reroute");
+                return allocationService.disassociateDeadNodes(currentState, true, "reroute", ActionListener.noop());
             }
 
             @Override

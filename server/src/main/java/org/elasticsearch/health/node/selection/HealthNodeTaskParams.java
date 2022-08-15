@@ -23,15 +23,15 @@ import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 /**
  * Encapsulates the parameters needed to start the health node task, currently no parameters are required.
  */
-class HealthNodeTaskParams implements PersistentTaskParams {
+public class HealthNodeTaskParams implements PersistentTaskParams {
 
-    private static final HealthNodeTaskParams INSTANCE = new HealthNodeTaskParams();
+    public static final HealthNodeTaskParams INSTANCE = new HealthNodeTaskParams();
 
     public static final ObjectParser<HealthNodeTaskParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, () -> INSTANCE);
 
     HealthNodeTaskParams() {}
 
-    HealthNodeTaskParams(StreamInput in) {}
+    HealthNodeTaskParams(StreamInput ignored) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

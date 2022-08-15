@@ -53,11 +53,20 @@ public class HealthMetadataService {
     // us from checking the cluster state before the cluster state is initialized
     private volatile boolean isMaster = false;
 
-    public HealthMetadataService(ClusterService clusterService, Settings settings) {
+    private HealthMetadataService(ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
         this.settings = settings;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
+    }
+
+    public static HealthMetadataService create(ClusterService clusterService, Settings settings) {
+        HealthMetadataService healthMetadataService = new HealthMetadataService(clusterService, settings);
+        healthMetadataService.registerListeners();
+        return healthMetadataService;
+    }
+
+    private void registerListeners() {
         if (this.enabled) {
             this.clusterService.addListener(clusterStateListener);
         }
@@ -161,10 +170,9 @@ public class HealthMetadataService {
         static class Executor implements ClusterStateTaskExecutor<UpsertHealthMetadataTask> {
 
             @Override
-            public ClusterState execute(ClusterState currentState, List<TaskContext<UpsertHealthMetadataTask>> taskContexts)
-                throws Exception {
-                ClusterState updatedState = currentState;
-                for (TaskContext<UpsertHealthMetadataTask> taskContext : taskContexts) {
+            public ClusterState execute(BatchExecutionContext<UpsertHealthMetadataTask> batchExecutionContext) throws Exception {
+                ClusterState updatedState = batchExecutionContext.initialState();
+                for (TaskContext<UpsertHealthMetadataTask> taskContext : batchExecutionContext.taskContexts()) {
                     updatedState = taskContext.getTask().execute(updatedState);
                     taskContext.success(() -> {});
                 }

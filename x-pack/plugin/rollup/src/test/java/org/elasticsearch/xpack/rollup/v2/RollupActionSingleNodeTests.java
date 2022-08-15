@@ -818,7 +818,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .size(10_000);
         final DateHistogramAggregationBuilder dateHistogramAggregation = new DateHistogramAggregationBuilder("timestamp").field(
             config.getTimestampField()
-        ).fixedInterval(config.getInterval());
+        ).fixedInterval(config.getInterval()).minDocCount(1);
         if (config.getTimeZone() != null) {
             dateHistogramAggregation.timeZone(ZoneId.of(config.getTimeZone()));
         }

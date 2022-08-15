@@ -119,6 +119,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        assert allocation.ignoreDisable() == false;
+
         if (allocation.routingNodes().size() == 0) {
             failAllocationOfNewPrimaries(allocation);
             return;
@@ -536,7 +538,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             }
                             if (logger.isTraceEnabled()) {
                                 logger.trace(
-                                    "Stop balancing index [{}]  min_node [{}] weight: [{}]" + "  max_node [{}] weight: [{}]  delta: [{}]",
+                                    "Stop balancing index [{}]  min_node [{}] weight: [{}] max_node [{}] weight: [{}] delta: [{}]",
                                     index,
                                     maxNode.getNodeId(),
                                     weights[highIdx],
@@ -549,7 +551,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
                         if (logger.isTraceEnabled()) {
                             logger.trace(
-                                "Balancing from node [{}] weight: [{}] to node [{}] weight: [{}]  delta: [{}]",
+                                "Balancing from node [{}] weight: [{}] to node [{}] weight: [{}] delta: [{}]",
                                 maxNode.getNodeId(),
                                 weights[highIdx],
                                 minNode.getNodeId(),

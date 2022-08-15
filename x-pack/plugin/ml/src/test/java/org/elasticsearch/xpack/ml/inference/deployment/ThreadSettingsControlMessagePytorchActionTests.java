@@ -32,13 +32,22 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ControlMessagePyTorchActionTests extends ESTestCase {
-
-    private ThreadPool tp;
+public class ThreadSettingsControlMessagePytorchActionTests extends ESTestCase {
 
     public void testBuildControlMessage() throws IOException {
-        var message = ControlMessagePyTorchAction.buildControlMessage("foo", 4);
-
+        DeploymentManager.ProcessContext processContext = mock(DeploymentManager.ProcessContext.class);
+        ThreadPool tp = mock(ThreadPool.class);
+        @SuppressWarnings("unchecked")
+        ThreadSettingsControlMessagePytorchAction action = new ThreadSettingsControlMessagePytorchAction(
+            "model_id",
+            1,
+            4,
+            TimeValue.MINUS_ONE,
+            processContext,
+            tp,
+            ActionListener.NOOP
+        );
+        var message = action.buildControlMessage("foo");
         assertEquals("{\"request_id\":\"foo\",\"control\":0,\"num_allocations\":4}", message.utf8ToString());
     }
 
@@ -56,7 +65,7 @@ public class ControlMessagePyTorchActionTests extends ESTestCase {
 
         {
             ActionListener<ThreadSettings> listener = mock(ActionListener.class);
-            ControlMessagePyTorchAction action = new ControlMessagePyTorchAction(
+            ThreadSettingsControlMessagePytorchAction action = new ThreadSettingsControlMessagePytorchAction(
                 "test-model",
                 1,
                 1,
@@ -75,7 +84,7 @@ public class ControlMessagePyTorchActionTests extends ESTestCase {
         }
         {
             ActionListener<ThreadSettings> listener = mock(ActionListener.class);
-            ControlMessagePyTorchAction action = new ControlMessagePyTorchAction(
+            ThreadSettingsControlMessagePytorchAction action = new ThreadSettingsControlMessagePytorchAction(
                 "test-model",
                 1,
                 1,
@@ -114,7 +123,7 @@ public class ControlMessagePyTorchActionTests extends ESTestCase {
         ArgumentCaptor<BytesReference> messageCapture = ArgumentCaptor.forClass(BytesReference.class);
         doNothing().when(pp).writeInferenceRequest(messageCapture.capture());
 
-        ControlMessagePyTorchAction action = new ControlMessagePyTorchAction(
+        ThreadSettingsControlMessagePytorchAction action = new ThreadSettingsControlMessagePytorchAction(
             "test-model",
             1,
             1,

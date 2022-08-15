@@ -109,8 +109,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
                 clusterInfoService.getClusterInfo(),
                 snapshotsInfoService.snapshotShardSizes(),
                 nodeInfoService.snapshot(),
-                ensureNotCancelled,
-                allocationService
+                ensureNotCancelled
             )
         );
         logger.debug("autoscaling capacity response [{}]", response);

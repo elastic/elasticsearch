@@ -1146,12 +1146,7 @@ public class IndexNameExpressionResolver {
                         .collect(Collectors.toList());
                     // dedup backing indices if expand hidden indices option is true
                     Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
-                    expandMatches(
-                        context,
-                        dataStreamsAbstractions,
-                        expressions.isEmpty() ? "_all" : expressions.get(0),
-                        resolvedIncludingDataStreams::add
-                    );
+                    expandMatches(context, dataStreamsAbstractions, false, resolvedIncludingDataStreams::add);
                     return resolvedIncludingDataStreams;
                 }
             } else {
@@ -1206,7 +1201,7 @@ public class IndexNameExpressionResolver {
                     throw indexNotFoundException(expression);
                 }
                 Set<String> finalResult = result;
-                expandMatches(context, matches.values(), expression, expanded -> {
+                expandMatches(context, matches.values(), expression.startsWith("."), expanded -> {
                     if (add) {
                         finalResult.add(expanded);
                     } else {
@@ -1344,11 +1339,10 @@ public class IndexNameExpressionResolver {
         private static void expandMatches(
             Context context,
             Collection<IndexAbstraction> matches,
-            String expression,
+            final boolean implicitlyIncludeHidden,
             Consumer<String> expandConsumer
         ) {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
-            final boolean implicitlyIncludeHidden = expression.startsWith(".");
             for (IndexAbstraction indexAbstraction : matches) {
                 if (indexAbstraction.isSystem()
                     && (indexAbstraction.getType() == Type.DATA_STREAM

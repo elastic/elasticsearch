@@ -6,7 +6,7 @@
 
 [libdefaults]
     default_realm = ${REALM_NAME}
-    dns_canonicalize_hostname = false
+    dns_canonicalize_hostname = fallback
     dns_lookup_kdc = false
     dns_lookup_realm = false
     dns_uri_lookup = false

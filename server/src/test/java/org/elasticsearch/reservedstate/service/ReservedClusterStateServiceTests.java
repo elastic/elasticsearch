@@ -179,7 +179,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             public void onFailure(Exception failure) {}
         };
 
-        ClusterState newState = taskExecutor.execute(state, List.of(taskContext));
+        ClusterState newState = taskExecutor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext)));
         assertEquals(state, newState);
         assertTrue(successCalled.get());
         verify(task, times(1)).execute(any());
@@ -235,7 +235,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedStateErrorTaskExecutor executor = new ReservedStateErrorTaskExecutor();
 
-        ClusterState newState = executor.execute(state, List.of(taskContext));
+        ClusterState newState = executor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext)));
 
         verify(task, times(1)).execute(any());
 

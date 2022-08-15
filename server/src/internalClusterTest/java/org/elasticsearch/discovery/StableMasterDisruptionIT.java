@@ -64,7 +64,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singleton;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -563,49 +562,5 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             HealthStatus.RED,
             containsString("has been elected master, but the node being queried")
         );
-    }
-
-    public void testNoQuorum() throws Exception {
-        /*
-         * In this test we have three master-eligible nodes. We make it so that the two non-active ones cannot communicate, and then we
-         * stop the active master node. Now there is no quorum so a new master cannot be elected. We set the master lookup threshold very
-         * low on the data nodes, so when we run the master stability check on each of the master nodes, it will see that there has been no
-         * master recently and because there is no quorum, so it returns a RED status.
-         */
-        var settings = Settings.builder()
-            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-            .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
-            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
-            .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(1, TimeUnit.SECONDS))
-            .build();
-        var masterNodes = internalCluster().startMasterOnlyNodes(3, settings);
-        var dataNodes = internalCluster().startDataOnlyNodes(2, settings);
-        ensureStableCluster(5);
-        String firstMasterNode = internalCluster().getMasterName();
-        List<String> nonActiveMasterNodes = masterNodes.stream().filter(nodeName -> firstMasterNode.equals(nodeName) == false).toList();
-        NetworkDisruption networkDisconnect = new NetworkDisruption(
-            new NetworkDisruption.TwoPartitions(
-                Set.of(nonActiveMasterNodes.get(0), dataNodes.get(0)),
-                Set.of(nonActiveMasterNodes.get(1), dataNodes.get(1))
-            ),
-            NetworkDisruption.UNRESPONSIVE
-        );
-
-        internalCluster().clearDisruptionScheme();
-        setDisruptionScheme(networkDisconnect);
-        networkDisconnect.startDisrupting();
-        internalCluster().stopNode(firstMasterNode);
-        for (String nonActiveMasterNode : nonActiveMasterNodes) {
-            assertMasterStability(
-                internalCluster().client(nonActiveMasterNode),
-                HealthStatus.RED,
-                anyOf(
-                    containsString("unable to form a quorum"),
-                    containsString("No master node observed in the last 1s, and the cause has not been determined.")
-                    // later happens if master node has not replied within 1s
-                )
-            );
-        }
     }
 }

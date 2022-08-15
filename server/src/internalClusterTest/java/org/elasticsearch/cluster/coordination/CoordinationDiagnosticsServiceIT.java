@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -199,8 +200,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
                 .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(1, TimeUnit.SECONDS))
                 .build()
         );
-        internalCluster().getInstances(CoordinationDiagnosticsService.class)
-            .forEach(coordinationDiagnosticsService -> CoordinationDiagnosticsService.remoteRequestInitialDelay = TimeValue.ZERO);
+        CoordinationDiagnosticsService.remoteRequestInitialDelay = TimeValue.ZERO;
         ensureStableCluster(5);
         String firstMasterNode = internalCluster().getMasterName();
         List<String> nonActiveMasterNodes = masterNodes.stream().filter(nodeName -> firstMasterNode.equals(nodeName) == false).toList();
@@ -266,6 +266,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
                 CoordinationDiagnosticsService.class,
                 randomMasterNodeName
             );
+
             CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = diagnosticsOnMasterEligibleNode.diagnoseMasterStability(
                 true
             );
@@ -291,6 +292,78 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         } finally {
             internalCluster().stopNode(randomMasterNodeName); // This is needed for the test to clean itself up happily
             internalCluster().stopNode(dataNodeName); // This is needed for the test to clean itself up happily
+        }
+    }
+
+    public void testNoQuorum() throws Exception {
+        /*
+         * In this test we have three master-eligible nodes and two data-only nodes. We make it so that the two non-active
+         * master-eligible nodes cannot communicate with each other but can each communicate with one data-only node, and then we
+         * stop the active master node. Now there is no quorum so a new master cannot be elected. We set the master lookup threshold very
+         * low on the data nodes, so when we run the master stability check on each of the master nodes, it will see that there has been no
+         * master recently and because there is no quorum, so it returns a RED status. We also check that each of the data-only nodes
+         * reports a RED status because there is no quorum (having polled that result from the master-eligible node it can communicate
+         * with).
+         */
+        CoordinationDiagnosticsService.remoteRequestInitialDelay = TimeValue.ZERO;
+        var settings = Settings.builder()
+            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+            .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+            .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(1, TimeUnit.SECONDS))
+            .build();
+        var masterNodes = internalCluster().startMasterOnlyNodes(3, settings);
+        var dataNodes = internalCluster().startDataOnlyNodes(2, settings);
+        ensureStableCluster(5);
+        String firstMasterNode = internalCluster().getMasterName();
+        List<String> nonActiveMasterNodes = masterNodes.stream().filter(nodeName -> firstMasterNode.equals(nodeName) == false).toList();
+        NetworkDisruption networkDisconnect = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(
+                Set.of(nonActiveMasterNodes.get(0), dataNodes.get(0)),
+                Set.of(nonActiveMasterNodes.get(1), dataNodes.get(1))
+            ),
+            NetworkDisruption.UNRESPONSIVE
+        );
+
+        internalCluster().clearDisruptionScheme();
+        setDisruptionScheme(networkDisconnect);
+        networkDisconnect.startDisrupting();
+        internalCluster().stopNode(firstMasterNode);
+        for (String nonActiveMasterNode : nonActiveMasterNodes) {
+            CoordinationDiagnosticsService diagnosticsOnMasterEligibleNode = internalCluster().getInstance(
+                CoordinationDiagnosticsService.class,
+                nonActiveMasterNode
+            );
+            assertBusy(() -> {
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = diagnosticsOnMasterEligibleNode
+                    .diagnoseMasterStability(true);
+                assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+                assertThat(
+                    result.summary(),
+                    anyOf(
+                        containsString("the master eligible nodes are unable to form a quorum"),
+                        containsString("the cause has not been determined.")
+                    )
+                );
+            });
+        }
+        for (String dataNode : dataNodes) {
+            CoordinationDiagnosticsService diagnosticsOnDataNode = internalCluster().getInstance(
+                CoordinationDiagnosticsService.class,
+                dataNode
+            );
+            assertBusy(() -> {
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = diagnosticsOnDataNode.diagnoseMasterStability(true);
+                assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+                assertThat(
+                    result.summary(),
+                    anyOf(
+                        containsString("the master eligible nodes are unable to form a quorum"),
+                        containsString("the cause has not been determined.")
+                    )
+                );
+            });
         }
     }
 }

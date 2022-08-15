@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TreeSet;
 
 public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericDoubleValues> {
 

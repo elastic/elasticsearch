@@ -18,8 +18,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.TreeSet;
 
 public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericDocValues> {
@@ -90,7 +92,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         protected final ValueFetcher valueFetcher;
         protected final SourceLookup sourceLookup;
 
-        protected TreeSet<Long> values;
+        protected List<Long> values;
         protected Iterator<Long> iterator;
 
         public SourceValueFetcherSortedNumericDocValues(
@@ -106,13 +108,14 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         @Override
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-            values = new TreeSet<>();
+            values = new ArrayList<>();
 
             for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
                 assert value instanceof Number;
                 values.add(((Number) value).longValue());
             }
 
+            values.sort(Long::compare);
             iterator = values.iterator();
 
             return true;

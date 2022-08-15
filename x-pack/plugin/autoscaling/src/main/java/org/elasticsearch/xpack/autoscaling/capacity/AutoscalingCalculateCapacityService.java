@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -204,14 +203,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         AutoscalingNodesInfo autoscalingNodesInfo,
         Runnable ensureNotCancelled
     ) {
-        return new DefaultAutoscalingDeciderContext(
-            roles,
-            state,
-            clusterInfo,
-            shardSizeInfo,
-            autoscalingNodesInfo,
-            ensureNotCancelled
-        );
+        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo, autoscalingNodesInfo, ensureNotCancelled);
     }
 
     /**

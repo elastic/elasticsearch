@@ -23,6 +23,7 @@ import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -75,6 +76,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
     private ModuleLayer.Controller moduleController;
 
     // TODO: we should take multiple jars
+    @SuppressWarnings("removal")
     static StablePluginClassLoader getInstance(ClassLoader parent, Path jar) {
         // TODO: we should take jars, not a module reference
         // TODO: delegate reading from jars to a URL class loader
@@ -88,7 +90,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
      * heavy lifting. jdk.internal.loader.Loader takes ResolvedModules for its argument, while URLClassLoader constructs
      * a URLClassPath object. The AppClassLoader, on the other hand, loads modules as it goes.
      *
-     * First cut: single jar only, modularized or not
+     * First cut: single jar only
      * Second cut: main jar plus dependencies (can we have modularized main jar with unmodularized dependencies?)
      * Third cut: link it up with the "crate/bundle" descriptor
      */
@@ -104,19 +106,12 @@ public class StablePluginClassLoader extends SecureClassLoader {
             throw new IllegalArgumentException(e);
         }
 
-        // load it with a module
+        // we need a module layer to bind our module to this classloader
         ModuleLayer mparent = ModuleLayer.boot();
         Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of("synthetic"));
-        PrivilegedAction<ModuleLayer.Controller> pa =
-            () -> ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
-        // this will bind the module to the classloader, I hope...
-        this.moduleController = AccessController.doPrivileged(pa);
+        // TODO: do we need to hold on to the controller?
+        this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
     }
-
-    private static ModuleReference buildSyntheticModule(Path jar) {
-        return ModuleSupport.ofSyntheticPluginModule("synthetic", new Path[]{jar}, Set.of()).find("synthetic").orElseThrow();
-    }
-
 
     /**
      * @param moduleName
@@ -141,8 +136,10 @@ public class StablePluginClassLoader extends SecureClassLoader {
         //
         // jdk.internal.loader.Loader can pull a class out of a loaded module pretty easily;
         // ModuleReference does a lot of the work
-        // TODO: implement
-        return null;
+        if (Objects.isNull(moduleName) || this.module.descriptor().name().equals(moduleName) == false) {
+            return null;
+        }
+        return findClass(name);
     }
 
     /**
@@ -167,6 +164,9 @@ public class StablePluginClassLoader extends SecureClassLoader {
 
         try (InputStream in = internalLoader.getResourceAsStream(rn)) {
             // TODO: null handling
+            if (in == null) {
+                return null;
+            }
             byte[] bytes = in.readAllBytes();
             return defineClass(name, bytes, 0, bytes.length, codeSource);
         } catch (IOException e){
@@ -191,8 +191,13 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
         // searching the current module, then other modules, and checking access levels
 
-        // TODO: find resource, but check module name?
-        return null;
+        // TODO: Is this the behavior we want?
+        // If we are requesting a resource and have the correct module name, try to find it. Otherwise
+        // return null. Problem: will calling code ever know the synthetic module name?
+        if (Objects.isNull(moduleName) || this.module.descriptor().name().equals(moduleName) == false) {
+            return null;
+        }
+        return findResource(name);
     }
 
     /**
@@ -210,13 +215,12 @@ public class StablePluginClassLoader extends SecureClassLoader {
     }
 
     @Override
-    protected Enumeration<URL> findResources(String name) {
+    protected Enumeration<URL> findResources(String name) throws IOException {
         // URLClassLoader also delegates here
         //
         // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
         // searching the current module, then other modules, and checking access levels
 
-        // TODO - how do we do this?
-        return null;
+        return internalLoader.findResources(name);
     }
 }

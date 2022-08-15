@@ -196,13 +196,20 @@ public class StablePluginClassLoaderTests extends ESTestCase {
 
         StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, jar);
 
+        // stable plugin loader gives us the good class...
         Class<?> c = loader.loadClass("p.MyClass");
         Object instance = c.getConstructor().newInstance();
         assertThat(instance.toString(), equalTo("MyClass"));
 
+        // we can get the "bad one" from the parent loader
         Class<?> c2 = parent.loadClass("p.MyClass");
         Object instance2 = c2.getConstructor().newInstance();
-        assertThat(instance2.toString(), equalTo("MyClass"));
+        assertThat(instance2.toString(), equalTo("Wrong class found!"));
+
+        // stable plugin loader delegates to parent for other packages
+        Class<?> c3 = loader.loadClass("q.OtherClass");
+        Object instance3 = c3.getConstructor().newInstance();
+        assertThat(instance3.toString(), equalTo("OtherClass"));
     }
 
     private static void createJar(Path outerJar, String className) throws IOException {
@@ -247,7 +254,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
 
         Map<String, byte[]> jarEntries = new HashMap<>();
         jarEntries.put("p/" + className + ".class", classToBytes.get("p." + className));
-        jarEntries.put("q/" + className + ".class", classToBytes.get("q.OtherClass"));
+        jarEntries.put("q/OtherClass.class", classToBytes.get("q.OtherClass"));
         JarUtils.createJarWithEntries(jar, jarEntries);
     }
 
@@ -273,6 +280,4 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         jarEntries.put("module-info.class", classToBytes.get("module-info"));
         JarUtils.createJarWithEntries(jar, jarEntries);
     }
-
-    // test that we don't use parent-first delegation (load from package if module has it)
 }

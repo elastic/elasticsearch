@@ -24,7 +24,10 @@ import java.security.SecureClassLoader;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 /**
  * This classloader will load classes from non-modularized stable plugins. Fully
@@ -32,7 +35,7 @@ import java.util.Set;
  * {@link java.lang.module.ModuleFinder}.
  * <p>
  * If the stable plugin is not modularized, a synthetic module will be created
- * for all of the jars in the bundle. We want to be able to construct the
+ * for all jars in the bundle. We want to be able to construct the
  * "requires" relationships for this synthetic module, which will make it
  * different from the unnamed (classpath) module.
  * <p>
@@ -43,10 +46,6 @@ import java.util.Set;
  * against a list of packages in this synthetic module, and load a class
  * directly if it's part of this synthetic module. This will keep libraries from
  * clashing.
- * TODO:
- *   * We need a loadClass method
- *   * We need a findResources method
- *   * We need some tests
  *
  * Resources:
  *   * {@link java.lang.ClassLoader}
@@ -70,16 +69,16 @@ import java.util.Set;
  */
 public class StablePluginClassLoader extends SecureClassLoader {
 
-    private ModuleReference module;
-    private URLClassLoader internalLoader;
-    private CodeSource codeSource;
-    private ModuleLayer.Controller moduleController;
+    private final ModuleReference module;
+    private final URLClassLoader internalLoader;
+    private final CodeSource codeSource;
+    private final ModuleLayer.Controller moduleController;
+
+    private final Set<String> packageNames;
 
     // TODO: we should take multiple jars
     @SuppressWarnings("removal")
     static StablePluginClassLoader getInstance(ClassLoader parent, Path jar) {
-        // TODO: we should take jars, not a module reference
-        // TODO: delegate reading from jars to a URL class loader
         PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(parent, jar);
         return AccessController.doPrivileged(pa);
     }
@@ -97,7 +96,6 @@ public class StablePluginClassLoader extends SecureClassLoader {
     public StablePluginClassLoader(ClassLoader parent, Path jar) {
         super(parent);
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", new Path[]{jar}, Set.of());
-        // TODO: here, we need to figure out if our jar/jars are modules are not
         try {
             this.internalLoader = new URLClassLoader(new URL[]{jar.toUri().toURL()});
             this.module = finder.find("synthetic").orElseThrow();
@@ -111,6 +109,16 @@ public class StablePluginClassLoader extends SecureClassLoader {
         Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of("synthetic"));
         // TODO: do we need to hold on to the controller?
         this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
+
+        try (JarFile jarFile = new JarFile(jar.toFile())) {
+            this.packageNames = ModuleSupport.scan(jarFile).classFiles().stream()
+                .map(e -> ModuleSupport.toPackageName(e, "/"))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet());
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     /**
@@ -163,7 +171,6 @@ public class StablePluginClassLoader extends SecureClassLoader {
         String rn = name.replace('.', '/').concat(".class");
 
         try (InputStream in = internalLoader.getResourceAsStream(rn)) {
-            // TODO: null handling
             if (in == null) {
                 return null;
             }
@@ -222,5 +229,16 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // searching the current module, then other modules, and checking access levels
 
         return internalLoader.findResources(name);
+    }
+
+    @Override
+    protected Class<?> loadClass(String cn, boolean resolve) throws ClassNotFoundException {
+        // if cn's package is in this ubermodule, look here only (or just first?)
+        Optional<String> packageName = ModuleSupport.toPackageName(cn, ".");
+        if (packageName.isPresent() && packageName.filter(this.packageNames::contains).isPresent()) {
+            return findClass(cn);
+        }
+
+        return super.loadClass(cn, resolve);
     }
 }

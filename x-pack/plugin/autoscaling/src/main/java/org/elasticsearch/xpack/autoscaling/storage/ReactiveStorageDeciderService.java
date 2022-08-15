@@ -189,7 +189,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     }
 
     static boolean isFilterTierOnlyDecision(Decision decision, IndexMetadata indexMetadata) {
-        // only primary shards are handled here, allowing us to disregard same shard allocation decider.
+        // only primary shardIds are handled here, allowing us to disregard same shard allocation decider.
         return singleNoDecision(decision, single -> SameShardAllocationDecider.NAME.equals(single.label()) == false).filter(
             FilterAllocationDecider.NAME::equals
         ).map(d -> filterLooksLikeTier(indexMetadata)).orElse(false);
@@ -291,7 +291,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .toList();
             return new ShardsSize(
                 unassignedShards.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum(),
-                unassignedShards.stream().map(e -> e.shard).collect(Collectors.toCollection(this::shardRoutingSortingSet)),
+                unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
                 unassignedShards.stream().map(e -> e.nodeAllocationResults).filter(e -> e.size() > 0).findAny().orElse(null)
             );
         }
@@ -334,18 +334,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return new ShardsSize(
                 unallocatableBytes + unmovableBytes,
                 Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedDecisionAllocationResults.stream())
-                    .map(e -> e.shard)
-                    .collect(Collectors.toCollection(this::shardRoutingSortingSet)),
+                    .map(e -> e.shard.shardId())
+                    .collect(Collectors.toCollection(TreeSet::new)),
                 Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedDecisionAllocationResults.stream())
                     .map(e -> e.nodeAllocationResults)
                     .filter(e -> e.size() > 0)
                     .findAny()
                     .orElse(null)
             );
-        }
-
-        private SortedSet<ShardRouting> shardRoutingSortingSet() {
-            return new TreeSet<>(Comparator.comparing(ShardRouting::shardId));
         }
 
         /**
@@ -393,7 +389,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     node -> new NodeAllocationResult(node.node(), null, allocationDeciders.canAllocate(shard, node, allocation))
                 ).filter(nar -> ReactiveStorageDeciderService.isDiskOnlyNoDecision(nar.getCanAllocateDecision())).toList();
                 if (diskOnly.size() > 0 && shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-                    // For resize shards only allow autoscaling if there is no other node where the shard could fit had it not been
+                    // For resize shardIds only allow autoscaling if there is no other node where the shard could fit had it not been
                     // a resize shard. Notice that we already removed any initial_recovery filters.
                     List<NodeAllocationResult> resizeOnly = nodesInTier(allocation.routingNodes()).map(
                         node -> new NodeAllocationResult(node.node(), null, allocationDeciders.canAllocate(shard, node, allocation))

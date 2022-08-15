@@ -458,7 +458,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertThat(resultReason.unassignedShardIds(), equalTo(decider.allocationState(context).storagePreventsAllocation().shardIds()));
             assertThat(resultReason.assignedShardIds(), equalTo(decider.allocationState(context).storagePreventsRemainOrMove().shardIds()));
             assertThat(
-                resultReason.assignedShardAllocateDecision(),
+                resultReason.assignedAllocationResults(),
                 equalTo(
                     assignedShards.size() > 0
                         ? new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, MoveDecision.stay(Decision.YES))
@@ -466,7 +466,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 )
             );
             assertThat(
-                resultReason.unassignedShardAllocateDecision(),
+                resultReason.unassignedAllocationResults(),
                 equalTo(
                     unassignedShards.size() > 0
                         ? new ShardAllocationDecision(
@@ -481,8 +481,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertThat(resultReason.summary(), equalTo("current capacity not available"));
             assertThat(resultReason.unassignedShardIds(), equalTo(Set.of()));
             assertThat(resultReason.assignedShardIds(), equalTo(Set.of()));
-            assertThat(resultReason.unassignedShardAllocateDecision(), is(nullValue()));
-            assertThat(resultReason.assignedShardAllocateDecision(), is(nullValue()));
+            assertThat(resultReason.unassignedAllocationResults(), is(nullValue()));
+            assertThat(resultReason.assignedAllocationResults(), is(nullValue()));
         }
     }
 

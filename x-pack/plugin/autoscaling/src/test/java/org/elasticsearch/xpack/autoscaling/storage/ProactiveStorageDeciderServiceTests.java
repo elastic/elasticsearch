@@ -179,8 +179,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             Set.of(),
-            Set.of(),
-            mock(AllocationService.class)
+            Set.of()
         );
 
         assertThat(allocationState.forecast(Long.MAX_VALUE, System.currentTimeMillis()), Matchers.sameInstance(allocationState));
@@ -212,8 +211,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             randomClusterInfo(state),
             null,
             Sets.newHashSet(state.nodes()),
-            Set.of(),
-            mock(AllocationService.class)
+            Set.of()
         );
 
         assertThat(allocationState.forecast(0, lastCreated + between(-3, 1)), Matchers.sameInstance(allocationState));
@@ -257,8 +255,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Sets.newHashSet(state.nodes()),
-            Set.of(),
-            mock(AllocationService.class)
+            Set.of()
         );
 
         for (int window = 0; window < between(1, 20); ++window) {

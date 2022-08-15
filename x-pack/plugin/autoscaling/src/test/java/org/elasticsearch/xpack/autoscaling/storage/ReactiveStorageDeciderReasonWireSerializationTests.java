@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
-import org.elasticsearch.cluster.routing.allocation.MoveDecision;
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,8 +17,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
 import java.util.TreeSet;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 public class ReactiveStorageDeciderReasonWireSerializationTests extends AbstractWireSerializingTestCase<
     ReactiveStorageDeciderService.ReactiveReason> {
@@ -39,8 +40,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     instance.assigned(),
                     instance.assignedShardIds(),
-                    instance.unassignedShardAllocateDecision(),
-                    instance.assignedShardAllocateDecision()
+                    instance.unassignedAllocationResults(),
+                    instance.assignedAllocationResults()
                 );
             case 1:
                 return new ReactiveStorageDeciderService.ReactiveReason(
@@ -49,8 +50,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     instance.assigned(),
                     instance.assignedShardIds(),
-                    instance.unassignedShardAllocateDecision(),
-                    instance.assignedShardAllocateDecision()
+                    instance.unassignedAllocationResults(),
+                    instance.assignedAllocationResults()
                 );
             case 2:
                 return new ReactiveStorageDeciderService.ReactiveReason(
@@ -59,8 +60,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     randomValueOtherThan(instance.assigned(), ESTestCase::randomNonNegativeLong),
                     instance.assignedShardIds(),
-                    instance.unassignedShardAllocateDecision(),
-                    instance.assignedShardAllocateDecision()
+                    instance.unassignedAllocationResults(),
+                    instance.assignedAllocationResults()
                 );
             case 3:
                 return new ReactiveStorageDeciderService.ReactiveReason(
@@ -69,8 +70,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
                     instance.assigned(),
                     instance.assignedShardIds(),
-                    instance.unassignedShardAllocateDecision(),
-                    instance.assignedShardAllocateDecision()
+                    instance.unassignedAllocationResults(),
+                    instance.assignedAllocationResults()
                 );
             case 4:
                 return new ReactiveStorageDeciderService.ReactiveReason(
@@ -79,8 +80,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     instance.assigned(),
                     new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
-                    instance.unassignedShardAllocateDecision(),
-                    instance.assignedShardAllocateDecision()
+                    instance.unassignedAllocationResults(),
+                    instance.assignedAllocationResults()
                 );
             case 5:
                 return new ReactiveStorageDeciderService.ReactiveReason(
@@ -89,8 +90,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
                     instance.assigned(),
                     new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
-                    instance.unassignedShardAllocateDecision(),
-                    instance.assignedShardAllocateDecision()
+                    instance.unassignedAllocationResults(),
+                    instance.assignedAllocationResults()
                 );
             case 6:
                 return new ReactiveStorageDeciderService.ReactiveReason(
@@ -99,8 +100,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     instance.assigned(),
                     instance.assignedShardIds(),
-                    randomValueOtherThan(instance.unassignedShardAllocateDecision(), this::randomUnassignedShardAllocateDecision),
-                    instance.assignedShardAllocateDecision()
+                    randomList(8, this::randomNodeAllocationResult),
+                    instance.assignedAllocationResults()
                 );
             case 7:
                 return new ReactiveStorageDeciderService.ReactiveReason(
@@ -109,8 +110,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     instance.assigned(),
                     instance.assignedShardIds(),
-                    instance.unassignedShardAllocateDecision(),
-                    randomValueOtherThan(instance.assignedShardAllocateDecision(), this::randomAssignedShardAllocateDecision)
+                    instance.unassignedAllocationResults(),
+                    randomList(8, this::randomNodeAllocationResult)
                 );
             case 8:
                 return new ReactiveStorageDeciderService.ReactiveReason(
@@ -119,8 +120,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     instance.assigned(),
                     instance.assignedShardIds(),
-                    randomValueOtherThan(instance.unassignedShardAllocateDecision(), this::randomUnassignedShardAllocateDecision),
-                    randomValueOtherThan(instance.assignedShardAllocateDecision(), this::randomAssignedShardAllocateDecision)
+                    randomList(8, this::randomNodeAllocationResult),
+                    randomList(8, this::randomNodeAllocationResult)
                 );
             default:
                 fail("unexpected");
@@ -136,31 +137,16 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
             new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
             randomNonNegativeLong(),
             new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
-            randomUnassignedShardAllocateDecision(),
-            randomAssignedShardAllocateDecision()
+            randomList(8, this::randomNodeAllocationResult),
+            randomList(8, this::randomNodeAllocationResult)
         );
     }
 
-    private ShardAllocationDecision randomAssignedShardAllocateDecision() {
-        return new ShardAllocationDecision(
-            AllocateUnassignedDecision.NOT_TAKEN,
-            MoveDecision.stay(randomFrom(Decision.YES, Decision.THROTTLE))
-        );
-    }
-
-    private ShardAllocationDecision randomUnassignedShardAllocateDecision() {
-        return new ShardAllocationDecision(
-            AllocateUnassignedDecision.no(
-                randomFrom(
-                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                    UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
-                    UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
-                    UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA
-                ),
-                List.of(),
-                randomBoolean()
-            ),
-            MoveDecision.NOT_TAKEN
+    private NodeAllocationResult randomNodeAllocationResult() {
+        return new NodeAllocationResult(
+            new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            randomFrom(Decision.NO, Decision.YES, Decision.THROTTLE),
+            1
         );
     }
 }

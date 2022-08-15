@@ -26,13 +26,17 @@ reduces the volume of data that must be considered while detecting anomalies.
 time field. This requirement ensures that the aggregated data is a time series 
 and the timestamp of each bucket is the time of the last record in the bucket.
 
+* The `time_zone` parameter in the date histogram aggregation must be set to
+`UTC`, which is the default value.
+
 * The name of the aggregation and the name of the field that it operates on need 
 to match. For example, if you use a `max` aggregation on a time field called 
 `responsetime`, the name of the aggregation must also be `responsetime`.
 
-* If you use a terms aggregation and the cardinality of a term is high but still 
-significantly less than your total number of documents, use
-{ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregations].
+* For `composite` aggregation support, there must be exactly one 
+`date_histogram` value source. That value source must not be sorted in 
+descending order. Additional `composite` aggregation value sources are allowed, 
+such as `terms`.
 
 
 [discrete]
@@ -48,16 +52,6 @@ significantly less than your total number of documents, use
 * {anomaly-jobs-cap} cannot use `date_histogram` or `composite` aggregations 
 with an interval measured in months because the length of the month is not 
 fixed; they can use weeks or smaller units.
-
-* If your detectors use <<ml-metric-functions,metric>> or 
-<<ml-sum-functions,sum>> analytical functions, it's recommended to set the 
-`date_histogram` or `composite` aggregation interval to a tenth of the bucket 
-span. This creates finer, more granular time buckets, which are ideal for this 
-type of analysis.
-
-* If your detectors use <<ml-count-functions,count>> or 
-<<ml-rare-functions,rare>> functions, set the interval to the same value as the 
-bucket span.
 
 
 [discrete]
@@ -75,11 +69,40 @@ that match values in the job configuration are fed to the job.
 
 
 [discrete]
-[[aggs-using-date-histogram]]
-=== Including aggregations in {anomaly-jobs}
+[[aggs-recommendations-dfeeds]]
+== Recommendations
 
-When you create or update an {anomaly-job}, you can include the names of
-aggregations, for example:
+* When your detectors use <<ml-metric-functions,metric>> or 
+<<ml-sum-functions,sum>> analytical functions, it's recommended to set the 
+`date_histogram` or `composite` aggregation interval to a tenth of the bucket 
+span. This creates finer, more granular time buckets, which are ideal for this 
+type of analysis.
+
+* When your detectors use <<ml-count-functions,count>> or 
+<<ml-rare-functions,rare>> functions, set the interval to the same value as the 
+bucket span.
+
+* When you use a terms aggregation and the cardinality of a term is high but still 
+significantly less than your total number of documents, use
+{ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregations].
+
+* When you use a `term` aggregation to gather influencer or partition field 
+information, consider using a `composite` aggregation. It performs better than a 
+`date_histogram` with a nested `term` aggregation and also includes all the 
+values of the field instead of the top values per bucket.
+
+
+
+
+[discrete]
+[[aggs-using-date-histogram]]
+== Including aggregations in {anomaly-jobs}
+
+When you create or update an {anomaly-job}, you can include aggregated fields in 
+the analysis configuration and the job analyses these fields. In the  {dfeed} 
+configuration object, you can define the aggregations. The aggregations and the 
+fields that they operate on need to have the same name as the following example 
+shows:
 
 [source,console]
 ----------------------------------
@@ -92,7 +115,7 @@ PUT _ml/anomaly_detectors/farequote
       "field_name": "responsetime",  <1>
       "by_field_name": "airline"  <1>
     }],
-    "summary_count_field_name": "doc_count"
+    "summary_count_field_name": "doc_count" <2>
   },
   "data_description": {
     "time_field":"time"  <1>
@@ -107,16 +130,16 @@ PUT _ml/anomaly_detectors/farequote
           "time_zone": "UTC"
         },
         "aggregations": {
-          "time": {  <2>
+          "time": {  <3>
             "max": {"field": "time"}
           },
-          "airline": {  <3>
+          "airline": {  <4>
             "terms": {
              "field": "airline",
               "size": 100
             },
             "aggregations": {
-              "responsetime": {  <4>
+              "responsetime": {  <5>
                 "avg": {
                   "field": "responsetime"
                 }
@@ -134,41 +157,34 @@ PUT _ml/anomaly_detectors/farequote
 <1> The `airline`, `responsetime`, and `time` fields are aggregations. Only the
 aggregated fields defined in the `analysis_config` object are analyzed by the
 {anomaly-job}.
-<2> The aggregations have names that match the fields that they operate on. The
+<2> The `summary_count_field_name` property is set to the `doc_count` field that 
+is an aggregated field and contains the count of the aggregated data points.
+<3> The aggregations have names that match the fields that they operate on. The
 `max` aggregation is named `time` and its field also needs to be `time`.
-<3> The `term` aggregation is named `airline` and its field is also named
+<4> The `term` aggregation is named `airline` and its field is also named
 `airline`.
-<4> The `avg` aggregation is named `responsetime` and its field is also named
+<5> The `avg` aggregation is named `responsetime` and its field is also named
 `responsetime`.
 
-When the `summary_count_field_name` property is set to a non-null value, the job
-expects to receive aggregated input. The property must be set to the name of the
-field that contains the count of raw data points that have been aggregated. It
-applies to all detectors in the job.
+NOTE: When you set the `summary_count_field_name` property to a non-null value, 
+the job expects to receive aggregated input. The property must be set to the 
+name of the field that contains the count of raw data points that have been 
+aggregated. It applies to all detectors in the job.
 
-TIP: If you are using a `term` aggregation to gather influencer or partition
-field information, consider using a `composite` aggregation. It performs
-better than a `date_histogram` with a nested `term` aggregation and also
-includes all the values of the field instead of the top values per bucket.
 
 [discrete]
 [[aggs-using-composite]]
 === Using composite aggregations in {anomaly-jobs}
 
-For `composite` aggregation support, there must be exactly one `date_histogram` 
-value source. That value source must not be sorted in descending order. 
-Additional `composite` aggregation value sources are allowed, such as `terms`.
-
 NOTE: A {dfeed} that uses composite aggregations may not be as performant as
 {dfeeds} that use scrolling or date histogram aggregations. Composite
 aggregations are optimized for queries that are either `match_all` or `range`
-filters. Other types of
-queries may cause the `composite` aggregation to be inefficient.
+filters. Other types of queries may cause the `composite` aggregation to be 
+inefficient.
 
-Here is an example that uses a `composite` aggregation instead of a
-`date_histogram`.
+The following example 
 
-This is an example of a job with a {dfeed} that uses a `composite` aggregation
+of a job with a {dfeed} that uses a `composite` aggregation
 to bucket the metrics based on time and terms:
 
 [source,console]
@@ -229,9 +245,8 @@ PUT _ml/anomaly_detectors/farequote-composite
   }
 }
 ----------------------------------
-<1> Provide the `size` to the composite agg to control how many resources
-are used when aggregating the data. A larger `size` means a faster {dfeed} but
-more cluster resources are used when searching.
+<1> The number of resources to use when aggregating the data. A larger `size` 
+means a faster {dfeed} but more cluster resources are used when searching.
 <2> The required `date_histogram` composite aggregation source. Make sure it
 is named differently than your desired time field.
 <3> Instead of using a regular `term` aggregation, adding a composite
@@ -244,7 +259,7 @@ job analysis config.
 
 [discrete]
 [[aggs-dfeeds]]
-== Nested aggregations in {dfeeds}
+=== Using nested aggregations in {dfeeds}
 
 {dfeeds-cap} support complex nested aggregations. This example uses the
 `derivative` pipeline aggregation to find the first order derivative of the
@@ -294,7 +309,7 @@ aggregations. See
 
 [discrete]
 [[aggs-single-dfeeds]]
-== Single bucket aggregations in {dfeeds}
+=== Using single bucket aggregations in {dfeeds}
 
 {dfeeds-cap} not only supports multi-bucket aggregations, but also single bucket
 aggregations. The following shows two `filter` aggregations, each gathering the
@@ -344,13 +359,16 @@ number of unique entries for the `error` field.
 // NOTCONSOLE
 
 
+
 [discrete]
 [[aggs-define-dfeeds]]
 == Defining aggregations in {dfeeds}
 
-When you define an aggregation in a {dfeed}, it must have one of the following forms:
+When you define an aggregation in a {dfeed}, it must be in one of the following 
+formats:
 
 When using a `date_histogram` aggregation to bucket by time:
+
 [source,js]
 ----------------------------------
 "aggregations": {
@@ -420,17 +438,16 @@ When using a `composite` aggregation:
 
 The top level aggregation must be exclusively one of the following:
 
-*  A {ref}/search-aggregations-bucket.html[bucket aggregation] containing a single
-sub-aggregation that is a `date_histogram`
-*  A top level aggregation that is a `date_histogram`
-*  A top level aggregation is a `composite` aggregation
+* A {ref}/search-aggregations-bucket.html[bucket aggregation] containing a 
+single sub-aggregation that is a `date_histogram`.
+* A top level aggregation that is a `date_histogram`.
+* A top level aggregation is a `composite` aggregation.
 
-There must be exactly one `date_histogram`, `composite` aggregation. For more information, see
-{ref}/search-aggregations-bucket-datehistogram-aggregation.html[Date histogram aggregation] and
+There must be exactly one `date_histogram`, `composite` aggregation. For more 
+information, see
+{ref}/search-aggregations-bucket-datehistogram-aggregation.html[Date histogram aggregation] 
+and
 {ref}/search-aggregations-bucket-composite-aggregation.html[Composite aggregation].
-
-NOTE: The `time_zone` parameter in the date histogram aggregation must be set to
-`UTC`, which is the default value.
 
 Each histogram or composite bucket has a key, which is the bucket start time.
 This key cannot be used for aggregations in {dfeeds}, however, because
@@ -443,7 +460,7 @@ the time of the latest record within a bucket.
 You can optionally specify a terms aggregation, which creates buckets for
 different values of a field.
 
-IMPORTANT: If you use a terms aggregation, by default it returns buckets for
+If you use a terms aggregation, by default it returns buckets for
 the top ten terms. Thus if the cardinality of the term is greater than 10, not
 all terms are analyzed. In this case, consider using `composite` aggregations.
 

@@ -6,12 +6,10 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -51,19 +49,6 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
             listener.onFailure(new IllegalArgumentException("users may only list the privileges of their own account"));
             return;
         }
-
-        try {
-            authorizationService.retrieveUserPrivileges(subject, securityContext.getAuthorizationInfoFromContext(), listener);
-        } catch (UnsupportedOperationException e) {
-            if (authentication.isApiKey()) {
-                throw new ElasticsearchSecurityException(
-                    "Cannot retrieve privileges for API keys with assigned role descriptors. "
-                        + "Please use the Get API key information API https://ela.st/es-api-get-api-key",
-                    RestStatus.BAD_REQUEST,
-                    e
-                );
-            }
-            throw e;
-        }
+        authorizationService.retrieveUserPrivileges(subject, securityContext.getAuthorizationInfoFromContext(), listener);
     }
 }

@@ -658,7 +658,17 @@ public class RBACEngine implements AuthorizationEngine {
             );
         } else {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(buildUserPrivilegesResponseObject(role));
+            final GetUserPrivilegesResponse getUserPrivilegesResponse;
+            try {
+                getUserPrivilegesResponse = buildUserPrivilegesResponseObject(role);
+            } catch (UnsupportedOperationException e) {
+                throw new IllegalArgumentException(
+                    "Cannot retrieve privileges for API keys with assigned role descriptors. "
+                        + "Please use the Get API key information API https://ela.st/es-api-get-api-key",
+                    e
+                );
+            }
+            listener.onResponse(getUserPrivilegesResponse);
         }
     }
 

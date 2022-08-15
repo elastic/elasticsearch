@@ -47,7 +47,6 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         run -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(run),
         this::computeCapacity
     );
-    private final AllocationService allocationService;
 
     @Inject
     public TransportGetAutoscalingCapacityAction(
@@ -61,8 +60,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         final SnapshotsInfoService snapshotsInfoService,
         final AutoscalingNodeInfoService nodeInfoService,
         final AllocationDeciders allocationDeciders,
-        final AutoscalingLicenseChecker autoscalingLicenseChecker,
-        final AllocationService allocationService
+        final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
         super(
             GetAutoscalingCapacityAction.NAME,
@@ -80,7 +78,6 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         this.capacityService = capacityServiceHolder.get(allocationDeciders);
         this.clusterInfoService = clusterInfoService;
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
-        this.allocationService = allocationService;
         assert this.capacityService != null;
     }
 

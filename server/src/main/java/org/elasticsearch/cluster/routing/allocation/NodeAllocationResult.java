@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
 
@@ -155,6 +156,22 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        return o instanceof NodeAllocationResult that
+            && weightRanking == that.weightRanking
+            && Objects.equals(node, that.node)
+            && Objects.equals(shardStoreInfo, that.shardStoreInfo)
+            && nodeDecision == that.nodeDecision
+            && Objects.equals(canAllocateDecision, that.canAllocateDecision);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(node, shardStoreInfo, nodeDecision, canAllocateDecision, weightRanking);
     }
 
     @Override

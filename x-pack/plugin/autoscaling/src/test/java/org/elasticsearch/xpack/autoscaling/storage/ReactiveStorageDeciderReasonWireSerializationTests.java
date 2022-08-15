@@ -144,9 +144,9 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
 
     private NodeAllocationResult randomNodeAllocationResult() {
         return new NodeAllocationResult(
-            new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             randomFrom(Decision.NO, Decision.YES, Decision.THROTTLE),
-            1
+            randomInt()
         );
     }
 }

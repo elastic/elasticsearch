@@ -188,7 +188,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     }
 
     static boolean isFilterTierOnlyDecision(Decision decision, IndexMetadata indexMetadata) {
-        // only primary shardIds are handled here, allowing us to disregard same shard allocation decider.
+        // only primary shards are handled here, allowing us to disregard same shard allocation decider.
         return singleNoDecision(decision, single -> SameShardAllocationDecider.NAME.equals(single.label()) == false).filter(
             FilterAllocationDecider.NAME::equals
         ).map(d -> filterLooksLikeTier(indexMetadata)).orElse(false);
@@ -386,7 +386,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     node -> new NodeAllocationResult(node.node(), null, allocationDeciders.canAllocate(shard, node, allocation))
                 ).filter(nar -> ReactiveStorageDeciderService.isDiskOnlyNoDecision(nar.getCanAllocateDecision())).toList();
                 if (diskOnly.size() > 0 && shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-                    // For resize shardIds only allow autoscaling if there is no other node where the shard could fit had it not been
+                    // For resize shards only allow autoscaling if there is no other node where the shard could fit had it not been
                     // a resize shard. Notice that we already removed any initial_recovery filters.
                     List<NodeAllocationResult> resizeOnly = nodesInTier(allocation.routingNodes()).map(
                         node -> new NodeAllocationResult(node.node(), null, allocationDeciders.canAllocate(shard, node, allocation))

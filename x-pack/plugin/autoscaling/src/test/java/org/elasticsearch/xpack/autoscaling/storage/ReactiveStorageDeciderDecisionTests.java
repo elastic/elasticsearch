@@ -386,10 +386,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verifyScale(0, "storage ok");
     }
 
-    private static ShardsSize emptyShardsSize() {
-        return new ShardsSize(0, emptySortedSet(), null);
-    }
-
     private interface VerificationSubject {
         ShardsSize invoke(ReactiveStorageDeciderService.AllocationState state);
     }

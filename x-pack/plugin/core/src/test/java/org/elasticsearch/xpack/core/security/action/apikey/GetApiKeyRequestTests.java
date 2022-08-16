@@ -126,7 +126,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
         {
             final GetApiKeyRequest getApiKeyRequest1 = GetApiKeyRequest.builder()
                 .ownedByAuthenticatedUser(true)
-                .apiKeyName(apiKeyId)
+                .apiKeyId(apiKeyId)
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);

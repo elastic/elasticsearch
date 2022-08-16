@@ -65,16 +65,30 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // Keeps the latest health state that was successfully reported.
     private volatile DiskHealthInfo lastReportedDiskHealthInfo = null;
 
-    public LocalHealthMonitor(Settings settings, ClusterService clusterService, NodeService nodeService, ThreadPool threadPool) {
+    private LocalHealthMonitor(Settings settings, ClusterService clusterService, NodeService nodeService, ThreadPool threadPool) {
         this.threadPool = threadPool;
         this.monitorInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = HealthNodeTaskExecutor.ENABLED_SETTING.get(settings);
         this.clusterService = clusterService;
         this.diskCheck = new DiskCheck(nodeService);
-        clusterService.addListener(this);
+    }
+
+    public static LocalHealthMonitor create(
+        Settings settings,
+        ClusterService clusterService,
+        NodeService nodeService,
+        ThreadPool threadPool
+    ) {
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(settings, clusterService, nodeService, threadPool);
+        localHealthMonitor.registerListeners();
+        return localHealthMonitor;
+    }
+
+    private void registerListeners() {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setMonitorInterval);
         clusterSettings.addSettingsUpdateConsumer(HealthNodeTaskExecutor.ENABLED_SETTING, this::setEnabled);
+        clusterService.addListener(this);
     }
 
     void setMonitorInterval(TimeValue monitorInterval) {

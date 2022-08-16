@@ -32,8 +32,9 @@ class ItemSetBitSet implements Cloneable {
     /* Used to shift left or right for a partial word mask */
     private static final long WORD_MASK = 0xffffffffffffffffL;
 
-    private long[] words;
-    private transient int wordsInUse = 0;
+    // allow direct access for transaction lookup table
+    long[] words;
+    transient int wordsInUse = 0;
     private int cardinality = 0;
 
     ItemSetBitSet() {
@@ -88,6 +89,13 @@ class ItemSetBitSet implements Cloneable {
             cardinality--;
         }
         recalculateWordsInUse();
+    }
+
+    public void clear() {
+        while (wordsInUse > 0) {
+            words[--wordsInUse] = 0;
+        }
+        cardinality = 0;
     }
 
     /**

@@ -45,7 +45,7 @@ For context, the APM agent pulls configuration from [multiple
 sources][agent-config], with a hierarchy that means, for example, that options
 set in the config file cannot be overridden via system properties.
 
-Now, in order to send tracing data to the APM server, ES needs to configured with
+Now, in order to send tracing data to the APM server, ES needs to be configured with
 either a `secret_key` or an `api_key`. We could configure these in the agent via
 system properties, but then their values would be available to any Java code in
 Elasticsearch that can read system properties.

@@ -1,0 +1,5 @@
+pr: 89395
+summary: Limit concurrent msearch in expand fetch phase with preference
+area: Search
+type: bug
+issues: []

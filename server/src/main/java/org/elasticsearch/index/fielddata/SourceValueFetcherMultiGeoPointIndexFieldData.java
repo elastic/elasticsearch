@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +99,7 @@ public class SourceValueFetcherMultiGeoPointIndexFieldData extends SourceValueFe
         @SuppressWarnings("unchecked")
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-            values = new ArrayList<>();
+            values.clear();
 
             for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
                 assert value instanceof Map && ((Map<Object, Object>) value).get("coordinates") instanceof List;

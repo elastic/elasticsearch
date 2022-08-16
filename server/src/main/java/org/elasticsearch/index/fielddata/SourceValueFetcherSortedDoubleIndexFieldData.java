@@ -90,7 +90,7 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
         private final ValueFetcher valueFetcher;
         private final SourceLookup sourceLookup;
 
-        private List<Double> values;
+        private final List<Double> values;
         private Iterator<Double> iterator;
 
         private SourceValueFetcherSortedNumericDoubleValues(
@@ -101,12 +101,14 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
             this.leafReaderContext = leafReaderContext;
             this.valueFetcher = valueFetcher;
             this.sourceLookup = sourceLookup;
+
+            values = new ArrayList<>();
         }
 
         @Override
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-            values = new ArrayList<>();
+            values.clear();
 
             for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
                 assert value instanceof Number;

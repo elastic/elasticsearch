@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
@@ -175,6 +176,19 @@ class JavaDateFormatter implements DateFormatter {
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
         }
+    }
+
+    @Override
+    public Optional<TemporalAccessor> parseWithoutException(String input) {
+        for (DateTimeFormatter formatter : parsers) {
+            ParsePosition pos = new ParsePosition(0);
+            Object object = formatter.toFormat().parseObject(input, pos);
+            if (parsingSucceeded(object, input, pos)) {
+                return Optional.of((TemporalAccessor) object);
+            }
+        }
+
+        return Optional.empty();
     }
 
     /**

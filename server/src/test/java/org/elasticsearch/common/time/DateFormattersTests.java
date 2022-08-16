@@ -36,10 +36,19 @@ import static org.hamcrest.Matchers.sameInstance;
 public class DateFormattersTests extends ESTestCase {
 
     private void assertParseException(String input, String format) {
+        assertParseException(input, format, true);
+    }
+
+    private void assertParseException(String input, String format, boolean testParseWithoutException) {
+
         DateFormatter javaTimeFormatter = DateFormatter.forPattern(format);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
         assertThat(e.getMessage(), containsString(input));
         assertThat(e.getMessage(), containsString(format));
+        if (testParseWithoutException) {
+            var result = javaTimeFormatter.parseWithoutException(input);
+            assertTrue(result.isEmpty());
+        }
     }
 
     private void assertParses(String input, String format) {
@@ -53,6 +62,11 @@ public class DateFormattersTests extends ESTestCase {
         ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
 
         assertThat(zonedDateTime, notNullValue());
+
+        var result = formatter.parseWithoutException(input);
+        assertFalse(result.isEmpty());
+        ZonedDateTime zdt2 = DateFormatters.from(result.get());
+        assertThat(zonedDateTime, equalTo(zdt2));
     }
 
     private void assertDateMathEquals(String text, String pattern) {
@@ -649,8 +663,8 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testIncorrectFormat() {
-        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time||epoch_millis");
-        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time");
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time||epoch_millis", false);
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time", false);
     }
 
     public void testMinMillis() {

@@ -91,7 +91,7 @@ GET twitter/_search
 // CONSOLE
 // TEST[setup:twitter]
 // TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
-We can repeat this process by updating the `search_after` array every time we retrieve a 
+Repeat this process by updating the `search_after` array every time you retrieve a 
 new page of results. If a <<near-real-time,refresh>> occurs between these requests,
 the order of your results may change, causing inconsistent results across pages. To
 prevent this, you can create a <<point-in-time-api,point in time (PIT)>> to

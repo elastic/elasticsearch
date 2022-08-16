@@ -107,7 +107,7 @@ public class RootObjectMapper extends ObjectMapper {
                 enabled,
                 subobjects,
                 dynamic,
-                buildMappers(true, context),
+                buildMappers(context),
                 runtimeFields,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,

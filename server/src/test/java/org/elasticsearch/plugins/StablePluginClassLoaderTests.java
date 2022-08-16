@@ -48,15 +48,14 @@ public class StablePluginClassLoaderTests extends ESTestCase {
 
         Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("my-jar.jar");
-        createJar(outerJar, "MyClass");
+        createJarWithSingleClass(outerJar, "MyClass");
 
         // loading it with a URL classloader (just checking the jar, remove
         // this block)
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
         URLClassLoader parent = URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
-        try {
-            PrivilegedAction<URLClassLoader> pa = () -> URLClassLoader.newInstance(urls, parent);
-            URLClassLoader loader = AccessController.doPrivileged(pa);
+        PrivilegedAction<URLClassLoader> pa = () -> URLClassLoader.newInstance(urls, parent);
+        try (@SuppressWarnings("removal") URLClassLoader loader = AccessController.doPrivileged(pa)) {
             Class<?> c = loader.loadClass("p.MyClass");
             Object instance = c.getConstructor().newInstance();
             assertThat(instance.toString(), equalTo("MyClass"));
@@ -80,6 +79,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
 
         PrivilegedAction<ClassLoader> pa =
             () -> ModuleLayer.defineModulesWithOneLoader(cf, List.of(mparent), this.getClass().getClassLoader()).layer().findLoader("p");
+        @SuppressWarnings("removal")
         ClassLoader loader = AccessController.doPrivileged(pa);
         Class<?> c = loader.loadClass("p.MyClass");
         assertThat(c, notNullValue());
@@ -92,7 +92,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
     public void testLoadFromJar() throws Exception {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-jar.jar");
-        createJar(jar, "MyClass");
+        createJarWithSingleClass(jar, "MyClass");
 
         StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
             StablePluginClassLoaderTests.class.getClassLoader(),
@@ -113,7 +113,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-jar-with-resources.jar");
         // TODO: add more resources than just the class
-        createJar(jar, "MyClass");
+        createJarWithSingleClass(jar, "MyClass");
 
         {
             StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
@@ -146,7 +146,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-jar-with-resources.jar");
         // TODO: add more resources than just the class
-        createJar(jar, "MyClass");
+        createJarWithSingleClass(jar, "MyClass");
 
         StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
             StablePluginClassLoaderTests.class.getClassLoader(),
@@ -181,18 +181,18 @@ public class StablePluginClassLoaderTests extends ESTestCase {
 
     // test that we don't use parent-first searching
     public void testNoParentFirstSearch() throws Exception {
-        Path topLevelDir = createTempDir(getTestName());
-        Path overlappingJar = topLevelDir.resolve("my-overlapping-jar.jar");
+        Path tempDir = createTempDir(getTestName());
+        Path overlappingJar = tempDir.resolve("my-overlapping-jar.jar");
         String className = "MyClass";
-        createOverlappingJar(overlappingJar, className, "Wrong class found!");
+        createOverlappingJar(overlappingJar, className);
 
-        Path jar = topLevelDir.resolve("my-jar.jar");
-        createJar(jar, className);
+        Path jar = tempDir.resolve("my-jar.jar");
+        createJarWithSingleClass(jar, className);
 
         URL[] urls = new URL[] { overlappingJar.toUri().toURL() };
-        URLClassLoader parent;
         PrivilegedAction<URLClassLoader> pa = () -> URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
-        parent = AccessController.doPrivileged(pa);
+        @SuppressWarnings("removal")
+        URLClassLoader parent = AccessController.doPrivileged(pa);
 
         StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar));
 
@@ -212,44 +212,48 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         assertThat(instance3.toString(), equalTo("OtherClass"));
     }
 
-    private static void createJar(Path outerJar, String className) throws IOException {
+    public void testMultipleJarLoadClass() throws Exception {
+        Path tempDir = createTempDir(getTestName());
+        Path jar1 = tempDir.resolve("my-jar-1.jar");
+        Path jar2 = tempDir.resolve("my-jar-2.jar");
+        Path jar3 = tempDir.resolve("my-jar-3.jar");
+
+        createJarWithSingleClass(jar1, "FirstClass");
+        createJarWithSingleClass(jar2, "SecondClass");
+        createJarWithSingleClass(jar3, "ThirdClass");
+
+        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
+            StablePluginClassLoaderTests.class.getClassLoader(),
+            List.of(jar1, jar2, jar3)
+        );
+
+        Class<?> c1 = loader.loadClass("p.FirstClass");
+        Object instance1 = c1.getConstructor().newInstance();
+        assertThat(instance1.toString(), equalTo("FirstClass"));
+
+        Class<?> c2 = loader.loadClass("p.SecondClass");
+        Object instance2 = c2.getConstructor().newInstance();
+        assertThat(instance2.toString(), equalTo("SecondClass"));
+
+        Class<?> c3 = loader.loadClass("p.ThirdClass");
+        Object instance3 = c3.getConstructor().newInstance();
+        assertThat(instance3.toString(), equalTo("ThirdClass"));
+    }
+
+    private static void createJarWithSingleClass(Path jar, String className) throws IOException {
         Map<String, CharSequence> sources = new HashMap<>();
-        sources.put("p." + className, String.format(Locale.ENGLISH, """
-            package p;
-            public class %s {
-                @Override
-                public String toString() {
-                    return "%s";
-                }
-            }
-            """, className, className));
+        sources.put("p." + className, getSimpleSourceString("p", className, className));
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();
         jarEntries.put("p/" + className + ".class", classToBytes.get("p." + className));
-        JarUtils.createJarWithEntries(outerJar, jarEntries);
+        JarUtils.createJarWithEntries(jar, jarEntries);
     }
 
-    private static void createOverlappingJar(Path jar, String className, String message) throws IOException {
+    private static void createOverlappingJar(Path jar, String className) throws IOException {
         Map<String, CharSequence> sources = new HashMap<>();
-        sources.put("p." + className, String.format(Locale.ENGLISH, """
-            package p;
-            public class %s {
-                @Override
-                public String toString() {
-                    return "%s";
-                }
-            }
-            """, className, message));
-        sources.put("q.OtherClass", """
-            package q;
-            public class OtherClass {
-                @Override
-                public String toString() {
-                    return "OtherClass";
-                }
-            }
-            """);
+        sources.put("p." + className, getSimpleSourceString("p", className, "Wrong class found!"));
+        sources.put("q.OtherClass", getSimpleSourceString("q", "OtherClass", "OtherClass"));
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();
@@ -258,21 +262,23 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
     }
 
-    // TODO: remove
-    private static void createModularJar(Path jar, String className) throws IOException {
-        Map<String, CharSequence> sources = new HashMap<>();
-        sources.put("p." + className, String.format(Locale.ENGLISH, """
-            package p;
+    private static String getSimpleSourceString(String packageName, String className, String toStringOutput) {
+        return String.format(Locale.ENGLISH, """
+            package %s;
             public class %s {
                 @Override
                 public String toString() {
                     return "%s";
                 }
             }
-            """, className, className));
-        sources.put("module-info", """
-            module p {exports p;}
-            """);
+            """, packageName, className, toStringOutput);
+    }
+
+    // TODO: remove
+    private static void createModularJar(Path jar, String className) throws IOException {
+        Map<String, CharSequence> sources = new HashMap<>();
+        sources.put("p." + className, getSimpleSourceString("p", className, className));
+        sources.put("module-info", "module p {exports p;}");
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();

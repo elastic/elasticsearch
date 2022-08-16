@@ -36,12 +36,14 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
-import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -132,8 +134,8 @@ public class RBACEngineTests extends ESTestCase {
         final boolean changePasswordRequest = randomBoolean();
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request()
-            : new AuthenticateRequestBuilder(mock(Client.class)).username(user.principal()).request();
-        final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
+            : new HasPrivilegesRequestBuilder(mock(Client.class)).username(user.principal()).request();
+        final String action = changePasswordRequest ? ChangePasswordAction.NAME : HasPrivilegesAction.NAME;
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(3, 8),
             changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12),
@@ -152,8 +154,8 @@ public class RBACEngineTests extends ESTestCase {
         final String username = randomFrom("", "joe" + randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(3, 10));
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request()
-            : new AuthenticateRequestBuilder(mock(Client.class)).username(username).request();
-        final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
+            : new HasPrivilegesRequestBuilder(mock(Client.class)).username(username).request();
+        final String action = changePasswordRequest ? ChangePasswordAction.NAME : HasPrivilegesAction.NAME;
 
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(3, 8),
@@ -178,9 +180,19 @@ public class RBACEngineTests extends ESTestCase {
         if (request instanceof ChangePasswordRequest) {
             ((ChangePasswordRequest) request).username("joe");
         } else {
-            ((AuthenticateRequest) request).username("joe");
+            ((HasPrivilegesRequest) request).username("joe");
         }
         assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
+    }
+
+    public void testSameUserPermissionForAuthenticateRequest() {
+        assertTrue(
+            RBACEngine.checkSameUserPermissions(
+                AuthenticateAction.NAME,
+                AuthenticateRequest.INSTANCE,
+                AuthenticationTestHelper.builder().build()
+            )
+        );
     }
 
     public void testSameUserPermissionDoesNotAllowOtherActions() {
@@ -206,7 +218,7 @@ public class RBACEngineTests extends ESTestCase {
         final boolean changePasswordRequest = randomBoolean();
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request()
-            : new AuthenticateRequestBuilder(mock(Client.class)).username(username).request();
+            : new HasPrivilegesRequestBuilder(mock(Client.class)).username(username).request();
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
 
         final Authentication.RealmRef authenticatedBy = AuthenticationTestHelper.randomRealmRef(false);
@@ -302,8 +314,16 @@ public class RBACEngineTests extends ESTestCase {
         final User user = new User("joe");
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(user, apiKeyId);
-        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final TransportRequest request = GetApiKeyRequest.builder().apiKeyId(apiKeyId).build();
         assertTrue(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+    }
+
+    public void testSameUserPermissionDeniesSelfApiKeyInfoRetrievalWithLimitedByWhenAuthenticatedByApiKey() {
+        final User user = new User("joe");
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(user, apiKeyId);
+        final TransportRequest request = GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(true).build();
+        assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenAuthenticatedByADifferentApiKey() {

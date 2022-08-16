@@ -93,6 +93,14 @@ public interface ValuesSourceType {
      */
     String typeName();
 
+    /**
+     * Returns the exception to throw in case the registry (type, aggregator) entry
+     * is unmapped.
+     *
+     * @param config the {@link ValuesSourceConfig} for this type
+     * @param name the aggregation name
+     * @return the exception to throw
+     */
     default RuntimeException getUnmappedException(ValuesSourceConfig config, String name) {
         return new IllegalArgumentException(config.getDescription() + " is not supported for aggregation [" + name + "]");
     }

@@ -143,6 +143,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
+            // TODO can't we provide the right context directly?
             MapperBuilderContext mapperBuilderContext = root ? context : context.createChildContext(name);
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
@@ -150,7 +151,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
-                    mapper = existing.merge(mapper, mapperBuilderContext);
+                    MapperBuilderContext childContext = existing instanceof ObjectMapper
+                        ? mapperBuilderContext.createChildContext(existing.simpleName())
+                        : mapperBuilderContext;
+                    // The same mappings or document may hold the same field twice, either because duplicated JSON keys are allowed or
+                    // the same field is provided using the object notation as well as the dot notation at the same time.
+                    // This can also happen due to multiple index templates being merged into a single mappings definition using
+                    // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
+                    // mix of object notation and dot notation.
+                    mapper = existing.merge(mapper, childContext);
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }

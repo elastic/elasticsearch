@@ -549,7 +549,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             updatedVisibleClosedIndices,
             null,
             updatedMappingsByHash,
-            index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion
+            index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion,
+            reservedStateMetadata
         );
     }
 

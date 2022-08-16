@@ -92,4 +92,8 @@ public interface ValuesSourceType {
      * @return the name of the Values Source Type
      */
     String typeName();
+
+    default RuntimeException getUnmappedException(ValuesSourceConfig config, String name) {
+        return new IllegalArgumentException(config.getDescription() + " is not supported for aggregation [" + name + "]");
+    }
 }

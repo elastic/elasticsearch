@@ -20,6 +20,7 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -734,7 +735,8 @@ public class DateFieldMapperTests extends MapperTestCase {
             null,
             mock(ScriptService.class),
             true,
-            Version.fromId(7_99_99_99) // BWC compatible index, e.g 7.x
+            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0)) // BWC compatible
+                                                                                                                           // index, e.g 7.x
         );
 
         // Check that we allow the use of camel case date formats on 7.x indices

@@ -1129,6 +1129,9 @@ public class IndexNameExpressionResolver {
             // Utility class
         }
 
+        /**
+         * Returns a collection of resource names given the {@param expressions} which contains wildcards and exclusions.
+         */
         public static Collection<String> resolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);
             // only check open/closed since if we do not expand to open or closed it doesn't make sense to
@@ -1142,6 +1145,10 @@ public class IndexNameExpressionResolver {
             }
         }
 
+        /**
+         * Returns all the indices and all the datastreams, considering the open/closed, system, and hidden context parameters.
+         * Depending on the context, returns the names of the datastreams themselves or their backing indices.
+         */
         private static Collection<String> innerResolveAll(Context context) {
             List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(context);
             if (context.includeDataStreams() == false) {
@@ -1161,6 +1168,17 @@ public class IndexNameExpressionResolver {
             }
         }
 
+        /**
+         * Returns all the existing resource (index, alias and datastream) names that the {@param expressions} resolve to.
+         * The passed-in {@param expressions} might contain wildcards and exclusions, as well as plain resource names.
+         * The return is a {@code Collection} (usually a {@code Set} but can also be a {@code List}, for performance reasons) of plain
+         * resource names only. All the returned resources are "accessible", in the given context, i.e. the resources exist
+         * and are not an alias or a datastream if the context does not permit it.
+         * Wildcard expressions, depending on the context:
+         *   - might not cover hidden or system resources (but plain names can refer to hidden or system resources)
+         *   - might throw an exception if they don't cover anything
+         *   - might cover aliases and datastreams, and it could be that their backing indices are what's ultimately returned
+         */
         private static Collection<String> innerResolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);
             Collection<String> result = null;

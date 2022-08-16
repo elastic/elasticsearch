@@ -64,6 +64,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
+        Long expiresIn = (Long) responseMap.get("expires_in");
+        assertNotNull(expiresIn);
 
         storeTokens(client(), 1, accessToken, refreshToken);
 

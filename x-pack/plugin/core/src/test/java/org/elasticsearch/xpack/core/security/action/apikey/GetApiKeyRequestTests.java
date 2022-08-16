@@ -145,7 +145,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
             final GetApiKeyRequest getApiKeyRequest2 = GetApiKeyRequest.builder()
                 .apiKeyName(apiKeyId)
                 .ownedByAuthenticatedUser(true)
-                .withLimitedBy(true)
+                .withLimitedBy(randomBoolean())
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);

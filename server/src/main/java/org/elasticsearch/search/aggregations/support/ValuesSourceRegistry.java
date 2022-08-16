@@ -179,7 +179,9 @@ public class ValuesSourceRegistry {
             }
             return supplier;
         }
-        throw new AggregationExecutionException("Unregistered Aggregation [" + registryKey.getName() + "]");
+        throw new AggregationExecutionException(
+            "Unregistered Aggregation [" + (registryKey != null ? registryKey.getName() : "unknown aggregation") + "]"
+        );
     }
 
     public AggregationUsageService getUsageService() {

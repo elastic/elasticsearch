@@ -18,8 +18,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -91,8 +93,8 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         private final ValueFetcher valueFetcher;
         private final SourceLookup sourceLookup;
 
-        private SortedSet<Object> values;
-        private Iterator<Object> iterator;
+        private final SortedSet<BytesRef> values;
+        private Iterator<BytesRef> iterator;
 
         public SourceValueFetcherSortedBinaryDocValues(
             LeafReaderContext leafReaderContext,
@@ -102,12 +104,19 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
             this.leafReaderContext = leafReaderContext;
             this.valueFetcher = valueFetcher;
             this.sourceLookup = sourceLookup;
+
+            values = new TreeSet<>();
         }
 
         @Override
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-            values = new TreeSet<>(valueFetcher.fetchValues(sourceLookup, Collections.emptyList()));
+            values.clear();
+
+            for (Object object : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+                values.add(new BytesRef(object.toString()));
+            }
+
             iterator = values.iterator();
 
             return true;
@@ -121,7 +130,7 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         @Override
         public BytesRef nextValue() throws IOException {
             assert iterator.hasNext();
-            return new BytesRef(iterator.next().toString());
+            return iterator.next();
         }
     }
 }

@@ -173,7 +173,9 @@ public class HealthMetadataService {
             public ClusterState execute(BatchExecutionContext<UpsertHealthMetadataTask> batchExecutionContext) throws Exception {
                 ClusterState updatedState = batchExecutionContext.initialState();
                 for (TaskContext<UpsertHealthMetadataTask> taskContext : batchExecutionContext.taskContexts()) {
-                    updatedState = taskContext.getTask().execute(updatedState);
+                    try (var ignored = taskContext.captureResponseHeaders()) {
+                        updatedState = taskContext.getTask().execute(updatedState);
+                    }
                     taskContext.success(() -> {});
                 }
                 return updatedState;

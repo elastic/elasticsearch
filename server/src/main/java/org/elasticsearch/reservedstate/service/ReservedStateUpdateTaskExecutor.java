@@ -30,7 +30,9 @@ public record ReservedStateUpdateTaskExecutor(RerouteService rerouteService) imp
     public ClusterState execute(BatchExecutionContext<ReservedStateUpdateTask> batchExecutionContext) throws Exception {
         var updatedState = batchExecutionContext.initialState();
         for (final var taskContext : batchExecutionContext.taskContexts()) {
-            updatedState = taskContext.getTask().execute(updatedState);
+            try (var ignored = taskContext.captureResponseHeaders()) {
+                updatedState = taskContext.getTask().execute(updatedState);
+            }
             taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
         }
         return updatedState;

@@ -192,7 +192,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                     continue;
                 }
                 final var previousDesiredNodes = desiredNodes;
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     desiredNodes = updateDesiredNodes(desiredNodes, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);

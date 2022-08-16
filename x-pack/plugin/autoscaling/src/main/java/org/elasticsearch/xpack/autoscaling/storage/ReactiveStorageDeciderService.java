@@ -62,6 +62,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -293,7 +294,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return new ShardsSize(
                 unassignedShards.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum(),
                 unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
-                unassignedShards.stream().map(e -> e.nodeAllocationResults).filter(e -> e.size() > 0).findAny().orElse(null)
+                unassignedShards.stream()
+                    .filter(e -> e.nodeAllocationResults.size() > 0)
+                    .min(Comparator.comparing(e -> e.shard.shardId()))
+                    .map(e -> e.nodeAllocationResults)
+                    .orElse(null)
             );
         }
 
@@ -338,9 +343,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     .map(e -> e.shard.shardId())
                     .collect(Collectors.toCollection(TreeSet::new)),
                 Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedDecisionAllocationResults.stream())
+                    .filter(e -> e.nodeAllocationResults.size() > 0)
+                    .min(Comparator.comparing(e -> e.shard.shardId()))
                     .map(e -> e.nodeAllocationResults)
-                    .filter(e -> e.size() > 0)
-                    .findAny()
                     .orElse(null)
             );
         }

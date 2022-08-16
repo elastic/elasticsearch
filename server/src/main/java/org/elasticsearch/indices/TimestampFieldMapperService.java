@@ -142,6 +142,12 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         if (indexMetadata == null) {
             return false;
         }
+
+        if (indexMetadata.getTimeSeriesTimestampRange() != null) {
+            // Tsdb indices have @timestamp field and index.time_series.start_time / index.time_series.end_time range
+            return true;
+        }
+
         final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         return timestampRange.isComplete() && timestampRange != IndexLongFieldRange.UNKNOWN;
     }

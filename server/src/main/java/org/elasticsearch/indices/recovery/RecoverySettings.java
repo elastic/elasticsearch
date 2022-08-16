@@ -128,7 +128,7 @@ public class RecoverySettings {
      * Bandwidth settings have a default value of -1 (meaning that they are undefined) or a value in (0, Long.MAX_VALUE).
      */
     private static Setting<ByteSizeValue> bandwidthSetting(String key) {
-        return new Setting<>(key, s -> ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
+        return new Setting<>(key, ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
             final ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
             if (ByteSizeValue.MINUS_ONE.equals(value)) {
                 return value;

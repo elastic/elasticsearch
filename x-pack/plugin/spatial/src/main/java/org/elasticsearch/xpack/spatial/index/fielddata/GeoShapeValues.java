@@ -22,7 +22,7 @@ import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
@@ -121,7 +121,7 @@ public abstract class GeoShapeValues {
                 return new GeoPoint(lat(), lon());
             }
             // For all other cases, use the first triangle (or line or point) in the tree which will always intersect the shape
-            LabelPositionVisitor visitor = new LabelPositionVisitor(CoordinateEncoder.GEO);
+            LabelPositionVisitor<GeoPoint> visitor = new LabelPositionVisitor<>(CoordinateEncoder.GEO, (x, y) -> new GeoPoint(y, x));
             reader.visit(visitor);
             return visitor.labelPosition();
         }
@@ -179,7 +179,7 @@ public abstract class GeoShapeValues {
         public static GeoShapeValue missing(String missing) {
             try {
                 final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
-                final BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField("missing");
+                final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", CoordinateEncoder.GEO);
                 field.add(MISSING_GEOSHAPE_INDEXER.indexShape(geometry), geometry);
                 final GeoShapeValue value = new GeoShapeValue();
                 value.reset(field.binaryValue());

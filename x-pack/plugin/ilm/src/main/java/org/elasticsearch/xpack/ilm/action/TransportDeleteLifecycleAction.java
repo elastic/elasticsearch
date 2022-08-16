@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -31,6 +32,8 @@ import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -70,6 +73,14 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
             this.request = request;
         }
 
+        /**
+         * Used by the {@link ReservedClusterStateHandler} for ILM
+         * {@link ReservedLifecycleAction}
+         */
+        DeleteLifecyclePolicyTask(String policyName) {
+            this(new Request(policyName), null);
+        }
+
         @Override
         public ClusterState execute(ClusterState currentState) {
             String policyToDelete = request.getPolicyName();
@@ -106,5 +117,15 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedLifecycleAction.NAME);
+    }
+
+    @Override
+    protected Set<String> modifiedKeys(Request request) {
+        return Set.of(request.getPolicyName());
     }
 }

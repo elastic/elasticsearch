@@ -442,7 +442,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     .isTimedOut()
             );
         }, 30, TimeUnit.SECONDS);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode)); // otherwise we will fail during clean-up
+        internalCluster().stopNode(dataNode); // otherwise we will fail during clean-up
     }
 
     /**

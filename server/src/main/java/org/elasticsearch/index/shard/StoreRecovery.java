@@ -545,9 +545,7 @@ public final class StoreRecovery {
             }
             assert indexShard.getEngineOrNull() == null;
             indexIdListener.whenComplete(idx -> {
-                assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']')
-                    || Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
-                    || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
                 repository.restoreShard(
                     indexShard.store(),
                     restoreSource.snapshot().getSnapshotId(),

@@ -13,16 +13,27 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import com.ibm.icu.text.BreakIterator;
 
+import org.apache.lucene.analysis.charfilter.BaseCharFilter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
 
+import java.io.CharArrayReader;
+import java.io.IOException;
+import java.io.Reader;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalInt;
+
+import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.numUtf8Bytes;
 
 /**
  * This is custom normalizer logic purpose built to replicate the logic in DoubleArray Trie System (darts)
@@ -36,10 +47,15 @@ import java.util.OptionalInt;
  *      DARTS
  *      </a>
  *  - <a href="https://github.com/google/sentencepiece/blob/91809e5c70ed0e6364267a0f0fed66c144482ce4/src/normalizer.cc">SP normalizer</a>
+ *
+ *  We implement this as a char filter to take advantage of the underlying offset correction and because normalization needs to occur before
+ *  tokenization (just like a charfilter)
  */
-public class PrecompiledCharMapNormalizer {
+public class PrecompiledCharMapNormalizer extends BaseCharFilter {
 
-    static PrecompiledCharMapNormalizer fromBase64Str(String s) {
+    record Config(int[] offsets, String utf8str) {}
+
+    static Config fromBase64Str(String s) {
         int offset = 0;
         byte[] bytes = Base64.getDecoder().decode(s);
         int trieSize = ByteBuffer.wrap(bytes, offset, 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt();
@@ -51,7 +67,7 @@ public class PrecompiledCharMapNormalizer {
             offset += 4;
         }
         String utf8Str = new String(bytes, offset, bytes.length - offset, StandardCharsets.UTF_8);
-        return new PrecompiledCharMapNormalizer(offsets, utf8Str);
+        return new Config(offsets, utf8Str);
     }
 
     // The offsets for each normalization piece. Used in DARTS algorithm to iterate and find appropriate section
@@ -61,25 +77,29 @@ public class PrecompiledCharMapNormalizer {
     private final byte[] normalizedStrUtf8Bytes;
     // Continually reused to copy a single char into utf8 bytes
     private final byte[] reusableCharByteBuffer = new byte[4];
+    // reusable char buffer for decoding utf8 bytes to determine char offset corrections
+    private final char[] reusableCharDecodeBuffer = new char[8];
+    private Reader transformedInput;
 
-    public PrecompiledCharMapNormalizer(int[] offsets, String normalizedStr) {
+    public PrecompiledCharMapNormalizer(int[] offsets, String normalizedStr, Reader in) {
+        super(in);
         this.offsets = offsets;
         this.normalizedStrUtf8Bytes = normalizedStr.getBytes(StandardCharsets.UTF_8);
     }
 
-    boolean hasLeaf(int v) {
+    private boolean hasLeaf(int v) {
         return ((v >>> 8) & 1) == 1;
     }
 
-    int label(int v) {
+    private int label(int v) {
         return (v & ((1 << 31) | 0xFF));
     }
 
-    int value(int v) {
+    private int value(int v) {
         return (v & ((1 << 31) - 1));
     }
 
-    int offset(int v) {
+    private int offset(int v) {
         return (v >>> 10) << ((v & (1 << 9)) >>> 6);
     }
 
@@ -104,7 +124,7 @@ public class PrecompiledCharMapNormalizer {
      * @param len the length of bytes to consider
      * @return The starting position in the normalization string of the normalized bytes, if found.
      */
-    OptionalInt commonPrefix(byte[] inputBytes, int offset, int len) {
+    private OptionalInt commonPrefix(byte[] inputBytes, int offset, int len) {
         int pos = 0;
         OptionalInt vs = OptionalInt.empty();
         int v = offsets[pos];
@@ -132,7 +152,7 @@ public class PrecompiledCharMapNormalizer {
         return vs;
     }
 
-    Optional<BytesRef> normalizePart(byte[] strBytes, int offset, int len) {
+    private Optional<BytesRef> normalizePart(byte[] strBytes, int offset, int len) {
         OptionalInt index = commonPrefix(strBytes, offset, len);
         if (index.isEmpty()) {
             return Optional.empty();
@@ -144,66 +164,100 @@ public class PrecompiledCharMapNormalizer {
             secondIndex++;
         }
         if (secondIndex == firstIndex) {
-            return Optional.empty();
+            return Optional.of(new BytesRef(BytesRef.EMPTY_BYTES));
         }
         return Optional.of(new BytesRef(normalizedStrUtf8Bytes, firstIndex, secondIndex - firstIndex));
     }
 
-    String normalize(String str) {
+    Reader normalize(CharSequence str) {
         // We need to iterate actual Unicode graphemes (this includes surrogate pairs, etc.)
-        // I would much rather translate the entire input string text into utf-8 bytes, and then iterate to the appropriate
-        // break points from there. But, this seemed the easiest way for now
-        //
-        // Keep in mind, these break points aren't necessarily surrogate pairs, but also codepoints that contain a combining mark
+        ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(str));
+        byte[] strBytes = new byte[byteBuffer.limit()];
+        byteBuffer.get(strBytes);
+        int[] strCp = str.codePoints().toArray();
         BreakIterator b = BreakIterator.getCharacterInstance(Locale.ROOT);
         b.setText(str);
-        int start = b.first();
-        // If we knew the utf-8 length ahead of time (and iterated over the bytes in the appropriate chunks)
-        // we could pre-populate the known length here.
-        BytesRefBuilder strBuilder = new BytesRefBuilder();
-        for (int end = b.next(); end != BreakIterator.DONE; start = end, end = b.next()) {
-            // TODO: It would be awesome if we could translate these starts and ends to byte positions, if we could performance would be
-            // dramatically improved
-            String unicodeStr = str.substring(start, end);
-            byte[] unicode = unicodeStr.getBytes(StandardCharsets.UTF_8);
+        // We iterate the whole string, so b.first() is always `0`
+        int startIter = b.first();
+        int codePointPos = 0;
+        CharsRefBuilder strBuilder = new CharsRefBuilder();
+        strBuilder.grow(strBytes.length);
+        int bytePos = 0;
+        int normalizedCharPos = 0;
+        // Keep in mind, these break points aren't necessarily surrogate pairs, but also codepoints that contain a combining mark
+        for (int end = b.next(); end != BreakIterator.DONE; startIter = end, end = b.next()) {
+            int byteLen = 0;
+            int numCp = Character.codePointCount(str, startIter, end);
+            for (int i = codePointPos; i < numCp + codePointPos; i++) {
+                byteLen += numUtf8Bytes(strCp[i]);
+            }
+            codePointPos += numCp;
             // The trie only go up to a depth of 5 bytes.
             // So even looking at it for graphemes (with combining, surrogate, etc.) that are 6+ bytes in length is useless.
-            if (unicode.length < 6) {
-                Optional<BytesRef> subStr = normalizePart(unicode, 0, unicode.length);
-                if (subStr.isPresent()) {
-                    strBuilder.append(subStr.get());
+            if (byteLen < 6) {
+                Optional<BytesRef> maybeSubStr = normalizePart(strBytes, bytePos, byteLen);
+                if (maybeSubStr.isPresent()) {
+                    BytesRef subStr = maybeSubStr.get();
+                    int numChars = UnicodeUtil.UTF8toUTF16(subStr.bytes, subStr.offset, subStr.length, reusableCharDecodeBuffer);
+                    normalizedCharPos += numChars;
+                    if (numChars != end - startIter) {
+                        addOffCorrectMap(normalizedCharPos, getLastCumulativeDiff() + end - startIter - numChars);
+                    }
+                    strBuilder.append(reusableCharDecodeBuffer, 0, numChars);
+                    bytePos += byteLen;
                     continue;
                 }
             }
-            int charIndex = 0;
             int charByteIndex = 0;
-            char[] unicodeCharArray = unicodeStr.toCharArray();
-            for (char c : unicodeCharArray) {
-                Optional<BytesRef> subStr = normalizePart(unicode, charByteIndex, numUtf8Bytes(c));
-                if (subStr.isPresent()) {
-                    strBuilder.append(subStr.get());
+            for (int i = startIter; i < end; i++) {
+                int utf8CharBytes = numUtf8Bytes(str.charAt(i));
+                Optional<BytesRef> maybeSubStr = normalizePart(strBytes, charByteIndex + bytePos, utf8CharBytes);
+                if (maybeSubStr.isPresent()) {
+                    BytesRef subStr = maybeSubStr.get();
+                    int numChars = UnicodeUtil.UTF8toUTF16(subStr.bytes, subStr.offset, subStr.length, reusableCharDecodeBuffer);
+                    normalizedCharPos += numChars;
+                    // Meaning we removed this char
+                    if (numChars < 1) {
+                        addOffCorrectMap(normalizedCharPos, getLastCumulativeDiff() + 1);
+                    } else if (numChars > 1) {
+                        addOffCorrectMap(normalizedCharPos, getLastCumulativeDiff() - 1);
+                    }
+                    strBuilder.append(reusableCharDecodeBuffer, 0, numChars);
                 } else {
-                    int numBytes = UnicodeUtil.UTF16toUTF8(unicodeCharArray, charIndex, 1, reusableCharByteBuffer);
-                    strBuilder.append(reusableCharByteBuffer, 0, numBytes);
+                    normalizedCharPos += 1;
+                    strBuilder.append(str.charAt(i));
                 }
-                charByteIndex += numUtf8Bytes(c);
-                ++charIndex;
+                charByteIndex += utf8CharBytes;
             }
+            bytePos += byteLen;
         }
-        return strBuilder.get().utf8ToString();
+        return new CharArrayReader(strBuilder.chars(), 0, strBuilder.length());
     }
 
-    private static int numUtf8Bytes(int c) {
-        if (c < 128) {
-            return 1;
+    @Override
+    public int read(char[] cbuf, int off, int len) throws IOException {
+        if (transformedInput == null) {
+            fill();
         }
-        if (c < 2048) {
-            return 2;
-        }
-        if (c < 65536) {
-            return 3;
-        }
-        return 4;
+
+        return transformedInput.read(cbuf, off, len);
     }
 
+    @Override
+    public int read() throws IOException {
+        if (transformedInput == null) {
+            fill();
+        }
+
+        return transformedInput.read();
+    }
+
+    private void fill() throws IOException {
+        List<CharSequence> charArrays = new ArrayList<>();
+        char[] temp = new char[1024];
+        for (int cnt = input.read(temp); cnt > 0; cnt = input.read(temp)) {
+            charArrays.add(new CharsRef(Arrays.copyOfRange(temp, 0, cnt), 0, cnt));
+        }
+        transformedInput = normalize(new MultiCharSequence(charArrays));
+    }
 }

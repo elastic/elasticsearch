@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
@@ -19,6 +18,7 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -66,12 +66,12 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         if (pointConverter != null) {
-            Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
+            Number segMin = findLeafMinValue(aggCtx.getLeafReaderContext().reader(), pointField, pointConverter);
             if (segMin != null) {
                 /*
                  * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
@@ -84,7 +84,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
         }
-        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
             @Override

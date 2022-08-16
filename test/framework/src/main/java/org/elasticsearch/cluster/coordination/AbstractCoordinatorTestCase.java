@@ -15,6 +15,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
+import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
@@ -54,6 +56,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -65,6 +68,7 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -290,7 +294,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             assertThat(initialNodeCount, greaterThan(0));
 
-            final Set<String> masterEligibleNodeIds = new HashSet<>(initialNodeCount);
+            final Set<String> masterEligibleNodeIds = Sets.newHashSetWithExpectedSize(initialNodeCount);
             clusterNodes = new ArrayList<>(initialNodeCount);
             for (int i = 0; i < initialNodeCount; i++) {
                 final ClusterNode clusterNode = new ClusterNode(
@@ -1085,6 +1089,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClusterService clusterService;
             TransportService transportService;
             private MasterHistoryService masterHistoryService;
+            CoordinationDiagnosticsService coordinationDiagnosticsService;
             StableMasterHealthIndicatorService stableMasterHealthIndicatorService;
             private DisruptableMockTransport mockTransport;
             private final NodeHealthService nodeHealthService;
@@ -1222,7 +1227,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
                 masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(clusterService, masterHistoryService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
                 );
@@ -1231,19 +1235,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-                client.initialize(
-                    Map.of(
-                        NodesHotThreadsAction.INSTANCE,
-                        new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, new ActionFilters(emptySet())),
-                        MasterHistoryAction.INSTANCE,
-                        new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService)
-                    ),
-                    transportService.getTaskManager(),
-                    localNode::getId,
-                    transportService.getLocalNodeConnection(),
-                    null,
-                    getNamedWriteableRegistry()
-                );
                 coordinator = new Coordinator(
                     "test_node",
                     settings,
@@ -1260,8 +1251,37 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     Randomness.get(),
                     (s, p, r) -> {},
                     getElectionStrategy(),
-                    nodeHealthService
+                    nodeHealthService,
+                    new NoneCircuitBreakerService()
                 );
+                coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+                    clusterService,
+                    transportService,
+                    coordinator,
+                    masterHistoryService
+                );
+                client.initialize(
+                    Map.of(
+                        NodesHotThreadsAction.INSTANCE,
+                        new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, new ActionFilters(emptySet())),
+                        MasterHistoryAction.INSTANCE,
+                        new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService),
+                        ClusterFormationInfoAction.INSTANCE,
+                        new ClusterFormationInfoAction.TransportAction(transportService, new ActionFilters(Set.of()), coordinator),
+                        CoordinationDiagnosticsAction.INSTANCE,
+                        new CoordinationDiagnosticsAction.TransportAction(
+                            transportService,
+                            new ActionFilters(Set.of()),
+                            coordinationDiagnosticsService
+                        )
+                    ),
+                    transportService.getTaskManager(),
+                    localNode::getId,
+                    transportService.getLocalNodeConnection(),
+                    null,
+                    getNamedWriteableRegistry()
+                );
+                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService);
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,
@@ -1276,6 +1296,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 coordinator.start();
                 gatewayService.start();
                 clusterService.start();
+                coordinationDiagnosticsService.start();
                 coordinator.startInitialJoin();
             }
 

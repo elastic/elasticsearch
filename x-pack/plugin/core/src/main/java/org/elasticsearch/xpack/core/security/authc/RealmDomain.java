@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,6 +47,10 @@ public record RealmDomain(String name, Set<RealmConfig.RealmIdentifier> realms) 
         }
         builder.endObject();
         return builder;
+    }
+
+    public static RealmDomain fromXContent(final XContentParser parser) {
+        return REALM_DOMAIN_PARSER.apply(parser, null);
     }
 
     @Override

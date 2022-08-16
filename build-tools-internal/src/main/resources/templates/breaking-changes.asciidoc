@@ -9,14 +9,16 @@ your application to {es} ${majorDotMinor}.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 <% if (isElasticsearchSnapshot) { %>
-coming::[${version}]
+coming::[${majorDotMinorDotRevision}]
 <% } %>
 
 [discrete]
 [[breaking-changes-${majorDotMinor}]]
 === Breaking changes
 <% if (breakingByNotabilityByArea.isEmpty()) { %>
+// tag::notable-breaking-changes[]
 There are no breaking changes in {es} ${majorDotMinor}.
+// end::notable-breaking-changes[]
 <% } else { %>
 The following changes in {es} ${majorDotMinor} might affect your applications
 and prevent them from operating normally.

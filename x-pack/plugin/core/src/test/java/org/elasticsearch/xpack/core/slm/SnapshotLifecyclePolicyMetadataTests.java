@@ -84,11 +84,16 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
         if (randomBoolean()) {
             builder.setHeaders(randomHeaders());
         }
-        if (randomBoolean()) {
+        boolean hasSuccess = randomBoolean();
+        if (hasSuccess) {
             builder.setLastSuccess(randomSnapshotInvocationRecord());
+            builder.setInvocationsSinceLastSuccess(0L);
         }
         if (randomBoolean()) {
             builder.setLastFailure(randomSnapshotInvocationRecord());
+            if (hasSuccess) {
+                builder.setInvocationsSinceLastSuccess(randomLongBetween(1, Long.MAX_VALUE));
+            }
         }
         return builder.build();
     }

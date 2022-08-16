@@ -11,7 +11,9 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -60,10 +62,10 @@ public class RestForceMergeAction extends BaseRestHandler {
             if (validationException != null) {
                 throw validationException;
             }
-            return sendTask(
-                client.getLocalNodeId(),
-                client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, LoggingTaskListener.instance())
-            );
+            final var responseFuture = new ListenableActionFuture<ForceMergeResponse>();
+            final var task = client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, responseFuture);
+            responseFuture.addListener(new LoggingTaskListener<>(task));
+            return sendTask(client.getLocalNodeId(), task);
         }
     }
 

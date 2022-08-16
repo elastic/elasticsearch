@@ -9,6 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Dictionary;
@@ -50,8 +51,10 @@ public final class BootstrapInfo {
     }
 
     /**
-     * Returns a reference to a stream attached to Standard Output, iff we have determined that stdout is a console (tty)
+     * Returns information about the console (tty) attached to the server process, or {@code null}
+     * if no console is attached.
      */
+    @Nullable
     public static ConsoleLoader.Console getConsole() {
         return console.get();
     }
@@ -143,7 +146,7 @@ public final class BootstrapInfo {
 
     public static void init() {}
 
-    static void setConsole(ConsoleLoader.Console console) {
+    static void setConsole(@Nullable ConsoleLoader.Console console) {
         BootstrapInfo.console.set(console);
     }
 

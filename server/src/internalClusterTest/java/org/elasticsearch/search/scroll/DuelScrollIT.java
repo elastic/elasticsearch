@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -25,7 +26,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -125,7 +125,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         boolean unevenRouting = randomBoolean();
 
         int numMissingDocs = scaledRandomIntBetween(0, numDocs / 100);
-        Set<Integer> missingDocs = new HashSet<>(numMissingDocs);
+        Set<Integer> missingDocs = Sets.newHashSetWithExpectedSize(numMissingDocs);
         for (int i = 0; i < numMissingDocs; i++) {
             while (missingDocs.add(randomInt(numDocs)) == false) {
             }

@@ -92,7 +92,6 @@ public class BytesStreamOutput extends BytesStream {
         count += length;
     }
 
-    @Override
     public void reset() {
         // shrink list of pages
         if (bytes != null && bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {

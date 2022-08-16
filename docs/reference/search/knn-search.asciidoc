@@ -4,8 +4,8 @@
 <titleabbrev>kNN search</titleabbrev>
 ++++
 
+deprecated::[8.4.0,"The kNN search API has been replaced by the <<<<search-api-knn, `knn` option>> in the search API."]
 experimental::[]
-
 Performs a k-nearest neighbor (kNN) search and returns the matching documents.
 
 ////
@@ -46,6 +46,7 @@ GET my-index/_knn_search
 }
 ----
 // TEST[continued]
+// TEST[warning:The kNN search API has been replaced by the `knn` option in the search API.]
 
 [[knn-search-api-request]]
 ==== {api-request-title}
@@ -75,8 +76,8 @@ that sacrifices result accuracy for improved search speed. This means the
 results returned are not always the true _k_ closest neighbors.
 //end::hnsw-algorithm[]
 
-The kNN search API supports <<knn-search-api-filter-example, restricting the search using a filter>>.
-The search will return the top `k` documents that also match the filter query.
+The kNN search API supports restricting the search using a filter. The search
+will return the top `k` documents that also match the filter query.
 
 [[knn-search-api-path-params]]
 ==== {api-path-parms-title}
@@ -152,106 +153,3 @@ the similarity between the query and document vector. See
 * The `hits.total` object contains the total number of nearest neighbor
 candidates considered, which is `num_candidates * num_shards`. The
 `hits.total.relation` will always be `eq`, indicating an exact value.
-
-[[knn-search-api-example]]
-==== {api-examples-title}
-
-===== Basic kNN search
-
-The following requests create a `dense_vector` field with indexing enabled and
-add sample documents:
-
-[source,console]
-----
-PUT my-index
-{
-  "mappings": {
-    "properties": {
-      "image_vector": {
-        "type": "dense_vector",
-        "dims": 3,
-        "index": true,
-        "similarity": "l2_norm"
-      },
-      "name": {
-        "type": "keyword"
-      },
-      "file_type": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-
-PUT my-index/_doc/1?refresh
-{
-  "image_vector" : [0.5, 0.1, 2.6],
-  "name": "moose family",
-  "file_type": "jpeg"
-}
-
-PUT my-index/_doc/2?refresh
-{
-  "image_vector" : [1.0, 0.8, -0.2],
-  "name": "alpine lake",
-  "file_type": "svg"
-}
-----
-
-[[knn-search-api-filter-example]]
-===== Filtered kNN search
-
-The next request performs a kNN search filtered by the `file_type` field:
-
-[source,console]
-----
-GET my-index/_knn_search
-{
-  "knn": {
-    "field": "image_vector",
-    "query_vector": [0.3, 0.1, 1.2],
-    "k": 5,
-    "num_candidates": 50
-  },
-  "filter": {
-    "term": {
-      "file_type": "svg"
-    }
-  },
-  "_source": ["name"]
-}
-----
-// TEST[continued]
-
-[source,console-result]
-----
-{
-  "took": 5,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
-    "max_score": 0.2538071,
-    "hits": [
-      {
-        "_index": "my-index",
-        "_id": "2",
-        "_score": 0.2538071,
-        "_source": {
-          "name": "alpine lake"
-        }
-      }
-    ]
-  }
-}
-----
-// TESTRESPONSE[s/"took": 5/"took": $body.took/]
-// TESTRESPONSE[s/,\n      \.\.\.//]

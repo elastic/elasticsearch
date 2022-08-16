@@ -70,7 +70,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.GroupPrincipal;
@@ -770,13 +769,13 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testMissingDescriptor() throws Exception {
         Files.createFile(pluginDir.resolve("fake.yml"));
         String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
-        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installPlugin(pluginZip));
-        assertThat(e.getMessage(), containsString("plugin-descriptor.properties"));
+        var e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip));
+        assertThat(e.getMessage(), containsString("missing a descriptor properties file"));
         assertInstallCleaned(env.v2());
     }
 
     public void testContainsIntermediateDirectory() throws Exception {
-        Files.createFile(pluginDir.resolve(PluginDescriptor.ES_PLUGIN_PROPERTIES));
+        Files.createFile(pluginDir.resolve(PluginDescriptor.INTERNAL_DESCRIPTOR_FILENAME));
         String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
@@ -1503,7 +1502,7 @@ public class InstallPluginActionTests extends ESTestCase {
      * instead simply print a message to the terminal.
      */
     public void testInstallMigratedPlugins() throws Exception {
-        for (String id : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+        for (String id : List.of("repository-azure", "repository-gcs", "repository-s3", "ingest-attachment")) {
             installPlugin(id);
             assertThat(terminal.getErrorOutput(), containsString("[" + id + "] is no longer a plugin"));
         }

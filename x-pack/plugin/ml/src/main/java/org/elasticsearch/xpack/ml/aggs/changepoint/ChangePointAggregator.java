@@ -373,7 +373,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
     }
 
-    static record VarianceAndRValue(double variance, double rValue) implements Comparable<VarianceAndRValue> {
+    record VarianceAndRValue(double variance, double rValue) implements Comparable<VarianceAndRValue> {
         @Override
         public int compareTo(VarianceAndRValue o) {
             int v = Double.compare(variance, o.variance);

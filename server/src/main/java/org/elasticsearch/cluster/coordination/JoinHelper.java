@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -21,11 +22,14 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,6 +71,7 @@ public class JoinHelper {
     private final LongSupplier currentTermSupplier;
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
+    private final CircuitBreakerService circuitBreakerService;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -82,11 +87,13 @@ public class JoinHelper {
         Function<StartJoinRequest, Join> joinLeaderInTerm,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        JoinReasonService joinReasonService
+        JoinReasonService joinReasonService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
+        this.circuitBreakerService = circuitBreakerService;
         this.joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
         this.currentTermSupplier = currentTermSupplier;
         this.nodeHealthService = nodeHealthService;
@@ -166,10 +173,10 @@ public class JoinHelper {
     static class FailedJoinAttempt {
         private final DiscoveryNode destination;
         private final JoinRequest joinRequest;
-        private final TransportException exception;
+        private final ElasticsearchException exception;
         private final long timestamp;
 
-        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, TransportException exception) {
+        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception) {
             this.destination = destination;
             this.joinRequest = joinRequest;
             this.exception = exception;
@@ -180,9 +187,10 @@ public class JoinHelper {
             logger.log(getLogLevel(exception), () -> format("failed to join %s with %s", destination, joinRequest), exception);
         }
 
-        static Level getLogLevel(TransportException e) {
+        static Level getLogLevel(ElasticsearchException e) {
             Throwable cause = e.unwrapCause();
             if (cause instanceof CoordinationStateRejectedException
+                || cause instanceof CircuitBreakingException
                 || (cause instanceof Exception causeException && MasterService.isPublishFailureException(causeException))) {
                 return Level.DEBUG;
             }
@@ -221,6 +229,29 @@ public class JoinHelper {
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());
         if (pendingOutgoingJoins.putIfAbsent(dedupKey, pendingJoinInfo) == null) {
+
+            // If this node is under excessive heap pressure then the state it receives for join validation will trip a circuit breaker and
+            // fail the join attempt, resulting in retrying in a loop which makes the master just send a constant stream of cluster states
+            // to this node. We try and keep the problem local to this node by checking that we can at least allocate one byte:
+            final var breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(1L, "pre-flight join request");
+            } catch (Exception e) {
+                pendingJoinInfo.message = PENDING_JOIN_FAILED;
+                pendingOutgoingJoins.remove(dedupKey);
+                if (e instanceof ElasticsearchException elasticsearchException) {
+                    final var attempt = new FailedJoinAttempt(destination, joinRequest, elasticsearchException);
+                    attempt.logNow();
+                    lastFailedJoinAttempt.set(attempt);
+                    assert elasticsearchException instanceof CircuitBreakingException : e; // others shouldn't happen, handle them anyway
+                } else {
+                    logger.error("join failed during pre-flight circuit breaker check", e);
+                    assert false : e; // shouldn't happen, handle it anyway
+                }
+                return;
+            }
+            breaker.addWithoutBreaking(-1L);
+
             logger.debug("attempting to join {} with {}", destination, joinRequest);
             pendingJoinInfo.message = PENDING_JOIN_CONNECTING;
             // Typically we're already connected to the destination at this point, the PeerFinder holds a reference to this connection to
@@ -246,10 +277,7 @@ public class JoinHelper {
                         new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
-                                assert Thread.currentThread()
-                                    .getName()
-                                    .contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
-                                    || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
+                                assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
                                 pendingJoinInfo.message = PENDING_JOIN_WAITING_RESPONSE;
                                 transportService.sendRequest(
                                     destination,
@@ -282,7 +310,7 @@ public class JoinHelper {
                             private void cleanUpOnFailure(TransportException exp) {
                                 pendingJoinInfo.message = PENDING_JOIN_FAILED;
                                 pendingOutgoingJoins.remove(dedupKey);
-                                FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                                final var attempt = new FailedJoinAttempt(destination, joinRequest, exp);
                                 attempt.logNow();
                                 lastFailedJoinAttempt.set(attempt);
                                 unregisterAndReleaseConnection(destination, connectionReference);
@@ -295,7 +323,7 @@ public class JoinHelper {
                 public void onFailure(Exception e) {
                     pendingJoinInfo.message = PENDING_JOIN_CONNECT_FAILED;
                     pendingOutgoingJoins.remove(dedupKey);
-                    FailedJoinAttempt attempt = new FailedJoinAttempt(
+                    final var attempt = new FailedJoinAttempt(
                         destination,
                         joinRequest,
                         new ConnectTransportException(destination, "failed to acquire connection", e)

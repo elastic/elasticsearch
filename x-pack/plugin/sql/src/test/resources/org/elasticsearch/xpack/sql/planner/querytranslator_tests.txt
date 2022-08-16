@@ -102,6 +102,20 @@ SELECT date + 1 * INTERVAL '1' DAY FROM test GROUP BY 1;
 "missing_bucket":true,"value_type":"long","order":"asc"}}}]}}}
 ;
 
+GroupByVersion
+SELECT version, count(*) FROM test GROUP BY version;
+{"terms":{"field":"version"
+;
+
+GroupByVersionScript
+SELECT CONCAT('1.', version::string)::version v, count(*) FROM test GROUP BY v;
+{"terms":{"script":{"source":"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.concat(params.v0,InternalSqlScriptUtils.cast(InternalQlScriptUtils.docValue(doc,params.v1),params.v2)),params.v3)","lang":"painless","params":{"v0":"1.","v1":"version","v2":"KEYWORD","v3":"VERSION"}}
+;
+
+OrderByVersionScript
+SELECT CONCAT('1.', version::string)::version v FROM test ORDER BY v;
+{"script":{"source":"InternalQlScriptUtils.nullSafeSortString(InternalSqlScriptUtils.cast(InternalSqlScriptUtils.concat(params.v0,InternalSqlScriptUtils.cast(InternalQlScriptUtils.docValue(doc,params.v1),params.v2)),params.v3))","lang":"painless","params":{"v0":"1.","v1":"version","v2":"KEYWORD","v3":"VERSION"}}
+;
 
 // Having
 /////////

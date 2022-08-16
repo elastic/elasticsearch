@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest action to get one or more API keys information.
  */
-public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
+public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
 
     public RestGetApiKeyAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -47,8 +46,16 @@ public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
         final String userName = request.param("username");
         final String realmName = request.param("realm_name");
         final boolean myApiKeysOnly = request.paramAsBoolean("owner", false);
-        final GetApiKeyRequest getApiKeyRequest = new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName, myApiKeysOnly);
-        return channel -> client.execute(GetApiKeyAction.INSTANCE, getApiKeyRequest, new RestBuilderListener<GetApiKeyResponse>(channel) {
+        final boolean withLimitedBy = request.paramAsBoolean("with_limited_by", false);
+        final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
+            .realmName(realmName)
+            .userName(userName)
+            .apiKeyId(apiKeyId)
+            .apiKeyName(apiKeyName)
+            .ownedByAuthenticatedUser(myApiKeysOnly)
+            .withLimitedBy(withLimitedBy)
+            .build();
+        return channel -> client.execute(GetApiKeyAction.INSTANCE, getApiKeyRequest, new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetApiKeyResponse getApiKeyResponse, XContentBuilder builder) throws Exception {
                 getApiKeyResponse.toXContent(builder, channel.request());

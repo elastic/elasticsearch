@@ -90,7 +90,7 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
 
         DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
-            .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
+            .indices(concreteIndices.toArray(new Index[0]));
 
         deleteIndexService.deleteIndices(deleteRequest, listener.delegateResponse((l, e) -> {
             logger.debug(() -> "failed to delete indices [" + concreteIndices + "]", e);

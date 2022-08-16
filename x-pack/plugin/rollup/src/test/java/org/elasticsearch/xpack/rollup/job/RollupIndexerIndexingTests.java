@@ -706,7 +706,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try {
+        try (dir; reader) {
             RollupJob job = new RollupJob(config, Collections.emptyMap());
             final SyncRollupIndexer action = new SyncRollupIndexer(
                 threadPool,
@@ -718,8 +718,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             rollupConsumer.accept(action.triggerAndWaitForCompletion(now));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-            reader.close();
-            dir.close();
         }
     }
 

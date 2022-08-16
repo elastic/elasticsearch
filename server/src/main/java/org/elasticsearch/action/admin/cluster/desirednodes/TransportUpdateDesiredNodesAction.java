@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -32,7 +33,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -50,7 +50,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DesiredNodesSettingsValidator settingsValidator
+        DesiredNodesSettingsValidator settingsValidator,
+        AllocationService allocationService
     ) {
         super(
             UpdateDesiredNodesAction.NAME,
@@ -65,7 +66,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
-        this.taskExecutor = new UpdateDesiredNodesExecutor(clusterService.getRerouteService());
+        this.taskExecutor = new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService);
     }
 
     @Override
@@ -167,20 +168,32 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         );
 
         private final RerouteService rerouteService;
+        private final AllocationService allocationService;
 
-        UpdateDesiredNodesExecutor(RerouteService rerouteService) {
+        UpdateDesiredNodesExecutor(RerouteService rerouteService, AllocationService allocationService) {
             this.rerouteService = rerouteService;
+            this.allocationService = allocationService;
         }
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateDesiredNodesTask>> taskContexts) throws Exception {
-            final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
+        public ClusterState execute(BatchExecutionContext<UpdateDesiredNodesTask> batchExecutionContext) throws Exception {
+            final var initialState = batchExecutionContext.initialState();
+            final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(initialState).getLatestDesiredNodes();
             var desiredNodes = initialDesiredNodes;
-            for (final var taskContext : taskContexts) {
-
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                final UpdateDesiredNodesRequest request = taskContext.getTask().request();
+                if (request.isDryRun()) {
+                    try {
+                        updateDesiredNodes(desiredNodes, request);
+                        taskContext.success(() -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(false, true)));
+                    } catch (Exception e) {
+                        taskContext.onFailure(e);
+                    }
+                    continue;
+                }
                 final var previousDesiredNodes = desiredNodes;
-                try {
-                    desiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    desiredNodes = updateDesiredNodes(desiredNodes, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                     continue;
@@ -188,13 +201,18 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 final var replacedExistingHistoryId = previousDesiredNodes != null
                     && previousDesiredNodes.hasSameHistoryId(desiredNodes) == false;
                 taskContext.success(
-                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId))
+                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId, false))
                 );
             }
 
-            desiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(currentState.nodes(), desiredNodes);
+            desiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(initialState.nodes(), desiredNodes);
 
-            return desiredNodes == initialDesiredNodes ? currentState : replaceDesiredNodes(currentState, desiredNodes);
+            if (desiredNodes == initialDesiredNodes) {
+                return initialState;
+            } else {
+                final ClusterState withUpdatedDesiredNodes = replaceDesiredNodes(initialState, desiredNodes);
+                return allocationService.adaptAutoExpandReplicas(withUpdatedDesiredNodes);
+            }
         }
 
         @Override

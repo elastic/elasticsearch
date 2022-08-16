@@ -147,7 +147,6 @@ public class QueryStringIT extends ESIntegTestCase {
         // binary doesn't match
         // suggest doesn't match
         // geo_point doesn't match
-        // geo_shape doesn't match
     }
 
     public void testKeywordWithWhitespace() throws Exception {

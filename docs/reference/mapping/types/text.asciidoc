@@ -173,7 +173,7 @@ Synthetic source always sorts `keyword` fields and removes duplicates, so
 PUT idx
 {
   "mappings": {
-    "_source": { "synthetic": true },
+    "_source": { "mode": "synthetic" },
     "properties": {
       "text": {
         "type": "text",

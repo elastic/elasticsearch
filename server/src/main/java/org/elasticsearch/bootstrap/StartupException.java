@@ -12,72 +12,73 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.io.PrintStream;
+import java.util.Objects;
 
 /**
- * Wraps an exception in a special way that it gets formatted
- * "reasonably". This means limits on stacktrace frames and
- * cleanup for guice, and some guidance about consulting full
- * logs for the whole exception.
+ * A wrapper for exceptions occurring during startup.
+ *
+ * <p> The stacktrack of a startup exception may be truncated if it is from Guice,
+ * which can have a large number of stack frames.
  */
-// TODO: remove this when guice is removed, and exceptions are cleaned up
-// this is horrible, but its what we must do
-final class StartupException {
+public final class StartupException extends Exception {
 
     /** maximum length of a stacktrace, before we truncate it */
     static final int STACKTRACE_LIMIT = 30;
     /** all lines from this package are RLE-compressed */
     static final String GUICE_PACKAGE = "org.elasticsearch.common.inject";
 
+    public StartupException(Throwable cause) {
+        super(Objects.requireNonNull(cause));
+    }
+
     /**
      * Prints a stacktrace for an exception to a print stream, possibly truncating.
      *
-     * @param e The exception, which may have a long stack trace
      * @param err The error stream to print the stacktrace to
      */
-    static void printStackTrace(Exception e, PrintStream err) {
-        Throwable originalCause = e.getCause();
+    @Override
+    public void printStackTrace(PrintStream err) {
+        Throwable originalCause = getCause();
         Throwable cause = originalCause;
         if (cause instanceof CreationException) {
             cause = getFirstGuiceCause((CreationException) cause);
         }
 
-        if (cause != null) {
-            String message = cause.toString();
-            err.println(message);
+        String message = cause.toString();
+        err.println(message);
 
-            // walk to the root cause
-            while (cause.getCause() != null) {
-                cause = cause.getCause();
+        // walk to the root cause
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+
+        // print the root cause message, only if it differs!
+        if (cause != originalCause && (message.equals(cause.toString()) == false)) {
+            err.println("Likely root cause: " + cause);
+        }
+
+        // print stacktrace of cause
+        StackTraceElement[] stack = cause.getStackTrace();
+        int linesWritten = 0;
+        for (int i = 0; i < stack.length; i++) {
+            if (linesWritten == STACKTRACE_LIMIT) {
+                err.println("\t<<<truncated>>>");
+                break;
             }
+            String line = stack[i].toString();
 
-            // print the root cause message, only if it differs!
-            if (cause != originalCause && (message.equals(cause.toString()) == false)) {
-                err.println("Likely root cause: " + cause);
-            }
-
-            // print stacktrace of cause
-            StackTraceElement stack[] = cause.getStackTrace();
-            int linesWritten = 0;
-            for (int i = 0; i < stack.length; i++) {
-                if (linesWritten == STACKTRACE_LIMIT) {
-                    err.println("\t<<<truncated>>>");
-                    break;
+            // skip past contiguous runs of this garbage:
+            if (line.startsWith(GUICE_PACKAGE)) {
+                while (i + 1 < stack.length && stack[i + 1].toString().startsWith(GUICE_PACKAGE)) {
+                    i++;
                 }
-                String line = stack[i].toString();
-
-                // skip past contiguous runs of this garbage:
-                if (line.startsWith(GUICE_PACKAGE)) {
-                    while (i + 1 < stack.length && stack[i + 1].toString().startsWith(GUICE_PACKAGE)) {
-                        i++;
-                    }
-                    err.println("\tat <<<guice>>>");
-                    linesWritten++;
-                    continue;
-                }
-
-                err.println("\tat " + line);
+                err.println("\tat <<<guice>>>");
                 linesWritten++;
+                continue;
             }
+
+            err.println("\tat " + line);
+            linesWritten++;
         }
         // if its a guice exception, the whole thing really will not be in the log, its megabytes.
         // refer to the hack in bootstrap, where we don't log it

@@ -8,12 +8,12 @@
 
 package org.elasticsearch.gradle.internal.precommit
 
-import org.elasticsearch.gradle.fixtures.AbstractGradlePrecommitPluginFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
 
-class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
+class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = LicenseHeadersPrecommitPlugin.class
 
@@ -22,6 +22,7 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradlePrecommitPlugi
         apply plugin:'java'
         """
     }
+
     def "detects invalid files with invalid license header"() {
         given:
         dualLicensedFile()

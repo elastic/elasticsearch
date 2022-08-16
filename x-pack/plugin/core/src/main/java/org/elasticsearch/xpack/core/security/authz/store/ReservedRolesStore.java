@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -146,7 +146,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("metricbeat-*")
-                            .privileges("index", "create_index", "view_index_metadata", IndicesAliasesAction.NAME)
+                            .privileges("index", "create_index", "view_index_metadata", IndicesAliasesAction.NAME, RolloverAction.NAME)
                             .build() },
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
@@ -667,7 +667,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "manage_own_api_key",
                 GetBuiltinPrivilegesAction.NAME,
                 "delegate_pki",
-                GetProfileAction.NAME,
+                GetProfilesAction.NAME,
                 ActivateProfileAction.NAME,
                 SuggestProfilesAction.NAME,
                 ProfileHasPrivilegesAction.NAME,

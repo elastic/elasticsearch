@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.core.Nullable;
@@ -23,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 /**
  * Wait Step for index based on color. Optionally derives the index name using the provided prefix (if any).
@@ -34,30 +36,39 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
     private static final Logger logger = LogManager.getLogger(WaitForIndexColorStep.class);
 
     private final ClusterHealthStatus color;
-    @Nullable
-    private final String indexNamePrefix;
+
+    private final BiFunction<String, LifecycleExecutionState, String> indexNameSupplier;
 
     WaitForIndexColorStep(StepKey key, StepKey nextStepKey, ClusterHealthStatus color) {
-        this(key, nextStepKey, color, null);
+        this(key, nextStepKey, color, (index, lifecycleState) -> index);
     }
 
     WaitForIndexColorStep(StepKey key, StepKey nextStepKey, ClusterHealthStatus color, @Nullable String indexNamePrefix) {
+        this(key, nextStepKey, color, (index, lifecycleState) -> indexNamePrefix + index);
+    }
+
+    WaitForIndexColorStep(
+        StepKey key,
+        StepKey nextStepKey,
+        ClusterHealthStatus color,
+        BiFunction<String, LifecycleExecutionState, String> indexNameSupplier
+    ) {
         super(key, nextStepKey);
         this.color = color;
-        this.indexNamePrefix = indexNamePrefix;
+        this.indexNameSupplier = indexNameSupplier;
     }
 
     public ClusterHealthStatus getColor() {
         return this.color;
     }
 
-    public String getIndexNamePrefix() {
-        return indexNamePrefix;
+    BiFunction<String, LifecycleExecutionState, String> getIndexNameSupplier() {
+        return indexNameSupplier;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), this.color, this.indexNamePrefix);
+        return Objects.hash(super.hashCode(), this.color, this.indexNameSupplier);
     }
 
     @Override
@@ -69,12 +80,15 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
             return false;
         }
         WaitForIndexColorStep other = (WaitForIndexColorStep) obj;
-        return super.equals(obj) && Objects.equals(this.color, other.color) && Objects.equals(this.indexNamePrefix, other.indexNamePrefix);
+        return super.equals(obj)
+            && Objects.equals(this.color, other.color)
+            && Objects.equals(this.indexNameSupplier, other.indexNameSupplier);
     }
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        String indexName = indexNamePrefix != null ? indexNamePrefix + index.getName() : index.getName();
+        LifecycleExecutionState lifecycleExecutionState = clusterState.metadata().index(index.getName()).getLifecycleExecutionState();
+        String indexName = indexNameSupplier.apply(index.getName(), lifecycleExecutionState);
         IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
         // check if the (potentially) derived index exists
         if (indexMetadata == null) {

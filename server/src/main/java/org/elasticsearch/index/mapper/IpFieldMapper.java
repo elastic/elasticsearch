@@ -24,6 +24,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -35,7 +36,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -47,7 +47,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for ip addresses. */
 public class IpFieldMapper extends FieldMapper {
@@ -392,7 +391,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.IP, IpDocValuesField::new);
         }
@@ -556,9 +555,15 @@ public class IpFieldMapper extends FieldMapper {
         }
         return new KeywordFieldMapper.BytesSyntheticFieldLoader(name(), simpleName()) {
             @Override
-            protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
+            protected BytesRef convert(BytesRef value) {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                b.value(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+                return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+            }
+
+            @Override
+            protected BytesRef preserve(BytesRef value) {
+                // No need to copy because convert has made a deep copy
+                return value;
             }
         };
     }

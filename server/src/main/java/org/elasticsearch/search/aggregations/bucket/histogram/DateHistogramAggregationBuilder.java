@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -420,10 +419,9 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        final String indexMode = context.getIndexSettings().getSettings().get(IndexSettings.MODE.getKey());
+        IndexMode indexMode = context.getIndexSettings().getMode();
         final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
-        if (IndexMode.TIME_SERIES.getName().equals(indexMode)
-            && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
+        if (IndexMode.TIME_SERIES.equals(indexMode) && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
             throw new UnsupportedAggregationOnDownsampledField(
                 config.getDescription()
                     + " is not supported for aggregation ["
@@ -435,7 +433,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
 
         final ZoneId tz = timeZone();
-        if (tz != null && IndexMode.TIME_SERIES.getName().equals(indexMode) && ZoneId.of("UTC").equals(tz) == false) {
+        if (tz != null && IndexMode.TIME_SERIES.equals(indexMode) && ZoneId.of("UTC").equals(tz) == false) {
             throw new UnsupportedAggregationOnDownsampledField(
                 config.getDescription() + " is not supported for aggregation [" + this.getName() + "] with timezone [" + tz + "]"
             );

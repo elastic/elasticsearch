@@ -92,13 +92,18 @@ public class StablePluginClassLoader extends SecureClassLoader {
      * First cut: single jar only
      * Second cut: main jar plus dependencies (can we have modularized main jar with unmodularized dependencies?)
      * Third cut: link it up with the "crate/bundle" descriptor
+     *
+     * TODO: consider a factory pattern for more specific exception handling for scan, etc.
      */
     public StablePluginClassLoader(ClassLoader parent, Path jar) {
         super(parent);
+        // TODO: module name should be derived from plugin descriptor (plugin names should be distinct, might
+        //   need to munge the characters a little)
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", new Path[]{jar}, Set.of());
         try {
             this.internalLoader = new URLClassLoader(new URL[]{jar.toUri().toURL()});
             this.module = finder.find("synthetic").orElseThrow();
+            // we'll need to make up a code source for multiple jar files
             this.codeSource = new CodeSource(jar.toUri().toURL(), (CodeSigner[]) null);
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
@@ -110,6 +115,8 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // TODO: do we need to hold on to the controller?
         this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
 
+        // open this as versioned jar - most recent version of class file
+        // TODO: verify behavior w/ versioned jar, c.f. EmbeddedImplClassLoader
         try (JarFile jarFile = new JarFile(jar.toFile())) {
             this.packageNames = ModuleSupport.scan(jarFile).classFiles().stream()
                 .map(e -> ModuleSupport.toPackageName(e, "/"))
@@ -172,6 +179,10 @@ public class StablePluginClassLoader extends SecureClassLoader {
 
         try (InputStream in = internalLoader.getResourceAsStream(rn)) {
             if (in == null) {
+                // TODO: we can check package name to know whether or not the resource
+                //   should definitely be in this module's packages or not
+                //   i.e. we can throw class not found if the resource's package is owned by this
+                //   classloader's module
                 return null;
             }
             byte[] bytes = in.readAllBytes();
@@ -236,6 +247,8 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // if cn's package is in this ubermodule, look here only (or just first?)
         String packageName = packageName(cn);
 
+        // TODO: do we need to check the security manager here?
+
         synchronized (getClassLoadingLock(cn)) {
 
             // check if already loaded
@@ -253,8 +266,9 @@ public class StablePluginClassLoader extends SecureClassLoader {
             if (c == null)
                 throw new ClassNotFoundException(cn);
 
-            if (resolve)
+            if (resolve) {
                 resolveClass(c);
+            }
 
             return c;
         }

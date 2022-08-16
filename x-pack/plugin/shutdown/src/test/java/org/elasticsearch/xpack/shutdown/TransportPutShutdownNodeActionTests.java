@@ -76,7 +76,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
         ClusterState stableState = taskExecutor.getValue()
-            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext)));
+            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));
 
         // run the request again, there should be no call to submit an update task
         clearInvocations(clusterService);
@@ -88,7 +88,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
         ClusterState gotState = taskExecutor.getValue()
-            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(stableState, List.of(taskContext)));
+            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(stableState, List.of(taskContext), () -> null));
         assertThat(gotState, sameInstance(stableState));
     }
 }

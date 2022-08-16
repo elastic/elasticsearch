@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -177,9 +178,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception failure) {}
+
+            @Override
+            public Releasable captureResponseHeaders() {
+                return null;
+            }
         };
 
-        ClusterState newState = taskExecutor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext)));
+        ClusterState newState = taskExecutor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext), () -> null)
+        );
         assertEquals(state, newState);
         assertTrue(successCalled.get());
         verify(task, times(1)).execute(any());
@@ -231,11 +239,18 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception failure) {}
+
+                @Override
+                public Releasable captureResponseHeaders() {
+                    return null;
+                }
             };
 
         ReservedStateErrorTaskExecutor executor = new ReservedStateErrorTaskExecutor();
 
-        ClusterState newState = executor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext)));
+        ClusterState newState = executor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext), () -> null)
+        );
 
         verify(task, times(1)).execute(any());
 

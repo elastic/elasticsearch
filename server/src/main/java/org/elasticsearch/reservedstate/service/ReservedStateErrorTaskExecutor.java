@@ -27,7 +27,9 @@ record ReservedStateErrorTaskExecutor() implements ClusterStateTaskExecutor<Rese
         var updatedState = batchExecutionContext.initialState();
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
-            updatedState = task.execute(updatedState);
+            try (var ignored = taskContext.captureResponseHeaders()) {
+                updatedState = task.execute(updatedState);
+            }
             taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
         }
         return updatedState;

@@ -269,7 +269,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                             }
                             // Setting index.hidden has been initially set to true. We revert this to the value of the source index
                             if (sourceIndexMetadata.isHidden() == false) {
-                                settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, false);
+                                if (sourceIndexMetadata.getSettings().keySet().contains(IndexMetadata.SETTING_INDEX_HIDDEN)) {
+                                    settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, false);
+                                } else {
+                                    settings.putNull(IndexMetadata.SETTING_INDEX_HIDDEN);
+                                }
                             }
                             UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings.build(), rollupIndexName);
                             updateSettingsReq.setParentTask(parentTask);

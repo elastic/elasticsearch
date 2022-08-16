@@ -107,6 +107,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
+    private static final FieldType ORIGINAL_FIELD_TYPE = new FieldType();
+    static {
+        ORIGINAL_FIELD_TYPE.setTokenized(false);
+        ORIGINAL_FIELD_TYPE.setOmitNorms(true);
+        ORIGINAL_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+        ORIGINAL_FIELD_TYPE.setStored(true);
+        ORIGINAL_FIELD_TYPE.freeze();
+    }
+
     public static class KeywordField extends Field {
 
         public KeywordField(String field, BytesRef term, FieldType ft) {
@@ -945,6 +954,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (value.length() > fieldType().ignoreAbove()) {
             context.addIgnoredField(name());
+            if (context.isSyntheticSource()) {
+                context.doc().add(new Field(originalName(), value, ORIGINAL_FIELD_TYPE));
+            }
             return;
         }
 
@@ -1046,6 +1058,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         return normalizerName != null;
     }
 
+    private String originalName() {
+        return name() + "._original";
+    }
+
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return syntheticFieldLoader(simpleName());
@@ -1054,11 +1070,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (fieldType().ignoreAbove() != Defaults.IGNORE_ABOVE) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares ignore_above"
-            );
         }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
@@ -1071,7 +1082,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
         if (fieldType.stored()) {
-            return new StringStoredFieldFieldLoader(name(), simpleName);
+            return new StringStoredFieldFieldLoader(
+                name(),
+                simpleName,
+                fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
+            );
         }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
@@ -1082,7 +1097,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                     + "] doesn't support synthetic source because it doesn't have doc values and isn't stored"
             );
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName) {
+        return new SortedSetDocValuesSyntheticFieldLoader(
+            name(),
+            simpleName,
+            fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
+        ) {
             @Override
             protected BytesRef convert(BytesRef value) {
                 return value;

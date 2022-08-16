@@ -257,7 +257,9 @@ public class FetchPhase {
             boolean loadSource = sourceRequired(context);
             if (loadSource) {
                 if (false == sourceLoader.requiredStoredFields().isEmpty()) {
-                    return new CustomFieldsVisitor(sourceLoader.requiredStoredFields(), true);
+                    // add the stored fields needed to load the source mapping to an empty set so they aren't returned
+                    sourceLoader.requiredStoredFields().forEach(fieldName -> storedToRequestedFields.putIfAbsent(fieldName, Set.of()));
+                    return new CustomFieldsVisitor(storedToRequestedFields.keySet(), true);
                 }
             }
             return new FieldsVisitor(loadSource);

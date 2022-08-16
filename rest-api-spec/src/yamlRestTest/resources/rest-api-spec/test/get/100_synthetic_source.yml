@@ -243,3 +243,165 @@ stored keyword:
   - match:
       _source:
         kwd: the quick brown fox
+
+---
+doc values keyword with ignore_above:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                ignore_above: 10
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: the quick brown fox
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          kwd: short
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          kwd:
+            - jumped over the lazy dog
+            - short
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: the quick brown fox
+
+  - do:
+      get:
+        index: test
+        id:    2
+  - match: {_index: "test"}
+  - match: {_id: "2"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: short
+
+  - do:
+      get:
+        index: test
+        id:    3
+  - match: {_index: "test"}
+  - match: {_id: "3"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd:
+          - short
+          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
+
+---
+stored keyword with ignore_above:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false
+                store: true
+                ignore_above: 10
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: the quick brown fox
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          kwd: short
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          kwd:
+            - jumped over the lazy dog
+            - short
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: the quick brown fox
+
+  - do:
+      get:
+        index: test
+        id:    2
+  - match: {_index: "test"}
+  - match: {_id: "2"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: short
+
+  - do:
+      get:
+        index: test
+        id:    3
+  - match: {_index: "test"}
+  - match: {_id: "3"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd:
+          - short
+          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields

@@ -1273,14 +1273,12 @@ public class TextFieldMapper extends FieldMapper {
             );
         }
         if (store) {
-            return new StringStoredFieldFieldLoader(name(), simpleName());
+            return new StringStoredFieldFieldLoader(name(), simpleName(), null);
         }
         for (Mapper sub : this) {
             if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                 KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
-                if (kwd.hasNormalizer() == false
-                    && kwd.fieldType().ignoreAbove() == KeywordFieldMapper.Defaults.IGNORE_ABOVE
-                    && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
 
                     return kwd.syntheticFieldLoader(simpleName());
                 }
@@ -1290,7 +1288,7 @@ public class TextFieldMapper extends FieldMapper {
             String.format(
                 Locale.ROOT,
                 "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
-                    + " type [keyword] with doc values or stored and without ignore_above or a normalizer",
+                    + " type [keyword] with doc values or stored and without a normalizer",
                 name(),
                 typeName()
             )

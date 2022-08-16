@@ -3176,11 +3176,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         responseListener.whenComplete(handler::handleResponse, e -> handler.handleException((TransportException) e));
         final PlainActionFuture<T> future = PlainActionFuture.newFuture();
         responseListener.addListener(future);
-        try {
-            transportService.sendRequest(node, action, request, options, futureHandler);
-        } catch (NodeNotConnectedException ex) {
-            futureHandler.handleException(ex);
-        }
+        transportService.sendRequest(node, action, request, options, futureHandler);
         return future;
     }
 }

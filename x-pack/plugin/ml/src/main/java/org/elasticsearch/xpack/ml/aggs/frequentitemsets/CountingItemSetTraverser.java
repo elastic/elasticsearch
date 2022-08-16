@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopItemIds;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.BitSet;
 
 /**
  * Item set traverser to find the next interesting item set.
@@ -31,7 +30,7 @@ import java.util.Arrays;
  *      that do not pass a previous step:
  *          if [a, b] is not in T, [a, b, c] can not be in T either
  */
-class CountingItemSetTraverser implements Releasable {
+final class CountingItemSetTraverser implements Releasable {
     private static final Logger logger = LogManager.getLogger(CountingItemSetTraverser.class);
 
     // start size and size increment for the occurences stack
@@ -40,6 +39,8 @@ class CountingItemSetTraverser implements Releasable {
     private final TransactionStore transactionStore;
     private final ItemSetTraverser topItemSetTraverser;
     private final TransactionStore.TopTransactionIds topTransactionIds;
+
+    private final TransactionsLookupTable transactionsLookupTable;
     private final int cacheTraversalDepth;
     private final int cacheNumberOfTransactions;
 
@@ -49,7 +50,7 @@ class CountingItemSetTraverser implements Releasable {
 
     private long[] occurencesStack;
     // growable bit set from java util
-    private java.util.BitSet visited;
+    private BitSet visited;
 
     CountingItemSetTraverser(
         TransactionStore transactionStore,
@@ -57,7 +58,7 @@ class CountingItemSetTraverser implements Releasable {
         int cacheTraversalDepth,
         int cacheNumberOfTransactions,
         long minCount
-    ) {
+    ) throws IOException {
         this.transactionStore = transactionStore;
 
         boolean success = false;
@@ -65,6 +66,7 @@ class CountingItemSetTraverser implements Releasable {
             // we allocate 2 big arrays, if the 2nd allocation fails, ensure we clean up
             this.topItemSetTraverser = new ItemSetTraverser(topItemIds);
             this.topTransactionIds = transactionStore.getTopTransactionIds();
+            this.transactionsLookupTable = transactionStore.createLookupTableByTopTransactions(topItemIds, topTransactionIds);
             success = true;
         } finally {
             if (false == success) {
@@ -75,7 +77,7 @@ class CountingItemSetTraverser implements Releasable {
         this.cacheTraversalDepth = cacheTraversalDepth;
         this.cacheNumberOfTransactions = cacheNumberOfTransactions;
         transactionSkipCounts = new long[cacheTraversalDepth - 1];
-        transactionSkipList = new FixedBitSet((cacheTraversalDepth - 1) * cacheNumberOfTransactions);
+        transactionSkipList = new BitSet((cacheTraversalDepth - 1) * cacheNumberOfTransactions);
         occurencesStack = new long[OCCURENCES_SIZE_INCREMENT];
         visited = new java.util.BitSet();
     }
@@ -109,41 +111,41 @@ class CountingItemSetTraverser implements Releasable {
             // we recalculate the row for this depth, so we have to clear the bits first
             transactionSkipList.clear((depth - 1) * cacheNumberOfTransactions, ((depth) * cacheNumberOfTransactions));
 
-            int transactionNumber = 0;
-            long occurences = 0;
+            int topTransactionPos = 0;
+            long occurrences = 0;
 
-            for (Long transactionId : topTransactionIds) {
+            // for whatever reason this turns out to be faster than a for loop
+            while (topTransactionPos < topTransactionIds.size()) {
                 // caching: if the transaction is already marked for skipping, quickly continue
-                if (transactionNumber < cacheNumberOfTransactions
-                    && transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + transactionNumber)) {
+                if (topTransactionPos < cacheNumberOfTransactions
+                    && transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + topTransactionPos)) {
                     // set the bit for the next iteration
-                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionNumber);
-                    transactionNumber++;
+                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + topTransactionPos);
+                    topTransactionPos++;
                     continue;
                 }
 
-                long transactionCount = transactionStore.getTransactionCount(transactionId);
+                long transactionCount = transactionStore.getTransactionCount(topTransactionIds.getItemIdAt(topTransactionPos));
 
-                if (transactionStore.transactionContainsAllIds(topItemSetTraverser.getItemSet(), transactionId)) {
-                    occurences += transactionCount;
-                } else if (transactionNumber < cacheNumberOfTransactions) {
+                if (transactionsLookupTable.isSubsetOf(topTransactionPos, topItemSetTraverser.getItemSetBitSet())) {
+                    occurrences += transactionCount;
+                } else if (topTransactionPos < cacheNumberOfTransactions) {
                     // put this transaction to the skip list
                     skipCount += transactionCount;
-                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionNumber);
+                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + topTransactionPos);
                 }
 
                 maxReachableTransactionCount -= transactionCount;
                 // exit early if min support given for early stop can't be reached
-                if (maxReachableTransactionCount + occurences < earlyStopMinCount) {
+                if (maxReachableTransactionCount + occurrences < earlyStopMinCount) {
                     break;
                 }
 
-                transactionNumber++;
+                topTransactionPos++;
             }
-
             transactionSkipCounts[depth - 1] = skipCount;
 
-            rememberCountInStack(depth, occurences);
+            rememberCountInStack(depth, occurrences);
             return true;
         }
 
@@ -158,7 +160,7 @@ class CountingItemSetTraverser implements Releasable {
         long maxReachableTransactionCount = totalTransactionCount - skipCount;
 
         int transactionNumber = 0;
-        long occurences = 0;
+        long occurrences = 0;
         for (Long transactionId : topTransactionIds) {
             // caching: if the transaction is already marked for skipping, quickly continue
             if (transactionNumber < cacheNumberOfTransactions
@@ -169,21 +171,21 @@ class CountingItemSetTraverser implements Releasable {
             }
             long transactionCount = transactionStore.getTransactionCount(transactionId);
 
-            if (transactionStore.transactionContainsAllIds(topItemSetTraverser.getItemSet(), transactionId)) {
-                occurences += transactionCount;
+            if (transactionsLookupTable.isSubsetOf(transactionNumber, topItemSetTraverser.getItemSetBitSet())) {
+                occurrences += transactionCount;
             }
 
             maxReachableTransactionCount -= transactionCount;
 
             // exit early if min support given for early stop can't be reached
-            if (maxReachableTransactionCount + occurences < earlyStopMinCount) {
+            if (maxReachableTransactionCount + occurrences < earlyStopMinCount) {
                 break;
             }
 
             transactionNumber++;
         }
 
-        rememberCountInStack(depth, occurences);
+        rememberCountInStack(depth, occurrences);
         return true;
     }
 
@@ -268,7 +270,7 @@ class CountingItemSetTraverser implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(topTransactionIds);
+        Releasables.close(topTransactionIds, transactionsLookupTable);
     }
 
     // remember the count in the stack without tracking push and pop

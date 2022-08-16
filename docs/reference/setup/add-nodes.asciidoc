@@ -25,15 +25,10 @@ green.
 
 image::setup/images/elas_0204.png["A cluster with three nodes"]
 
-You can run multiple nodes on your local machine in order to experiment with how
-an {es} cluster of multiple nodes behaves. To add a node to a cluster running on
-your local machine:
-
-. Set up a new {es} instance.
-. Specify the name of the cluster with the `cluster.name` setting in
-`elasticsearch.yml`. For example, to add a node to the `logging-prod` cluster,
-add the line `cluster.name: "logging-prod"` to `elasticsearch.yml`.
-. Start {es}. The node automatically discovers and joins the specified cluster.
+You can
+{ref}/configuring-stack-security.html#stack-enroll-nodes[enroll additional nodes]
+on your local
+machine to experiment with how an {es} cluster with multiple nodes behaves. 
 
 To add a node to a cluster running on multiple machines, you must also
 <<unicast.hosts,set `discovery.seed_hosts`>> so that the new node can discover

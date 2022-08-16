@@ -124,10 +124,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final String apiKeyId = randomAlphaOfLength(5);
         {
-            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
-                .ownedByAuthenticatedUser(true)
-                .apiKeyId(apiKeyId)
-                .build();
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder().ownedByAuthenticatedUser(true).apiKeyId(apiKeyId).build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
             out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
@@ -162,10 +159,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
             assertThat(requestFromInputStream.withLimitedBy(), is(false));
         }
         {
-            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
-                .apiKeyId(apiKeyId)
-                .withLimitedBy(randomBoolean())
-                .build();
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
             out.setVersion(randomVersionBetween(random(), Version.V_8_5_0, Version.CURRENT));

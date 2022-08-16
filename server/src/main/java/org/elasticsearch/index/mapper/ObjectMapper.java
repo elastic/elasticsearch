@@ -155,7 +155,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     // This can also happen due to multiple index templates being merged into a single mappings definition using
                     // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
                     // mix of object notation and dot notation.
-                    mapper = existing.merge(mapper, context);
+                    mapper = existing.merge(mapper, mapperBuilderContext);
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }

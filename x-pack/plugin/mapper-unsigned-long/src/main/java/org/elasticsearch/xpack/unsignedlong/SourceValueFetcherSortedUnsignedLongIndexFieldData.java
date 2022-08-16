@@ -26,6 +26,12 @@ import java.util.List;
 
 import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
 
+/**
+ * {@code SourceValueFetcherSortedUnsignedLongIndexFieldData} uses a {@link ValueFetcher} to
+ * retrieve values from source that are parsed as an unsigned long. These values are used to
+ * emulate unsigned long values pulled directly from a doc values data structure through a
+ * {@link SortedNumericDocValues}.
+ */
 public class SourceValueFetcherSortedUnsignedLongIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericDocValues> {
 
     public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortedNumericDocValues> {
@@ -105,12 +111,14 @@ public class SourceValueFetcherSortedUnsignedLongIndexFieldData extends SourceVa
             this.leafReaderContext = leafReaderContext;
             this.valueFetcher = valueFetcher;
             this.sourceLookup = sourceLookup;
+
+            values = new ArrayList<>();
         }
 
         @Override
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-            values = new ArrayList<>();
+            values.clear();
 
             for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
                 assert value instanceof Number;

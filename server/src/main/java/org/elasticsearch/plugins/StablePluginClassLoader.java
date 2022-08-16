@@ -8,11 +8,15 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.common.util.set.Sets;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -21,7 +25,9 @@ import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
+import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -76,10 +82,9 @@ public class StablePluginClassLoader extends SecureClassLoader {
 
     private final Set<String> packageNames;
 
-    // TODO: we should take multiple jars
     @SuppressWarnings("removal")
-    static StablePluginClassLoader getInstance(ClassLoader parent, Path jar) {
-        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(parent, jar);
+    static StablePluginClassLoader getInstance(ClassLoader parent, List<Path> jarPaths) {
+        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(parent, jarPaths);
         return AccessController.doPrivileged(pa);
     }
     /**
@@ -95,16 +100,22 @@ public class StablePluginClassLoader extends SecureClassLoader {
      *
      * TODO: consider a factory pattern for more specific exception handling for scan, etc.
      */
-    public StablePluginClassLoader(ClassLoader parent, Path jar) {
+    public StablePluginClassLoader(ClassLoader parent, List<Path> jarPaths) {
         super(parent);
         // TODO: module name should be derived from plugin descriptor (plugin names should be distinct, might
         //   need to munge the characters a little)
-        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", new Path[]{jar}, Set.of());
+        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", jarPaths.toArray(new Path[0]), Set.of());
         try {
-            this.internalLoader = new URLClassLoader(new URL[]{jar.toUri().toURL()});
+            List<URL> jarURLs = new ArrayList<>();
+            for (Path jarPath : jarPaths) {
+                URI toUri = jarPath.toUri();
+                URL toURL = toUri.toURL();
+                jarURLs.add(toURL);
+            }
+            this.internalLoader = new URLClassLoader(jarURLs.toArray(new URL[0]));
             this.module = finder.find("synthetic").orElseThrow();
             // we'll need to make up a code source for multiple jar files
-            this.codeSource = new CodeSource(jar.toUri().toURL(), (CodeSigner[]) null);
+            this.codeSource = new CodeSource(jarURLs.get(0), (CodeSigner[]) null);
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
@@ -117,14 +128,21 @@ public class StablePluginClassLoader extends SecureClassLoader {
 
         // open this as versioned jar - most recent version of class file
         // TODO: verify behavior w/ versioned jar, c.f. EmbeddedImplClassLoader
-        try (JarFile jarFile = new JarFile(jar.toFile())) {
-            this.packageNames = ModuleSupport.scan(jarFile).classFiles().stream()
-                .map(e -> ModuleSupport.toPackageName(e, "/"))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
+        this.packageNames = new HashSet<>();
+        for (Path jar : jarPaths) {
+            try (JarFile jarFile = new JarFile(jar.toFile())) {
+                Set<String> jarPackages = ModuleSupport.scan(jarFile).classFiles().stream()
+                    .map(e -> ModuleSupport.toPackageName(e, "/"))
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+
+                // TODO: We could enforce "split packages" on our jars here, but
+                //   that seems too restrictive
+                this.packageNames.addAll(jarPackages);
+            } catch (IOException e) {
+                throw new IllegalArgumentException(e);
+            }
         }
     }
 

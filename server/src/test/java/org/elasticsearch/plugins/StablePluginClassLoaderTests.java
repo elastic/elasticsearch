@@ -96,7 +96,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
 
         StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
             StablePluginClassLoaderTests.class.getClassLoader(),
-            jar
+            List.of(jar)
         );
 
         URL location = loader.findResource("p/MyClass.class");
@@ -118,7 +118,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         {
             StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
                 StablePluginClassLoaderTests.class.getClassLoader(),
-                jar
+                List.of(jar)
             );
             Class<?> c = loader.findClass("p.MyClass");
             assertThat(c, notNullValue());
@@ -129,7 +129,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         {
             StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
                 StablePluginClassLoaderTests.class.getClassLoader(),
-                jar
+                List.of(jar)
             );
             Class<?> c = loader.findClass("synthetic", "p.MyClass");
             assertThat(c, notNullValue());
@@ -150,7 +150,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
 
         StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
             StablePluginClassLoaderTests.class.getClassLoader(),
-            jar
+            List.of(jar)
         );
 
         {
@@ -194,7 +194,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         PrivilegedAction<URLClassLoader> pa = () -> URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
         parent = AccessController.doPrivileged(pa);
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, jar);
+        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar));
 
         // stable plugin loader gives us the good class...
         Class<?> c = loader.loadClass("p.MyClass");

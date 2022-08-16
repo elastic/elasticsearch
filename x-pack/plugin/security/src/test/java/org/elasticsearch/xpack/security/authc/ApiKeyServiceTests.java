@@ -154,7 +154,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -1407,8 +1406,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         // Realm run-as look up failure (no lookup realm ref)
         final Authentication authentication6 = authentication3.runAs(AuthenticationTests.randomUser(), null);
-        assertThat(ApiKeyService.getCreatorRealmName(authentication6), isNull());
-        assertThat(ApiKeyService.getCreatorRealmType(authentication6), isNull());
+        assertNull(ApiKeyService.getCreatorRealmName(authentication6));
+        assertNull(ApiKeyService.getCreatorRealmType(authentication6));
 
         // Others (cannot run-as)
         final Authentication authentication5 = randomFrom(

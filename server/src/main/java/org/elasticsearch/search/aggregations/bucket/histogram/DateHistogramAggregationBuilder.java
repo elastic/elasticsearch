@@ -421,7 +421,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     ) throws IOException {
         IndexMode indexMode = context.getIndexSettings().getMode();
         final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
-        if (IndexMode.TIME_SERIES.equals(indexMode) && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
+        if (context.getIndexSettings().getMode().validateCalendarIntervalType(dateHistogramIntervalType)) {
             throw new UnsupportedAggregationOnDownsampledField(
                 config.getDescription()
                     + " is not supported for aggregation ["

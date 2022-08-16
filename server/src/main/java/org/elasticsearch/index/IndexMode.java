@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -108,6 +109,11 @@ public enum IndexMode {
         @Override
         public boolean shouldValidateTimestamp() {
             return false;
+        }
+
+        @Override
+        public boolean validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType) {
+            return true;
         }
     },
     TIME_SERIES("time_series") {
@@ -193,6 +199,17 @@ public enum IndexMode {
         @Override
         public boolean shouldValidateTimestamp() {
             return true;
+        }
+
+        /**
+         * For a time series index we just support 'fixed_interval' aggregations.
+         *
+         * @param intervalType the type of interval used by the date histogram
+         * @return true if validation succeeds, false otherwise
+         */
+        @Override
+        public boolean validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType) {
+            return DateIntervalWrapper.IntervalTypeEnum.FIXED.equals(intervalType);
         }
     };
 
@@ -329,4 +346,6 @@ public enum IndexMode {
     public String toString() {
         return getName();
     }
+
+    public abstract boolean validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType);
 }

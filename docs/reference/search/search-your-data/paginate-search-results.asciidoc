@@ -69,9 +69,9 @@ GET twitter/_search
 
 <1> A copy of the `_id` field with `doc_values` enabled
 
-In order to "search after" the current page, we take the values of `date` and `tie_breaker_id` 
-from the `sort` array in the last document in the page, and insert those into the `search_after` 
-array like so:
+The search response includes an array of `sort` values for each hit. To retrieve
+the next page of results, repeat the request, take the `sort` values from the
+last hit, and insert those into the `search_after` array:
 [source,js]
 --------------------------------------------------
 GET twitter/_search

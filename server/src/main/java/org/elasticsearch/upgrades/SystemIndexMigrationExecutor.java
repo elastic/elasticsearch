@@ -122,6 +122,11 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
                 PersistentTaskState.class,
                 new ParseField(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME),
                 SystemIndexMigrationTaskState::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                FeatureMigrationResults.class,
+                new ParseField(FeatureMigrationResults.TYPE),
+                FeatureMigrationResults::fromXContent
             )
         );
     }
@@ -133,7 +138,8 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
                 PersistentTaskParams.class,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SystemIndexMigrationTaskParams::new
-            )
+            ),
+            new NamedWriteableRegistry.Entry(FeatureMigrationResults.class, FeatureMigrationResults.TYPE, FeatureMigrationResults::new)
         );
     }
 }

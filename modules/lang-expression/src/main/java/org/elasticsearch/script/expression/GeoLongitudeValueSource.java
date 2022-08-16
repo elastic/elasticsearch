@@ -10,9 +10,10 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiPointValues;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
 
 import java.io.IOException;
 
@@ -27,8 +28,8 @@ final class GeoLongitudeValueSource extends FieldDataBasedDoubleValuesSource {
 
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
-        LeafGeoPointFieldData leafData = (LeafGeoPointFieldData) fieldData.load(leaf);
-        final MultiGeoPointValues values = leafData.getGeoPointValues();
+        AbstractLeafGeoPointFieldData leafData = (AbstractLeafGeoPointFieldData) fieldData.load(leaf);
+        final MultiPointValues<GeoPoint> values = leafData.getPointValues();
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
@@ -53,8 +54,7 @@ final class GeoLongitudeValueSource extends FieldDataBasedDoubleValuesSource {
         if (obj == null) return false;
         if (getClass() != obj.getClass()) return false;
         GeoLongitudeValueSource other = (GeoLongitudeValueSource) obj;
-        if (fieldData.equals(other.fieldData) == false) return false;
-        return true;
+        return fieldData.equals(other.fieldData);
     }
 
     @Override

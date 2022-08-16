@@ -6,9 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.common.geo;
 
 /**
- * Interface for {@link GeoCentroidAggregator}
+ * To facilitate maximizing the use of common code between GeoPoint and projected CRS
+ * we introduced this ElasticPoint as an interface of commonality.
  */
-public interface GeoCentroid extends CentroidAggregation {}
+public interface ElasticPoint {
+    double getX();
+
+    double getY();
+}

@@ -8,7 +8,14 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.geo.ElasticPoint;
+import org.elasticsearch.search.aggregations.Aggregation;
+
 /**
- * Interface for {@link GeoCentroidAggregator}
+ * Generic interface for both geographic and cartesian centroid aggregations.
  */
-public interface GeoCentroid extends CentroidAggregation {}
+public interface CentroidAggregation extends Aggregation {
+    ElasticPoint centroid();
+
+    long count();
+}

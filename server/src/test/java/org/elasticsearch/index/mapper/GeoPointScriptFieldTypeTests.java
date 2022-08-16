@@ -26,7 +26,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DocReader;
@@ -74,7 +74,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        MultiGeoPointValues dv = ifd.load(context).getGeoPointValues();
+                        MultiPointValues<GeoPoint> dv = ifd.load(context).getPointValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}

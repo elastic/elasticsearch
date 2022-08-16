@@ -15,6 +15,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.geo.ElasticPoint;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
@@ -210,10 +211,10 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
 
             assertEquals("my_agg", result.getName());
-            GeoPoint centroid = result.centroid();
+            ElasticPoint centroid = result.centroid();
             assertNotNull(centroid);
-            assertEquals(expectedCentroid.getLat(), centroid.getLat(), GEOHASH_TOLERANCE);
-            assertEquals(expectedCentroid.getLon(), centroid.getLon(), GEOHASH_TOLERANCE);
+            assertEquals(expectedCentroid.getX(), centroid.getX(), GEOHASH_TOLERANCE);
+            assertEquals(expectedCentroid.getY(), centroid.getY(), GEOHASH_TOLERANCE);
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }
     }

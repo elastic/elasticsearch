@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
@@ -522,10 +522,10 @@ public class GeoUtils {
     public static SortedNumericDoubleValues distanceValues(
         final GeoDistance distance,
         final DistanceUnit unit,
-        final MultiGeoPointValues geoPointValues,
+        final MultiPointValues<GeoPoint> geoPointValues,
         final GeoPoint... fromPoints
     ) {
-        final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
+        final GeoPointValues singleValues = (GeoPointValues) FieldData.unwrapSingleton(geoPointValues);
         if (singleValues != null && fromPoints.length == 1) {
             return FieldData.singleton(new NumericDoubleValues() {
 
@@ -537,7 +537,7 @@ public class GeoUtils {
                 @Override
                 public double doubleValue() throws IOException {
                     final GeoPoint from = fromPoints[0];
-                    final GeoPoint to = singleValues.geoPointValue();
+                    final GeoPoint to = singleValues.pointValue();
                     return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
                 }
 

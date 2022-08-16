@@ -14,6 +14,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ElasticPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,7 +87,7 @@ public enum FieldData {
      * Returns a {@link DocValueBits} representing all documents from <code>pointValues</code> that have
      * a value.
      */
-    public static DocValueBits docsWithValue(final MultiGeoPointValues pointValues) {
+    public static DocValueBits docsWithValue(final MultiPointValues<? extends ElasticPoint> pointValues) {
         return new DocValueBits() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -216,8 +217,8 @@ public enum FieldData {
      * Returns a single-valued view of the {@link MultiGeoPointValues},
      * if the wrapped {@link SortedNumericDocValues} is a singleton.
      */
-    public static GeoPointValues unwrapSingleton(MultiGeoPointValues values) {
-        return values.getGeoPointValues();
+    public static PointValues<?> unwrapSingleton(MultiPointValues<? extends ElasticPoint> values) {
+        return values.getPointValues();
     }
 
     /**

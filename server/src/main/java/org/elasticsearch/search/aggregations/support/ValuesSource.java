@@ -24,9 +24,9 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.IndexPointFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -744,9 +744,9 @@ public abstract class ValuesSource {
 
         public static class Fielddata extends GeoPoint {
 
-            protected final IndexGeoPointFieldData indexFieldData;
+            protected final IndexPointFieldData<org.elasticsearch.common.geo.GeoPoint> indexFieldData;
 
-            public Fielddata(IndexGeoPointFieldData indexFieldData) {
+            public Fielddata(IndexPointFieldData<org.elasticsearch.common.geo.GeoPoint> indexFieldData) {
                 this.indexFieldData = indexFieldData;
             }
 

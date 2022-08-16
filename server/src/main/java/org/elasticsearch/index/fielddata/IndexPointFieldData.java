@@ -6,9 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.index.fielddata;
+
+import org.elasticsearch.common.geo.ElasticPoint;
 
 /**
- * Interface for {@link GeoCentroidAggregator}
+ * Specialization of {@link IndexFieldData} for geo points and points.
  */
-public interface GeoCentroid extends CentroidAggregation {}
+public interface IndexPointFieldData<T extends ElasticPoint> extends IndexFieldData<LeafPointFieldData<T>> {}

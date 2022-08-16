@@ -205,11 +205,11 @@ public enum IndexMode {
          * For a time series index we just support 'fixed_interval' aggregations.
          *
          * @param intervalType the type of interval used by the date histogram
-         * @return true if validation succeeds, false otherwise
+         * @return true if validation fails, false otherwise
          */
         @Override
         public boolean validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType) {
-            return DateIntervalWrapper.IntervalTypeEnum.FIXED.equals(intervalType);
+            return DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(intervalType);
         }
     };
 

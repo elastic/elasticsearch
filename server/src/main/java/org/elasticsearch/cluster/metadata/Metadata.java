@@ -494,9 +494,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 index = index.withMappingMetadata(existingMapping);
                 updatedMappingsByHash = mappingsByHash;
             } else {
-                final Map<String, MappingMetadata> tmp = new HashMap<>(mappingsByHash);
-                tmp.put(mappingMetadata.getSha256(), mappingMetadata);
-                updatedMappingsByHash = Collections.unmodifiableMap(tmp);
+                updatedMappingsByHash = Maps.copyMapWithAddedEntry(mappingsByHash, mappingMetadata.getSha256(), mappingMetadata);
             }
         }
 

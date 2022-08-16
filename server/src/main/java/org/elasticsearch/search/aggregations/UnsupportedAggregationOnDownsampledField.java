@@ -13,6 +13,11 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
+/**
+ * Thrown when executing an aggregation on a time series index field whose type is not supported.
+ * Downsampling uses specific types while aggregating some fields (like 'aggregate_metric_double').
+ * Such field types do not support some aggregations.
+ */
 public class UnsupportedAggregationOnDownsampledField extends AggregationExecutionException {
 
     public UnsupportedAggregationOnDownsampledField(final String msg) {

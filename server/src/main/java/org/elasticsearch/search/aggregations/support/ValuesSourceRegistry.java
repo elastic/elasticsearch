@@ -175,6 +175,16 @@ public class ValuesSourceRegistry {
                     );
                 if (unmappedException != null) {
                     throw unmappedException;
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unexpected null exception handler provided for field ["
+                            + valuesSourceConfig.fieldType().name()
+                            + "] of type ["
+                            + valuesSourceConfig.fieldType().typeName()
+                            + "] in aggregation ["
+                            + registryKey.getName()
+                            + "]"
+                    );
                 }
             }
             return supplier;

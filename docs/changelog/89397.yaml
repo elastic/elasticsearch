@@ -1,0 +1,7 @@
+pr: 89397
+summary: Preserve `system_index_migration` cluster state when loading metadata from
+  disk
+area: Infra/Core
+type: bug
+issues:
+ - 88983

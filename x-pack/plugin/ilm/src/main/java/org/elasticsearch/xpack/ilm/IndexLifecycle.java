@@ -178,9 +178,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         return Arrays.asList(
             LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
+            LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             LifecycleSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
-            LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING,

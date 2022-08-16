@@ -212,7 +212,7 @@ public class LicenseServiceTests extends ESTestCase {
             );
 
             ClusterState updatedState = taskExecutorCaptor.getValue()
-                .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(oldState, List.of(taskContext)));
+                .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(oldState, List.of(taskContext), () -> null));
             // Pass updated state to listener to trigger onResponse call to wrapped `future`
             listenerCaptor.getValue().run();
             assertion.accept(future);

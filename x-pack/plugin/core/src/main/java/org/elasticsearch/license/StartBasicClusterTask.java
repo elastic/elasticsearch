@@ -133,7 +133,9 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
             final LicensesMetadata originalLicensesMetadata = initialState.metadata().custom(LicensesMetadata.TYPE);
             var currentLicensesMetadata = originalLicensesMetadata;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
-                currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState.nodes(), taskContext);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState.nodes(), taskContext);
+                }
             }
             if (currentLicensesMetadata == originalLicensesMetadata) {
                 return initialState;

@@ -84,7 +84,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             boolean changed = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     changed |= deleteShutdownNodeState(shutdownMetadata, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);

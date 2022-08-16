@@ -75,7 +75,9 @@ public class MetadataUpdateSettingsService {
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try {
                     final var task = taskContext.getTask();
-                    state = task.execute(state);
+                    try (var ignored = taskContext.captureResponseHeaders()) {
+                        state = task.execute(state);
+                    }
                     taskContext.success(task.getAckListener());
                 } catch (Exception e) {
                     taskContext.onFailure(e);
@@ -83,7 +85,9 @@ public class MetadataUpdateSettingsService {
             }
             if (state != batchExecutionContext.initialState()) {
                 // reroute in case things change that require it (like number of replicas)
-                state = allocationService.reroute(state, "settings update");
+                try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                    state = allocationService.reroute(state, "settings update");
+                }
             }
             return state;
         };

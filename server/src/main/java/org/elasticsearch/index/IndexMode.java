@@ -27,9 +27,11 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledField;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -112,9 +114,10 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType) {
-            return false;
-        }
+        public void validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum unusedIntervalType, String unusedMessage) {}
+
+        @Override
+        public void validateCalendarTimeZone(ZoneId tz, String message) {}
     },
     TIME_SERIES("time_series") {
         @Override
@@ -208,8 +211,17 @@ public enum IndexMode {
          * @return true if validation fails, false otherwise
          */
         @Override
-        public boolean validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType) {
-            return DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(intervalType);
+        public void validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType, String message) {
+            if (DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(intervalType)) {
+                throw new UnsupportedAggregationOnDownsampledField(message);
+            }
+        }
+
+        @Override
+        public void validateCalendarTimeZone(ZoneId tz, String message) {
+            if (tz != null && ZoneId.of("UTC").equals(tz) == false) {
+                throw new UnsupportedAggregationOnDownsampledField(message);
+            }
         }
     };
 
@@ -347,5 +359,7 @@ public enum IndexMode {
         return getName();
     }
 
-    public abstract boolean validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType);
+    public abstract void validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType, String message);
+
+    public abstract void validateCalendarTimeZone(ZoneId tz, String message);
 }

@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
-import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledField;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -421,8 +420,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     ) throws IOException {
         IndexMode indexMode = context.getIndexSettings().getMode();
         final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
-        if (context.getIndexSettings().getMode().validateCalendarIntervalType(dateHistogramIntervalType)) {
-            throw new UnsupportedAggregationOnDownsampledField(
+        context.getIndexSettings()
+            .getMode()
+            .validateCalendarIntervalType(
+                dateHistogramIntervalType,
                 config.getDescription()
                     + " is not supported for aggregation ["
                     + this.getName()
@@ -430,14 +431,14 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                     + dateHistogramIntervalType.getPreferredName()
                     + "]"
             );
-        }
 
         final ZoneId tz = timeZone();
-        if (tz != null && IndexMode.TIME_SERIES.equals(indexMode) && ZoneId.of("UTC").equals(tz) == false) {
-            throw new UnsupportedAggregationOnDownsampledField(
+        context.getIndexSettings()
+            .getMode()
+            .validateCalendarTimeZone(
+                tz,
                 config.getDescription() + " is not supported for aggregation [" + this.getName() + "] with timezone [" + tz + "]"
             );
-        }
 
         DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);

@@ -170,7 +170,9 @@ public class ValuesSourceRegistry {
             T supplier = (T) aggregatorRegistry.get(registryKey).get(valuesSourceConfig.valueSourceType());
             if (supplier == null) {
                 final RuntimeException unmappedException = valuesSourceConfig.valueSourceType()
-                    .getUnmappedException(valuesSourceConfig, registryKey.getName());
+                    .getUnregisteredException(
+                        valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
+                    );
                 if (unmappedException != null) {
                     throw unmappedException;
                 }

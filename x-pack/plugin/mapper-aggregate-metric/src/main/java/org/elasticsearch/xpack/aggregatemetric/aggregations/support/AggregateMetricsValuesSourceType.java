@@ -15,7 +15,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
 
@@ -26,10 +25,8 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
     AGGREGATE_METRIC() {
 
         @Override
-        public RuntimeException getUnmappedException(ValuesSourceConfig config, String name) {
-            return new UnsupportedAggregationOnDownsampledField(
-                config.getDescription() + " is not supported for aggregation [" + name + "]"
-            );
+        public RuntimeException getUnregisteredException(String message) {
+            return new UnsupportedAggregationOnDownsampledField(message);
         }
 
         @Override

@@ -440,33 +440,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         );
     }
 
+    /**
+     * Creates a copy of this instance with the given {@code index} added.
+     * @param index index to add
+     * @return copy with added index
+     */
     public Metadata withAddedIndex(IndexMetadata index) {
         final String indexName = index.getIndex().getName();
-        ensureNoNameCollision(indexName, false);
+        ensureNoNameCollision(indexName);
         final Map<String, AliasMetadata> aliases = index.getAliases();
-        final ImmutableOpenMap<String, Set<Index>> updatedAliases;
-        if (aliases.isEmpty()) {
-            updatedAliases = aliasedIndices;
-        } else {
-            final ImmutableOpenMap.Builder<String, Set<Index>> aliasesBuilder = ImmutableOpenMap.builder(aliasedIndices);
-            for (String alias : aliases.keySet()) {
-                ensureNoNameCollision(alias, true);
-                final Set<Index> found = aliasesBuilder.get(alias);
-                final Set<Index> updated;
-                if (found == null) {
-                    updated = Set.of(index.getIndex());
-                } else {
-                    final Set<Index> tmp = new HashSet<>(found);
-                    tmp.add(index.getIndex());
-                    updated = Set.copyOf(tmp);
-                }
-                aliasesBuilder.put(alias, updated);
-            }
-            updatedAliases = aliasesBuilder.build();
-        }
-
-        final String[] updatedAllIndices = ArrayUtils.concat(allIndices, indexName);
-
+        final ImmutableOpenMap<String, Set<Index>> updatedAliases = aliasesAfterAddingIndex(index, aliases);
         final String[] updatedVisibleIndices;
         if (index.isHidden()) {
             updatedVisibleIndices = visibleIndices;
@@ -474,6 +457,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             updatedVisibleIndices = ArrayUtils.concat(visibleIndices, indexName);
         }
 
+        final String[] updatedAllIndices = ArrayUtils.concat(allIndices, indexName);
         final String[] updatedOpenIndices;
         final String[] updatedClosedIndices;
         final String[] updatedVisibleOpenIndices;
@@ -487,7 +471,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
             updatedVisibleClosedIndices = visibleClosedIndices;
             updatedClosedIndices = allClosedIndices;
-        } else if (index.getState() == IndexMetadata.State.CLOSE) {
+        } else {
+            assert index.getState() == IndexMetadata.State.CLOSE
+                : "state should be closed when not open but was [" + index.getState() + "]";
             updatedOpenIndices = allOpenIndices;
             updatedClosedIndices = ArrayUtils.concat(allClosedIndices, indexName);
             updatedVisibleOpenIndices = visibleOpenIndices;
@@ -496,11 +482,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             } else {
                 updatedVisibleClosedIndices = visibleClosedIndices;
             }
-        } else {
-            updatedOpenIndices = allOpenIndices;
-            updatedClosedIndices = allClosedIndices;
-            updatedVisibleOpenIndices = visibleOpenIndices;
-            updatedVisibleClosedIndices = visibleClosedIndices;
         }
 
         final MappingMetadata mappingMetadata = index.mapping();
@@ -508,7 +489,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         if (mappingMetadata == null) {
             updatedMappingsByHash = mappingsByHash;
         } else {
-            final MappingMetadata existingMapping = mappingsByHash.get(index.mapping().getSha256());
+            final MappingMetadata existingMapping = mappingsByHash.get(mappingMetadata.getSha256());
             if (existingMapping != null) {
                 index = index.withMappingMetadata(existingMapping);
                 updatedMappingsByHash = mappingsByHash;
@@ -554,7 +535,32 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         );
     }
 
-    private void ensureNoNameCollision(String indexName, boolean isAlias) {
+    private ImmutableOpenMap<String, Set<Index>> aliasesAfterAddingIndex(IndexMetadata index, Map<String, AliasMetadata> aliases) {
+        if (aliases.isEmpty()) {
+            return aliasedIndices;
+        }
+        final String indexName = index.getIndex().getName();
+        final ImmutableOpenMap.Builder<String, Set<Index>> aliasesBuilder = ImmutableOpenMap.builder(aliasedIndices);
+        for (String alias : aliases.keySet()) {
+            ensureNoNameCollision(alias);
+            if (aliasedIndices.containsKey(indexName)) {
+                throw new IllegalArgumentException("alias with name [" + indexName + "] already exists");
+            }
+            final Set<Index> found = aliasesBuilder.get(alias);
+            final Set<Index> updated;
+            if (found == null) {
+                updated = Set.of(index.getIndex());
+            } else {
+                final Set<Index> tmp = new HashSet<>(found);
+                tmp.add(index.getIndex());
+                updated = Set.copyOf(tmp);
+            }
+            aliasesBuilder.put(alias, updated);
+        }
+        return aliasesBuilder.build();
+    }
+
+    private void ensureNoNameCollision(String indexName) {
         if (indices.containsKey(indexName)) {
             throw new IllegalArgumentException("index with name [" + indexName + "] already exists");
         }
@@ -563,11 +569,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
         if (dataStreamAliases().containsKey(indexName)) {
             throw new IllegalStateException("data stream alias and indices alias have the same name (" + indexName + ")");
-        }
-        if (isAlias == false) {
-            if (aliasedIndices.containsKey(indexName)) {
-                throw new IllegalArgumentException("alias with name [" + indexName + "] already exists");
-            }
         }
     }
 

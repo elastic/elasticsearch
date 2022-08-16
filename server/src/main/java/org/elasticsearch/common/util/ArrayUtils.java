@@ -75,6 +75,9 @@ public class ArrayUtils {
         return target;
     }
 
+    /**
+     * Concat a string to a string array.
+     */
     public static String[] concat(String[] array, String added) {
         final String[] updated = new String[array.length + 1];
         System.arraycopy(array, 0, updated, 0, array.length);

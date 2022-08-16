@@ -32,6 +32,8 @@ PUT my-index-000001
   }
 }
 
+## THIS code doesn't work -> GeoJSON for geo_point is broken!!
+
 PUT my-index-000001/_doc/1
 {
   "text": "Geopoint as an object using GeoJSON format",

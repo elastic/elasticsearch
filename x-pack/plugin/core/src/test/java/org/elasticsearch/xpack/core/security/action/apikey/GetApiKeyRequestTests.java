@@ -143,7 +143,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
         }
         {
             final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
-                .apiKeyName(apiKeyId)
+                .apiKeyId(apiKeyId)
                 .ownedByAuthenticatedUser(true)
                 .withLimitedBy(randomBoolean())
                 .build();
@@ -163,7 +163,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
         }
         {
             final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
-                .apiKeyName(apiKeyId)
+                .apiKeyId(apiKeyId)
                 .withLimitedBy(randomBoolean())
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();

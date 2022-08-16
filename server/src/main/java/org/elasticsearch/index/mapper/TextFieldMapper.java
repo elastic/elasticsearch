@@ -899,9 +899,13 @@ public class TextFieldMapper extends FieldMapper {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 
             if (operation == FielddataOperation.SCRIPT) {
-                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD,
-                    SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())), fieldDataContext.lookupSupplier().get().source(),
-                    TextDocValuesField::new);
+                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                    fieldDataContext.lookupSupplier().get().source(),
+                    TextDocValuesField::new
+                );
             } else if (operation == FielddataOperation.SEARCH) {
                 if (fielddata == false) {
                     throw new IllegalArgumentException(

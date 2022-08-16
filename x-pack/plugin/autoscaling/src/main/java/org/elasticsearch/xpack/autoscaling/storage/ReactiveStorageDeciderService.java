@@ -312,10 +312,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
 
             // track these to ensure we do not double account if they both cannot remain and allocated due to storage.
-            Set<DecisionAllocationResult> unmovableShardNodeAllocationResults = candidates.stream()
+            List<DecisionAllocationResult> unmovableShardNodeAllocationResults = candidates.stream()
                 .filter(s -> allocatedToTier(s, allocation))
                 .flatMap(s -> Optional.of(cannotRemainDueToStorage(s, allocation)).filter(e -> e.decision).stream())
-                .collect(Collectors.toSet());
+                .toList();
             Set<ShardRouting> unmovableShards = unmovableShardNodeAllocationResults.stream().map(e -> e.shard).collect(Collectors.toSet());
 
             long unmovableBytes = unmovableShards.stream()

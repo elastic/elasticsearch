@@ -234,11 +234,39 @@ public class StablePluginClassLoader extends SecureClassLoader {
     @Override
     protected Class<?> loadClass(String cn, boolean resolve) throws ClassNotFoundException {
         // if cn's package is in this ubermodule, look here only (or just first?)
-        Optional<String> packageName = ModuleSupport.toPackageName(cn, ".");
-        if (packageName.isPresent() && packageName.filter(this.packageNames::contains).isPresent()) {
-            return findClass(cn);
-        }
+        String packageName = packageName(cn);
 
-        return super.loadClass(cn, resolve);
+        synchronized (getClassLoadingLock(cn)) {
+
+            // check if already loaded
+            Class<?> c = findLoadedClass(cn);
+
+            if (c == null) {
+               if (this.packageNames.contains(packageName)) {
+                   // find in module or null
+                   c = findClass(cn);
+               } else {
+                   c = getParent().loadClass(cn);
+               }
+            }
+
+            if (c == null)
+                throw new ClassNotFoundException(cn);
+
+            if (resolve)
+                resolveClass(c);
+
+            return c;
+        }
     }
+
+    /**
+     * Returns the package name for the given class name
+     * (from jdk.internal.loader.Loader)
+     */
+    private String packageName(String cn) {
+        int pos = cn.lastIndexOf('.');
+        return (pos < 0) ? "" : cn.substring(0, pos);
+    }
+
 }

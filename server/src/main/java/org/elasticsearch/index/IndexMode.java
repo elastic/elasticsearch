@@ -113,7 +113,7 @@ public enum IndexMode {
 
         @Override
         public boolean validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType) {
-            return falseg;
+            return false;
         }
     },
     TIME_SERIES("time_series") {

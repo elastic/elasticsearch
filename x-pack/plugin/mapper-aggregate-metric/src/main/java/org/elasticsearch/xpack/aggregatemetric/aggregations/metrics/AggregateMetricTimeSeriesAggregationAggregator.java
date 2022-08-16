@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -23,7 +24,9 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.Downsample;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregator;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregatorDeferring;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
@@ -34,7 +37,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
-public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAggregationAggregator {
+public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAggregationAggregatorDeferring {
     private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
 
     public AggregateMetricTimeSeriesAggregationAggregator(
@@ -52,6 +55,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
         BucketOrder order,
         long startTime,
         long endTime,
+        boolean deferring,
         ValuesSourceConfig valuesSourceConfig,
         AggregationContext context,
         Aggregator parent,
@@ -73,6 +77,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
             order,
             startTime,
             endTime,
+            deferring,
             null,
             context,
             parent,
@@ -90,8 +95,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return new LeafBucketCollector() {
                 @Override
@@ -110,14 +114,51 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                 }
             };
         }
+        return getCollector(sub, aggCtx);
+    }
+
+    @Override
+    protected LeafBucketCollector getCollector(
+        LeafBucketCollector sub,
+        AggregationExecutionContext aggCtx
+    ) throws IOException {
         Metric metricType = getAggregateMetric();
         if (metricType != null) {
-            final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(context, metricType);
-            return getCollector(sub, aggCtx, values);
+            final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), metricType);
+            CheckedConsumer<Integer, IOException> docConsumer = (doc) -> {
+                if (aggCtx.getTimestamp() + downsampleRange < preRounding) {
+                    return;
+                }
+
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
+                    for (int i = 0; i < valuesCount; i++) {
+                        double value = values.nextValue();
+                        if (false == timeBucketMetrics.containsKey(preRounding)) {
+                            downsampleParams.put(Function.ROUNDING_FIELD, preRounding);
+                            timeBucketMetrics.put(preRounding, downsampleFunction.getFunction(downsampleParams));
+                        }
+                        for (Map.Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
+                            Long timestamp = entry.getKey();
+                            AggregatorFunction function = entry.getValue();
+                            if (aggCtx.getTimestamp() + downsampleRange >= timestamp) {
+                                function.collect(new TimePoint(aggCtx.getTimestamp(), value));
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+            };
+            if (deferring) {
+                return new DeferringCollector(values, aggCtx, docConsumer);
+            } else {
+                return new Collector(sub, values, aggCtx, docConsumer);
+            }
         } else {
-            final SortedNumericDoubleValues aggregateSums = valuesSource.getAggregateMetricValues(context, Metric.sum);
-            final SortedNumericDoubleValues aggregateValueCounts = valuesSource.getAggregateMetricValues(context, Metric.value_count);
-            return new Collector(sub, aggregateSums, aggCtx, (doc) -> {
+            final SortedNumericDoubleValues aggregateSums = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), Metric.sum);
+            final SortedNumericDoubleValues aggregateValueCounts = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), Metric.value_count);
+            CheckedConsumer<Integer, IOException> docConsumer = (doc) -> {
                 if (aggCtx.getTimestamp() + downsampleRange < preRounding) {
                     return;
                 }
@@ -153,7 +194,13 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                         break;
                     }
                 }
-            });
+            };
+
+            if (deferring) {
+                return new DeferringCollector(aggregateSums, aggCtx, docConsumer);
+            } else {
+                return new Collector(sub, aggregateSums, aggCtx, docConsumer);
+            }
         }
     }
 

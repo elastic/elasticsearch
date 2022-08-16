@@ -40,6 +40,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final long startTime;
     private final long endTime;
+    private boolean deferring;
     private final BucketOrder order;
     private final ValuesSourceConfig config;
     private final TimeSeriesAggregationAggregatorSupplier aggregatorSupplier;
@@ -58,6 +59,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
         BucketOrder order,
         long startTime,
         long endTime,
+        boolean deferring,
         ValuesSourceConfig config,
         AggregationContext context,
         AggregatorFactory parent,
@@ -77,6 +79,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
         this.bucketCountThresholds = bucketCountThresholds;
         this.startTime = startTime;
         this.endTime = endTime;
+        this.deferring = deferring;
         this.order = order;
         this.config = config;
         this.aggregatorSupplier = aggregatorSupplier;
@@ -86,7 +89,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
         builder.register(
             TimeSeriesAggregationAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC),
-            TimeSeriesAggregationAggregator::new,
+            TimeSeriesAggregationAggregatorDeferring::new,
             true
         );
     }
@@ -102,7 +105,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
             thresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(thresholds.getRequiredSize()));
         }
         thresholds.ensureValidity();
-        return new TimeSeriesAggregationAggregator(
+        return new TimeSeriesAggregationAggregatorDeferring(
             name,
             factories,
             keyed,
@@ -117,6 +120,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
             order,
             startTime,
             endTime,
+            deferring,
             config,
             context,
             parent,
@@ -152,6 +156,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
             order,
             startTime,
             endTime,
+            deferring,
             config,
             context,
             parent,

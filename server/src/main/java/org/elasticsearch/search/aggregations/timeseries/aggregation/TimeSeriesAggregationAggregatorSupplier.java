@@ -38,6 +38,7 @@ public interface TimeSeriesAggregationAggregatorSupplier {
         BucketOrder order,
         long startTime,
         long endTime,
+        boolean deferring,
         ValuesSourceConfig valuesSourceConfig,
         AggregationContext context,
         Aggregator parent,

@@ -535,7 +535,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         Rounding.Prepared rounding = Rounding.builder(new TimeValue(fixedInterval.estimateMillis())).build().prepareForUnknown();
         SearchResponse response = client().prepareSearch("index")
             .setSize(0)
-            .addAggregation(timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).size(data.size()))
+            .addAggregation(timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).deferring(randomBoolean()).size(data.size()))
             .get();
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
@@ -579,6 +579,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
                 timeSeriesAggregation("by_ts").field("metric_0")
                     .interval(fixedInterval)
                     .downsample(fixedInterval, Function.sum_over_time, null)
+                    .deferring(randomBoolean())
                     .size(data.size())
             )
             .get();
@@ -618,7 +619,13 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         Rounding.Prepared rounding = Rounding.builder(new TimeValue(fixedInterval.estimateMillis())).build().prepareForUnknown();
         SearchResponse response = client().prepareSearch("index")
             .setSize(0)
-            .addAggregation(timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).aggregator("sum").size(data.size()))
+            .addAggregation(
+                timeSeriesAggregation("by_ts").field("metric_0")
+                    .interval(fixedInterval)
+                    .aggregator("sum")
+                    .deferring(randomBoolean())
+                    .size(data.size())
+            )
             .get();
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
@@ -676,6 +683,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
                     .interval(fixedInterval)
                     .downsample(fixedInterval, Function.max_over_time, null)
                     .aggregator("sum")
+                    .deferring(randomBoolean())
                     .size(data.size())
             )
             .get();

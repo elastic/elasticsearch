@@ -52,6 +52,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     public static final ParseField SHARD_MIN_DOC_COUNT_FIELD = new ParseField("shard_min_doc_count");
     public static final ParseField START_TIME_FIELD = new ParseField("start_time");
     public static final ParseField END_TIME_FIELD = new ParseField("end_time");
+    public static final ParseField DEFERRING_FIELD = new ParseField("deferring");
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
         1,
@@ -84,6 +85,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     private BucketOrder order = BucketOrder.key(true);
     private Long startTime;
     private Long endTime;
+    private boolean deferring = true;
 
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, true, false);
@@ -123,6 +125,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         PARSER.declareInt(TimeSeriesAggregationAggregationBuilder::shardMinDocCount, SHARD_MIN_DOC_COUNT_FIELD);
         PARSER.declareLong(TimeSeriesAggregationAggregationBuilder::startTime, START_TIME_FIELD);
         PARSER.declareLong(TimeSeriesAggregationAggregationBuilder::endTime, END_TIME_FIELD);
+        PARSER.declareBoolean(TimeSeriesAggregationAggregationBuilder::deferring, DEFERRING_FIELD);
     }
 
     public TimeSeriesAggregationAggregationBuilder(String name) {
@@ -147,6 +150,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         this.bucketCountThresholds = clone.bucketCountThresholds;
         this.startTime = clone.startTime;
         this.endTime = clone.endTime;
+        this.deferring = clone.deferring;
     }
 
     public TimeSeriesAggregationAggregationBuilder(StreamInput in) throws IOException {
@@ -163,6 +167,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
         startTime = in.readOptionalLong();
         endTime = in.readOptionalLong();
+        deferring = in.readBoolean();
     }
 
     @Override
@@ -179,6 +184,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         bucketCountThresholds.writeTo(out);
         out.writeOptionalLong(startTime);
         out.writeOptionalLong(endTime);
+        out.writeBoolean(deferring);
     }
 
     @Override
@@ -217,6 +223,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             order,
             startTime != null ? startTime : -1,
             endTime != null ? endTime : -1,
+            deferring,
             config,
             context,
             parent,
@@ -259,6 +266,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         if (endTime != null) {
             builder.field(END_TIME_FIELD.getPreferredName(), endTime);
         }
+        builder.field(DEFERRING_FIELD.getPreferredName(), deferring);
         return builder;
     }
 
@@ -279,7 +287,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
 
     @Override
     public boolean isInSortOrderExecutionRequired() {
-        return true;
+        return false == deferring;
     }
 
     /**
@@ -536,6 +544,15 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
 
     public TimeSeriesAggregationAggregationBuilder endTime(long endTime) {
         this.endTime = endTime;
+        return this;
+    }
+
+    public boolean isDeferring() {
+        return deferring;
+    }
+
+    public TimeSeriesAggregationAggregationBuilder deferring(boolean deferring) {
+        this.deferring = deferring;
         return this;
     }
 

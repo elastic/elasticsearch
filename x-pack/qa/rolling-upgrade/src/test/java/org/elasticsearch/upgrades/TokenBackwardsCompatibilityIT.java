@@ -14,17 +14,21 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
@@ -39,7 +43,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         } else {
             assert clientsByVersion.size() == 1
                 : "A rolling upgrade has a maximum of two distinct node versions, found: " + clientsByVersion.keySet();
-            // tests assumes exactly two clients to simplify some logic
+            // tests assume exactly two clients to simplify some logic
             twoClients = new ArrayList<>();
             twoClients.add(clientsByVersion.values().iterator().next());
             twoClients.add(clientsByVersion.values().iterator().next());
@@ -64,10 +68,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
-        Long expiresIn = (Long) responseMap.get("expires_in");
+        Integer expiresIn = (Integer) responseMap.get("expires_in");
         assertNotNull(expiresIn);
+        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
 
-        storeTokens(client(), 1, accessToken, refreshToken);
+        storeTokens(client(), 1, accessToken, refreshToken, expirationTime);
 
         responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         accessToken = (String) responseMap.get("access_token");
@@ -75,8 +80,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertAccessTokenWorks(accessToken);
         refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
+        expiresIn = (Integer) responseMap.get("expires_in");
+        assertNotNull(expiresIn);
+        expirationTime = Instant.now().plusSeconds(expiresIn);
 
-        storeTokens(client(), 2, accessToken, refreshToken);
+        storeTokens(client(), 2, accessToken, refreshToken, expirationTime);
     }
 
     public void testRefreshingTokensInOldCluster() throws Exception {
@@ -88,21 +96,27 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
+        Integer expiresIn = (Integer) responseMap.get("expires_in");
+        assertNotNull(expiresIn);
+        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
 
-        storeTokens(client(), 3, accessToken, refreshToken);
+        storeTokens(client(), 3, accessToken, refreshToken, expirationTime);
 
         // refresh the token just created. The old token is invalid (tested further) and the new refresh token is tested in the upgraded
         // cluster
         Map<String, Object> refreshResponseMap = refreshToken(client(), refreshToken);
         String refreshedAccessToken = (String) refreshResponseMap.get("access_token");
         String refreshedRefreshToken = (String) refreshResponseMap.get("refresh_token");
+        Integer refreshedTokenExpiresIn = (Integer) responseMap.get("expires_in");
+        assertNotNull(refreshedTokenExpiresIn);
+        Instant refreshedTokenExpirationTime = Instant.now().plusSeconds(refreshedTokenExpiresIn);
         assertNotNull(refreshedAccessToken);
         assertNotNull(refreshedRefreshToken);
         assertAccessTokenWorks(refreshedAccessToken);
         // assert previous access token still works
         assertAccessTokenWorks(accessToken);
 
-        storeTokens(client(), 4, refreshedAccessToken, refreshedRefreshToken);
+        storeTokens(client(), 4, refreshedAccessToken, refreshedRefreshToken, refreshedTokenExpirationTime);
     }
 
     public void testInvalidatingTokensInOldCluster() throws Exception {
@@ -114,8 +128,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
+        Integer expiresIn = (Integer) responseMap.get("expires_in");
+        assertNotNull(expiresIn);
+        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
 
-        storeTokens(client(), 5, accessToken, refreshToken);
+        storeTokens(client(), 5, accessToken, refreshToken, expirationTime);
 
         // invalidate access token
         invalidateAccessToken(client(), accessToken);
@@ -129,8 +146,15 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         // Verify that an old token continues to work during all stages of the rolling upgrade
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         for (int tokenIdx : Arrays.asList(1, 3, 4)) { // 2 is invalidated in another mixed-cluster test, 5 is invalidated in the old cluster
-            Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
-            assertAccessTokenWorks((String) source.get("token"));
+            final Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
+            final var expirationTime = Instant.ofEpochMilli((Long) source.get("expiration_time"));
+            final var now = Instant.now();
+            final int slackInSeconds = 10;
+            if (expirationTime.isBefore(now.minusSeconds(slackInSeconds))) {
+                assertAccessTokenWorks((String) source.get("token"));
+            } else {
+                assertBusy(() -> assertAccessTokenDoesNotWork((String) source.get("token")));
+            }
         }
     }
 
@@ -154,8 +178,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertAccessTokenWorks(accessToken);
             String refreshToken = (String) responseMap.get("refresh_token");
             assertNotNull(refreshToken);
+            Integer expiresIn = (Integer) responseMap.get("expires_in");
+            assertNotNull(expiresIn);
+            Instant expirationTime = Instant.now().plusSeconds(expiresIn);
 
-            storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken);
+            storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken, expirationTime);
 
             responseMap = createTokens(client, "test_user", "x-pack-test-password");
             accessToken = (String) responseMap.get("access_token");
@@ -163,8 +190,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertAccessTokenWorks(accessToken);
             refreshToken = (String) responseMap.get("refresh_token");
             assertNotNull(refreshToken);
+            expiresIn = (Integer) responseMap.get("expires_in");
+            assertNotNull(expiresIn);
+            expirationTime = Instant.now().plusSeconds(expiresIn);
 
-            storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken);
+            storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken, expirationTime);
         }
     }
 
@@ -271,7 +301,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private void assertAccessTokenDoesNotWork(String token) throws IOException {
+    private void assertAccessTokenDoesNotWork(String token) {
         for (RestClient client : twoClients) {
             Request request = new Request("GET", "/_security/_authenticate");
             RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -337,15 +367,17 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return entityAsMap(response);
     }
 
-    private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken) throws IOException {
+    private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken, Instant expirationTime)
+        throws IOException {
         final Request indexRequest = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token" + idx);
-        indexRequest.setJsonEntity("""
-            {
-              "token": "%s",
-              "refresh_token": "%s"
-            }""".formatted(accessToken, refreshToken));
-        Response indexResponse1 = client.performRequest(indexRequest);
-        assertOK(indexResponse1);
+        indexRequest.setJsonEntity(
+            XContentTestUtils.convertToXContent(
+                Map.of("token", accessToken, "refresh_token", refreshToken, "expiration_time", expirationTime.toEpochMilli()),
+                XContentType.JSON
+            ).utf8ToString()
+        );
+        final Response indexResponse = client.performRequest(indexRequest);
+        assertOK(indexResponse);
     }
 
     @SuppressWarnings("unchecked")

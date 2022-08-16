@@ -1736,8 +1736,8 @@ public class ApiKeyService {
             return (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
             final Authentication.RealmRef effectiveSubjectRealm = authentication.getEffectiveSubject().getRealm();
-            // `effectiveSubjectRealm` can only be `null` when run-as look up fails. The owner is always the effective subject so there is
-            // no owner information to return here
+            // The effective subject realm can only be `null` when run-as look up fails. The owner is always the effective subject, so there
+            // is no owner information to return here
             return effectiveSubjectRealm != null ? effectiveSubjectRealm.getName() : null;
         }
     }
@@ -1751,7 +1751,8 @@ public class ApiKeyService {
                 (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
         } else {
             final Authentication.RealmRef effectiveSubjectRealm = authentication.getEffectiveSubject().getRealm();
-            // This can only happen when run-as look up fails. The owner is always the effective subject so there are no owner realms.
+            // The effective subject realm can only be `null` when run-as look up fails. The owner is always the effective subject, so there
+            // is no owner information to return here
             if (effectiveSubjectRealm == null) {
                 return new String[] {};
             }
@@ -1776,8 +1777,8 @@ public class ApiKeyService {
             return (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
             final Authentication.RealmRef effectiveSubjectRealm = authentication.getEffectiveSubject().getRealm();
-            // `effectiveSubjectRealm` can only be `null` when run-as look up fails. The owner is always the effective subject so there is
-            // no owner information to return here
+            // The effective subject realm can only be `null` when run-as look up fails. The owner is always the effective subject, so there
+            // is no owner information to return here
             return effectiveSubjectRealm != null ? effectiveSubjectRealm.getType() : null;
         }
     }

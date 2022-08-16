@@ -10,6 +10,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.junit.Ignore;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -19,6 +20,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
+@Ignore
 public class WatcherRestartIT extends AbstractUpgradeTestCase {
 
     public void testWatcherRestart() throws Exception {

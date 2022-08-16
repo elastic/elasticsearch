@@ -11,9 +11,11 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.hamcrest.Matchers;
+import org.junit.Ignore;
 
 import java.nio.charset.StandardCharsets;
 
+@Ignore
 public class GeoIpUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testGeoIpDownloader() throws Exception {

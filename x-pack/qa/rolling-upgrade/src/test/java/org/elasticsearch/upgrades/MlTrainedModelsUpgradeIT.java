@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-
+@Ignore
 public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
 
     static final String BOOLEAN_FIELD = "boolean-field";

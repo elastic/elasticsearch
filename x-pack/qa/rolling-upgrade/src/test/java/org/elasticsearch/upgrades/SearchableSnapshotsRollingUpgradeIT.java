@@ -23,6 +23,7 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
+@Ignore
 public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase {
 
     public enum Storage {

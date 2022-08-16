@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -42,7 +43,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
-
+@Ignore
 public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String TRANSFORM_ENDPOINT = "/_transform/";

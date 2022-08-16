@@ -147,13 +147,15 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         for (int tokenIdx : Arrays.asList(1, 3, 4)) { // 2 is invalidated in another mixed-cluster test, 5 is invalidated in the old cluster
             final Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
+            final var accessToken = (String) source.get("token");
             final var expirationTime = Instant.ofEpochMilli((Long) source.get("expiration_time"));
             final var now = Instant.now();
             final int slackInSeconds = 10;
-            if (expirationTime.isBefore(now.minusSeconds(slackInSeconds))) {
-                assertAccessTokenWorks((String) source.get("token"));
+            if (now.plusSeconds(slackInSeconds).isAfter(expirationTime)) {
+                // test took long enough for token to expire or almost expire; to avoid flakiness check that it's expired
+                assertBusy(() -> assertAccessTokenDoesNotWork(accessToken));
             } else {
-                assertBusy(() -> assertAccessTokenDoesNotWork((String) source.get("token")));
+                assertAccessTokenWorks(accessToken);
             }
         }
     }

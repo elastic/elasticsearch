@@ -223,6 +223,12 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         if (step.getMinPrimaryShardDocs() != null) {
             expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
         }
+
+        // if no minimum document condition was specified, then a default min_docs: 1 condition will be injected
+        if (step.getMinDocs() == null && step.getMinPrimaryShardDocs() == null) {
+            expectedConditions.add(new MinDocsCondition(1L));
+        }
+
         return expectedConditions;
     }
 

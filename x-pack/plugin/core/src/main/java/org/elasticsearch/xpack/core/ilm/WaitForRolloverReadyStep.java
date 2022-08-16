@@ -228,6 +228,14 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         if (minPrimaryShardDocs != null) {
             rolloverRequest.addMinPrimaryShardDocsCondition(minPrimaryShardDocs);
         }
+
+        // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
+        // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
+        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
+        if (rolloverOnlyIfHasDocuments && (minDocs == null && minPrimaryShardDocs == null)) {
+            rolloverRequest.addMinIndexDocsCondition(1L);
+        }
+
         getClient().admin()
             .indices()
             .rolloverIndex(

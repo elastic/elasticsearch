@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -227,8 +228,9 @@ public class MetadataIndexStateService {
 
         @Override
         @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
-        public ClusterState execute(BatchExecutionContext<CloseIndicesTask> batchExecutionContext) throws Exception {
-            ClusterState state = batchExecutionContext.initialState();
+        public ClusterState execute(BatchExecutionContext<CloseIndicesTask> batchExecutionContext) {
+            var listener = new AllocationActionMultiListener<CloseIndexResponse>();
+            var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
                 try {
@@ -266,12 +268,12 @@ public class MetadataIndexStateService {
                                     // so we maintain a kind of coherency by overriding the shardsAcknowledged value
                                     // (see ShardsAcknowledgedResponse constructor)
                                     boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
-                                    task.listener().onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
+                                    listener.delay(task.listener()).onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
                                 },
-                                task.listener()::onFailure
+                                listener.delay(task.listener())::onFailure
                             );
                         } else {
-                            task.listener().onResponse(new CloseIndexResponse(acknowledged, false, indices));
+                            listener.delay(task.listener()).onResponse(new CloseIndexResponse(acknowledged, false, indices));
                         }
                     });
                 } catch (Exception e) {
@@ -279,7 +281,7 @@ public class MetadataIndexStateService {
                 }
             }
 
-            return allocationService.reroute(state, "indices closed");
+            return allocationService.reroute(state, "indices closed", listener.reroute());
         }
     }
 
@@ -1101,8 +1103,8 @@ public class MetadataIndexStateService {
 
         @Override
         public ClusterState execute(BatchExecutionContext<OpenIndicesTask> batchExecutionContext) {
-            ClusterState state = batchExecutionContext.initialState();
-
+            var listener = new AllocationActionMultiListener<AcknowledgedResponse>();
+            var state = batchExecutionContext.initialState();
             try {
                 // build an in-order de-duplicated array of all the indices to open
                 final Set<Index> indicesToOpen = Sets.newLinkedHashSetWithExpectedSize(batchExecutionContext.taskContexts().size());
@@ -1115,11 +1117,11 @@ public class MetadataIndexStateService {
                 state = openIndices(indices, state);
 
                 // do a final reroute
-                state = allocationService.reroute(state, "indices opened");
+                state = allocationService.reroute(state, "indices opened", listener.reroute());
 
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     final var task = taskContext.getTask();
-                    taskContext.success(task);
+                    taskContext.success(task.getAckListener(listener));
                 }
             } catch (Exception e) {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -1205,8 +1207,7 @@ public class MetadataIndexStateService {
 
     private record OpenIndicesTask(OpenIndexClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
         implements
-            ClusterStateTaskListener,
-            ClusterStateAckListener {
+            ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -1214,33 +1215,37 @@ public class MetadataIndexStateService {
         }
 
         @Override
-        public boolean mustAck(DiscoveryNode discoveryNode) {
-            return true;
-        }
-
-        @Override
-        public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.of(true));
-        }
-
-        @Override
-        public void onAckFailure(Exception e) {
-            listener.onResponse(AcknowledgedResponse.of(false));
-        }
-
-        @Override
-        public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.FALSE);
-        }
-
-        @Override
-        public TimeValue ackTimeout() {
-            return request.ackTimeout();
-        }
-
-        @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             assert false : "not called";
+        }
+
+        public ClusterStateAckListener getAckListener(AllocationActionMultiListener<AcknowledgedResponse> multiListener) {
+            return new ClusterStateAckListener() {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
+
+                @Override
+                public void onAllNodesAcked() {
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(true));
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(false));
+                }
+
+                @Override
+                public void onAckTimeout() {
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.FALSE);
+                }
+
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            };
         }
     }
 }

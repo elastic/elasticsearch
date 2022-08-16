@@ -124,25 +124,25 @@ public class GetApiKeyRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final String apiKeyId = randomAlphaOfLength(5);
         {
-            final GetApiKeyRequest getApiKeyRequest1 = GetApiKeyRequest.builder()
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
                 .ownedByAuthenticatedUser(true)
                 .apiKeyId(apiKeyId)
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
             out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
-            getApiKeyRequest1.writeTo(out);
+            getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
             inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
-            assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest1.getApiKeyId()));
+            assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
             // old version so the default for `ownedByAuthenticatedUser` is false
             assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(false));
         }
         {
-            final GetApiKeyRequest getApiKeyRequest2 = GetApiKeyRequest.builder()
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
                 .apiKeyName(apiKeyId)
                 .ownedByAuthenticatedUser(true)
                 .withLimitedBy(randomBoolean())
@@ -150,32 +150,32 @@ public class GetApiKeyRequestTests extends ESTestCase {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
             out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.V_8_4_0));
-            getApiKeyRequest2.writeTo(out);
+            getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
             inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.V_8_4_0));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
-            assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest2.getApiKeyId()));
+            assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
             assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(true));
             // old version so the default for `withLimitedBy` is false
             assertThat(requestFromInputStream.withLimitedBy(), is(false));
         }
         {
-            final GetApiKeyRequest getApiKeyRequest3 = GetApiKeyRequest.builder()
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
                 .apiKeyName(apiKeyId)
                 .withLimitedBy(randomBoolean())
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
             out.setVersion(randomVersionBetween(random(), Version.V_8_5_0, Version.CURRENT));
-            getApiKeyRequest3.writeTo(out);
+            getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
             inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_8_5_0, Version.CURRENT));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
-            assertThat(requestFromInputStream, equalTo(getApiKeyRequest3));
+            assertThat(requestFromInputStream, equalTo(getApiKeyRequest));
         }
     }
 

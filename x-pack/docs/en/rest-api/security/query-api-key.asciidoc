@@ -47,7 +47,6 @@ The query supports a subset of query types, including
 and <<query-dsl-range-query,`range`>>.
 +
 You can query the following public values associated with an API key.
-following values.
 +
 .Valid values for `query`
 [%collapsible%open]

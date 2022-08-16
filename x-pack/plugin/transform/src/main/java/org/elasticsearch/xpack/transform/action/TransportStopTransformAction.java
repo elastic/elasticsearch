@@ -295,6 +295,12 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             // If there were failures attempting to stop the tasks, we don't know if they will actually stop.
             // It is better to respond to the user now than allow for the persistent task waiting to timeout
             if (response.getTaskFailures().isEmpty() == false || response.getNodeFailures().isEmpty() == false) {
+                logger.debug(
+                    "[{}] Failure when waiting for transform to stop, task failures: [{}], node failures: [{}]",
+                    request.getId(),
+                    response.getTaskFailures(),
+                    response.getNodeFailures()
+                );
                 RestStatus status = firstNotOKStatus(response.getTaskFailures(), response.getNodeFailures());
                 listener.onFailure(buildException(response.getTaskFailures(), response.getNodeFailures(), status));
                 return;

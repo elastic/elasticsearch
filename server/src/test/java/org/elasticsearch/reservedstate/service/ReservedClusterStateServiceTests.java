@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -177,9 +178,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception failure) {}
+
+            @Override
+            public Releasable captureResponseHeaders() {
+                return null;
+            }
         };
 
-        ClusterState newState = taskExecutor.execute(state, List.of(taskContext));
+        ClusterState newState = taskExecutor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext), () -> null)
+        );
         assertEquals(state, newState);
         assertTrue(successCalled.get());
         verify(task, times(1)).execute(any());
@@ -191,12 +199,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     public void testErrorStateTask() throws Exception {
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
 
+        final var listenerCompleted = new AtomicBoolean(false);
+
         ReservedStateErrorTask task = spy(
             new ReservedStateErrorTask(
                 new ErrorState("test", 1L, List.of("some parse error", "some io error"), ReservedStateErrorMetadata.ErrorKind.PARSING),
                 new ActionListener<>() {
                     @Override
-                    public void onResponse(ActionResponse.Empty empty) {}
+                    public void onResponse(ActionResponse.Empty empty) {
+                        listenerCompleted.set(true);
+                    }
 
                     @Override
                     public void onFailure(Exception e) {}
@@ -227,11 +239,18 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception failure) {}
+
+                @Override
+                public Releasable captureResponseHeaders() {
+                    return null;
+                }
             };
 
         ReservedStateErrorTaskExecutor executor = new ReservedStateErrorTaskExecutor();
 
-        ClusterState newState = executor.execute(state, List.of(taskContext));
+        ClusterState newState = executor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext), () -> null)
+        );
 
         verify(task, times(1)).execute(any());
 
@@ -241,6 +260,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         assertEquals(1L, (long) operatorMetadata.errorMetadata().version());
         assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, operatorMetadata.errorMetadata().errorKind());
         assertThat(operatorMetadata.errorMetadata().errors(), contains("some parse error", "some io error"));
+        assertTrue(listenerCompleted.get());
     }
 
     public void testUpdateTaskDuplicateError() {

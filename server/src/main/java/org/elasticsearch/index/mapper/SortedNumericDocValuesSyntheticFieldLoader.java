@@ -12,7 +12,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -25,7 +24,7 @@ import java.util.stream.Stream;
 public abstract class SortedNumericDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String name;
     private final String simpleName;
-    private CheckedConsumer<XContentBuilder, IOException> writer = b -> {};
+    private Values values = NO_VALUES;
 
     protected SortedNumericDocValuesSyntheticFieldLoader(String name, String simpleName) {
         this.name = name;
@@ -43,6 +42,7 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
         SortedNumericDocValues dv = docValuesOrNull(reader, name);
         if (dv == null) {
+            values = NO_VALUES;
             return null;
         }
         if (docIdsInLeaf.length > 1) {
@@ -53,24 +53,55 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
              */
             NumericDocValues single = DocValues.unwrapSingleton(dv);
             if (single != null) {
-                return buildSingletonDocValuesLoader(single, docIdsInLeaf);
+                SingletonDocValuesLoader loader = buildSingletonDocValuesLoader(single, docIdsInLeaf);
+                values = loader == null ? NO_VALUES : loader;
+                return loader;
             }
         }
-        return new ImmediateDocValuesLoader(dv);
+        ImmediateDocValuesLoader loader = new ImmediateDocValuesLoader(dv);
+        values = loader;
+        return loader;
     }
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        writer.accept(b);
+        switch (values.count()) {
+            case 0:
+                return;
+            case 1:
+                b.field(simpleName);
+                values.write(b);
+                return;
+            default:
+                b.startArray(simpleName);
+                values.write(b);
+                b.endArray();
+                return;
+        }
     }
 
-    private class ImmediateDocValuesLoader implements DocValuesLoader {
+    private interface Values {
+        int count();
+
+        void write(XContentBuilder b) throws IOException;
+    }
+
+    private static final Values NO_VALUES = new Values() {
+        @Override
+        public int count() {
+            return 0;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {}
+    };
+
+    private class ImmediateDocValuesLoader implements DocValuesLoader, Values {
         private final SortedNumericDocValues dv;
         private boolean hasValue;
 
         ImmediateDocValuesLoader(SortedNumericDocValues dv) {
             this.dv = dv;
-            SortedNumericDocValuesSyntheticFieldLoader.this.writer = this::write;
         }
 
         @Override
@@ -78,20 +109,16 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
             return hasValue = dv.advanceExact(docId);
         }
 
+        @Override
+        public int count() {
+            return hasValue ? dv.docValueCount() : 0;
+        }
+
+        @Override
         public void write(XContentBuilder b) throws IOException {
-            if (false == hasValue) {
-                return;
-            }
-            if (dv.docValueCount() == 1) {
-                b.field(simpleName);
-                writeValue(b, dv.nextValue());
-                return;
-            }
-            b.startArray(simpleName);
             for (int i = 0; i < dv.docValueCount(); i++) {
                 writeValue(b, dv.nextValue());
             }
-            b.endArray();
         }
     }
 
@@ -120,7 +147,7 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
      * it resolves the values all at once, always scanning forwards on
      * the disk.
      */
-    private class SingletonDocValuesLoader implements DocValuesLoader {
+    private class SingletonDocValuesLoader implements DocValuesLoader, Values {
         private final int[] docIdsInLeaf;
         private final long[] values;
         private final boolean[] hasValue;
@@ -130,7 +157,6 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
             this.docIdsInLeaf = docIdsInLeaf;
             this.values = values;
             this.hasValue = hasValue;
-            SortedNumericDocValuesSyntheticFieldLoader.this.writer = this::write;
         }
 
         @Override
@@ -144,11 +170,14 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
             return hasValue[idx];
         }
 
-        private void write(XContentBuilder b) throws IOException {
-            if (hasValue[idx] == false) {
-                return;
-            }
-            b.field(simpleName);
+        @Override
+        public int count() {
+            return hasValue[idx] ? 1 : 0;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            assert hasValue[idx];
             writeValue(b, values[idx]);
         }
     }

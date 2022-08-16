@@ -49,21 +49,18 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
             values = NO_VALUES;
             return null;
         }
-        if (docIdsInLeaf.length == 1) {
+        if (docIdsInLeaf.length > 1) {
             /*
              * The singleton optimization is mostly about looking up ordinals
              * in sorted order and doesn't buy anything if there is only a single
              * document.
              */
-            ImmediateDocValuesLoader loader = new ImmediateDocValuesLoader(dv);
-            values = loader;
-            return loader;
-        }
-        SortedDocValues singleton = DocValues.unwrapSingleton(dv);
-        if (singleton != null) {
-            SingletonDocValuesLoader loader = buildSingletonDocValuesLoader(singleton, docIdsInLeaf);
-            values = loader == null ? NO_VALUES : loader;
-            return loader;
+            SortedDocValues singleton = DocValues.unwrapSingleton(dv);
+            if (singleton != null) {
+                SingletonDocValuesLoader loader = buildSingletonDocValuesLoader(singleton, docIdsInLeaf);
+                values = loader == null ? NO_VALUES : loader;
+                return loader;
+            }
         }
         ImmediateDocValuesLoader loader = new ImmediateDocValuesLoader(dv);
         values = loader;
@@ -100,9 +97,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {
-
-        }
+        public void write(XContentBuilder b) throws IOException {}
     };
 
     /**

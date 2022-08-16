@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -364,7 +365,7 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     private static ClusterState rerouteAndStartShards(final AllocationService allocationService, final ClusterState clusterState) {
-        final ClusterState reroutedState = allocationService.reroute(clusterState, "test");
+        final ClusterState reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
         return allocationService.applyStartedShards(
             reroutedState,
             shardsWithState(reroutedState.getRoutingNodes(), ShardRoutingState.INITIALIZING)

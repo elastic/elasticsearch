@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -109,7 +110,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             assertEquals("initial allocation of the index is only allowed on nodes [_id:\"node2\"]", decision.getExplanation());
         }
 
-        state = service.reroute(state, "try allocate again");
+        state = service.reroute(state, "try allocate again", ActionListener.noop());
         routingTable = state.routingTable();
         assertEquals(routingTable.index("idx").shard(0).primaryShard().state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node2");
@@ -140,7 +141,11 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         // now bring back node1 and see it's assigned
-        state = service.reroute(ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(node1)).build(), "test");
+        state = service.reroute(
+            ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(node1)).build(),
+            "test",
+            ActionListener.noop()
+        );
         routingTable = state.routingTable();
         assertEquals(routingTable.index("idx").shard(0).primaryShard().state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node1");
@@ -200,7 +205,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        return service.reroute(clusterState, "reroute");
+        return service.reroute(clusterState, "reroute", ActionListener.noop());
     }
 
     public void testInvalidIPFilter() {

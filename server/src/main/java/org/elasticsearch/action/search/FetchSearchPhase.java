@@ -49,6 +49,7 @@ final class FetchSearchPhase extends SearchPhase {
             (response, queryPhaseResults) -> new ExpandSearchPhase(
                 context,
                 response,
+                queryPhaseResults,
                 () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults)
             )
         );

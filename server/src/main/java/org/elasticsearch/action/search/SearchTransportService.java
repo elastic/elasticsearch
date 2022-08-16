@@ -668,4 +668,8 @@ public class SearchTransportService {
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return client.getNamedWriteableRegistry();
     }
+
+    public ThreadPool getThreadPool() {
+        return transportService.getThreadPool();
+    }
 }

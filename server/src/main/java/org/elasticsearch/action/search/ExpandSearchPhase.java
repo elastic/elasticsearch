@@ -10,18 +10,23 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -31,13 +36,20 @@ import java.util.function.Supplier;
  */
 final class ExpandSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;
+    private final AtomicArray<SearchPhaseResult> queryResults;
     private final InternalSearchResponse searchResponse;
     private final Supplier<SearchPhase> nextPhase;
 
-    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, Supplier<SearchPhase> nextPhase) {
+    ExpandSearchPhase(
+        SearchPhaseContext context,
+        InternalSearchResponse searchResponse,
+        AtomicArray<SearchPhaseResult> queryResults,
+        Supplier<SearchPhase> nextPhase
+    ) {
         super("expand");
         this.context = context;
         this.searchResponse = searchResponse;
+        this.queryResults = queryResults;
         this.nextPhase = nextPhase;
     }
 
@@ -60,6 +72,9 @@ final class ExpandSearchPhase extends SearchPhase {
             MultiSearchRequest multiRequest = new MultiSearchRequest();
             if (collapseBuilder.getMaxConcurrentGroupRequests() > 0) {
                 multiRequest.maxConcurrentSearchRequests(collapseBuilder.getMaxConcurrentGroupRequests());
+            } else if (context.getRequest().preference() != null) {
+                final int searchThreadPoolSize = context.getSearchTransport().getThreadPool().info(ThreadPool.Names.SEARCH).getMax();
+                multiRequest.maxConcurrentSearchRequests(maxConcurrentExpandRequests(queryResults, searchThreadPoolSize));
             }
             for (SearchHit hit : searchResponse.hits().getHits()) {
                 BoolQueryBuilder groupQuery = new BoolQueryBuilder();
@@ -145,6 +160,22 @@ final class ExpandSearchPhase extends SearchPhase {
             groupSource.collapse(innerCollapseBuilder);
         }
         return groupSource;
+    }
+
+    private static int maxConcurrentExpandRequests(AtomicArray<SearchPhaseResult> queryResults, int searchThreadPoolSize) {
+        // compute the maximum number of shard requests per node for each expand request
+        final Map<String, Integer> shardRequestsPerNode = new HashMap<>();
+        for (int i = 0; i < queryResults.length(); i++) {
+            final SearchPhaseResult queryResult = queryResults.get(i);
+            if (queryResult != null) {
+                final String nodeId = queryResult.getSearchShardTarget().getNodeId();
+                shardRequestsPerNode.compute(nodeId, (n, curr) -> curr == null ? 1 : curr + 1);
+            }
+        }
+        final int maxShardRequestsPerNode = shardRequestsPerNode.values().stream().mapToInt(n -> n).max().orElse(1);
+        // preserve part of the search thread pool for other searches
+        final int maxAllowedShardRequestPerNode = Math.min(10, searchThreadPoolSize);
+        return Math.max(1, maxAllowedShardRequestPerNode / maxShardRequestsPerNode);
     }
 
     private void onPhaseDone() {

@@ -70,20 +70,24 @@ public class MetadataUpdateSettingsService {
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
-        this.executor = (currentState, taskContexts) -> {
-            ClusterState state = currentState;
-            for (final var taskContext : taskContexts) {
+        this.executor = batchExecutionContext -> {
+            ClusterState state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try {
                     final var task = taskContext.getTask();
-                    state = task.execute(state);
+                    try (var ignored = taskContext.captureResponseHeaders()) {
+                        state = task.execute(state);
+                    }
                     taskContext.success(task.getAckListener());
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
             }
-            if (state != currentState) {
+            if (state != batchExecutionContext.initialState()) {
                 // reroute in case things change that require it (like number of replicas)
-                state = allocationService.reroute(state, "settings update");
+                try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                    state = allocationService.reroute(state, "settings update");
+                }
             }
             return state;
         };

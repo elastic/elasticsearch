@@ -143,7 +143,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
-            // TODO can't we provide the right context directly?
             MapperBuilderContext mapperBuilderContext = root ? context : context.createChildContext(name);
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {

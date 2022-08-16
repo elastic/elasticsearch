@@ -110,7 +110,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
             mustMatchStrings
         );
 
-        assertEquals(".*?%{TOMCAT_DATESTAMP:timestamp}.+?%{LOGLEVEL:log.level}.+?", overallGrokPatternBuilder.toString());
+        assertEquals(".*?%{TOMCATLEGACY_DATESTAMP:timestamp}.+?%{LOGLEVEL:log.level}.+?", overallGrokPatternBuilder.toString());
     }
 
     public void testAppendBestGrokMatchForStringsGivenTrappyFloatCandidates() {
@@ -307,12 +307,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
                 + "Invalid chunk ignored."
         );
 
-        // For ECS compliant Grok patterns TOMCAT_DATESTAMP is defined as:
-        // TOMCAT_DATESTAMP (?:%{CATALINA8_DATESTAMP})|(?:%{CATALINA7_DATESTAMP})|(?:%{TOMCATLEGACY_DATESTAMP})
-        // and since the timestamps in the example messages are in CATALINA7_DATESTAMP format, TOMCAT_DATESTAMP, being at the
-        // front of our ORDERED_CANDIDATE_GROK_PATTERNS list, matches.
         assertEquals(
-            ".*?%{TOMCAT_DATESTAMP:timestamp}.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?"
+            ".*?%{CATALINA_DATESTAMP:timestamp}.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?"
                 + "WARNING.+?Parameters.+?Invalid.+?chunk.+?ignored.*",
             GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples)
         );
@@ -334,12 +330,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
                 + "Invalid chunk ignored."
         );
 
-        // For ECS compliant Grok patterns TOMCAT_DATESTAMP is defined as:
-        // TOMCAT_DATESTAMP (?:%{CATALINA8_DATESTAMP})|(?:%{CATALINA7_DATESTAMP})|(?:%{TOMCATLEGACY_DATESTAMP})
-        // and since the timestamps in the example messages are in CATALINA8_DATESTAMP format, TOMCAT_DATESTAMP, being at the
-        // front of our ORDERED_CANDIDATE_GROK_PATTERNS list matches.
         assertEquals(
-            ".*?%{TOMCAT_DATESTAMP:timestamp}.+?WARNING.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?"
+            ".*?%{CATALINA_DATESTAMP:timestamp}.+?WARNING.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?"
                 + "Parameters.+?Invalid.+?chunk.+?ignored.*",
             GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples)
         );

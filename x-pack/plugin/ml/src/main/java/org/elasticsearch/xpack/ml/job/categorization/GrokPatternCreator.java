@@ -41,7 +41,7 @@ public final class GrokPatternCreator {
      * such that more generic patterns come after more specific patterns.
      */
     private static final List<GrokPatternCandidate> ORDERED_CANDIDATE_GROK_PATTERNS = Arrays.asList(
-        new GrokPatternCandidate("TOMCAT_DATESTAMP", "timestamp"),
+        new GrokPatternCandidate("TOMCATLEGACY_DATESTAMP", "timestamp"),
         new GrokPatternCandidate("TIMESTAMP_ISO8601", "timestamp"),
         new GrokPatternCandidate("DATESTAMP_RFC822", "timestamp"),
         new GrokPatternCandidate("DATESTAMP_RFC2822", "timestamp"),

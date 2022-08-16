@@ -147,11 +147,11 @@ public interface SourceLoader {
      *         there are no doc values for that field. It's linear with
      *         the number of fields, whether or not they have values,
      *         but skips entirely missing fields.</li>
-     *     <li>{@link #storedFieldLoaders} are only called when we see
-     *         a stored field and are otherwise ignored. So it's fine
-     *         to have thousands of these declared in the mapping and
-     *         you don't really pay much to load them. Just the cost to
-     *         build {@link Map} used to address them.</li>
+     *     <li>{@link #storedFieldLoaders} are only called when the
+     *         document contains a stored field with the appropriate name.
+     *         So it's fine to have thousands of these declared in the
+     *         mapping and you don't really pay much to load them. Just
+     *         the cost to build {@link Map} used to address them.</li>
      *     <li>Object fields that don't have any values loaded by either
      *         means bail out of the loading process and don't pass
      *         control down to any of their children. Thus it's fine

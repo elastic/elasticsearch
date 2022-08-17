@@ -342,7 +342,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 "view of job memory is stale given duration [{}]. Not attempting to make scaling decision",
                 mlMemoryTracker.getStalenessDuration()
             );
-            return buildDecisionAndRequestRefresh(reasonBuilder);
+            return buildDecisionAndRequestRefresh(reasonBuilder.setSimpleReason(MEMORY_STALE));
         }
         // We need the current node loads to determine if we need to scale up or down
         List<NodeLoad> nodeLoads = new ArrayList<>(mlNodes.size());
@@ -1037,7 +1037,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
     private AutoscalingDeciderResult buildDecisionAndRequestRefresh(MlScalingReason.Builder reasonBuilder) {
         mlMemoryTracker.asyncRefresh();
-        return new AutoscalingDeciderResult(null, reasonBuilder.setSimpleReason(MEMORY_STALE).build());
+        return new AutoscalingDeciderResult(null, reasonBuilder.build());
     }
 
     private Long getAnalyticsMemoryRequirement(String analyticsId) {

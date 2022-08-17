@@ -142,14 +142,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
             throw new IllegalStateException("Missing intermediate object " + fullName);
         }
 
-        protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
-            MapperBuilderContext mapperBuilderContext = root ? context : context.createChildContext(name);
+        protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
+                    // The same mappings or document may hold the same field twice, either because duplicated JSON keys are allowed or
+                    // the same field is provided using the object notation as well as the dot notation at the same time.
+                    // This can also happen due to multiple index templates being merged into a single mappings definition using
+                    // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
+                    // mix of object notation and dot notation.
                     mapper = existing.merge(mapper, mapperBuilderContext);
                 }
                 mappers.put(mapper.simpleName(), mapper);
@@ -159,7 +163,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
-            return new ObjectMapper(name, context.buildFullName(name), enabled, subobjects, dynamic, buildMappers(false, context));
+            return new ObjectMapper(
+                name,
+                context.buildFullName(name),
+                enabled,
+                subobjects,
+                dynamic,
+                buildMappers(context.createChildContext(name))
+            );
         }
     }
 
@@ -426,7 +437,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
+    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
+        return mapperBuilderContext.createChildContext(name);
+    }
+
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
         if ((mergeWith instanceof ObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
@@ -436,12 +451,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
-        merged.doMerge(mergeWithObject, reason, mapperBuilderContext);
+        merged.doMerge(mergeWithObject, reason, parentBuilderContext);
         return merged;
     }
 
-    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
-
+    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
         if (mergeWith.dynamic != null) {
             this.dynamic = mergeWith.dynamic;
         }
@@ -462,6 +476,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
+        MapperBuilderContext objectBuilderContext = createChildContext(parentBuilderContext, simpleName());
         Map<String, Mapper> mergedMappers = null;
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = (mergedMappers == null ? mappers : mergedMappers).get(mergeWithMapper.simpleName());
@@ -470,8 +485,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (mergeIntoMapper == null) {
                 merged = mergeWithMapper;
             } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                MapperBuilderContext childContext = mapperBuilderContext.createChildContext(objectMapper.simpleName());
-                merged = objectMapper.merge(mergeWithMapper, reason, childContext);
+                merged = objectMapper.merge(mergeWithMapper, reason, objectBuilderContext);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                 if (mergeWithMapper instanceof ObjectMapper) {
@@ -485,7 +499,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     merged = mergeWithMapper;
                 } else {
-                    merged = mergeIntoMapper.merge(mergeWithMapper, mapperBuilderContext);
+                    merged = mergeIntoMapper.merge(mergeWithMapper, objectBuilderContext);
                 }
             }
             if (mergedMappers == null) {

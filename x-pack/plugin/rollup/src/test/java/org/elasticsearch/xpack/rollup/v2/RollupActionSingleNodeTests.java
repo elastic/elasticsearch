@@ -165,23 +165,25 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
          * check that the value of the label (last value) matches the value
          * of the corresponding metric which uses a last_value metric type.
          */
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
+            .put(
+                IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(Instant.ofEpochMilli(startTime).toEpochMilli())
+            )
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+
+        if (randomBoolean()) {
+            settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
+        }
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(sourceIndex)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", numOfShards)
-                        .put("index.number_of_replicas", numOfReplicas)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                        .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
-                        .put(
-                            IndexSettings.TIME_SERIES_START_TIME.getKey(),
-                            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(Instant.ofEpochMilli(startTime).toEpochMilli())
-                        )
-                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
-                        .build()
-                )
+                .setSettings(settings.build())
                 .setMapping(
                     FIELD_TIMESTAMP,
                     "type=date",
@@ -769,7 +771,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         );
 
         assertEquals(sourceIndex, indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY));
-        assertEquals(indexSettingsResp.getSetting(sourceIndex, "index.mode"), indexSettingsResp.getSetting(rollupIndex, "index.mode"));
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndex, IndexSettings.MODE.getKey()),
+            indexSettingsResp.getSetting(rollupIndex, IndexSettings.MODE.getKey())
+        );
 
         assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_START_TIME.getKey()));
         assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_START_TIME.getKey()));
@@ -784,11 +789,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_END_TIME.getKey()),
             indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_END_TIME.getKey())
         );
-        assertNotNull(indexSettingsResp.getSetting(sourceIndex, "index.routing_path"));
-        assertNotNull(indexSettingsResp.getSetting(rollupIndex, "index.routing_path"));
+        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.INDEX_ROUTING_PATH.getKey()));
+        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROUTING_PATH.getKey()));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.routing_path"),
-            indexSettingsResp.getSetting(rollupIndex, "index.routing_path")
+            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.INDEX_ROUTING_PATH.getKey()),
+            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROUTING_PATH.getKey())
         );
 
         assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS));
@@ -804,7 +809,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS),
             indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)
         );
-        assertEquals("true", indexSettingsResp.getSetting(rollupIndex, "index.blocks.write"));
+        assertEquals("true", indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_BLOCKS_WRITE));
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_HIDDEN),
+            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_INDEX_HIDDEN)
+        );
     }
 
     private AggregationBuilder buildAggregations(
@@ -869,9 +878,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template indexTemplate = new Template(
             Settings.builder()
-                .put("index.number_of_shards", numOfShards)
-                .put("index.number_of_replicas", numOfReplicas)
-                .put("index.mode", "time_series")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                 .build(),
             new CompressedXContent("""

@@ -1,0 +1,6 @@
+pr: 88946
+summary: "Graph: fix race condition in timeout"
+area: Graph
+type: bug
+issues:
+ - 55396

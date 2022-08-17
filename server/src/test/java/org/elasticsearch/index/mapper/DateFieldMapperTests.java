@@ -18,7 +18,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -41,6 +43,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class DateFieldMapperTests extends MapperTestCase {
 
@@ -723,5 +726,49 @@ public class DateFieldMapperTests extends MapperTestCase {
         }));
         assertThat(service.fieldType("mydate"), instanceOf(DateFieldType.class));
         assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
+    }
+
+    public void testLegacyDateFormatName() {
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(
+            "format",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            mock(ScriptService.class),
+            true,
+            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0)) // BWC compatible
+                                                                                                                           // index, e.g 7.x
+        );
+
+        // Check that we allow the use of camel case date formats on 7.x indices
+        @SuppressWarnings("unchecked")
+        FieldMapper.Parameter<String> formatParam = (FieldMapper.Parameter<String>) builder.getParameters()[3];
+        formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime");
+        builder.buildFormatter(); // shouldn't throw exception
+
+        formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime||strictDateOptionalTimeNanos");
+        builder.buildFormatter(); // shouldn't throw exception
+
+        DateFieldMapper.Builder newFieldBuilder = new DateFieldMapper.Builder(
+            "format",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            mock(ScriptService.class),
+            true,
+            Version.CURRENT
+        );
+
+        @SuppressWarnings("unchecked")
+        final FieldMapper.Parameter<String> newFormatParam = (FieldMapper.Parameter<String>) newFieldBuilder.getParameters()[3];
+
+        // Check that we don't allow the use of camel case date formats on 8.x indices
+        assertEquals(
+            "Error parsing [format] on field [format]: Invalid format: [strictDateOptionalTime]: Unknown pattern letter: t",
+            expectThrows(IllegalArgumentException.class, () -> {
+                newFormatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime");
+                assertEquals("strictDateOptionalTime", newFormatParam.getValue());
+                newFieldBuilder.buildFormatter();
+            }).getMessage()
+        );
+
     }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +38,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-@Ignore
 @SuppressWarnings("removal")
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 

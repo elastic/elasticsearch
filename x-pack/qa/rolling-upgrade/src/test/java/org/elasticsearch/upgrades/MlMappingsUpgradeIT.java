@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -26,7 +25,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
-@Ignore
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";

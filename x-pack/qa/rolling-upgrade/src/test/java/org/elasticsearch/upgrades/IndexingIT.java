@@ -10,7 +10,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Booleans;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,7 +23,6 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  * oss rolling restart tests. We should work on a way to remove this
  * duplication but for now we have no real way to share code.
  */
-@Ignore
 public class IndexingIT extends AbstractUpgradeTestCase {
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {

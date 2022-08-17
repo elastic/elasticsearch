@@ -15,7 +15,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.hamcrest.Matcher;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -29,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-@Ignore
+
 public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 

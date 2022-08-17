@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.core.Booleans;
 import org.hamcrest.Matchers;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +21,6 @@ import java.util.List;
 
 import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 
-@Ignore
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testDataStreams() throws IOException {

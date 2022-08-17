@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +28,7 @@ import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-@Ignore
+
 public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     // See PyTorchModelIT for how this model was created

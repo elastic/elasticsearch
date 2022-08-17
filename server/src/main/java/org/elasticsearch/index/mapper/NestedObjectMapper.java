@@ -49,7 +49,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
         @Override
         public NestedObjectMapper build(MapperBuilderContext context) {
-            return new NestedObjectMapper(name, context.buildFullName(name), buildMappers(false, context), this);
+            return new NestedObjectMapper(name, context.buildFullName(name), buildMappers(context.createChildContext(name)), this);
         }
     }
 

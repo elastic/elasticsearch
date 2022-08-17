@@ -1751,7 +1751,8 @@ public class ApiKeyService {
             // The effective subject realm can only be `null` when run-as lookup fails. The owner is always the effective subject, so there
             // is no owner information to return here
             if (effectiveSubjectRealm == null) {
-                final var message = "Cannot determine owner realms without an effective subject for non-API key authentication object";
+                final var message =
+                    "Cannot determine owner realms without an effective subject realm for non-API key authentication object";
                 assert false : message;
                 throw new IllegalStateException(message);
             }

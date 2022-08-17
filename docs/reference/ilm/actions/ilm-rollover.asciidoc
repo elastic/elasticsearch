@@ -4,7 +4,8 @@
 
 Phases allowed: hot.
 
-Rolls over a target to a new index when the existing index meets one or more of the rollover conditions.
+Rolls over a target to a new index when the existing index satisfies
+the specified rollover conditions.
 
 IMPORTANT: If the rollover action is used on a <<ccr-put-follow,follower index>>,
 policy execution waits until the leader index rolls over (or is

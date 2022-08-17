@@ -15,7 +15,11 @@ Retrieves information for one or more API keys.
 [[security-api-get-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_api_key` cluster privilege.
+* To use this API, you must have at least the `manage_own_api_key` cluster privilege.
+* If you have only the `manage_own_api_key` privilege, this API returns only
+the API keys that you own. If you have the `manage_api_key` or greater
+privileges (including `manage_security`), this API returns all API keys
+regardless of ownership.
 
 [[security-api-get-api-key-desc]]
 ==== {api-description-title}
@@ -190,6 +194,30 @@ A successful call returns a JSON structure that contains the information of one 
       "realm": "native1", <8>
       "metadata": { <9>
         "application": "myapp"
+      },
+      "role_descriptors": { <10>
+        "role-a": {
+          "cluster": [
+            "monitor"
+          ],
+          "indices": [
+            {
+              "names": [
+                "index-a"
+              ],
+              "privileges": [
+                "read"
+              ],
+              "allow_restricted_indices": false
+            }
+          ],
+          "applications": [ ],
+          "run_as": [ ],
+          "metadata": { },
+          "transient_metadata": {
+            "enabled": true
+          }
+        }
       }
     },
     {
@@ -199,7 +227,8 @@ A successful call returns a JSON structure that contains the information of one 
       "invalidated": false,
       "username": "user-y",
       "realm": "realm-2",
-      "metadata": {}
+      "metadata": {},
+      "role_descriptors": { } <11>
     }
   ]
 }
@@ -216,3 +245,8 @@ a value of `true`. Otherwise, it is `false`.
 <7> Principal for which this API key was created
 <8> Realm name of the principal for which this API key was created
 <9> Metadata of the API key
+<10> The role descriptors assigned to this API key when it was <<api-key-role-descriptors,created>>
+or last <<security-api-update-api-key-api-key-role-descriptors,updated>>. The API key's
+effective permissions are an intersection of its assigned privileges and the point-in-time snapshot of
+the owner user's permissions.
+<11> An empty role descriptor means the API key inherits the owner user's permissions.

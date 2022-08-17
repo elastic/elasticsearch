@@ -61,7 +61,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
             int docCount = randomIntBetween(0, 1000);
             buckets.add(new InternalFilters.InternalBucket(key, docCount, aggregations, keyed));
         }
-        return new InternalFilters(name, buckets, keyed, metadata);
+        return new InternalFilters(name, buckets, keyed, false, metadata);
     }
 
     @Override
@@ -107,7 +107,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
                 metadata.put(randomAlphaOfLength(15), randomInt());
             }
         }
-        return new InternalFilters(name, buckets, keyed, metadata);
+        return new InternalFilters(name, buckets, keyed, false, metadata);
     }
 
     public void testReducePipelinesReturnsSameInstanceWithoutPipelines() {

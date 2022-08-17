@@ -86,8 +86,14 @@ public class InternalAggregationsTests extends ESTestCase {
 
     InternalAggregations toReduce(AtomicLong f1Reduced, AtomicLong f2Reduced, int k1, int k2, int k1k1, int k1k2, int k2k1, int k2k2) {
         class InternalFiltersForF2 extends InternalFilters {
-            InternalFiltersForF2(String name, List<InternalBucket> buckets, boolean keyed, Map<String, Object> metadata) {
-                super(name, buckets, keyed, metadata);
+            InternalFiltersForF2(
+                String name,
+                List<InternalBucket> buckets,
+                boolean keyed,
+                boolean keyedBucketInArray,
+                Map<String, Object> metadata
+            ) {
+                super(name, buckets, keyed, keyedBucketInArray, metadata);
             }
 
             public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
@@ -98,8 +104,14 @@ public class InternalAggregationsTests extends ESTestCase {
             }
         }
         class InternalFiltersForF1 extends InternalFilters {
-            InternalFiltersForF1(String name, List<InternalBucket> buckets, boolean keyed, Map<String, Object> metadata) {
-                super(name, buckets, keyed, metadata);
+            InternalFiltersForF1(
+                String name,
+                List<InternalBucket> buckets,
+                boolean keyed,
+                boolean keyedBucketInArray,
+                Map<String, Object> metadata
+            ) {
+                super(name, buckets, keyed, keyedBucketInArray, metadata);
             }
 
             public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
@@ -126,6 +138,7 @@ public class InternalAggregationsTests extends ESTestCase {
                                             new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true)
                                         ),
                                         true,
+                                        false,
                                         null
                                     )
                                 )
@@ -144,6 +157,7 @@ public class InternalAggregationsTests extends ESTestCase {
                                             new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true)
                                         ),
                                         true,
+                                        false,
                                         null
                                     )
                                 )
@@ -152,6 +166,7 @@ public class InternalAggregationsTests extends ESTestCase {
                         )
                     ),
                     true,
+                    false,
                     null
                 )
             )
@@ -176,6 +191,7 @@ public class InternalAggregationsTests extends ESTestCase {
                                             new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true)
                                         ),
                                         true,
+                                        false,
                                         null
                                     )
                                 )
@@ -194,6 +210,7 @@ public class InternalAggregationsTests extends ESTestCase {
                                             new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true)
                                         ),
                                         true,
+                                        false,
                                         null
                                     )
                                 )
@@ -202,6 +219,7 @@ public class InternalAggregationsTests extends ESTestCase {
                         )
                     ),
                     true,
+                    false,
                     null
                 )
             )

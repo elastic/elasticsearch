@@ -47,6 +47,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         private final String name;
         private final List<QueryToFilterAdapter> filters = new ArrayList<>();
         private final boolean keyed;
+        private final boolean keyedBucketInArray;
         private final AggregationContext aggCtx;
         private final Aggregator parent;
         private final CardinalityUpperBound cardinality;
@@ -57,6 +58,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         public AdapterBuilder(
             String name,
             boolean keyed,
+            boolean keyedBucketInArray,
             String otherBucketKey,
             AggregationContext aggCtx,
             Aggregator parent,
@@ -65,6 +67,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         ) throws IOException {
             this.name = name;
             this.keyed = keyed;
+            this.keyedBucketInArray = keyedBucketInArray;
             this.aggCtx = aggCtx;
             this.parent = parent;
             this.cardinality = cardinality;
@@ -140,7 +143,17 @@ public class FilterByFilterAggregator extends FiltersAggregator {
 
                 @Override
                 public FilterByFilterAggregator apply(AggregatorFactories subAggregators) throws IOException {
-                    agg = new FilterByFilterAggregator(name, subAggregators, filters, keyed, aggCtx, parent, cardinality, metadata);
+                    agg = new FilterByFilterAggregator(
+                        name,
+                        subAggregators,
+                        filters,
+                        keyed,
+                        keyedBucketInArray,
+                        aggCtx,
+                        parent,
+                        cardinality,
+                        metadata
+                    );
                     return agg;
                 }
             }
@@ -202,12 +215,13 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         AggregatorFactories factories,
         List<QueryToFilterAdapter> filters,
         boolean keyed,
+        boolean keyedBucketInArray,
         AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, filters, keyed, null, aggCtx, parent, cardinality, metadata);
+        super(name, factories, filters, keyed, keyedBucketInArray, null, aggCtx, parent, cardinality, metadata);
     }
 
     /**

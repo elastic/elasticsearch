@@ -42,11 +42,13 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
     private static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     private static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
+    private static final ParseField KEYED_BUCKET_IN_ARRAY = new ParseField("keyed_bucket_in_array");
 
     private final List<KeyedFilter> filters;
     private final boolean keyed;
     private boolean otherBucket = false;
     private String otherBucketKey = "_other_";
+    private boolean keyedBucketInArray = false;
 
     /**
      * @param name
@@ -92,6 +94,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         this.keyed = clone.keyed;
         this.otherBucket = clone.otherBucket;
         this.otherBucketKey = clone.otherBucketKey;
+        this.keyedBucketInArray = clone.keyedBucketInArray;
     }
 
     @Override
@@ -123,6 +126,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         otherBucket = in.readBoolean();
         otherBucketKey = in.readString();
+        keyedBucketInArray = in.readBoolean();
     }
 
     @Override
@@ -131,6 +135,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         out.writeCollection(filters, keyed ? (o, v) -> v.writeTo(o) : (o, v) -> o.writeNamedWriteable(v.filter()));
         out.writeBoolean(otherBucket);
         out.writeString(otherBucketKey);
+        out.writeBoolean(keyedBucketInArray);
     }
 
     /**
@@ -182,6 +187,21 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         return otherBucketKey;
     }
 
+    /**
+     * Set whether to return keyed bucket in array
+     */
+    public FiltersAggregationBuilder keyedBucketInArray(boolean keyedBucketInArray) {
+        this.keyedBucketInArray = keyedBucketInArray;
+        return this;
+    }
+
+    /**
+     * Get whether to return keyed bucket in array
+     */
+    public boolean keyedBucketInArray() {
+        return keyedBucketInArray;
+    }
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
@@ -202,6 +222,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             FiltersAggregationBuilder rewritten = new FiltersAggregationBuilder(getName(), rewrittenFilters, this.keyed);
             rewritten.otherBucket(otherBucket);
             rewritten.otherBucketKey(otherBucketKey);
+            rewritten.keyedBucketInArray(keyedBucketInArray);
             return rewritten;
         } else {
             return this;
@@ -217,6 +238,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             keyed,
             otherBucket,
             otherBucketKey,
+            keyedBucketInArray,
             context,
             parent,
             subFactoriesBuilder,
@@ -242,6 +264,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         builder.field(FiltersAggregator.OTHER_BUCKET_FIELD.getPreferredName(), otherBucket);
         builder.field(FiltersAggregator.OTHER_BUCKET_KEY_FIELD.getPreferredName(), otherBucketKey);
+        builder.field(FiltersAggregator.KEYED_BUCKET_IN_ARRAY.getPreferredName(), keyedBucketInArray);
         builder.endObject();
         return builder;
     }
@@ -254,6 +277,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         String currentFieldName = null;
         String otherBucketKey = null;
         Boolean otherBucket = null;
+        Boolean keyedBucketInArray = null;
         boolean keyed = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -261,6 +285,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (OTHER_BUCKET_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucket = parser.booleanValue();
+                } else if (KEYED_BUCKET_IN_ARRAY.match(currentFieldName, parser.getDeprecationHandler())) {
+                    keyedBucketInArray = parser.booleanValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -333,6 +359,9 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         if (otherBucketKey != null) {
             factory.otherBucketKey(otherBucketKey);
+        }
+        if (keyed && keyedBucketInArray != null) {
+            factory.keyedBucketInArray(keyedBucketInArray);
         }
         return factory;
     }

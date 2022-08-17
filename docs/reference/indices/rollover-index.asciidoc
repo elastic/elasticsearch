@@ -135,6 +135,10 @@ Conditions for the rollover. If specified, {es} only performs the rollover if
 the current index satisfies these conditions. If this parameter is
 not specified, {es} performs the rollover unconditionally.
 +
+If conditions are specified, at least one of them must be a max_* condition.
+The index will rollover if any max_* condition is satisfied and all
+min_* conditions are satisfied.
++
 IMPORTANT: To trigger a rollover, the current index must satisfy these conditions
 at the time of the request. {es} does not monitor the index after the API
 response. To automate rollover, use {ilm-init}'s <<ilm-rollover,`rollover`>>

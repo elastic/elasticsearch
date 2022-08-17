@@ -46,8 +46,11 @@ PUT my-index-000001
 [[ilm-rollover-options]]
 ==== Options
 
-You must specify at least one rollover condition.
-An empty rollover action is invalid.
+A rollover action must specify at least one max_* condition, it may include zero
+or more min_* conditions. An empty rollover action is invalid.
+
+The index will rollover once any max_* condition is satisfied and all
+min_* conditions are satisfied.
 
 // tag::rollover-conditions[]
 `max_age`::
@@ -91,6 +94,32 @@ replicas are ignored.
 +
 TIP: To see the current shard docs, use the <<cat-shards, _cat shards>> API.
 The `docs` value shows the number of documents each shard.
+
+`min_age`::
+(Optional,  <<time-units, time units>>)
+Prevents rollover until after the maximum elapsed time from index creation is reached.
+See notes on `max_age`.
+
+`min_docs`::
+(Optional, integer)
+Prevents rollover until after the specified maximum number of documents is reached.
+See notes on `max_docs`.
+
+`min_size`::
+(Optional, <<byte-units, byte units>>)
+Prevents rollover until the index reaches a certain size.
+See notes on `max_size`.
+
+`min_primary_shard_size`::
+(Optional, <<byte-units, byte units>>)
+Prevents rollover until the largest primary shard in the index reaches a certain size.
+See notes on `min_primary_shard_size`.
+
+`min_primary_shard_docs`::
+(Optional, integer)
+Prevents rollover until the largest primary shard in the index reaches a certain number of documents.
+See notes on `max_primary_shard_docs`.
+
 // end::rollover-conditions[]
 
 [[ilm-rollover-ex]]
@@ -215,8 +244,9 @@ PUT _ilm/policy/my_policy
 ===== Roll over using multiple conditions
 
 When you specify multiple rollover conditions,
-the index is rolled over when _any_ of the conditions are met.
-This example rolls the index over if it is at least 7 days old or at least 100 gigabytes.
+the index is rolled over when _any_ of the max_* and _all_ of the min_* conditions are met.
+This example rolls the index over if it is at least 7 days old or at least 100 gigabytes,
+but only as long as the index is not empty.
 
 [source,console]
 --------------------------------------------------
@@ -228,7 +258,35 @@ PUT _ilm/policy/my_policy
         "actions": {
           "rollover" : {
             "max_age": "7d",
-            "max_size": "100gb"
+            "max_size": "100gb",
+            "min_docs": 1
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[ilm-rollover-conditions-ex]]
+===== Roll over while maintaining shard sizes
+
+This example rolls the index over when the primary shard size is at least 50gb,
+or when the index is at least 30 days old, but only as long as a primary shard is at least 1gb.
+For low-volume indices, this prevents the creation of many small shards.
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover" : {
+            "max_primary_shard_size": "50gb",          
+            "max_age": "30d",
+            "min_primary_shard_size": "1gb"
           }
         }
       }

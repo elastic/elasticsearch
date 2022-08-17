@@ -60,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -247,7 +246,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
-            when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+            when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
@@ -315,17 +314,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
         List<Condition<?>> metConditions = Collections.singletonList(condition);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-        return rolloverService.rolloverClusterState(
-            state,
-            name,
-            null,
-            createIndexRequest,
-            metConditions,
-            time,
-            false,
-            false,
-            rerouteCompletionIsNotRequired()
-        );
+        return rolloverService.rolloverClusterState(state, name, null, createIndexRequest, metConditions, time, false, false);
     }
 
     private Index getWriteIndex(ClusterState state, String name, String timestamp) {

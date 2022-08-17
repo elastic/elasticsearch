@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -77,7 +76,6 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
-
         ClusterState clusterState = createInitialClusterState(allocationService);
 
         var responseRef = new AtomicReference<ClusterRerouteResponse>();
@@ -90,13 +88,12 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         var task = new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
             logger,
             allocationService,
-            new ThreadContext(Settings.EMPTY),
             request,
             responseActionListener
         );
 
         ClusterState execute = task.execute(clusterState);
-        assertSame(execute, clusterState); // dry-run should return current cluster state
+        assertSame(execute, clusterState); // dry-run should keep the current cluster state
         task.onAllNodesAcked();
         assertNotSame(responseRef.get().getState(), execute);
     }
@@ -115,7 +112,6 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         var task = new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
             logger,
             allocationService,
-            new ThreadContext(Settings.EMPTY),
             req,
             ActionListener.noop()
         );
@@ -123,12 +119,13 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         final int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         // now fail it N-1 times
         for (int i = 0; i < retries; i++) {
+            // execute task
             ClusterState newState = task.execute(clusterState);
-
             assertNotSame(newState, clusterState);
+            assertStateAndFailedAllocations(newState.routingTable().index("idx"), INITIALIZING, i);
             clusterState = newState;
-            assertStateAndFailedAllocations(clusterState.routingTable().index("idx"), INITIALIZING, i);
 
+            // apply failed shards
             newState = allocationService.applyFailedShards(
                 clusterState,
                 List.of(
@@ -142,9 +139,8 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
                 List.of()
             );
             assertThat(newState, not(equalTo(clusterState)));
-
+            assertStateAndFailedAllocations(newState.routingTable().index("idx"), i == retries - 1 ? UNASSIGNED : INITIALIZING, i + 1);
             clusterState = newState;
-            assertStateAndFailedAllocations(clusterState.routingTable().index("idx"), i == retries - 1 ? UNASSIGNED : INITIALIZING, i + 1);
         }
 
         // without retry_failed we won't allocate that shard
@@ -155,8 +151,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         req.setRetryFailed(true); // now we manually retry and get the shard back into initializing
         newState = task.execute(clusterState);
         assertNotSame(newState, clusterState); // dry-run=false
-        clusterState = newState;
-        assertStateAndFailedAllocations(clusterState.routingTable().index("idx"), INITIALIZING, 0);
+        assertStateAndFailedAllocations(newState.routingTable().index("idx"), INITIALIZING, 0);
     }
 
     private void assertStateAndFailedAllocations(IndexRoutingTable indexRoutingTable, ShardRoutingState state, int failedAllocations) {
@@ -180,7 +175,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
+        routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertEquals(prevRoutingTable.index("idx").size(), 1);

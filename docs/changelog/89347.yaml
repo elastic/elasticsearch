@@ -1,0 +1,5 @@
+pr: 89347
+summary: Skip renormalization after node shutdown API called
+area: Machine Learning
+type: enhancement
+issues: []

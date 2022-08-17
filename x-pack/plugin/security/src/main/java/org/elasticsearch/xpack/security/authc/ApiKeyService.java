@@ -840,7 +840,7 @@ public class ApiKeyService {
             if (apiKeyAuthCache != null) {
                 apiKeyAuthCache.invalidate(docId);
             }
-            listener.onResponse(AuthenticationResult.unsuccessful("api key has been invalidated", null));
+            listener.onResponse(AuthenticationResult.unsuccessful("api key [" + credentials.getId() + "] has been invalidated", null));
         } else {
             if (apiKeyDoc.hash == null) {
                 throw new IllegalStateException("api key hash is missing");
@@ -1212,7 +1212,8 @@ public class ApiKeyService {
                 apiKeyIds,
                 true,
                 false,
-                ApiKeyService::convertSearchHitToApiKeyInfo,
+                // TODO: instead of parsing the entire API key document, we can just convert the hit to the API key ID
+                this::convertSearchHitToApiKeyInfo,
                 ActionListener.wrap(apiKeys -> {
                     if (apiKeys.isEmpty()) {
                         logger.debug(
@@ -1576,6 +1577,7 @@ public class ApiKeyService {
      * @param username user name
      * @param apiKeyName API key name
      * @param apiKeyIds API key ids
+     * @param withLimitedBy whether to parse and return the limited by role descriptors
      * @param listener listener for {@link GetApiKeyResponse}
      */
     public void getApiKeys(
@@ -1583,6 +1585,7 @@ public class ApiKeyService {
         String username,
         String apiKeyName,
         String[] apiKeyIds,
+        boolean withLimitedBy,
         ActionListener<GetApiKeyResponse> listener
     ) {
         ensureEnabled();
@@ -1593,7 +1596,7 @@ public class ApiKeyService {
             apiKeyIds,
             false,
             false,
-            ApiKeyService::convertSearchHitToApiKeyInfo,
+            hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
@@ -1611,7 +1614,7 @@ public class ApiKeyService {
         );
     }
 
-    public void queryApiKeys(SearchRequest searchRequest, ActionListener<QueryApiKeyResponse> listener) {
+    public void queryApiKeys(SearchRequest searchRequest, boolean withLimitedBy, ActionListener<QueryApiKeyResponse> listener) {
         ensureEnabled();
 
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
@@ -1636,7 +1639,7 @@ public class ApiKeyService {
                             return;
                         }
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
-                            .map(ApiKeyService::convertSearchHitToQueryItem)
+                            .map(hit -> convertSearchHitToQueryItem(hit, withLimitedBy))
                             .toList();
                         listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
                     }, listener::onFailure)
@@ -1645,33 +1648,42 @@ public class ApiKeyService {
         }
     }
 
-    private static QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit) {
-        return new QueryApiKeyResponse.Item(convertSearchHitToApiKeyInfo(hit), hit.getSortValues());
+    private QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit, boolean withLimitedBy) {
+        return new QueryApiKeyResponse.Item(convertSearchHitToApiKeyInfo(hit, withLimitedBy), hit.getSortValues());
     }
 
-    private static ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {
-        Map<String, Object> source = hit.getSourceAsMap();
-        String name = (String) source.get("name");
-        String id = hit.getId();
-        Long creation = (Long) source.get("creation_time");
-        Long expiration = (Long) source.get("expiration_time");
-        Boolean invalidated = (Boolean) source.get("api_key_invalidated");
-        @SuppressWarnings("unchecked")
-        String username = (String) ((Map<String, Object>) source.get("creator")).get("principal");
-        @SuppressWarnings("unchecked")
-        String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> metadata = (Map<String, Object>) source.get("metadata_flattened");
+    private ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {
+        return convertSearchHitToApiKeyInfo(hit, false);
+    }
+
+    private ApiKey convertSearchHitToApiKeyInfo(SearchHit hit, boolean withLimitedBy) {
+        final ApiKeyDoc apiKeyDoc = convertSearchHitToVersionedApiKeyDoc(hit).doc;
+        final String apiKeyId = hit.getId();
+        final Map<String, Object> metadata = apiKeyDoc.metadataFlattened != null
+            ? XContentHelper.convertToMap(apiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
+            : Map.of();
+
+        final List<RoleDescriptor> roleDescriptors = parseRoleDescriptorsBytes(
+            apiKeyId,
+            apiKeyDoc.roleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.ASSIGNED
+        );
+
+        final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy
+            ? parseRoleDescriptorsBytes(apiKeyId, apiKeyDoc.limitedByRoleDescriptorsBytes, RoleReference.ApiKeyRoleType.LIMITED_BY)
+            : null;
 
         return new ApiKey(
-            name,
-            id,
-            Instant.ofEpochMilli(creation),
-            (expiration != null) ? Instant.ofEpochMilli(expiration) : null,
-            invalidated,
-            username,
-            realm,
-            metadata
+            apiKeyDoc.name,
+            apiKeyId,
+            Instant.ofEpochMilli(apiKeyDoc.creationTime),
+            apiKeyDoc.expirationTime != -1 ? Instant.ofEpochMilli(apiKeyDoc.expirationTime) : null,
+            apiKeyDoc.invalidated,
+            (String) apiKeyDoc.creator.get("principal"),
+            (String) apiKeyDoc.creator.get("realm"),
+            metadata,
+            roleDescriptors,
+            limitedByRoleDescriptors
         );
     }
 

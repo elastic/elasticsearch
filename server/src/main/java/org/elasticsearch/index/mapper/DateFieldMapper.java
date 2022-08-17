@@ -281,9 +281,9 @@ public final class DateFieldMapper extends FieldMapper {
             }
         }
 
-        private DateFormatter buildFormatter() {
+        DateFormatter buildFormatter() {
             try {
-                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+                return DateFormatter.forPattern(format.getValue(), indexCreatedVersion).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 if (indexCreatedVersion.isLegacyIndexVersion()) {
                     logger.warn(() -> "Error parsing format [" + format.getValue() + "] of legacy index, falling back to default", e);

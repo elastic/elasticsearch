@@ -6,12 +6,11 @@
 
 experimental::[]
 
-A bucket aggregation which finds frequent item sets. It
-is a form of association rules mining that identifies items that often occur 
-together. It also helps you to discover relationships between different data 
-points (items). Items that are frequently purchased together or log events that 
-tend to co-occur are examples of frequent item sets. Finding frequent item sets 
-helps to discover relationships between different data points (items).
+A bucket aggregation which finds frequent item sets. It is a form of association 
+rules mining that identifies items that often occur together. Items that are 
+frequently purchased together or log events that tend to co-occur are examples 
+of frequent item sets. Finding frequent item sets helps to discover 
+relationships between different data points (items).
 
 The aggregation reports closed item sets. A frequent item set is called closed 
 if no superset exists with the same ratio of documents (also known as its 
@@ -22,6 +21,11 @@ following candidates for a frequent item set, which have the same support value:
 Only the second item set (`apple, orange, banana, tomato`) is returned, and the 
 first set – which is a subset of the second one – is skipped. Both item sets 
 might be returned if their support values are different.
+
+The runtime of the aggregation depends on the data and the provided parameters. 
+It might take a significant time for the aggregation to complete. For this 
+reason, it is recommended to use <<async-search, async search>> to run your 
+requests asynchronously.
 
 
 ==== Syntax
@@ -55,7 +59,8 @@ A `frequent_items` aggregation looks like this in isolation:
 ==== Fields
 
 Supported field types for the analyzed fields are keyword, numeric, ip, date, 
-and arrays of these types. You can also add runtime fields to your analyzed fields.
+and arrays of these types. You can also add runtime fields to your analyzed 
+fields.
 
 If the combined cardinality of the analyzed fields are high, then the 
 aggregation might require a significant amount of system resources.
@@ -113,9 +118,12 @@ and (2.) from which cities they make those purchases. We are interested in sets
 with three or more items, and want to see the first three frequent item sets 
 with the highest support.
 
+Note that we use the <<async-search, async search>> endpoint in this first 
+example.
+
 [source,console]
 -------------------------------------------------
-GET kibana_sample_data_ecommerce /_search 
+POST /kibana_sample_data_ecommerce /_async_search 
 {
   "size": 0,
   "aggs": {
@@ -123,7 +131,7 @@ GET kibana_sample_data_ecommerce /_search
       "frequent_items": {
         "minimum_set_size": 3,
         "fields": [
-          { "field": "category.keyword" },
+          { "field": "category.keyword" }, 
           { "field": "geoip.city_name" }
         ],
         "size": 3
@@ -134,6 +142,15 @@ GET kibana_sample_data_ecommerce /_search
 -------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
+The response of the API call above contains an identifier (`id`) of the async 
+search request. You can use the identifier to retrieve the search results:
+
+[source,console]
+-------------------------------------------------
+GET /_async_search/<id>
+-------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
 The API returns a response similar to the following one:
 
 [source,console-result]
@@ -141,9 +158,9 @@ The API returns a response similar to the following one:
 (...)
 "aggregations" : {
     "my_agg" : {
-      "buckets" : [
+      "buckets" : [ <1>
         {
-          "key" : {
+          "key" : { <2>
             "category.keyword" : [
               "Women's Clothing",
               "Women's Shoes"
@@ -152,8 +169,8 @@ The API returns a response similar to the following one:
               "New York"
             ]
           },
-          "doc_count" : 217,
-          "support" : 0.04641711229946524
+          "doc_count" : 217, <3>
+          "support" : 0.04641711229946524 <4>
         },
         {
           "key" : {
@@ -187,6 +204,13 @@ The API returns a response similar to the following one:
 }
 -------------------------------------------------
 // TEST[skip:setup kibana sample data]
+
+<1> The array of returned item sets.
+<2> The `key` object contains one item set. In this case, it consists of two 
+values of the `category.keyword` field and one value of the `geoip.city_name`.
+<3> The number of documents that contain the item set. 
+<4> The support value of the item set. It is calculated by dividing the number 
+of documents containing the item set by the total number of documents. 
 
 The response shows that the categories customers purchase from most frequently 
 together are `Women's Clothing` and `Women's Shoes` and customers from New York 

@@ -9,6 +9,9 @@ setup:
                     properties:
                         boolean:
                             type: boolean
+                        boolean_no_doc_values:
+                            type: boolean
+                            doc_values: false
                         date:
                             type: date
                         nanos:
@@ -63,6 +66,10 @@ setup:
                         scaled_float:
                             type: scaled_float
                             scaling_factor: 100
+                        scaled_float_no_doc_values:
+                            type: scaled_float
+                            scaling_factor: 100
+                            doc_values: false
                         token_count:
                             type: token_count
                             analyzer: standard
@@ -79,6 +86,7 @@ setup:
             body:
                 rank: 1
                 boolean: true
+                boolean_no_doc_values: true
                 date: 2017-01-01T12:11:12
                 nanos: 2015-01-01T12:10:30.123456789Z
                 geo_point: 41.12,-71.34
@@ -101,6 +109,7 @@ setup:
                 half_float: 3.140625
                 half_float_no_doc_values: 3.140625
                 scaled_float: 3.14
+                scaled_float_no_doc_values: 3.14
                 token_count: count all these words please
 
     - do:
@@ -117,6 +126,7 @@ setup:
           body:
               rank: 3
               boolean: [true, false, true]
+              boolean_no_doc_values: [true, false, true]
               ip: ["10.1.2.3", "2001:db8::2:1"]
               date: [2017-01-01T12:11:12, 2018-01-01T12:11:12]
               nanos: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
@@ -139,6 +149,7 @@ setup:
               half_float: [1.123, 2.234]
               half_float_no_doc_values: [2.234, 1.123]
               scaled_float: [-3.5, 2.5]
+              scaled_float_no_doc_values: [2.5, -3.5]
 
 
     - do:
@@ -255,6 +266,120 @@ setup:
                         script:
                             source: "field('boolean').size()"
     - match: { hits.hits.0.fields.field.0: 0 }
+
+---
+"boolean_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['boolean_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['boolean_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').get(false)"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash for '$' */ $('boolean_no_doc_values', false)"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').get(false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash for '$' */ $('boolean_no_doc_values', false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').get(1, false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (boolean b : field('boolean_no_doc_values')) { total += b ? 1 : 0; } total;"
+  - match: { hits.hits.0.fields.field.0: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (boolean b : field('boolean_no_doc_values')) { total += b ? 1 : 0; } total + field('boolean').size();"
+  - match: { hits.hits.0.fields.field.0: 5 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').size()"
+  - match: { hits.hits.0.fields.field.0: 0 }
 
 ---
 "date":
@@ -2485,6 +2610,58 @@ setup:
                         script:
                             source: "doc['scaled_float'].value"
     - match: { hits.hits.0.fields.field.0: 3.14 }
+
+---
+"scaled_float_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['scaled_float_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['scaled_float_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('scaled_float_no_doc_values', 0.0)"
+  - match: { hits.hits.0.fields.field.0: 3.14 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - match: { hits.hits.2.fields.field.0: -3.5 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('scaled_float_no_doc_values').get(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - match: { hits.hits.2.fields.field.0: 2.5 }
 
 ---
 "token_count":

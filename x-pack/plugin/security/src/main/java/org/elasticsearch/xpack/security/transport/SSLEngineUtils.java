@@ -11,7 +11,6 @@ import io.netty.channel.ChannelException;
 import io.netty.handler.ssl.SslHandler;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
@@ -80,10 +79,7 @@ public class SSLEngineUtils {
             assert sslEngine.getNeedClientAuth() == false;
             assert sslEngine.getWantClientAuth();
             if (logger.isTraceEnabled()) {
-                logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage("SSL Peer did not present a certificate on channel [{}]", channel),
-                    e
-                );
+                logger.trace((Supplier<?>) () -> "SSL Peer did not present a certificate on channel [" + channel + "]", e);
             } else if (logger.isDebugEnabled()) {
                 logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
             }

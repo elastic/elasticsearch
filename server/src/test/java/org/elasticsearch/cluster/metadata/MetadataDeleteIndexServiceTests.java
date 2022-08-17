@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -81,7 +80,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                 Collections.emptyList(),
                 System.currentTimeMillis(),
                 (long) randomIntBetween(0, 1000),
-                ImmutableOpenMap.of(),
+                Map.of(),
                 null,
                 SnapshotInfoTestUtils.randomUserMetadata(),
                 VersionUtils.randomVersion(random())

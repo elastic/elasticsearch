@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.logstash.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -54,7 +54,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
                     @Override
                     protected void processResponse(PutPipelineResponse putPipelineResponse) throws Exception {
                         channel.sendResponse(
-                            new BytesRestResponse(putPipelineResponse.status(), XContentType.JSON.mediaType(), BytesArray.EMPTY)
+                            new RestResponse(putPipelineResponse.status(), XContentType.JSON.mediaType(), BytesArray.EMPTY)
                         );
                     }
                 }

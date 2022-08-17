@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -194,7 +193,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
+                logger.warn(() -> "failed to write indexing buffer for shard [" + shard.shardId() + "]; ignoring", e);
             }
         });
     }
@@ -421,7 +420,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         try {
             shard.flushOnIdle(inactiveTimeNS);
         } catch (AlreadyClosedException e) {
-            logger.trace(() -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
+            logger.trace(() -> "ignore exception while checking if shard " + shard.shardId() + " is inactive", e);
         }
     }
 }

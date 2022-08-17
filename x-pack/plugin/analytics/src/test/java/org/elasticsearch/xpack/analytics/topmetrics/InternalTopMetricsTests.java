@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
@@ -34,7 +35,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -457,7 +457,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     }
 
     static List<String> randomMetricNames(int metricCount) {
-        Set<String> names = new HashSet<>(metricCount);
+        Set<String> names = Sets.newHashSetWithExpectedSize(metricCount);
         while (names.size() < metricCount) {
             names.add(randomAlphaOfLength(5));
         }

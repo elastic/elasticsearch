@@ -9,70 +9,231 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
-    public void testGetAdditionalIndexSettings() {
+    DataStreamIndexSettingsProvider provider;
+
+    @Before
+    public void setup() {
+        provider = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
+        );
+    }
+
+    public void testGetAdditionalIndexSettings() throws Exception {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
         Settings settings = Settings.EMPTY;
-        var provider = new DataStreamIndexSettingsProvider();
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field1": {
+                            "type": "long"
+                        },
+                        "field2": {
+                            "type": "keyword"
+                        },
+                        "field3": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            true,
             metadata,
             now,
-            settings
+            settings,
+            List.of(new CompressedXContent(mapping))
         );
         assertThat(result.size(), equalTo(3));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("field3"));
+    }
+
+    public void testGetAdditionalIndexSettingsIndexRoutingPathAlreadyDefined() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
+        Settings settings = builder().putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field2").build();
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field1": {
+                            "type": "keyword"
+                            "time_series_dimension": true
+                        },
+                        "field2": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "field3": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of(new CompressedXContent(mapping))
+        );
+        assertThat(result.size(), equalTo(2));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
     }
 
-    public void testGetAdditionalIndexSettingsLookAheadTime() {
+    public void testGetAdditionalIndexSettingsMappingsMerging() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
+        Settings settings = Settings.EMPTY;
+        String mapping1 = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field1": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "field2": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
+        String mapping2 = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field3": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "field4": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        String mapping3 = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field2": {
+                            "type": "keyword",
+                            "time_series_dimension": false
+                        },
+                        "field5": {
+                            "type": "long"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3))
+        );
+        assertThat(result.size(), equalTo(3));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("field1", "field3"));
+    }
+
+    public void testGetAdditionalIndexSettingsNoMappings() {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
+        Settings settings = Settings.EMPTY;
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(2));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+    }
+
+    public void testGetAdditionalIndexSettingsLookAheadTime() throws Exception {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_ahead_time", lookAheadTime.getStringRep()).build();
-        var provider = new DataStreamIndexSettingsProvider();
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            true,
             metadata,
             now,
-            settings
+            settings,
+            List.of(new CompressedXContent("{}"))
         );
-        assertThat(result.size(), equalTo(3));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)));
+        assertThat(result.size(), equalTo(2));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
     }
 
-    public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() {
+    public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() throws Exception {
         String dataStreamName = "logs-app1";
         TimeValue lookAheadTime = TimeValue.timeValueHours(2);
 
@@ -85,17 +246,16 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant now = sixHoursAgo.plus(6, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
-        var provider = new DataStreamIndexSettingsProvider();
         var result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            true,
             metadata,
             now,
-            settings
+            settings,
+            List.of(new CompressedXContent("{}"))
         );
-        assertThat(result.size(), equalTo(3));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)));
+        assertThat(result.size(), equalTo(2));
         assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo(FORMATTER.format(currentEnd)));
         assertThat(
             result.get(IndexSettings.TIME_SERIES_END_TIME.getKey()),
@@ -133,16 +293,16 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant now = twoHoursAgo.plus(2, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
-        var provider = new DataStreamIndexSettingsProvider();
         Exception e = expectThrows(
             IllegalStateException.class,
             () -> provider.getAdditionalIndexSettings(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
-                IndexMode.TIME_SERIES,
+                true,
                 metadata,
                 now,
-                settings
+                settings,
+                null
             )
         );
         assertThat(
@@ -155,39 +315,21 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         );
     }
 
-    public void testGetAdditionalIndexSettingsIndexModeNotSpecified() {
+    public void testGetAdditionalIndexSettingsNonTsdbTemplate() {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
 
         Settings settings = Settings.EMPTY;
-        var provider = new DataStreamIndexSettingsProvider();
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            null,
+            false,
             metadata,
             Instant.ofEpochMilli(1L),
-            settings
+            settings,
+            null
         );
         assertThat(result.size(), equalTo(0));
-    }
-
-    public void testGetAdditionalIndexSettingsIndexModeStandardSpecified() {
-        Metadata metadata = Metadata.EMPTY_METADATA;
-        String dataStreamName = "logs-app1";
-
-        Settings settings = Settings.EMPTY;
-        var provider = new DataStreamIndexSettingsProvider();
-        Settings result = provider.getAdditionalIndexSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.STANDARD,
-            metadata,
-            Instant.ofEpochMilli(1L),
-            settings
-        );
-        assertThat(result.size(), equalTo(1));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.STANDARD.name().toLowerCase(Locale.ROOT)));
     }
 
 }

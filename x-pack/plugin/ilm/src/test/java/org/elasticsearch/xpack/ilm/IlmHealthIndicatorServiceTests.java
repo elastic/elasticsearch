@@ -11,7 +11,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -19,11 +21,11 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
@@ -43,10 +45,10 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
-                    "ILM is running",
+                    "Index Lifecycle Management is running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -63,11 +65,18 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     YELLOW,
-                    "ILM is not running",
+                    "Index Lifecycle Management is not running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
-                    Collections.emptyList()
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            3,
+                            "Automatic index lifecycle and data retention management is disabled. The performance and stability of the "
+                                + "cluster could be impacted.",
+                            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                        )
+                    ),
+                    List.of(IlmHealthIndicatorService.ILM_NOT_RUNNING)
                 )
             )
         );
@@ -83,10 +92,10 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
-                    "No policies configured",
+                    "No Index Lifecycle Management policies configured",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -102,10 +111,10 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
-                    "No policies configured",
+                    "No Index Lifecycle Management policies configured",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )

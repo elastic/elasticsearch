@@ -31,8 +31,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -374,8 +374,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     ) throws IOException {
         // add node id as name to settings for proper logging
         final ShardId shardId = routing.shardId();
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         return newShard(
             routing,
             shardPath,
@@ -425,7 +425,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         boolean success = false;
         try {
-            IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
+            IndexCache indexCache = new IndexCache(DisabledQueryCache.INSTANCE, null);
             MapperService mapperService = MapperTestUtils.newMapperService(
                 xContentRegistry(),
                 createTempDir(),

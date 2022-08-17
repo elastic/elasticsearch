@@ -50,6 +50,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -355,7 +356,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 Aggregator aggregator = builder.build(context, null).create(null, CardinalityUpperBound.ONE);
                 aggregator.preCollection();
                 assertThat(indexReader.leaves(), hasSize(1));
-                LeafBucketCollector leaf = aggregator.getLeafCollector(indexReader.leaves().get(0));
+                LeafBucketCollector leaf = aggregator.getLeafCollector(
+                    new AggregationExecutionContext(indexReader.leaves().get(0), null, null)
+                );
 
                 /*
                  * Collect some number of buckets that we *know* fit in the

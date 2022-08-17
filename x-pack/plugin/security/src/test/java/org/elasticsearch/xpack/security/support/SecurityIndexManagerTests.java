@@ -142,11 +142,21 @@ public class SecurityIndexManagerTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-            shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
-                .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
-        ).build();
-        clusterStateBuilder.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build());
+        clusterStateBuilder.routingTable(
+            RoutingTable.builder()
+                .add(
+                    IndexRoutingTable.builder(index)
+                        .addIndexShard(
+                            IndexShardRoutingTable.builder(new ShardId(index, 0))
+                                .addShard(
+                                    shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
+                                        .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                )
+                        )
+                        .build()
+                )
+                .build()
+        );
         manager.clusterChanged(event(clusterStateBuilder.build()));
 
         assertIndexUpToDateButNotAvailable();
@@ -210,7 +220,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
                                     )
                                         .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
                                         .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
-                                ).build()
+                                )
                             )
                     )
                     .build()

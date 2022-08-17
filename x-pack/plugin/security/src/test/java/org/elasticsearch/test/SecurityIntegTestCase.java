@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.test;
 
-import io.netty.util.ThreadDeathWatcher;
-import io.netty.util.concurrent.GlobalEventExecutor;
-
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -38,7 +35,6 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
@@ -180,35 +176,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     };
 
-    /**
-     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
-     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
-     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
-     * trigger the thread leak detector
-     */
-    @ClassRule
-    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
-        @Override
-        protected void after() {
-            try {
-                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (IllegalStateException e) {
-                if (e.getMessage().equals("thread was not started") == false) {
-                    throw e;
-                }
-                // ignore since the thread was never started
-            }
-
-            try {
-                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    };
-
     @Before
     // before methods from the superclass are run before this, which means that the current cluster is ready to go
     public void assertXPackIsInstalled() {
@@ -223,14 +190,18 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class)
                 .getPluginInfos()
                 .stream()
-                .map(p -> p.getClassname())
+                .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
             assertThat(
-                "plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]",
+                "plugin [" + xpackPluginClass().getName() + "] not found in [" + pluginNames + "]",
                 pluginNames,
-                hasItem(LocalStateSecurity.class.getName())
+                hasItem(xpackPluginClass().getName())
             );
         }
+    }
+
+    protected Class<?> xpackPluginClass() {
+        return LocalStateSecurity.class;
     }
 
     @Override

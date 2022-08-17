@@ -1,5 +1,0 @@
-pr: 85270
-summary: Speed up `DatastreamTimestampFieldMapper#postParse`
-area: Data streams
-type: enhancement
-issues: []

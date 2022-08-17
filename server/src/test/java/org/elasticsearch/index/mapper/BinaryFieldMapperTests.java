@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -135,5 +136,15 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean dedupAfterFetch() {
         return true;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

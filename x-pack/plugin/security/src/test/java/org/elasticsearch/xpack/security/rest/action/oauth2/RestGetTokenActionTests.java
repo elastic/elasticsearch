@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
@@ -78,11 +79,13 @@ public class RestGetTokenActionTests extends ESTestCase {
             null,
             randomAlphaOfLength(4),
             randomAlphaOfLength(5),
-            new Authentication(
-                new User("joe", new String[] { "custom_superuser" }, new User("bar", "not_superuser")),
-                new Authentication.RealmRef("test", "test", "node"),
-                new Authentication.RealmRef("test", "test", "node")
-            )
+            AuthenticationTestHelper.builder()
+                .user(new User("bar", "not_superuser"))
+                .realmRef(new Authentication.RealmRef("test", "test", "node"))
+                .runAs()
+                .user(new User("joe", "custom_superuser"))
+                .realmRef(new Authentication.RealmRef("test", "test", "node"))
+                .build()
         );
         listener.onResponse(createTokenResponse);
 

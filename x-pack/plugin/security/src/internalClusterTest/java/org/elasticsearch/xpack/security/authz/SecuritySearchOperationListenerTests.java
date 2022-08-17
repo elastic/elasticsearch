@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -78,7 +79,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrailService auditTrailService = mock(AuditTrailService.class);
-            Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
+            Authentication authentication = AuthenticationTestHelper.builder()
+                .user(new User("test", "role"))
+                .realmRef(new RealmRef("realm", "file", "node"))
+                .build(false);
             authentication.writeToContext(threadContext);
             IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
             threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
@@ -109,7 +113,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         ) {
             readerContext.putInContext(
                 AuthenticationField.AUTHENTICATION_KEY,
-                new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null)
+                AuthenticationTestHelper.builder()
+                    .user(new User("test", "role"))
+                    .realmRef(new RealmRef("realm", "file", "node"))
+                    .build(false)
             );
             final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
             readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
@@ -122,7 +129,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
             SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
-                Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
+                Authentication authentication = AuthenticationTestHelper.builder()
+                    .user(new User("test", "role"))
+                    .realmRef(new RealmRef("realm", "file", "node"))
+                    .build(false);
                 authentication.writeToContext(threadContext);
                 listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
@@ -132,11 +142,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
                 final String nodeName = randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomAlphaOfLengthBetween(1, 16);
-                Authentication authentication = new Authentication(
-                    new User("test", "role"),
-                    new RealmRef(realmName, "file", nodeName),
-                    null
-                );
+                Authentication authentication = AuthenticationTestHelper.builder()
+                    .user(new User("test", "role"))
+                    .realmRef(new RealmRef(realmName, "file", nodeName))
+                    .build(false);
                 authentication.writeToContext(threadContext);
                 listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
@@ -147,7 +156,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
                 final String type = randomAlphaOfLengthBetween(5, 16);
-                Authentication authentication = new Authentication(new User("test", "role"), new RealmRef(realmName, type, nodeName), null);
+                Authentication authentication = AuthenticationTestHelper.builder()
+                    .user(new User("test", "role"))
+                    .realmRef(new RealmRef(realmName, type, nodeName))
+                    .build(false);
                 authentication.writeToContext(threadContext);
                 threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
                 threadContext.putTransient(
@@ -175,12 +187,13 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
                 final String type = randomAlphaOfLengthBetween(5, 16);
-                User user = new User(new User("test", "role"), new User("authenticated", "runas"));
-                Authentication authentication = new Authentication(
-                    user,
-                    new RealmRef(realmName, type, nodeName),
-                    new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", nodeName)
-                );
+                Authentication authentication = AuthenticationTestHelper.builder()
+                    .user(new User("authenticated", "runas"))
+                    .realmRef(new RealmRef(realmName, type, nodeName))
+                    .runAs()
+                    .user(new User("test", "role"))
+                    .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", nodeName))
+                    .build();
                 authentication.writeToContext(threadContext);
                 threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
@@ -194,11 +207,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
                 final String type = randomAlphaOfLengthBetween(5, 16);
-                Authentication authentication = new Authentication(
-                    new User("authenticated", "runas"),
-                    new RealmRef(realmName, type, nodeName),
-                    null
-                );
+                Authentication authentication = AuthenticationTestHelper.builder()
+                    .user(new User("authenticated", "runas"))
+                    .realmRef(new RealmRef(realmName, type, nodeName))
+                    .build(false);
                 authentication.writeToContext(threadContext);
                 threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
                 threadContext.putTransient(
@@ -251,11 +263,16 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
                 readerContext.putInContext(
                     AuthenticationField.AUTHENTICATION_KEY,
-                    new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null)
+                    AuthenticationTestHelper.builder()
+                        .user(new User("test", "role"))
+                        .realmRef(new RealmRef("realm", "file", "node"))
+                        .build(false)
                 );
-                new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null).writeToContext(
-                    securityContext.getThreadContext()
-                );
+                AuthenticationTestHelper.builder()
+                    .user(new User("test", "role"))
+                    .realmRef(new Authentication.RealmRef("realm", "file", "node"))
+                    .build(false)
+                    .writeToContext(securityContext.getThreadContext());
                 listener.validateReaderContext(readerContext, request);
                 verifyNoMoreInteractions(auditTrail);
             }
@@ -264,13 +281,19 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
                 readerContext.putInContext(
                     AuthenticationField.AUTHENTICATION_KEY,
-                    new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null)
+                    AuthenticationTestHelper.builder()
+                        .user(new User("test", "role"))
+                        .realmRef(new RealmRef("realm", "file", "node"))
+                        .build(false)
                 );
-                new Authentication(
-                    new User(new User("test", "role"), new User("authenticated", "runas")),
-                    new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), randomAlphaOfLength(5)),
-                    new RealmRef("realm", "file", "node")
-                ).writeToContext(securityContext.getThreadContext());
+                AuthenticationTestHelper.builder()
+                    .user(new User("authenticated", "runas"))
+                    .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), randomAlphaOfLength(5)))
+                    .runAs()
+                    .user(new User("test", "role"))
+                    .realmRef(new RealmRef("realm", "file", "node"))
+                    .build()
+                    .writeToContext(securityContext.getThreadContext());
                 listener.validateReaderContext(readerContext, request);
                 verifyNoMoreInteractions(auditTrail);
             }
@@ -279,15 +302,19 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
                 readerContext.putInContext(
                     AuthenticationField.AUTHENTICATION_KEY,
-                    new Authentication(
-                        new User(new User("test", "role"), new User("authenticated", "runas")),
-                        new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
-                        new RealmRef("realm2", "file", "node")
-                    )
+                    AuthenticationTestHelper.builder()
+                        .user(new User("authenticated", "runas"))
+                        .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"))
+                        .runAs()
+                        .user(new User("test", "role"))
+                        .realmRef(new RealmRef("realm2", "file", "node"))
+                        .build()
                 );
-                new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null).writeToContext(
-                    securityContext.getThreadContext()
-                );
+                AuthenticationTestHelper.builder()
+                    .user(new User("test", "role"))
+                    .realmRef(new Authentication.RealmRef("realm", "file", "node"))
+                    .build(false)
+                    .writeToContext(securityContext.getThreadContext());
                 listener.validateReaderContext(readerContext, request);
                 verifyNoMoreInteractions(auditTrail);
             }
@@ -296,17 +323,22 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
                 readerContext.putInContext(
                     AuthenticationField.AUTHENTICATION_KEY,
-                    new Authentication(
-                        new User(new User("test", "role"), new User("authenticated", "runas")),
-                        new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
-                        new RealmRef("realm", "file", "node")
-                    )
+                    AuthenticationTestHelper.builder()
+                        .user(new User("authenticated", "runas"))
+                        .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"))
+                        .runAs()
+                        .user(new User("test", "role"))
+                        .realmRef(new RealmRef("realm", "file", "node"))
+                        .build()
                 );
-                new Authentication(
-                    new User(new User("test", "role"), new User("authenticated", "runas")),
-                    new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
-                    new RealmRef("realm2", "file", "node")
-                ).writeToContext(securityContext.getThreadContext());
+                AuthenticationTestHelper.builder()
+                    .user(new User("authenticated", "runas"))
+                    .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"))
+                    .runAs()
+                    .user(new User("test", "role"))
+                    .realmRef(new RealmRef("realm2", "file", "node"))
+                    .build()
+                    .writeToContext(securityContext.getThreadContext());
                 listener.validateReaderContext(readerContext, request);
                 verifyNoMoreInteractions(auditTrail);
             }
@@ -316,26 +348,36 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 if (randomBoolean()) {
                     readerContext.putInContext(
                         AuthenticationField.AUTHENTICATION_KEY,
-                        new Authentication(
-                            new User(new User("test", "role"), new User("authenticated", "runas")),
-                            new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
-                            new RealmRef("realm", "file", "node")
-                        )
+                        AuthenticationTestHelper.builder()
+                            .user(new User("authenticated", "runas"))
+                            .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"))
+                            .runAs()
+                            .user(new User("test", "role"))
+                            .realmRef(new RealmRef("realm", "file", "node"))
+                            .build()
                     );
                 } else {
                     readerContext.putInContext(
                         AuthenticationField.AUTHENTICATION_KEY,
-                        new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null)
+                        AuthenticationTestHelper.builder()
+                            .user(new User("test", "role"))
+                            .realmRef(new RealmRef("realm", "file", "node"))
+                            .build(false)
                     );
                 }
                 final String differentRealmType = randomAlphaOfLength(5); // different from "file" which has length 4
                 Authentication currentAuthn = randomBoolean()
-                    ? new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", differentRealmType, "node"), null)
-                    : new Authentication(
-                        new User(new User("test", "role"), new User("authenticated", "runas")),
-                        new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
-                        new RealmRef("realm", differentRealmType, "node")
-                    );
+                    ? AuthenticationTestHelper.builder()
+                        .user(new User("test", "role"))
+                        .realmRef(new Authentication.RealmRef("realm", differentRealmType, "node"))
+                        .build(false)
+                    : AuthenticationTestHelper.builder()
+                        .user(new User("authenticated", "runas"))
+                        .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"))
+                        .runAs()
+                        .user(new User("test", "role"))
+                        .realmRef(new RealmRef("realm", differentRealmType, "node"))
+                        .build();
                 currentAuthn.writeToContext(securityContext.getThreadContext());
                 SearchContextMissingException e = expectThrows(
                     SearchContextMissingException.class,
@@ -350,29 +392,35 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 if (randomBoolean()) {
                     readerContext.putInContext(
                         AuthenticationField.AUTHENTICATION_KEY,
-                        new Authentication(
-                            new User(new User("test", "role"), new User("authenticated", "runas")),
-                            new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
-                            new RealmRef("realm", "file", "node")
-                        )
+                        AuthenticationTestHelper.builder()
+                            .user(new User("authenticated", "runas"))
+                            .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"))
+                            .runAs()
+                            .user(new User("test", "role"))
+                            .realmRef(new RealmRef("realm", "file", "node"))
+                            .build()
                     );
                 } else {
                     readerContext.putInContext(
                         AuthenticationField.AUTHENTICATION_KEY,
-                        new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null)
+                        AuthenticationTestHelper.builder()
+                            .user(new User("test", "role"))
+                            .realmRef(new RealmRef("realm", "file", "node"))
+                            .build(false)
                     );
                 }
                 Authentication currentAuthn = randomBoolean()
-                    ? new Authentication(
-                        new User(randomAlphaOfLength(5), "role"),
-                        new Authentication.RealmRef("realm", "file", "node"),
-                        null
-                    )
-                    : new Authentication(
-                        new User(new User(randomAlphaOfLength(5), "role"), new User("authenticated", "runas")),
-                        new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"),
-                        new RealmRef("realm", "file", "node")
-                    );
+                    ? AuthenticationTestHelper.builder()
+                        .user(new User(randomAlphaOfLength(5), "role"))
+                        .realmRef(new Authentication.RealmRef("realm", "file", "node"))
+                        .build(false)
+                    : AuthenticationTestHelper.builder()
+                        .user(new User("authenticated", "runas"))
+                        .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"))
+                        .runAs()
+                        .user(new User(randomAlphaOfLength(5), "role"))
+                        .realmRef(new RealmRef("realm", "file", "node"))
+                        .build();
                 currentAuthn.writeToContext(securityContext.getThreadContext());
                 SearchContextMissingException e = expectThrows(
                     SearchContextMissingException.class,

@@ -867,7 +867,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .get();
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
-        internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean validateClusterForming() {
+                // skip this step since BusyMasterServiceDisruption prevents the master queue from ever emptying
+                return false;
+            }
+        });
 
         logger.info("-->  wait for shard snapshots to show as failed");
         assertBusy(
@@ -1186,7 +1192,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(admin().indices().prepareDelete(indexName));
 
         for (Future<Void> future : futures) {
-            future.get();
+            future.get(30, TimeUnit.SECONDS);
         }
 
         logger.info("--> restore snapshot 1");

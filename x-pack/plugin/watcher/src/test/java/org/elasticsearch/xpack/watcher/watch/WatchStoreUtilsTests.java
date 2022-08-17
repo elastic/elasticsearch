@@ -21,7 +21,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,16 +31,16 @@ public class WatchStoreUtilsTests extends ESTestCase {
     public void testGetConcreteIndexForDataStream() {
         String dataStreamName = randomAlphaOfLength(20);
         Metadata.Builder metadataBuilder = Metadata.builder();
-        ImmutableOpenMap.Builder<String, Metadata.Custom> customsBuilder = ImmutableOpenMap.builder();
+        Map<String, Metadata.Custom> customsBuilder = new HashMap<>();
         Map<String, DataStream> dataStreams = new HashMap<>();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indexMetadataMapBuilder = new HashMap<>();
         List<String> indexNames = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             String indexName = dataStreamName + "_" + i;
             indexNames.add(indexName);
             indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, null));
         }
-        metadataBuilder.indices(indexMetadataMapBuilder.build());
+        metadataBuilder.indices(indexMetadataMapBuilder);
         dataStreams.put(
             dataStreamName,
             DataStreamTestHelper.newInstance(
@@ -49,10 +48,13 @@ public class WatchStoreUtilsTests extends ESTestCase {
                 indexNames.stream().map(indexName -> new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE)).collect(Collectors.toList())
             )
         );
-        Map<String, DataStreamAlias> dataStreamAliases = Collections.emptyMap();
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(dataStreams, dataStreamAliases);
+        ImmutableOpenMap<String, DataStreamAlias> dataStreamAliases = ImmutableOpenMap.of();
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(
+            ImmutableOpenMap.<String, DataStream>builder().putAllFromMap(dataStreams).build(),
+            dataStreamAliases
+        );
         customsBuilder.put(DataStreamMetadata.TYPE, dataStreamMetadata);
-        metadataBuilder.customs(customsBuilder.build());
+        metadataBuilder.customs(customsBuilder);
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(dataStreamName, metadataBuilder.build());
         assertNotNull(concreteIndex);
         assertEquals(indexNames.get(indexNames.size() - 1), concreteIndex.getIndex().getName());
@@ -64,12 +66,12 @@ public class WatchStoreUtilsTests extends ESTestCase {
         AliasMetadata.Builder aliasMetadataBuilder = new AliasMetadata.Builder(aliasName);
         aliasMetadataBuilder.writeIndex(false);
         AliasMetadata aliasMetadata = aliasMetadataBuilder.build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indexMetadataMapBuilder = new HashMap<>();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             String indexName = aliasName + "_" + i;
             indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, aliasMetadata));
         }
-        metadataBuilder.indices(indexMetadataMapBuilder.build());
+        metadataBuilder.indices(indexMetadataMapBuilder);
         expectThrows(IllegalStateException.class, () -> WatchStoreUtils.getConcreteIndex(aliasName, metadataBuilder.build()));
     }
 
@@ -82,7 +84,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
         AliasMetadata.Builder writableAliasMetadataBuilder = new AliasMetadata.Builder(aliasName);
         writableAliasMetadataBuilder.writeIndex(true);
         AliasMetadata writableAliasMetadata = writableAliasMetadataBuilder.build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indexMetadataMapBuilder = new HashMap<>();
         List<String> indexNames = new ArrayList<>();
         int indexCount = randomIntBetween(2, 10);
         int writableIndexIndex = randomIntBetween(0, indexCount - 1);
@@ -97,7 +99,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
             }
             indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, aliasMetadata));
         }
-        metadataBuilder.indices(indexMetadataMapBuilder.build());
+        metadataBuilder.indices(indexMetadataMapBuilder);
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(aliasName, metadataBuilder.build());
         assertNotNull(concreteIndex);
         assertEquals(indexNames.get(writableIndexIndex), concreteIndex.getIndex().getName());
@@ -109,10 +111,10 @@ public class WatchStoreUtilsTests extends ESTestCase {
         AliasMetadata.Builder aliasMetadataBuilder = new AliasMetadata.Builder(aliasName);
         aliasMetadataBuilder.writeIndex(false);
         AliasMetadata aliasMetadata = aliasMetadataBuilder.build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indexMetadataMapBuilder = new HashMap<>();
         String indexName = aliasName + "_" + 0;
         indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, aliasMetadata));
-        metadataBuilder.indices(indexMetadataMapBuilder.build());
+        metadataBuilder.indices(indexMetadataMapBuilder);
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(aliasName, metadataBuilder.build());
         assertNotNull(concreteIndex);
         assertEquals(indexName, concreteIndex.getIndex().getName());
@@ -121,9 +123,9 @@ public class WatchStoreUtilsTests extends ESTestCase {
     public void testGetConcreteIndexForConcreteIndex() {
         String indexName = randomAlphaOfLength(20);
         Metadata.Builder metadataBuilder = Metadata.builder();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indexMetadataMapBuilder = new HashMap<>();
         indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, null));
-        metadataBuilder.indices(indexMetadataMapBuilder.build());
+        metadataBuilder.indices(indexMetadataMapBuilder);
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(indexName, metadataBuilder.build());
         assertNotNull(concreteIndex);
         assertEquals(indexName, concreteIndex.getIndex().getName());

@@ -241,7 +241,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, numericFieldType, textFieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Terms terms = (Terms) aggregator.buildTopLevel();

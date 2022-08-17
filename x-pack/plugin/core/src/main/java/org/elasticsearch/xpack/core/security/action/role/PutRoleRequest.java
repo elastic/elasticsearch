@@ -17,6 +17,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,6 +26,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request object for adding a role to the security index
@@ -59,7 +63,12 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
 
     @Override
     public ActionRequestValidationException validate() {
-        return RoleDescriptorRequestValidator.validate(roleDescriptor());
+        ActionRequestValidationException validationException = null;
+        Validation.Error error = NativeRealmValidationUtil.validateRoleName(this.name, false);
+        if (error != null) {
+            validationException = addValidationError(error.toString(), validationException);
+        }
+        return RoleDescriptorRequestValidator.validate(roleDescriptor(), validationException);
     }
 
     public void name(String name) {

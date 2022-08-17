@@ -23,9 +23,9 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;

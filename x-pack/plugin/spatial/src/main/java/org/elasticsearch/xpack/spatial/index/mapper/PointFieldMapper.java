@@ -10,12 +10,12 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
@@ -31,11 +31,9 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Field Mapper for point type.
@@ -74,13 +72,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, ignoreZValue, nullValue, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, ignoreZValue, nullValue, meta };
         }
 
         private static CartesianPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
-            CartesianPoint point = new CartesianPoint();
-            CartesianPoint.parsePoint(nullValue, point, ignoreZValue);
+            CartesianPoint point = CartesianPoint.parsePoint(nullValue, ignoreZValue);
             if (ignoreMalformed == false) {
                 if (Double.isFinite(point.getX()) == false) {
                     throw new IllegalArgumentException("illegal x value [" + point.getX() + "]");
@@ -101,10 +98,13 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                     "Adding multifields to [point] mappers has no effect and will be forbidden in future"
                 );
             }
-            CartesianPointParser parser = new CartesianPointParser(name, CartesianPoint::new, (p, point) -> {
-                CartesianPoint.parsePoint(p, point, ignoreZValue.get().value());
-                return point;
-            }, nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
+            CartesianPointParser parser = new CartesianPointParser(
+                name,
+                p -> CartesianPoint.parsePoint(p, ignoreZValue.get().value()),
+                nullValue.get(),
+                ignoreZValue.get().value(),
+                ignoreMalformed.get().value()
+            );
             PointFieldType ft = new PointFieldType(
                 context.buildFullName(name),
                 indexed.get(),
@@ -210,13 +210,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         CartesianPointParser(
             String field,
-            Supplier<CartesianPoint> pointSupplier,
-            CheckedBiFunction<XContentParser, CartesianPoint, CartesianPoint, IOException> objectParser,
+            CheckedFunction<XContentParser, CartesianPoint, IOException> objectParser,
             CartesianPoint nullValue,
             boolean ignoreZValue,
             boolean ignoreMalformed
         ) {
-            super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
+            super(field, objectParser, nullValue, ignoreZValue, ignoreMalformed);
         }
 
         @Override
@@ -233,8 +232,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         }
 
         @Override
-        protected void reset(CartesianPoint in, double x, double y) {
-            in.reset(x, y);
+        protected CartesianPoint createPoint(double x, double y) {
+            return new CartesianPoint(x, y);
         }
 
         @Override

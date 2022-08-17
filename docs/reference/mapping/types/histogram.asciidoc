@@ -23,24 +23,23 @@ per document. Nested arrays are not supported.
 * `histogram` fields do not support sorting.
 ========
 
+[role="child_attributes"]
 [[histogram-params]]
 ==== Parameters
 
+ifeval::["{release-state}"=="unreleased"]
 `time_series_metric`::
-+
---
-experimental:[]
-(Optional, string)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
+preview:[] (Optional, string)
 include::numeric.asciidoc[tag=time_series_metric]
-
-For `histogram` fields, this parameter accepts `histogram`. You can't update
-this parameter for existing fields.
++
+.Valid `time_series_metric` values for `histogram` fields
+[%collapsible%open]
 ====
---
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-histogram]
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+====
+endif::[]
 
 [[histogram-uses]]
 ==== Uses

@@ -16,10 +16,11 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -41,16 +42,17 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
     public SecurityNetty4HttpServerTransport(
         Settings settings,
         NetworkService networkService,
-        BigArrays bigArrays,
+        PageCacheRecycler recycler,
         IPFilter ipFilter,
         SSLService sslService,
         ThreadPool threadPool,
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer
     ) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, sharedGroupFactory);
+        super(settings, networkService, threadPool, xContentRegistry, dispatcher, clusterSettings, sharedGroupFactory, tracer);
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);

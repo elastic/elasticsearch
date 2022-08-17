@@ -25,16 +25,16 @@ Previews a {dfeed}.
 
 Requires the following privileges:
 
-* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this
    privilege)
 * source index configured in the {dfeed}: `read`.
 
 [[ml-preview-datafeed-desc]]
 == {api-description-title}
 
-The preview {dfeeds} API returns the first "page" of search results from a 
+The preview {dfeeds} API returns the first "page" of search results from a
 {dfeed}. You can preview an existing {dfeed} or provide configuration details
-for the {dfeed} and {anomaly-job} in the API. The preview shows the structure of 
+for the {dfeed} and {anomaly-job} in the API. The preview shows the structure of
 the data that will be passed to the anomaly detection engine.
 
 IMPORTANT: When {es} {security-features} are enabled, the {dfeed} query is
@@ -56,6 +56,35 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 +
 NOTE: If you provide the `<datafeed_id>` as a path parameter, you cannot
 provide {dfeed} or {anomaly-job} configuration details in the request body.
+
+[[ml-preview-datafeed-query-parms]]
+== {api-query-parms-title}
+
+`end`::
+(Optional, string) The time that the {dfeed} preview should end. The preview may not go to the end of the provided value
+as only the first page of results are returned. The time can be specified by using one of the following formats:
++
+--
+* ISO 8601 format with milliseconds, for example `2017-01-22T06:00:00.000Z`
+* ISO 8601 format without milliseconds, for example `2017-01-22T06:00:00+00:00`
+* Milliseconds since the epoch, for example `1485061200000`
+
+Date-time arguments using either of the ISO 8601 formats must have a time zone
+designator, where `Z` is accepted as an abbreviation for UTC time.
+
+NOTE: When a URL is expected (for example, in browsers), the `+` used in time
+zone designators must be encoded as `%2B`.
+
+This value is exclusive.
+--
+
+`start`::
+(Optional, string) The time that the {dfeed} preview should begin, which can be
+specified by using the same formats as the `end` parameter. This value is
+inclusive.
+
+NOTE: If you don't provide either the `start` or `end` parameter, the {dfeed} preview will search over the entire
+time of data but exclude data within `cold` or `frozen` <<data-tiers, data tiers>>.
 
 [[ml-preview-datafeed-request-body]]
 == {api-request-body-title}
@@ -115,7 +144,7 @@ The data that is returned for this example is as follows:
 ]
 ----
 
-The following example provides {dfeed} and {anomaly-job} configuration 
+The following example provides {dfeed} and {anomaly-job} configuration
 details in the API:
 
 [source,console]

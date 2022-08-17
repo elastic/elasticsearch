@@ -1,5 +1,0 @@
-pr: 84915
-summary: Improve logging for connect-back failures
-area: Cluster Coordination
-type: enhancement
-issues: []

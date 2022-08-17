@@ -3,6 +3,7 @@ apply plugin: 'elasticsearch.build'
 dependencies {
   api project(':x-pack:plugin:core')
   api project(':server')
+  api project(':distribution:tools:cli-launcher')
   testImplementation project(':test:framework')
 }
 

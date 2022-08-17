@@ -18,16 +18,19 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -74,6 +77,10 @@ public class SecurityContext {
             logger.error("failed to read authentication", e);
             throw new UncheckedIOException(e);
         }
+    }
+
+    public AuthorizationEngine.AuthorizationInfo getAuthorizationInfoFromContext() {
+        return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
     }
 
     /**

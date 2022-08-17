@@ -853,3 +853,29 @@ setup:
   - match: { 3.time: 1487379660000 }
   - match: { 3.airline: foo }
   - match: { 3.responsetime: 42.0 }
+---
+"Test preview datafeed with start and end":
+  - do:
+      ml.preview_datafeed:
+        start: "2017-02-18T00:30:00Z"
+        end: "2017-02-18T01:00:00Z"
+        body: >
+          {
+            "datafeed_config": {
+              "job_id":"preview-datafeed-job",
+              "indexes":"airline-data"
+            },
+            "job_config": {
+              "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+              },
+              "data_description": {
+                "time_field":"time"
+              }
+            }
+          }
+  - length: { $body: 1 }
+  - match: { 0.time: 1487377800000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 1.0 }

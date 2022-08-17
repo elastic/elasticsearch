@@ -22,7 +22,7 @@ restResources {
 }
 
 dependencies {
-  compileOnly project(':modules:lang-painless')
+  compileOnly project(':modules:lang-painless:spi')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

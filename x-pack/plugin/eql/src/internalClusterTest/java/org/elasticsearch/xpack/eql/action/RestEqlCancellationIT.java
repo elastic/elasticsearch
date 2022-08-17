@@ -21,6 +21,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -89,14 +90,18 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
         // We are cancelling during both mapping and searching but we cancel during mapping so we should never reach the second block
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
-        org.elasticsearch.client.eql.EqlSearchRequest eqlSearchRequest = new org.elasticsearch.client.eql.EqlSearchRequest(
-            "test",
-            "my_event where val==1"
-        ).eventCategoryField("event_type");
         String id = randomAlphaOfLength(10);
 
         Request request = new Request("GET", "/test/_eql/search");
-        request.setJsonEntity(Strings.toString(eqlSearchRequest));
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("query", "my_event where val==1")
+                    .field("event_category_field", "event_type")
+                    .endObject()
+            )
+        );
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 

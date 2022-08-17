@@ -35,6 +35,7 @@ public class CoreProtocol {
     public static final String FIELD_MULTI_VALUE_LENIENCY_NAME = "field_multi_value_leniency";
     public static final String INDEX_INCLUDE_FROZEN_NAME = "index_include_frozen";
     public static final String RUNTIME_MAPPINGS_NAME = "runtime_mappings";
+    public static final String ALLOW_PARTIAL_SEARCH_RESULTS_NAME = "allow_partial_search_results";
     // async
     public static final String WAIT_FOR_COMPLETION_TIMEOUT_NAME = "wait_for_completion_timeout";
     public static final String KEEP_ON_COMPLETION_NAME = "keep_on_completion";
@@ -62,6 +63,7 @@ public class CoreProtocol {
     public static final TimeValue PAGE_TIMEOUT = TimeValue.timeValueSeconds(45);
     public static final boolean FIELD_MULTI_VALUE_LENIENCY = false;
     public static final boolean INDEX_INCLUDE_FROZEN = false;
+    public static final boolean ALLOW_PARTIAL_SEARCH_RESULTS = false;
 
     /*
      * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or

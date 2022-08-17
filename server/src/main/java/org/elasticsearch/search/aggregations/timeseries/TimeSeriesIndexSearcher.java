@@ -83,7 +83,7 @@ public class TimeSeriesIndexSearcher {
                 // this is needed to trigger actions in some bucketCollectors that bypass the normal iteration logic
                 // for example, global aggregator triggers a separate iterator that ignores the query but still needs
                 // to know all leaves
-                bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null));
+                bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null, null));
             }
         }
 
@@ -179,7 +179,7 @@ public class TimeSeriesIndexSearcher {
         long timestamp;
 
         LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, LeafReaderContext leaf) throws IOException {
-            AggregationExecutionContext aggCtx = new AggregationExecutionContext(leaf, scratch::get);
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(leaf, scratch::get, () -> timestamp);
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);

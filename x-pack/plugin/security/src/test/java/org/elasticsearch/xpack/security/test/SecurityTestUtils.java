@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -74,10 +74,16 @@ public class SecurityTestUtils {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-            shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted()
-        ).build();
-        return RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build();
+        return RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(index)
+                    .addIndexShard(
+                        IndexShardRoutingTable.builder(new ShardId(index, 0))
+                            .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
+                    )
+                    .build()
+            )
+            .build();
     }
 
     /**

@@ -16,9 +16,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
@@ -46,6 +44,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -68,7 +67,7 @@ public class EvilLoggerTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testLocationInfoTest() throws IOException, UserException {
+    public void testLocationInfoTest() throws IOException {
         setupLogging("location_info");
 
         final Logger testLogger = LogManager.getLogger("test");
@@ -93,7 +92,7 @@ public class EvilLoggerTests extends ESTestCase {
         assertLogLine(events.get(4), Level.TRACE, location, "This is a trace message");
     }
 
-    public void testConcurrentDeprecationLogger() throws IOException, UserException, BrokenBarrierException, InterruptedException {
+    public void testConcurrentDeprecationLogger() throws IOException, BrokenBarrierException, InterruptedException {
         setupLogging("deprecation");
 
         final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("deprecation");
@@ -184,7 +183,7 @@ public class EvilLoggerTests extends ESTestCase {
 
     }
 
-    public void testDeprecatedSettings() throws IOException, UserException {
+    public void testDeprecatedSettings() throws IOException {
         setupLogging("settings");
 
         final Setting<Boolean> setting = Setting.boolSetting("deprecated.foo", false, Setting.Property.Deprecated);
@@ -212,7 +211,7 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
-    public void testFindAppender() throws IOException, UserException {
+    public void testFindAppender() throws IOException {
         setupLogging("find_appender");
 
         final Logger hasConsoleAppender = LogManager.getLogger("has_console_appender");
@@ -226,7 +225,7 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(countingNoOpAppender.getName(), equalTo("counting_no_op"));
     }
 
-    public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
+    public void testPrefixLogger() throws IOException {
         setupLogging("prefix");
 
         final String prefix = randomAlphaOfLength(16);
@@ -234,7 +233,7 @@ public class EvilLoggerTests extends ESTestCase {
         logger.info("test");
         logger.info("{}", "test");
         final Exception e = new Exception("exception");
-        logger.info(new ParameterizedMessage("{}", "test"), e);
+        logger.info(() -> format("%s", "test"), e);
 
         final String path = System.getProperty("es.logs.base_path")
             + System.getProperty("file.separator")
@@ -253,7 +252,7 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
-    public void testPrefixLoggerMarkersCanBeCollected() throws IOException, UserException {
+    public void testPrefixLoggerMarkersCanBeCollected() throws IOException {
         setupLogging("prefix");
 
         final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
@@ -266,7 +265,7 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(PrefixLogger.markersSize(), lessThan(prefixes));
     }
 
-    public void testProperties() throws IOException, UserException {
+    public void testProperties() throws IOException {
         final Settings settings = Settings.builder()
             .put("cluster.name", randomAlphaOfLength(16))
             .put("node.name", randomAlphaOfLength(16))
@@ -279,7 +278,7 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
     }
 
-    public void testNoNodeNameInPatternWarning() throws IOException, UserException {
+    public void testNoNodeNameInPatternWarning() throws IOException {
         String nodeName = randomAlphaOfLength(16);
         LogConfigurator.setNodeName(nodeName);
         setupLogging("no_node_name");
@@ -309,11 +308,11 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
-    private void setupLogging(final String config) throws IOException, UserException {
+    private void setupLogging(final String config) throws IOException {
         setupLogging(config, Settings.EMPTY);
     }
 
-    private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
+    private void setupLogging(final String config, final Settings settings) throws IOException {
         assert Environment.PATH_HOME_SETTING.exists(settings) == false;
         final Path configDir = getDataPath(config);
         final Settings mergedSettings = Settings.builder()
@@ -322,7 +321,7 @@ public class EvilLoggerTests extends ESTestCase {
             .build();
         // need to use custom config path so we can use a custom log4j2.properties file for the test
         final Environment environment = new Environment(mergedSettings, configDir);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
     }
 
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {

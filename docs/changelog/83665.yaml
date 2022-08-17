@@ -1,5 +1,0 @@
-pr: 83665
-summary: "RemoveProcessor updated to support fieldsToKeep"
-area: Ingest
-type: enhancement
-issues: []

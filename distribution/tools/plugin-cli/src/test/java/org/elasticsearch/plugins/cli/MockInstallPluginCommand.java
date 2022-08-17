@@ -10,6 +10,7 @@ package org.elasticsearch.plugins.cli;
 
 import joptsimple.OptionSet;
 
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
@@ -25,12 +26,8 @@ public class MockInstallPluginCommand extends InstallPluginCommand {
     }
 
     @Override
-    protected Environment createEnv(OptionSet options) throws UserException {
-        return this.env != null ? this.env : super.createEnv(options);
+    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
+        return this.env != null ? this.env : super.createEnv(options, processInfo);
     }
 
-    @Override
-    protected boolean addShutdownHook() {
-        return false;
-    }
 }

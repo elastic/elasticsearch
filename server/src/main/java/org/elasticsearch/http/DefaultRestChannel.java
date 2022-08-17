@@ -8,13 +8,14 @@
 
 package org.elasticsearch.http;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -24,6 +25,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,38 +47,41 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String SET_COOKIE = "set-cookie";
 
     private final HttpRequest httpRequest;
-    private final BigArrays bigArrays;
+    private final Recycler<BytesRef> recycler;
     private final HttpHandlingSettings settings;
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
+    private final Tracer tracer;
 
     @Nullable
-    private final HttpTracer tracerLog;
+    private final HttpTracer httpLogger;
 
     DefaultRestChannel(
         HttpChannel httpChannel,
         HttpRequest httpRequest,
         RestRequest request,
-        BigArrays bigArrays,
+        Recycler<BytesRef> recycler,
         HttpHandlingSettings settings,
         ThreadContext threadContext,
         CorsHandler corsHandler,
-        @Nullable HttpTracer tracerLog
+        @Nullable HttpTracer httpLogger,
+        Tracer tracer
     ) {
-        super(request, settings.getDetailedErrorsEnabled());
+        super(request, settings.detailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
-        this.bigArrays = bigArrays;
+        this.recycler = recycler;
         this.settings = settings;
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
-        this.tracerLog = tracerLog;
+        this.httpLogger = httpLogger;
+        this.tracer = tracer;
     }
 
     @Override
-    protected BytesStreamOutput newBytesOutput() {
-        return new ReleasableBytesStreamOutput(bigArrays);
+    protected BytesStream newBytesOutput() {
+        return new RecyclerBytesStreamOutput(recycler);
     }
 
     @Override
@@ -84,14 +89,18 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         // We're sending a response so we know we won't be needing the request content again and release it
         httpRequest.release();
 
-        final ArrayList<Releasable> toClose = new ArrayList<>(3);
+        final String traceId = "rest-" + this.request.getRequestId();
+
+        final ArrayList<Releasable> toClose = new ArrayList<>(4);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
+        toClose.add(() -> tracer.stopTrace(traceId));
 
         boolean success = false;
         String opaque = null;
         String contentLength = null;
+
         try {
             final BytesReference content = restResponse.content();
             if (content instanceof Releasable) {
@@ -130,6 +139,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
+            tracer.setAttribute(traceId, "http.status_code", restResponse.status().getStatus());
+            restResponse.getHeaders()
+                .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
+
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 httpChannel.sendResponse(httpResponse, listener);
@@ -139,8 +152,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (success == false) {
                 Releasables.close(toClose);
             }
-            if (tracerLog != null) {
-                tracerLog.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+            if (httpLogger != null) {
+                httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
             }
         }
     }
@@ -166,7 +179,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     }
 
     private void addCookies(HttpResponse response) {
-        if (settings.isResetCookies()) {
+        if (settings.resetCookies()) {
             List<String> cookies = request.getHttpRequest().strictCookies();
             if (cookies.isEmpty() == false) {
                 for (String cookie : cookies) {

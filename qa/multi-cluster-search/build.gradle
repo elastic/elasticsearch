@@ -64,6 +64,7 @@ BuildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
     doFirst {
       nonInputProperties.systemProperty('tests.rest.suite', 'multi_cluster')
       nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.remote_cluster_version', bwcVersion.toString())
     }
     dependsOn "${baseName}#remote-cluster"
   }

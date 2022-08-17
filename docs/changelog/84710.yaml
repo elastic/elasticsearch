@@ -1,6 +1,0 @@
-pr: 84710
-summary: Added buffer pixels to vector tile spec parsing
-area: Geo
-type: enhancement
-issues:
- - 84492

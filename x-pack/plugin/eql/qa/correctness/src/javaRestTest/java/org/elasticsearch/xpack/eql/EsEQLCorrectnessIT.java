@@ -15,17 +15,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.eql.EqlSearchRequest;
-import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -37,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
@@ -137,47 +141,69 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     }
 
     // To enable test of subqueries (filtering) results: -Dtests.eql_correctness_debug=true
+    @SuppressWarnings("unchecked")
     public void test() throws Exception {
         boolean debugMode = Boolean.parseBoolean(System.getProperty("tests.eql_correctness_debug", "false"));
         int queryNo = spec.queryNo();
 
         if (debugMode) {
             for (int i = 0; i < spec.filters().length; i++) {
-                String filterQuery = spec.filters()[i];
-                EqlSearchRequest eqlSearchRequest = new EqlSearchRequest(CFG.getProperty("index_name"), filterQuery);
-                eqlSearchRequest.eventCategoryField("event_type");
-                eqlSearchRequest.size(100000);
-                EqlSearchResponse response = highLevelClient().eql().search(eqlSearchRequest, COMMON_REQUEST_OPTIONS);
+                XContentBuilder builder = JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("query", spec.filters()[i])
+                    .field("event_category_field", "event_type")
+                    .field("size", 100000)
+                    .endObject();
+
+                Request request = new Request("POST", "/" + CFG.getProperty("index_name") + "/_eql/search");
+                request.setOptions(COMMON_REQUEST_OPTIONS);
+                request.setJsonEntity(Strings.toString(builder));
+
+                ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
+
                 assertEquals(
                     "Failed to match filter counts for query No: " + queryNo + " filterCount: " + i,
                     spec.filterCounts()[i],
-                    response.hits().events().size()
+                    (long) response.evaluate("hits.events.size")
                 );
             }
         }
 
-        EqlSearchRequest eqlSearchRequest = new EqlSearchRequest(CFG.getProperty("index_name"), spec.query());
-        eqlSearchRequest.eventCategoryField("event_type");
-        eqlSearchRequest.tiebreakerField("serial_id");
-        eqlSearchRequest.size(Integer.parseInt(CFG.getProperty("size")));
-        eqlSearchRequest.fetchSize(Integer.parseInt(CFG.getProperty("fetch_size")));
-        eqlSearchRequest.resultPosition(CFG.getProperty("result_position"));
-        EqlSearchResponse response = highLevelClient().eql().search(eqlSearchRequest, RequestOptions.DEFAULT);
-        long responseTime = response.took();
+        XContentBuilder builder = JsonXContent.contentBuilder()
+            .startObject()
+            .field("query", spec.query())
+            .field("event_category_field", "event_type")
+            .field("tiebreaker_field", "serial_id")
+            .field("size", Integer.parseInt(CFG.getProperty("size")))
+            .field("fetch_size", Integer.parseInt(CFG.getProperty("fetch_size")))
+            .field("result_position", CFG.getProperty("result_position"))
+            .endObject();
+
+        Request request = new Request("POST", "/" + CFG.getProperty("index_name") + "/_eql/search");
+        request.setOptions(RequestOptions.DEFAULT);
+        request.setJsonEntity(Strings.toString(builder));
+
+        ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
+
+        int responseTime = response.evaluate("took");
         LOGGER.info("QueryNo: {}, took: {}ms", queryNo, responseTime);
         totalTime += responseTime;
+
+        List<Map<String, Object>> sequences = response.evaluate("hits.sequences");
         assertEquals(
             "Failed to match sequence count for query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
             spec.seqCount(),
-            response.hits().sequences().size()
+            sequences.size()
         );
         int expectedEvenIdIdx = 0;
-        for (EqlSearchResponse.Sequence seq : response.hits().sequences()) {
-            for (EqlSearchResponse.Event event : seq.events()) {
+        for (Map<String, Object> seq : sequences) {
+            List<Map<String, Object>> events = (List<Map<String, Object>>) seq.get("events");
+            for (Map<String, Object> event : events) {
+                Map<String, Object> source = (Map<String, Object>) event.get("_source");
                 assertEquals(
                     "Failed to match event ids for query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
                     spec.expectedEventIds()[expectedEvenIdIdx++],
-                    ((Integer) event.sourceAsMap().get("serial_id")).longValue()
+                    ((Integer) source.get("serial_id")).longValue()
                 );
             }
         }

@@ -20,6 +20,8 @@ public final class ContentPath {
 
     private String[] path = new String[10];
 
+    private boolean withinLeafObject = false;
+
     public ContentPath() {
         this(0);
     }
@@ -52,6 +54,14 @@ public final class ContentPath {
 
     public void remove() {
         path[index--] = null;
+    }
+
+    public void setWithinLeafObject(boolean withinLeafObject) {
+        this.withinLeafObject = withinLeafObject;
+    }
+
+    public boolean isWithinLeafObject() {
+        return withinLeafObject;
     }
 
     public String pathAsText(String name) {

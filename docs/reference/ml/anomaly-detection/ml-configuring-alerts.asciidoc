@@ -5,12 +5,11 @@
 beta::[]
 
 {kib} {alert-features} include support for {ml} rules, which run scheduled 
-checks for anomalies in one or more {anomaly-jobs} or check the 
-health of the job with certain conditions. If the conditions of the rule are met, an 
-alert is created and the associated action is triggered. For example, you can 
-create a rule to check an {anomaly-job} every fifteen minutes for critical 
-anomalies and to notify you in an email. To learn more about {kib} 
-{alert-features}, refer to 
+checks for anomalies in one or more {anomaly-jobs} or check the health of the 
+job with certain conditions. If the conditions of the rule are met, an alert is 
+created and the associated action is triggered. For example, you can create a 
+rule to check an {anomaly-job} every fifteen minutes for critical anomalies and 
+to notify you in an email. To learn more about {kib} {alert-features}, refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting].
 
 The following {ml} rules are available:
@@ -99,9 +98,8 @@ are met.
 [[creating-anomaly-jobs-health-rules]]
 === {anomaly-jobs-cap} health
 
-Select the job or group that
-the rule applies to. If you assign more jobs to the group, they are
-included the next time the rule conditions are checked.
+Select the job or group that the rule applies to. If you assign more jobs to the 
+group, they are included the next time the rule conditions are checked.
 
 You can also use a special character (`*`) to apply the rule to all your jobs. 
 Jobs created after the rule are automatically included. You can exclude jobs 
@@ -145,7 +143,8 @@ are met.
 
 Connect your rule to actions that use supported built-in integrations by 
 selecting a connector type. Connectors are {kib} services or third-party 
-integrations that perform an action when the rule conditions are met.
+integrations that perform an action when the rule conditions are met or the 
+alert is recovered. You can select in which case the action will run.
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-actions.jpg["Selecting connector type"]
@@ -176,7 +175,8 @@ open it via *{alerts-ui}* by selecting the rule name.
 == Action variables
 
 You can add different variables to your action. The following variables are 
-specific to the {ml} rule types.
+specific to the {ml} rule types. An `*` marks the variables that can be used for 
+actions of recovered alerts.
 
 
 [[anomaly-alert-action-variables]]
@@ -184,16 +184,16 @@ specific to the {ml} rule types.
 
 Every {anomaly-detect} alert has the following action variables:
 
-`context`.`anomalyExplorerUrl`::
+`context`.`anomalyExplorerUrl` ^*^::
 URL to open in the Anomaly Explorer.
 
 `context`.`isInterim`::
 Indicates if top hits contain interim results.
 
-`context`.`jobIds`::
+`context`.`jobIds` ^*^::
 List of job IDs that triggered the alert.
 
-`context`.`message`::
+`context`.`message` ^*^::
 A preconstructed message for the alert.
 
 `context`.`score`::
@@ -265,7 +265,7 @@ type of check. You can find the possible properties for all the checks below.
 
 ==== _Datafeed is not started_ 
 
-`context.message`::
+`context.message` ^*^::
 A preconstructed message for the alert.
 
 `context.results`::
@@ -274,24 +274,24 @@ Contains the following properties:
 .Properties of `context.results`
 [%collapsible%open]
 ====
-`datafeed_id`:::
+`datafeed_id` ^*^:::
 The {dfeed} identifier.
 
-`datafeed_state`:::
+`datafeed_state` ^*^:::
 The state of the {dfeed}. It can be `starting`, `started`, 
 `stopping`, `stopped`.
 
-`job_id`:::
+`job_id` ^*^:::
 The job identifier.
 
-`job_state`:::
+`job_state` ^*^:::
 The state of the job. It can be `opening`, `opened`, `closing`, 
 `closed`, or `failed`.
 ====
 
 ==== _Model memory limit reached_
 
-`context.message`::
+`context.message` ^*^::
 A preconstructed message for the rule.
 
 `context.results`::
@@ -300,10 +300,10 @@ Contains the following properties:
 .Properties of `context.results` 
 [%collapsible%open]
 ====
-`job_id`:::
+`job_id` ^*^:::
 The job identifier.
 
-`memory_status`:::
+`memory_status` ^*^:::
 The status of the mathematical model. It can have one of the following values:
 
 * `soft_limit`: The model used more than 60% of the configured memory limit and 
@@ -312,52 +312,57 @@ The status of the mathematical model. It can have one of the following values:
 * `hard_limit`: The model used more space than the configured memory limit. As a 
   result, not all incoming data was processed.
 
-`model_bytes`:::
+The `memory_status` is `ok` for recovered alerts.
+
+`model_bytes` ^*^:::
 The number of bytes of memory used by the models.
 
-`model_bytes_exceeded`:::
+`model_bytes_exceeded` ^*^:::
 The number of bytes over the high limit for memory usage at the last allocation 
 failure.
 
-`model_bytes_memory_limit`:::
+`model_bytes_memory_limit` ^*^:::
 The upper limit for model memory usage.
 
-`log_time`:::
+`log_time` ^*^:::
 The timestamp of the model size statistics according to server time. Time 
 formatting is based on the {kib} settings.
 
-`peak_model_bytes`:::
+`peak_model_bytes` ^*^:::
 The peak number of bytes of memory ever used by the model.
 ====
 
 ==== _Data delay has occurred_
 
-`context.message`::
+`context.message` ^*^::
 A preconstructed message for the rule.
 
 `context.results`::
+For recovered alerts, `context.results` is either empty (when there is no 
+delayed data) or the same as for an active alert (when the number of missing 
+documents is less than the _Number of documents_ treshold set by the user). 
 Contains the following properties:
 +
 .Properties of `context.results`
 [%collapsible%open]
 ====
-`annotation`:::
+`annotation` ^*^:::
 The annotation corresponding to the data delay in the job.
 
-`end_timestamp`:::
+`end_timestamp` ^*^:::
 Timestamp of the latest finalized buckets with missing documents. Time 
 formatting is based on the {kib} settings.
 
-`job_id`:::
+`job_id` ^*^:::
 The job identifier.
 
-`missed_docs_count`:::
+`missed_docs_count` ^*^:::
 The number of missed documents.
 ====
 
 ==== _Error in job messages_
 
-`context.message`::
+`context.message` ^*^::
 A preconstructed message for the rule.
 
 `context.results`::

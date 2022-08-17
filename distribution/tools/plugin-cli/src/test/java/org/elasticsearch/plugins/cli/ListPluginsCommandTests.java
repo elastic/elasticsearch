@@ -14,19 +14,24 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class ListPluginsCommandTests extends CommandTestCase {
@@ -43,7 +48,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
     }
 
     private static String buildMultiline(String... args) {
-        return Arrays.stream(args).collect(Collectors.joining("\n", "", "\n"));
+        return Arrays.stream(args).collect(Collectors.joining(System.lineSeparator(), "", System.lineSeparator()));
     }
 
     private static void buildFakePlugin(final Environment env, final String description, final String name, final String classname)
@@ -116,7 +121,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Licensed: false",
-                "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake"
             ),
@@ -139,7 +143,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Java Version: 1.8",
                 "Native Controller: true",
                 "Licensed: false",
-                "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake"
             ),
@@ -163,7 +166,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Licensed: false",
-                "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "fake_plugin2",
@@ -175,7 +177,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Licensed: false",
-                "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake2"
             ),
@@ -193,16 +194,15 @@ public class ListPluginsCommandTests extends CommandTestCase {
     public void testPluginWithoutDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         Files.createDirectories(pluginDir);
-        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> execute());
-        assertEquals(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES).toString(), e.getFile());
+        var e = expectThrows(IllegalStateException.class, () -> execute());
+        assertThat(e.getMessage(), equalTo("Plugin [fake1] is missing a descriptor properties file."));
     }
 
     public void testPluginWithWrongDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> execute());
-        final Path descriptorPath = pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES);
-        assertEquals("property [name] is missing in [" + descriptorPath.toString() + "]", e.getMessage());
+        var e = expectThrows(IllegalArgumentException.class, () -> execute());
+        assertThat(e.getMessage(), startsWith("property [name] is missing for plugin"));
     }
 
     public void testExistingIncompatiblePlugin() throws Exception {
@@ -225,32 +225,23 @@ public class ListPluginsCommandTests extends CommandTestCase {
 
         execute();
         String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0.0 but version " + Version.CURRENT + " is required";
-        assertEquals("""
-            fake_plugin1
-            fake_plugin2
-            """, terminal.getOutput());
-        assertEquals("WARNING: " + message + "\n", terminal.getErrorOutput());
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("fake_plugin1", "fake_plugin2")));
+        assertThat(terminal.getErrorOutput(), containsString("WARNING: " + message));
 
         terminal.reset();
         execute("-s");
-        assertEquals("""
-            fake_plugin1
-            fake_plugin2
-            """, terminal.getOutput());
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("fake_plugin1", "fake_plugin2")));
+        assertThat(terminal.getErrorOutput(), emptyString());
     }
 
     @Override
     protected Command newCommand() {
         return new ListPluginsCommand() {
             @Override
-            protected Environment createEnv(OptionSet options) {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
                 return env;
             }
 
-            @Override
-            protected boolean addShutdownHook() {
-                return false;
-            }
         };
     }
 }

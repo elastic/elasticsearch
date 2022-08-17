@@ -8,36 +8,185 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
-public abstract class RestResponse {
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+public class RestResponse {
+
+    public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
+
+    private static final String STATUS = "status";
+
+    private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
+
+    private final RestStatus status;
+    private final BytesReference content;
+    private final String responseMediaType;
     private Map<String, List<String>> customHeaders;
 
     /**
-     * The response content type.
+     * Creates a new response based on {@link XContentBuilder}.
      */
-    public abstract String contentType();
+    public RestResponse(RestStatus status, XContentBuilder builder) {
+        this(status, builder.getResponseContentTypeString(), BytesReference.bytes(builder));
+    }
 
     /**
-     * The response content. Note, if the content is {@link Releasable} it
-     * should automatically be released when done by the channel sending it.
+     * Creates a new plain text response.
      */
-    public abstract BytesReference content();
+    public RestResponse(RestStatus status, String content) {
+        this(status, TEXT_CONTENT_TYPE, new BytesArray(content));
+    }
 
     /**
-     * The rest status code.
+     * Creates a new plain text response.
      */
-    public abstract RestStatus status();
+    public RestResponse(RestStatus status, String responseMediaType, String content) {
+        this(status, responseMediaType, new BytesArray(content));
+    }
+
+    /**
+     * Creates a binary response.
+     */
+    public RestResponse(RestStatus status, String responseMediaType, BytesReference content) {
+        this.status = status;
+        this.content = content;
+        this.responseMediaType = responseMediaType;
+    }
+
+    public RestResponse(RestChannel channel, Exception e) throws IOException {
+        this(channel, ExceptionsHelper.status(e), e);
+    }
+
+    public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
+        ToXContent.Params params = paramsFromRequest(channel.request());
+        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
+            // log exception only if it is not returned in the response
+            Supplier<?> messageSupplier = () -> String.format(
+                Locale.ROOT,
+                "path: %s, params: %s",
+                channel.request().rawPath(),
+                channel.request().params()
+            );
+            if (status.getStatus() < 500) {
+                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
+            } else {
+                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
+            }
+        }
+        this.status = status;
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
+            build(builder, params, status, channel.detailedErrorsEnabled(), e);
+            this.content = BytesReference.bytes(builder);
+            this.responseMediaType = builder.contentType().mediaType();
+        }
+        if (e instanceof ElasticsearchException) {
+            copyHeaders(((ElasticsearchException) e));
+        }
+    }
+
+    public String contentType() {
+        return this.responseMediaType;
+    }
+
+    public BytesReference content() {
+        return this.content;
+    }
+
+    public RestStatus status() {
+        return this.status;
+    }
+
+    private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
+        ToXContent.Params params = restRequest;
+        if (params.paramAsBoolean("error_trace", REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false) && skipStackTrace() == false) {
+            params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+        }
+        return params;
+    }
+
+    protected boolean skipStackTrace() {
+        return false;
+    }
+
+    private static void build(
+        XContentBuilder builder,
+        ToXContent.Params params,
+        RestStatus status,
+        boolean detailedErrorsEnabled,
+        Exception e
+    ) throws IOException {
+        builder.startObject();
+        ElasticsearchException.generateFailureXContent(builder, params, e, detailedErrorsEnabled);
+        builder.field(STATUS, status.getStatus());
+        builder.endObject();
+    }
+
+    static RestResponse createSimpleErrorResponse(RestChannel channel, RestStatus status, String errorMessage) throws IOException {
+        return new RestResponse(
+            status,
+            channel.newErrorBuilder().startObject().field("error", errorMessage).field("status", status.getStatus()).endObject()
+        );
+    }
+
+    public static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+        ElasticsearchException exception = null;
+        RestStatus status = null;
+
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            }
+            if (STATUS.equals(currentFieldName)) {
+                if (token != XContentParser.Token.FIELD_NAME) {
+                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                    status = RestStatus.fromCode(parser.intValue());
+                }
+            } else {
+                exception = ElasticsearchException.failureFromXContent(parser);
+            }
+        }
+
+        if (exception == null) {
+            throw new IllegalStateException("Failed to parse elasticsearch status exception: no exception was found");
+        }
+
+        ElasticsearchStatusException result = new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
+        for (String header : exception.getHeaderKeys()) {
+            result.addHeader(header, exception.getHeader(header));
+        }
+        for (String metadata : exception.getMetadataKeys()) {
+            result.addMetadata(metadata, exception.getMetadata(metadata));
+        }
+        return result;
+    }
 
     public void copyHeaders(ElasticsearchException ex) {
         Set<String> headerKeySet = ex.getHeaderKeys();
@@ -45,12 +194,7 @@ public abstract class RestResponse {
             customHeaders = Maps.newMapWithExpectedSize(headerKeySet.size());
         }
         for (String key : headerKeySet) {
-            List<String> values = customHeaders.get(key);
-            if (values == null) {
-                values = new ArrayList<>();
-                customHeaders.put(key, values);
-            }
-            values.addAll(ex.getHeader(key));
+            customHeaders.computeIfAbsent(key, k -> new ArrayList<>()).addAll(ex.getHeader(key));
         }
     }
 
@@ -61,23 +205,14 @@ public abstract class RestResponse {
         if (customHeaders == null) {
             customHeaders = Maps.newMapWithExpectedSize(2);
         }
-        List<String> header = customHeaders.get(name);
-        if (header == null) {
-            header = new ArrayList<>();
-            customHeaders.put(name, header);
-        }
-        header.add(value);
+        customHeaders.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
     }
 
     /**
      * Returns custom headers that have been added. This method should not be used to mutate headers.
      */
     public Map<String, List<String>> getHeaders() {
-        if (customHeaders == null) {
-            return Collections.emptyMap();
-        } else {
-            return customHeaders;
-        }
+        return Objects.requireNonNullElse(customHeaders, Map.of());
     }
 
     public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {

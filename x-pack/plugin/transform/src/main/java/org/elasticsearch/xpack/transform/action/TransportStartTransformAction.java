@@ -24,9 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -64,7 +62,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final TransformAuditor auditor;
-    private final IngestService ingestService;
 
     @Inject
     public TransportStartTransformAction(
@@ -75,9 +72,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client,
-        Settings settings,
-        IngestService ingestService
+        Client client
     ) {
         this(
             StartTransformAction.NAME,
@@ -88,9 +83,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             indexNameExpressionResolver,
             transformServices,
             persistentTasksService,
-            client,
-            settings,
-            ingestService
+            client
         );
     }
 
@@ -103,9 +96,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client,
-        Settings settings,
-        IngestService ingestService
+        Client client
     ) {
         super(
             name,
@@ -122,7 +113,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.auditor = transformServices.getAuditor();
-        this.ingestService = ingestService;
     }
 
     @Override
@@ -131,7 +121,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         StartTransformAction.Request request,
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
-    ) throws Exception {
+    ) {
         TransformNodes.warnIfNoTransformNodes(state);
 
         final AtomicReference<TransformTaskParams> transformTaskParamsHolder = new AtomicReference<>();
@@ -250,7 +240,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 )
             );
             transformConfigHolder.set(config);
-            client.execute(
+            ClientHelper.executeWithHeadersAsync(
+                config.getHeaders(),
+                ClientHelper.TRANSFORM_ORIGIN,
+                client,
                 ValidateTransformAction.INSTANCE,
                 new ValidateTransformAction.Request(config, false, request.timeout()),
                 validationListener
@@ -281,7 +274,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {
-        persistentTasksService.sendRemoveRequest(taskId, new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+        persistentTasksService.sendRemoveRequest(taskId, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in canceling the persistent task, but the
@@ -346,7 +339,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private class TransformPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
+    private static class TransformPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
 

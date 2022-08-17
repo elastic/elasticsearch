@@ -26,6 +26,10 @@ grant codeBase "${codebase.elasticsearch}" {
   permission java.net.SocketPermission "127.0.0.1", "listen, accept";
   // required if started with -Djava.net.preferIPv6Addresses=true
   permission java.net.SocketPermission "0:0:0:0:0:0:0:1", "listen, accept";
+
+  // for module layer
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
 };
 
 //// Very special jar permissions:
@@ -52,8 +56,9 @@ grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
-grant codeBase "${codebase.elasticsearch-x-content}" {
+grant codeBase "${codebase.elasticsearch-core}" {
   permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
 };
 
 grant codeBase "${codebase.elasticsearch-cli}" {
@@ -64,6 +69,10 @@ grant codeBase "${codebase.elasticsearch-cli}" {
 grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.log4j-api}" {
+  permission java.lang.RuntimePermission "getClassLoader";
 };
 
 //// Everything else:

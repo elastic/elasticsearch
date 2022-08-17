@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -70,9 +71,20 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean realtime,
         long version,
         VersionType versionType,
-        FetchSourceContext fetchSourceContext
-    ) {
-        return get(id, gFields, realtime, version, versionType, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, fetchSourceContext);
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource
+    ) throws IOException {
+        return get(
+            id,
+            gFields,
+            realtime,
+            version,
+            versionType,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            fetchSourceContext,
+            forceSyntheticSource
+        );
     }
 
     private GetResult get(
@@ -83,12 +95,23 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext
-    ) {
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource
+    ) throws IOException {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            GetResult getResult = innerGet(id, gFields, realtime, version, versionType, ifSeqNo, ifPrimaryTerm, fetchSourceContext);
+            GetResult getResult = innerGet(
+                id,
+                gFields,
+                realtime,
+                version,
+                versionType,
+                ifSeqNo,
+                ifPrimaryTerm,
+                fetchSourceContext,
+                forceSyntheticSource
+            );
 
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
@@ -101,7 +124,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) {
+    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
         return get(
             id,
             new String[] { RoutingFieldMapper.NAME },
@@ -110,7 +133,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             VersionType.INTERNAL,
             ifSeqNo,
             ifPrimaryTerm,
-            FetchSourceContext.FETCH_SOURCE
+            FetchSourceContext.FETCH_SOURCE,
+            false
         );
     }
 
@@ -121,7 +145,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * <p>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
-    public GetResult get(Engine.GetResult engineGetResult, String id, String[] fields, FetchSourceContext fetchSourceContext) {
+    public GetResult get(Engine.GetResult engineGetResult, String id, String[] fields, FetchSourceContext fetchSourceContext)
+        throws IOException {
         if (engineGetResult.exists() == false) {
             return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
         }
@@ -130,7 +155,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(id, fields, fetchSourceContext, engineGetResult);
+            GetResult getResult = innerGetFetch(id, fields, fetchSourceContext, engineGetResult, false);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -168,8 +193,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext
-    ) {
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource
+    ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
         Engine.GetResult get = indexShard.get(
@@ -188,18 +214,19 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
-            return innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get);
+            return innerGetFetch(id, gFields, fetchSourceContext, get, forceSyntheticSource);
         } finally {
             get.close();
         }
     }
 
-    private GetResult innerGetLoadFromStoredFields(
+    private GetResult innerGetFetch(
         String id,
         String[] storedFields,
         FetchSourceContext fetchSourceContext,
-        Engine.GetResult get
-    ) {
+        Engine.GetResult get,
+        boolean forceSyntheticSource
+    ) throws IOException {
         assert get.exists() : "method should only be called if document could be retrieved";
 
         // check first if stored fields to be loaded don't contain an object field
@@ -227,7 +254,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get id [" + id + "]", e);
             }
-            source = fieldVisitor.source();
+            SourceLoader loader = forceSyntheticSource
+                ? new SourceLoader.Synthetic(mappingLookup.getMapping())
+                : mappingLookup.newSourceLoader();
+            source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId }).source(fieldVisitor, docIdAndVersion.docId);
 
             // put stored fields into result objects
             if (fieldVisitor.fields().isEmpty() == false) {
@@ -249,8 +279,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             if (fetchSourceContext.fetchSource() == false) {
                 source = null;
             } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                // TODO: The source might be parsed and available in the sourceLookup but that one uses unordered maps so different.
-                // Do we care?
                 try {
                     source = XContentFieldFilter.newFieldFilter(fetchSourceContext.includes(), fetchSourceContext.excludes())
                         .apply(source, null);

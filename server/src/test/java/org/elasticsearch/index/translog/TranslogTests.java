@@ -10,7 +10,6 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
@@ -46,8 +45,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -1042,7 +1041,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("--> writer [{}] had an error", threadName), e);
+                    logger.error(() -> "--> writer [" + threadName + "] had an error", e);
                     errors.add(e);
                 }
             }, threadName);
@@ -1057,7 +1056,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("--> reader [{}] had an error", threadId), e);
+                    logger.error(() -> "--> reader [" + threadId + "] had an error", e);
                     errors.add(e);
                     try {
                         closeRetentionLock();
@@ -3345,18 +3344,14 @@ public class TranslogTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         long randomSeqNum = randomNonNegativeLong();
         long randomPrimaryTerm = randomBoolean() ? 0 : randomNonNegativeLong();
-        seqID.seqNo.setLongValue(randomSeqNum);
-        seqID.seqNoDocValue.setLongValue(randomSeqNum);
-        seqID.primaryTerm.setLongValue(randomPrimaryTerm);
+        seqID.set(randomSeqNum, randomPrimaryTerm);
         Field idField = IdFieldMapper.standardIdField("1");
         Field versionField = new NumericDocValuesField("_version", 1);
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("value", "test", Field.Store.YES));
         document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        seqID.addFields(document);
         ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", null, Arrays.asList(document), B_1, XContentType.JSON, null);
 
         Engine.Index eIndex = new Engine.Index(

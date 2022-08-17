@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -204,13 +203,13 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
             "block",
             new ExpectSuccessTask(),
             ClusterStateTaskConfig.build(Priority.URGENT),
-            (currentState, taskContexts) -> {
+            batchExecutionContext -> {
                 executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
                 executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
-                for (final var taskContext : taskContexts) {
-                    taskContext.success(EXPECT_SUCCESS_LISTENER);
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
+                    taskContext.success(() -> {});
                 }
-                return currentState;
+                return batchExecutionContext.initialState();
             }
         );
 
@@ -227,19 +226,6 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
             oneOf(0L, 3L)
         );
     }
-
-    /**
-     * Listener that asserts it does not fail.
-     */
-    private static final ActionListener<ClusterState> EXPECT_SUCCESS_LISTENER = new ActionListener<>() {
-        @Override
-        public void onResponse(ClusterState clusterState) {}
-
-        @Override
-        public void onFailure(Exception e) {
-            throw new AssertionError("should not be called", e);
-        }
-    };
 
     /**
      * Task that asserts it does not fail.

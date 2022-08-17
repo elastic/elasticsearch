@@ -8,10 +8,9 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexingPressure;
@@ -65,6 +65,8 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
@@ -336,7 +338,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {
-                logger.info(() -> new ParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);
+                logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
                 assert result.getId() != null;
                 onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
                 return true;
@@ -400,17 +402,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             if (isFailed) {
                 final Exception failure = executionResult.getFailure().getCause();
-                final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
-                    "{} failed to execute bulk item ({}) {}",
-                    context.getPrimary().shardId(),
-                    opType.getLowercase(),
-                    docWriteRequest
-                );
+                Level level;
                 if (TransportShardBulkAction.isConflictException(failure)) {
-                    logger.trace(messageSupplier, failure);
+                    level = Level.TRACE;
                 } else {
-                    logger.debug(messageSupplier, failure);
+                    level = Level.DEBUG;
                 }
+                logger.log(
+                    level,
+                    () -> Strings.format(
+                        "%s failed to execute bulk item (%s) %s",
+                        context.getPrimary().shardId(),
+                        opType.getLowercase(),
+                        docWriteRequest
+                    ),
+                    failure
+                );
+
             }
             response = executionResult;
         }

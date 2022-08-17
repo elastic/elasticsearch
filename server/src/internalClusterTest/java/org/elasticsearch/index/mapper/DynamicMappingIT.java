@@ -13,11 +13,12 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
@@ -147,7 +148,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
 
         internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
-            .submitStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
+            .submitUnbatchedStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     masterBlockedLatch.countDown();
@@ -159,7 +160,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 public void onFailure(Exception e) {
                     throw new AssertionError("unexpected", e);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
 
         masterBlockedLatch.await();
         final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index")
@@ -184,7 +185,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
 
         internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
-            .submitStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
+            .submitUnbatchedStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     masterBlockedLatch.countDown();
@@ -196,7 +197,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 public void onFailure(Exception e) {
                     throw new AssertionError("unexpected", e);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
 
         masterBlockedLatch.await();
         final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId("2").setSource("field2", "value2");
@@ -210,6 +211,71 @@ public class DynamicMappingIT extends ESIntegTestCase {
             );
         } finally {
             indexingCompletedLatch.countDown();
+        }
+    }
+
+    public void testTotalFieldsLimitWithRuntimeFields() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 4)
+            .build();
+
+        String mapping = """
+                {
+                  "dynamic":"runtime",
+                  "runtime": {
+                    "my_object.rfield1": {
+                       "type": "keyword"
+                    },
+                    "rfield2": {
+                      "type": "keyword"
+                    }
+                  },
+                  "properties": {
+                    "field3" : {
+                      "type": "keyword"
+                    }
+                  }
+                }
+            """;
+
+        client().admin().indices().prepareCreate("index1").setSettings(indexSettings).setMapping(mapping).get();
+        ensureGreen("index1");
+
+        {
+            // introduction of a new object with 2 new sub-fields fails
+            final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index1")
+                .setId("1")
+                .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
+            Exception exc = expectThrows(MapperParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
+            assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
+            assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(
+                exc.getCause().getMessage(),
+                Matchers.containsString("Limit of total fields [4] has been exceeded while adding new fields [2]")
+            );
+        }
+
+        {
+            // introduction of a new single field succeeds
+            client().prepareIndex("index1").setId("2").setSource("field3", "value3", "new_field4", 100).get();
+        }
+
+        {
+            // remove 2 runtime field mappings
+            assertAcked(client().admin().indices().preparePutMapping("index1").setSource("""
+                    {
+                      "runtime": {
+                        "my_object.rfield1": null,
+                        "rfield2" : null
+                      }
+                    }
+                """, XContentType.JSON));
+
+            // introduction of a new object with 2 new sub-fields succeeds
+            client().prepareIndex("index1")
+                .setId("1")
+                .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
         }
     }
 
@@ -494,5 +560,83 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 + "Preview of field's value: 'string'",
             e.getMessage()
         );
+    }
+
+    public void testSubobjectsFalseAtRoot() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("""
+            {
+              "_doc": {
+                "subobjects" : false,
+                "properties": {
+                  "host.name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }""").get());
+
+        IndexRequest request = new IndexRequest("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .source("host.name", "localhost", "host.id", 111, "time", 100, "time.max", 1000);
+        IndexResponse indexResponse = client().index(request).actionGet();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+
+        assertBusy(() -> {
+            Map<String, Object> mappings = client().admin().indices().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            assertEquals(4, properties.size());
+            assertNotNull(properties.get("host.name"));
+            assertNotNull(properties.get("host.id"));
+            assertNotNull(properties.get("time"));
+            assertNotNull(properties.get("time.max"));
+        });
+
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSubobjectsFalse() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("""
+            {
+              "_doc": {
+                "properties": {
+                  "foo.metrics" : {
+                    "subobjects" : false,
+                    "properties" : {
+                      "host.name": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""").get());
+
+        IndexRequest request = new IndexRequest("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .source(
+                "foo.metrics.host.name",
+                "localhost",
+                "foo.metrics.host.id",
+                111,
+                "foo.metrics.time",
+                100,
+                "foo.metrics.time.max",
+                1000
+            );
+        IndexResponse indexResponse = client().index(request).actionGet();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+
+        assertBusy(() -> {
+            Map<String, Object> mappings = client().admin().indices().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            Map<String, Object> foo = (Map<String, Object>) properties.get("foo");
+            properties = (Map<String, Object>) foo.get("properties");
+            Map<String, Object> metrics = (Map<String, Object>) properties.get("metrics");
+            properties = (Map<String, Object>) metrics.get("properties");
+            assertEquals(4, properties.size());
+            assertNotNull(properties.get("host.name"));
+            assertNotNull(properties.get("host.id"));
+            assertNotNull(properties.get("time"));
+            assertNotNull(properties.get("time.max"));
+        });
     }
 }

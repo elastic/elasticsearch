@@ -24,12 +24,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ConstantKeywordFieldMapperTests extends MapperTestCase {
@@ -202,5 +204,43 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean allowsNullValues() {
         return false;   // null is an error for constant keyword
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        String value = randomUnicodeOfLength(5);
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) {
+                return new SyntheticSourceExample(value, value, b -> {
+                    b.field("type", "constant_keyword");
+                    b.field("value", value);
+                });
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                throw new AssumptionViolatedException("copy_to on constant_keyword not supported");
+            }
+        };
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    public void testNullValueSyntheticSource() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("type", "constant_keyword");
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
+    }
+
+    @Override
+    protected boolean supportsEmptyInputArray() {
+        return false;
     }
 }

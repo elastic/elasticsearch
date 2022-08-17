@@ -217,7 +217,8 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             r.readerId,
             r.keepAlive,
             r.waitForCheckpoint,
-            waitForCheckpointsTimeout
+            waitForCheckpointsTimeout,
+            false
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;

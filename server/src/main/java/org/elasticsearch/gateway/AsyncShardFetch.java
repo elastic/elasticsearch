@@ -8,7 +8,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -38,6 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
@@ -235,12 +235,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                             nodeEntry.restartFetching();
                         } else {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "{}: failed to list shard for {} on node [{}]",
-                                    shardId,
-                                    type,
-                                    failure.nodeId()
-                                ),
+                                () -> format("%s: failed to list shard for %s on node [%s]", shardId, type, failure.nodeId()),
                                 failure
                             );
                             nodeEntry.doneFetching(failure.getCause());

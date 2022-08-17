@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -35,8 +34,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportException;
@@ -50,6 +50,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Implements the low-level mechanics of sending a cluster state to other nodes in the cluster during a publication.
@@ -283,6 +285,7 @@ public class PublicationTransportHandler {
         private final DiscoveryNodes discoveryNodes;
         private final ClusterState newState;
         private final ClusterState previousState;
+        private final Task task;
         private final boolean sendFullVersion;
 
         // All the values of these maps have one ref for the context (while it's open) and one for each in-flight message.
@@ -293,6 +296,7 @@ public class PublicationTransportHandler {
             discoveryNodes = clusterStatePublicationEvent.getNewState().nodes();
             newState = clusterStatePublicationEvent.getNewState();
             previousState = clusterStatePublicationEvent.getOldState();
+            task = clusterStatePublicationEvent.getTask();
             sendFullVersion = previousState.getBlocks().disableStatePersistence();
         }
 
@@ -369,10 +373,7 @@ public class PublicationTransportHandler {
                         v -> serializeFullClusterState(newState, destination)
                     );
                 } catch (Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("failed to serialize cluster state before publishing it to node {}", destination),
-                        e
-                    );
+                    logger.warn(() -> format("failed to serialize cluster state before publishing it to node %s", destination), e);
                     listener.onFailure(e);
                     return;
                 }
@@ -395,8 +396,8 @@ public class PublicationTransportHandler {
                 if (e instanceof final TransportException transportException) {
                     if (transportException.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                         logger.debug(
-                            () -> new ParameterizedMessage(
-                                "resending full cluster state to node {} reason {}",
+                            () -> format(
+                                "resending full cluster state to node %s reason %s",
                                 destination,
                                 transportException.getDetailedMessage()
                             )
@@ -406,7 +407,7 @@ public class PublicationTransportHandler {
                     }
                 }
 
-                logger.debug(new ParameterizedMessage("failed to send cluster state to {}", destination), e);
+                logger.debug(() -> format("failed to send cluster state to %s", destination), e);
                 delegate.onFailure(e);
             }), this::decRef));
         }
@@ -422,23 +423,18 @@ public class PublicationTransportHandler {
                 listener.onFailure(new IllegalStateException("serialized cluster state released before transmission"));
                 return;
             }
-            try {
-                transportService.sendRequest(
-                    destination,
-                    PUBLISH_STATE_ACTION_NAME,
-                    new BytesTransportRequest(bytes, destination.getVersion()),
-                    STATE_REQUEST_OPTIONS,
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.runAfter(listener, bytes::decRef),
-                        PublishWithJoinResponse::new,
-                        ThreadPool.Names.CLUSTER_COORDINATION
-                    )
-                );
-            } catch (Exception e) {
-                assert false : e;
-                logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", destination), e);
-                listener.onFailure(e);
-            }
+            transportService.sendChildRequest(
+                destination,
+                PUBLISH_STATE_ACTION_NAME,
+                new BytesTransportRequest(bytes, destination.getVersion()),
+                task,
+                STATE_REQUEST_OPTIONS,
+                new ActionListenerResponseHandler<>(
+                    ActionListener.runAfter(listener, bytes::decRef),
+                    PublishWithJoinResponse::new,
+                    ThreadPool.Names.CLUSTER_COORDINATION
+                )
+            );
         }
 
         @Override

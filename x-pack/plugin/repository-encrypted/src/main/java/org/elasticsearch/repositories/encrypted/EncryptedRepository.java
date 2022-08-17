@@ -15,11 +15,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -628,7 +628,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 )
             ) {
                 try (InputStream encryptedInputStream = encryptedInput(bytes.streamInput(), singleUseNonceAndDEK, dekIdBytes)) {
-                    org.elasticsearch.core.internal.io.Streams.copy(encryptedInputStream, tmp, false);
+                    org.elasticsearch.core.Streams.copy(encryptedInputStream, tmp, false);
                 }
                 delegatedBlobContainer.writeBlob(blobName, tmp.bytes(), failIfAlreadyExists);
             }

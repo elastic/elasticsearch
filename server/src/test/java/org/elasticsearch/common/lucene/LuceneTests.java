@@ -50,8 +50,8 @@ import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
@@ -517,7 +517,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapLiveDocsNotExposeAbortedDocuments() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()))
+            // disable merges on refresh as we will verify the deleted documents
+            .setMaxFullFlushMergeWaitMillis(-1);
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         List<String> liveDocs = new ArrayList<>();

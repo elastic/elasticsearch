@@ -704,7 +704,7 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             Map<?, ?> m = (Map<?, ?>) value;
-            TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder();
+            TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
             for (Map.Entry<?, ?> entry : m.entrySet()) {
                 String f = entry.getKey().toString();
                 Object v = entry.getValue();

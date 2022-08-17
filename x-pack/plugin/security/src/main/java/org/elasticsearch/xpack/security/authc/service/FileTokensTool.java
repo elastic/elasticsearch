@@ -11,11 +11,12 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -31,7 +32,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 
-class FileTokensTool extends LoggingAwareMultiCommand {
+class FileTokensTool extends MultiCommand {
 
     FileTokensTool() {
         super("Manages elasticsearch service account file-tokens");
@@ -62,7 +63,7 @@ class FileTokensTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
             final Hasher hasher = Hasher.resolve(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(env.settings()));
             final Path serviceTokensFile = FileServiceAccountTokenStore.resolveFile(env);
@@ -94,7 +95,7 @@ class FileTokensTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
             final String qualifiedName = accountTokenId.getQualifiedName();
             final Path serviceTokensFile = FileServiceAccountTokenStore.resolveFile(env);
@@ -121,7 +122,7 @@ class FileTokensTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             final List<String> args = arguments.values(options);
             if (args.size() > 1) {
                 throw new UserException(

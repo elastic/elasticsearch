@@ -43,7 +43,6 @@ import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * A request to create an index template.
@@ -446,7 +445,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeStringCollection(indexPatterns);
         out.writeInt(order);
         out.writeBoolean(create);
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeVInt(mappings == null ? 0 : 1);
             if (mappings != null) {
@@ -456,10 +455,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         } else {
             out.writeOptionalString(mappings);
         }
-        out.writeVInt(aliases.size());
-        for (Alias alias : aliases) {
-            alias.writeTo(out);
-        }
+        out.writeCollection(aliases);
         out.writeOptionalVInt(version);
     }
 }

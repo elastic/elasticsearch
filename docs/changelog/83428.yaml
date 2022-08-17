@@ -1,5 +1,0 @@
-pr: 83428
-summary: Adds new `change_point` pipeline aggregation
-area: Machine Learning
-type: feature
-issues: []

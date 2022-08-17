@@ -84,10 +84,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeVInt(policies.size());
-        for (final Map.Entry<String, AutoscalingPolicyMetadata> policy : policies.entrySet()) {
-            policy.getValue().writeTo(out);
-        }
+        out.writeCollection(policies.values());
     }
 
     @Override

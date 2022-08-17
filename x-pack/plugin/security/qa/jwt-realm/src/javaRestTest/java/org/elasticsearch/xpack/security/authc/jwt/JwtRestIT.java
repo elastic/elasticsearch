@@ -502,7 +502,8 @@ public class JwtRestIT extends ESRestTestCase {
         final String audience = "es0" + randomIntBetween(1, 3);
         final JWTClaimsSet claimsSet = buildJwt(
             Map.ofEntries(Map.entry("iss", "my-issuer"), Map.entry("aud", audience), Map.entry("email", emailAddress)),
-            issueTime
+            issueTime,
+            false
         );
         return claimsSet;
     }
@@ -563,9 +564,15 @@ public class JwtRestIT extends ESRestTestCase {
 
     // JWT construction
     private JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime) {
+        return buildJwt(claims, issueTime, true);
+    }
+
+    private JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime, boolean includeSub) {
         final JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder();
         builder.issuer(randomAlphaOfLengthBetween(4, 24));
-        builder.subject(randomAlphaOfLengthBetween(4, 24));
+        if (includeSub) {
+            builder.subject(randomAlphaOfLengthBetween(4, 24));
+        }
         builder.audience(randomList(1, 6, () -> randomAlphaOfLengthBetween(4, 12)));
         if (randomBoolean()) {
             builder.jwtID(UUIDs.randomBase64UUID(random()));

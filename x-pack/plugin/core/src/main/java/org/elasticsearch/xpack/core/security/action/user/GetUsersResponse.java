@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ import java.util.Collection;
  */
 public class GetUsersResponse extends ActionResponse {
 
-    private User[] users;
+    private final User[] users;
 
     public GetUsersResponse(StreamInput in) throws IOException {
         super(in);
@@ -29,7 +30,9 @@ public class GetUsersResponse extends ActionResponse {
         } else {
             users = new User[size];
             for (int i = 0; i < size; i++) {
-                users[i] = User.readFrom(in);
+                final User user = Authentication.AuthenticationSerializationHelper.readUserFrom(in);
+                assert false == User.isInternal(user) : "should not get internal users";
+                users[i] = user;
             }
         }
     }
@@ -55,7 +58,7 @@ public class GetUsersResponse extends ActionResponse {
         out.writeVInt(users == null ? -1 : users.length);
         if (users != null) {
             for (User user : users) {
-                User.writeTo(user, out);
+                Authentication.AuthenticationSerializationHelper.writeUserTo(user, out);
             }
         }
     }

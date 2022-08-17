@@ -28,6 +28,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -251,15 +252,15 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
 
             for (int i = 0; i < 10; i++) {
-                Document doc = new Document();
+                LuceneDocument doc = new LuceneDocument();
                 if (i % 2 == 0) {
-                    addFields(doc, NumberType.LONG.createFields("long_field", ODD_VALUE, true, true, false));
+                    NumberType.LONG.addFields(doc, "long_field", ODD_VALUE, true, true, false);
                     doc.add(new Field("text", "odd", TextFieldMapper.Defaults.FIELD_TYPE));
                 } else {
-                    addFields(doc, NumberType.LONG.createFields("long_field", EVEN_VALUE, true, true, false));
+                    NumberType.LONG.addFields(doc, "long_field", EVEN_VALUE, true, true, false);
                     doc.add(new Field("text", "even", TextFieldMapper.Defaults.FIELD_TYPE));
                 }
-                addFields(doc, NumberType.LONG.createFields("long_field", COMMON_VALUE, true, true, false));
+                NumberType.LONG.addFields(doc, "long_field", COMMON_VALUE, true, true, false);
                 w.addDocument(doc);
             }
 
@@ -403,6 +404,49 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
                 assertFalse(oddTerms.getBuckets().isEmpty());
                 assertEquals(oddTerms, aliasOddTerms);
+            }
+        }
+    }
+
+    public void testFieldBackground() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
+        textFieldType.setFielddata(true);
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
+
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            addMixedTextDocs(w);
+
+            SignificantTermsAggregationBuilder agg = significantTerms("sig_text").field("text");
+            SignificantTermsAggregationBuilder backgroundAgg = significantTerms("sig_text").field("text");
+
+            String executionHint = randomExecutionHint();
+            agg.executionHint(executionHint);
+            backgroundAgg.executionHint(executionHint);
+
+            QueryBuilder backgroundFilter = QueryBuilders.termsQuery("text", "odd");
+            backgroundAgg.backgroundFilter(backgroundFilter);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                SignificantTerms evenTerms = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), agg, textFieldType);
+                SignificantTerms backgroundEvenTerms = searchAndReduce(
+                    searcher,
+                    new TermQuery(new Term("text", "even")),
+                    backgroundAgg,
+                    textFieldType
+                );
+
+                assertFalse(evenTerms.getBuckets().isEmpty());
+                assertFalse(backgroundEvenTerms.getBuckets().isEmpty());
+                assertEquals(((InternalMappedSignificantTerms) evenTerms).getSubsetSize(), 5);
+                assertEquals(((InternalMappedSignificantTerms) evenTerms).getSupersetSize(), 10);
+                assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSubsetSize(), 5);
+                assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSupersetSize(), 5);
             }
         }
     }

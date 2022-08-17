@@ -1238,6 +1238,7 @@
   - is_true: datafeed_config
   - match: { datafeed_config.job_id: "jobs-crud-put-with-datafeed" }
   - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed" }
+  - is_true: datafeed_config.authorization.roles
   - is_true: create_time
 
   - do:

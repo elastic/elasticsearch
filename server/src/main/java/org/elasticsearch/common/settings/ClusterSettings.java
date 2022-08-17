@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.internal.Client;
@@ -24,11 +23,14 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
+import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
+import org.elasticsearch.cluster.coordination.JoinValidationService;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -65,6 +67,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.node.LocalHealthMonitor;
+import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -112,8 +117,11 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Encapsulates all valid cluster level settings.
@@ -180,7 +188,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
     }
 
-    public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
+    public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Stream.of(
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
         BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
@@ -237,7 +245,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
         DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
         DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
-        DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING,
+        DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING,
         DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
         DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
         DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
@@ -406,7 +414,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Environment.PATH_LOGS_SETTING,
         Environment.PATH_REPO_SETTING,
         Environment.PATH_SHARED_DATA_SETTING,
-        Environment.NODE_PIDFILE_SETTING,
         NodeEnvironment.NODE_ID_SEED_SETTING,
         Node.INITIAL_STATE_TIMEOUT_SETTING,
         DiscoveryModule.DISCOVERY_TYPE_SETTING,
@@ -490,6 +497,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
         Coordinator.PUBLISH_TIMEOUT_SETTING,
         Coordinator.PUBLISH_INFO_TIMEOUT_SETTING,
+        Coordinator.SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING,
+        JoinValidationService.JOIN_VALIDATION_CACHE_TIMEOUT_SETTING,
         FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
         FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
         FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING,
@@ -511,9 +520,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexingPressure.MAX_INDEXING_BYTES,
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
-        StatsRequestLimiter.MAX_CONCURRENT_STATS_REQUESTS_PER_NODE,
-        ReadinessService.PORT
-    );
+        CoordinationDiagnosticsService.IDENTITY_CHANGES_THRESHOLD_SETTING,
+        CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
+        CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
+        MasterHistory.MAX_HISTORY_AGE_SETTING,
+        ReadinessService.PORT,
+        HealthNode.isEnabled() ? HealthNodeTaskExecutor.ENABLED_SETTING : null,
+        HealthNode.isEnabled() ? LocalHealthMonitor.POLL_INTERVAL_SETTING : null
+    ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

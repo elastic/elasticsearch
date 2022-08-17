@@ -8,12 +8,12 @@
 
 package org.elasticsearch.cli.keystore;
 
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
+import org.elasticsearch.cli.MultiCommand;
 
 /**
  * A cli tool for managing secrets in the elasticsearch keystore.
  */
-class KeyStoreCli extends LoggingAwareMultiCommand {
+class KeyStoreCli extends MultiCommand {
 
     KeyStoreCli() {
         super("A tool for managing settings stored in the elasticsearch keystore");

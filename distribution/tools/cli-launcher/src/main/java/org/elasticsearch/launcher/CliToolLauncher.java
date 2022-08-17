@@ -8,14 +8,19 @@
 
 package org.elasticsearch.launcher;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
-import java.util.Properties;
-import java.util.stream.Collectors;
 
 /**
  * A unified main method for Elasticsearch tools.
@@ -24,6 +29,8 @@ import java.util.stream.Collectors;
  */
 class CliToolLauncher {
     private static final String SCRIPT_PREFIX = "elasticsearch-";
+
+    private static volatile Command command;
 
     /**
      * Runs a CLI tool.
@@ -42,12 +49,23 @@ class CliToolLauncher {
      * @throws Exception if the tool fails with an unknown error
      */
     public static void main(String[] args) throws Exception {
-        Map<String, String> sysprops = getSystemProperties();
-        String toolname = getToolName(sysprops);
-        String libs = sysprops.getOrDefault("cli.libs", "");
+        ProcessInfo pinfo = ProcessInfo.fromSystem();
 
-        Command command = CliToolProvider.load(toolname, libs).create();
-        exit(command.main(args, Terminal.DEFAULT));
+        // configure logging as early as possible
+        configureLoggingWithoutConfig(pinfo.sysprops());
+
+        String toolname = getToolName(pinfo.sysprops());
+        String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
+
+        command = CliToolProvider.load(toolname, libs).create();
+        Terminal terminal = Terminal.DEFAULT;
+        Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
+
+        int exitCode = command.main(args, terminal, pinfo);
+        terminal.flush(); // make sure nothing is left in buffers
+        if (exitCode != ExitCodes.OK) {
+            exit(exitCode);
+        }
     }
 
     // package private for tests
@@ -60,20 +78,52 @@ class CliToolLauncher {
 
             if (sysprops.get("os.name").startsWith("Windows")) {
                 int dotIndex = toolname.indexOf(".bat"); // strip off .bat
-                toolname = toolname.substring(0, dotIndex);
+                if (dotIndex != -1) {
+                    toolname = toolname.substring(0, dotIndex);
+                }
             }
         }
         return toolname;
     }
 
-    @SuppressForbidden(reason = "collect system properties")
-    private static Map<String, String> getSystemProperties() {
-        Properties props = System.getProperties();
-        return props.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
+    static Thread createShutdownHook(Terminal terminal, Closeable closeable) {
+        return new Thread(() -> {
+            try {
+                closeable.close();
+            } catch (final IOException e) {
+                e.printStackTrace(terminal.getErrorWriter());
+            }
+            terminal.flush(); // make sure to flush whatever the close or error might have written
+        });
+
     }
 
     @SuppressForbidden(reason = "System#exit")
     private static void exit(int status) {
         System.exit(status);
+    }
+
+    /**
+     * Configures logging without Elasticsearch configuration files based on the system property "es.logger.level" only. As such, any
+     * logging will be written to the console.
+     */
+    private static void configureLoggingWithoutConfig(Map<String, String> sysprops) {
+        // initialize default for es.logger.level because we will not read the log4j2.properties
+        final String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
+        final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
+        LogConfigurator.configureWithoutConfig(settings);
+    }
+
+    /**
+      * Required method that's called by Apache Commons procrun when
+      * running as a service on Windows, when the service is stopped.
+      *
+      * http://commons.apache.org/proper/commons-daemon/procrun.html
+      *
+      * NOTE: If this method is renamed and/or moved, make sure to
+      * update WindowsServiceInstallCommand!
+      */
+    static void close(String[] args) throws IOException {
+        command.close();
     }
 }

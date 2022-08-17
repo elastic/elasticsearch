@@ -10,7 +10,6 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -19,16 +18,16 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -49,6 +47,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
  * routinely updated on a timer. The timer can be dynamically changed by
@@ -57,8 +57,10 @@ import java.util.function.Consumer;
  * Listens for changes in the number of data nodes and immediately submits a
  * ClusterInfoUpdateJob if a node has been added.
  *
- * Every time the timer runs, gathers information about the disk usage and
- * shard sizes across the cluster.
+ * Every time the timer runs, if <code>cluster.routing.allocation.disk.threshold_enabled</code>
+ * is enabled, gathers information about the disk usage and shard sizes across the cluster,
+ * computes a new cluster info and notifies the registered listeners. If disk threshold
+ * monitoring is disabled, listeners are called with an empty cluster info.
  */
 public class InternalClusterInfoService implements ClusterInfoService, ClusterStateListener {
 
@@ -82,8 +84,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
-    private volatile ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsages;
-    private volatile ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsages;
+    private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
+    private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile IndicesStatsSummary indicesStatsSummary;
 
     private final ThreadPool threadPool;
@@ -92,15 +94,18 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
+
+    private final ClusterService clusterService;
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
-        this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
-        this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
+        this.leastAvailableSpaceUsages = Map.of();
+        this.mostAvailableSpaceUsages = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
+        this.clusterService = clusterService;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -163,10 +168,122 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         void execute() {
-            assert countDown.isCountedDown() == false;
+            if (enabled == false) {
+                logger.trace("skipping collecting info from cluster, notifying listeners with empty cluster info");
+                leastAvailableSpaceUsages = Map.of();
+                mostAvailableSpaceUsages = Map.of();
+                indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                callListeners();
+                return;
+            }
 
+            assert countDown.isCountedDown() == false;
             logger.trace("starting async refresh");
 
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                fetchNodeStats();
+            }
+
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                fetchIndicesStats();
+            }
+        }
+
+        private void fetchIndicesStats() {
+            final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.clear();
+            indicesStatsRequest.store(true);
+            indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
+            indicesStatsRequest.timeout(fetchTimeout);
+            client.admin()
+                .indices()
+                .stats(
+                    indicesStatsRequest,
+                    new ThreadedActionListener<>(
+                        logger,
+                        threadPool,
+                        ThreadPool.Names.MANAGEMENT,
+                        ActionListener.runAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                                logger.trace("received indices stats response");
+
+                                if (indicesStatsResponse.getShardFailures().length > 0) {
+                                    final Set<String> failedNodeIds = new HashSet<>();
+                                    for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
+                                        if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
+                                            if (failedNodeIds.add(failedNodeException.nodeId())) {
+                                                logger.warn(
+                                                    () -> format(
+                                                        "failed to retrieve shard stats from node [%s]",
+                                                        failedNodeException.nodeId()
+                                                    ),
+                                                    failedNodeException.getCause()
+                                                );
+                                            }
+                                            logger.trace(
+                                                () -> format(
+                                                    "failed to retrieve stats for shard [%s][%s]",
+                                                    shardFailure.index(),
+                                                    shardFailure.shardId()
+                                                ),
+                                                shardFailure.getCause()
+                                            );
+                                        } else {
+                                            logger.warn(
+                                                () -> format(
+                                                    "failed to retrieve stats for shard [%s][%s]",
+                                                    shardFailure.index(),
+                                                    shardFailure.shardId()
+                                                ),
+                                                shardFailure.getCause()
+                                            );
+                                        }
+                                    }
+                                }
+
+                                final ShardStats[] stats = indicesStatsResponse.getShards();
+                                final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
+                                final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
+                                final Map<ShardRouting, String> dataPathByShardRoutingBuilder = new HashMap<>();
+                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders =
+                                    new HashMap<>();
+                                buildShardLevelInfo(
+                                    clusterService.state().routingTable(),
+                                    stats,
+                                    shardSizeByIdentifierBuilder,
+                                    shardDataSetSizeBuilder,
+                                    dataPathByShardRoutingBuilder,
+                                    reservedSpaceBuilders
+                                );
+
+                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = new HashMap<>();
+                                reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
+
+                                indicesStatsSummary = new IndicesStatsSummary(
+                                    Map.copyOf(shardSizeByIdentifierBuilder),
+                                    Map.copyOf(shardDataSetSizeBuilder),
+                                    Map.copyOf(dataPathByShardRoutingBuilder),
+                                    Map.copyOf(rsrvdSpace)
+                                );
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (e instanceof ClusterBlockException) {
+                                    logger.trace("failed to retrieve indices stats", e);
+                                } else {
+                                    logger.warn("failed to retrieve indices stats", e);
+                                }
+                                indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                            }
+                        }, this::onStatsProcessed),
+                        false
+                    )
+                );
+        }
+
+        private void fetchNodeStats() {
             final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
             nodesStatsRequest.clear();
             nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
@@ -177,21 +294,18 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     logger.trace("received node stats response");
 
                     for (final FailedNodeException failure : nodesStatsResponse.failures()) {
-                        logger.warn(
-                            new ParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()),
-                            failure.getCause()
-                        );
+                        logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
                     }
 
-                    ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
-                    ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                    Map<String, DiskUsage> leastAvailableUsagesBuilder = new HashMap<>();
+                    Map<String, DiskUsage> mostAvailableUsagesBuilder = new HashMap<>();
                     fillDiskUsagePerNode(
                         adjustNodesStats(nodesStatsResponse.getNodes()),
                         leastAvailableUsagesBuilder,
                         mostAvailableUsagesBuilder
                     );
-                    leastAvailableSpaceUsages = leastAvailableUsagesBuilder.build();
-                    mostAvailableSpaceUsages = mostAvailableUsagesBuilder.build();
+                    leastAvailableSpaceUsages = Map.copyOf(leastAvailableUsagesBuilder);
+                    mostAvailableSpaceUsages = Map.copyOf(mostAvailableUsagesBuilder);
                 }
 
                 @Override
@@ -201,88 +315,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     } else {
                         logger.warn("failed to retrieve node stats", e);
                     }
-                    leastAvailableSpaceUsages = ImmutableOpenMap.of();
-                    mostAvailableSpaceUsages = ImmutableOpenMap.of();
-                }
-            }, this::onStatsProcessed));
-
-            final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-            indicesStatsRequest.clear();
-            indicesStatsRequest.store(true);
-            indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
-            indicesStatsRequest.timeout(fetchTimeout);
-            client.admin().indices().stats(indicesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
-                @Override
-                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                    logger.trace("received indices stats response");
-
-                    if (indicesStatsResponse.getShardFailures().length > 0) {
-                        final Set<String> failedNodeIds = new HashSet<>();
-                        for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse.getShardFailures()) {
-                            if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
-                                if (failedNodeIds.add(failedNodeException.nodeId())) {
-                                    logger.warn(
-                                        new ParameterizedMessage(
-                                            "failed to retrieve shard stats from node [{}]",
-                                            failedNodeException.nodeId()
-                                        ),
-                                        failedNodeException.getCause()
-                                    );
-                                }
-                                logger.trace(
-                                    new ParameterizedMessage(
-                                        "failed to retrieve stats for shard [{}][{}]",
-                                        shardFailure.index(),
-                                        shardFailure.shardId()
-                                    ),
-                                    shardFailure.getCause()
-                                );
-                            } else {
-                                logger.warn(
-                                    new ParameterizedMessage(
-                                        "failed to retrieve stats for shard [{}][{}]",
-                                        shardFailure.index(),
-                                        shardFailure.shardId()
-                                    ),
-                                    shardFailure.getCause()
-                                );
-                            }
-                        }
-                    }
-
-                    final ShardStats[] stats = indicesStatsResponse.getShards();
-                    final ImmutableOpenMap.Builder<String, Long> shardSizeByIdentifierBuilder = ImmutableOpenMap.builder();
-                    final ImmutableOpenMap.Builder<ShardId, Long> shardDataSetSizeBuilder = ImmutableOpenMap.builder();
-                    final ImmutableOpenMap.Builder<ShardRouting, String> dataPathByShardRoutingBuilder = ImmutableOpenMap.builder();
-                    final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders = new HashMap<>();
-                    buildShardLevelInfo(
-                        stats,
-                        shardSizeByIdentifierBuilder,
-                        shardDataSetSizeBuilder,
-                        dataPathByShardRoutingBuilder,
-                        reservedSpaceBuilders
-                    );
-
-                    final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = ImmutableOpenMap
-                        .builder();
-                    reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
-
-                    indicesStatsSummary = new IndicesStatsSummary(
-                        shardSizeByIdentifierBuilder.build(),
-                        shardDataSetSizeBuilder.build(),
-                        dataPathByShardRoutingBuilder.build(),
-                        rsrvdSpace.build()
-                    );
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ClusterBlockException) {
-                        logger.trace("failed to retrieve indices stats", e);
-                    } else {
-                        logger.warn("failed to retrieve indices stats", e);
-                    }
-                    indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                    leastAvailableSpaceUsages = Map.of();
+                    mostAvailableSpaceUsages = Map.of();
                 }
             }, this::onStatsProcessed));
         }
@@ -290,26 +324,30 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void onStatsProcessed() {
             if (countDown.countDown()) {
                 logger.trace("stats all received, computing cluster info and notifying listeners");
-                try {
-                    final ClusterInfo clusterInfo = getClusterInfo();
-                    boolean anyListeners = false;
-                    for (final Consumer<ClusterInfo> listener : listeners) {
-                        anyListeners = true;
-                        try {
-                            logger.trace("notifying [{}] of new cluster info", listener);
-                            listener.accept(clusterInfo);
-                        } catch (Exception e) {
-                            logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
-                        }
-                    }
-                    assert anyListeners : "expected to notify at least one listener";
+                callListeners();
+            }
+        }
 
-                    for (final ActionListener<ClusterInfo> listener : thisRefreshListeners) {
-                        listener.onResponse(clusterInfo);
+        private void callListeners() {
+            try {
+                final ClusterInfo clusterInfo = getClusterInfo();
+                boolean anyListeners = false;
+                for (final Consumer<ClusterInfo> listener : listeners) {
+                    anyListeners = true;
+                    try {
+                        logger.trace("notifying [{}] of new cluster info", listener);
+                        listener.accept(clusterInfo);
+                    } catch (Exception e) {
+                        logger.info(() -> "failed to notify [" + listener + "] of new cluster info", e);
                     }
-                } finally {
-                    onRefreshComplete(this);
                 }
+                assert anyListeners : "expected to notify at least one listener";
+
+                for (final ActionListener<ClusterInfo> listener : thisRefreshListeners) {
+                    listener.onResponse(clusterInfo);
+                }
+            } finally {
+                onRefreshComplete(this);
             }
         }
     }
@@ -342,17 +380,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         final ArrayList<ActionListener<ClusterInfo>> thisRefreshListeners = new ArrayList<>(nextRefreshListeners);
         nextRefreshListeners.clear();
 
-        if (enabled) {
-            currentRefresh = new AsyncRefresh(thisRefreshListeners);
-            return currentRefresh::execute;
-        } else {
-            return () -> {
-                leastAvailableSpaceUsages = ImmutableOpenMap.of();
-                mostAvailableSpaceUsages = ImmutableOpenMap.of();
-                indicesStatsSummary = IndicesStatsSummary.EMPTY;
-                thisRefreshListeners.forEach(l -> l.onResponse(ClusterInfo.EMPTY));
-            };
-        }
+        currentRefresh = new AsyncRefresh(thisRefreshListeners);
+        return currentRefresh::execute;
     }
 
     private boolean assertRefreshInvariant() {
@@ -417,14 +446,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     }
 
     static void buildShardLevelInfo(
+        RoutingTable routingTable,
         ShardStats[] stats,
-        ImmutableOpenMap.Builder<String, Long> shardSizes,
-        ImmutableOpenMap.Builder<ShardId, Long> shardDataSetSizeBuilder,
-        ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath,
+        Map<String, Long> shardSizes,
+        Map<ShardId, Long> shardDataSetSizeBuilder,
+        Map<ShardRouting, String> newShardRoutingToDataPath,
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
     ) {
         for (ShardStats s : stats) {
-            final ShardRouting shardRouting = s.getShardRouting();
+            final ShardRouting shardRouting = routingTable.deduplicate(s.getShardRouting());
             newShardRoutingToDataPath.put(shardRouting, s.getDataPath());
 
             final StoreStats storeStats = s.getStats().getStore();
@@ -451,106 +481,30 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
-    static void fillDiskUsagePerNode(
+    private static void fillDiskUsagePerNode(
         List<NodeStats> nodeStatsArray,
-        ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvailableUsages,
-        ImmutableOpenMap.Builder<String, DiskUsage> newMostAvailableUsages
+        Map<String, DiskUsage> newLeastAvailableUsages,
+        Map<String, DiskUsage> newMostAvailableUsages
     ) {
         for (NodeStats nodeStats : nodeStatsArray) {
-            if (nodeStats.getFs() == null) {
-                logger.warn("node [{}/{}] did not return any filesystem stats", nodeStats.getNode().getName(), nodeStats.getNode().getId());
-                continue;
+            DiskUsage leastAvailableUsage = DiskUsage.findLeastAvailablePath(nodeStats);
+            if (leastAvailableUsage != null) {
+                newLeastAvailableUsages.put(nodeStats.getNode().getId(), leastAvailableUsage);
             }
-
-            FsInfo.Path leastAvailablePath = null;
-            FsInfo.Path mostAvailablePath = null;
-            for (FsInfo.Path info : nodeStats.getFs()) {
-                if (leastAvailablePath == null) {
-                    // noinspection ConstantConditions this assertion is for the benefit of readers, it's always true
-                    assert mostAvailablePath == null;
-                    mostAvailablePath = leastAvailablePath = info;
-                } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()) {
-                    leastAvailablePath = info;
-                } else if (mostAvailablePath.getAvailable().getBytes() < info.getAvailable().getBytes()) {
-                    mostAvailablePath = info;
-                }
+            DiskUsage mostAvailableUsage = DiskUsage.findMostAvailable(nodeStats);
+            if (mostAvailableUsage != null) {
+                newMostAvailableUsages.put(nodeStats.getNode().getId(), mostAvailableUsage);
             }
-            if (leastAvailablePath == null) {
-                // noinspection ConstantConditions this assertion is for the benefit of readers, it's always true
-                assert mostAvailablePath == null;
-                logger.warn("node [{}/{}] did not return any filesystem stats", nodeStats.getNode().getName(), nodeStats.getNode().getId());
-                continue;
-            }
-
-            final String nodeId = nodeStats.getNode().getId();
-            final String nodeName = nodeStats.getNode().getName();
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "node [{}]: most available: total: {}, available: {} / least available: total: {}, available: {}",
-                    nodeId,
-                    mostAvailablePath.getTotal(),
-                    mostAvailablePath.getAvailable(),
-                    leastAvailablePath.getTotal(),
-                    leastAvailablePath.getAvailable()
-                );
-            }
-            if (leastAvailablePath.getTotal().getBytes() < 0) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "node: [{}] least available path has less than 0 total bytes of disk [{}], skipping",
-                        nodeId,
-                        leastAvailablePath.getTotal().getBytes()
-                    );
-                }
-            } else {
-                newLeastAvailableUsages.put(
-                    nodeId,
-                    new DiskUsage(
-                        nodeId,
-                        nodeName,
-                        leastAvailablePath.getPath(),
-                        leastAvailablePath.getTotal().getBytes(),
-                        leastAvailablePath.getAvailable().getBytes()
-                    )
-                );
-            }
-            if (mostAvailablePath.getTotal().getBytes() < 0) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "node: [{}] most available path has less than 0 total bytes of disk [{}], skipping",
-                        nodeId,
-                        mostAvailablePath.getTotal().getBytes()
-                    );
-                }
-            } else {
-                newMostAvailableUsages.put(
-                    nodeId,
-                    new DiskUsage(
-                        nodeId,
-                        nodeName,
-                        mostAvailablePath.getPath(),
-                        mostAvailablePath.getTotal().getBytes(),
-                        mostAvailablePath.getAvailable().getBytes()
-                    )
-                );
-            }
-
         }
     }
 
     private record IndicesStatsSummary(
-        ImmutableOpenMap<String, Long> shardSizes,
-        ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
-        ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath,
-        ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
+        Map<String, Long> shardSizes,
+        Map<ShardId, Long> shardDataSetSizes,
+        Map<ShardRouting, String> shardRoutingToDataPath,
+        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
     ) {
-        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
-        );
-
+        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(Map.of(), Map.of(), Map.of(), Map.of());
     }
 
 }

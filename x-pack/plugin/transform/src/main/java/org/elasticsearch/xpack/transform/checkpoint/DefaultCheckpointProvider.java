@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -22,6 +20,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -47,6 +46,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 class DefaultCheckpointProvider implements CheckpointProvider {
 
@@ -234,12 +235,13 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     ActionListener.wrap(response -> {
                         if (response.getFailedShards() != 0) {
                             for (int i = 0; i < response.getShardFailures().length; ++i) {
+                                int shardNo = i;
                                 logger.warn(
-                                    new ParameterizedMessage(
-                                        "Source has [{}] failed shards, shard failure [{}]",
+                                    () -> Strings.format(
+                                        "Source has [%s] failed shards, shard failure [%s]",
                                         response.getFailedShards(),
-                                        i
-                                    ).getFormattedMessage(),
+                                        shardNo
+                                    ),
                                     response.getShardFailures()[i]
                                 );
                             }
@@ -366,13 +368,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             );
             listener.onResponse(checkpointingInfoBuilder);
         }, e -> {
-            logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "[{}] failed to retrieve source checkpoint for transform",
-                    transformConfig.getId()
-                ),
-                e
-            );
+            logger.debug(() -> format("[%s] failed to retrieve source checkpoint for transform", transformConfig.getId()), e);
             listener.onFailure(new CheckpointException("Failure during source checkpoint info retrieval", e));
         });
 
@@ -382,12 +378,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             getIndexCheckpoints(checkpointsByIndexListener);
         }, e -> {
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "[{}] failed to retrieve next checkpoint [{}]",
-                    transformConfig.getId(),
-                    lastCheckpointNumber + 1
-
-                ),
+                () -> format("[%s] failed to retrieve next checkpoint [%s]", transformConfig.getId(), lastCheckpointNumber + 1),
                 e
             );
             listener.onFailure(new CheckpointException("Failure during next checkpoint info retrieval", e));
@@ -399,14 +390,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             checkpointingInfoBuilder.setLastCheckpoint(lastCheckpointObj);
             transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1, nextCheckpointListener);
         }, e -> {
-            logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "[{}] failed to retrieve last checkpoint [{}]",
-                    transformConfig.getId(),
-                    lastCheckpointNumber
-                ),
-                e
-            );
+            logger.debug(() -> format("[%s] failed to retrieve last checkpoint [%s]", transformConfig.getId(), lastCheckpointNumber), e);
             listener.onFailure(new CheckpointException("Failure during last checkpoint info retrieval", e));
         });
 

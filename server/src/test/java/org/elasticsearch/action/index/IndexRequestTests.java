@@ -416,6 +416,22 @@ public class IndexRequestTests extends ESTestCase {
                 )
             );
         }
+
+        {
+            // set error format timestamp
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
+            request.setRawTimestamp(10.0d);
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("Error get data stream timestamp field: timestamp [10.0] type [class java.lang.Double] error")
+            );
+        }
     }
 
     static String renderSource(String sourceTemplate, Instant instant) {

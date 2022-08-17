@@ -225,3 +225,6 @@ indent_size = 2
 
 [*.{xsd,xml}]
 indent_size = 4
+
+[*.{csv,sql}-spec]
+trim_trailing_whitespace = false

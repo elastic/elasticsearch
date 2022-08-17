@@ -325,8 +325,7 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "plugin",
+            List.of(
                 new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME + "*", "")))
             )
         );

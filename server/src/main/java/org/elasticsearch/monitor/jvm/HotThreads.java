@@ -138,11 +138,6 @@ public class HotThreads {
         return this;
     }
 
-    public HotThreads threadElementsSnapshotDelay(TimeValue threadElementsSnapshotDelay) {
-        this.threadElementsSnapshotDelay = threadElementsSnapshotDelay;
-        return this;
-    }
-
     public HotThreads threadElementsSnapshotCount(int threadElementsSnapshotCount) {
         this.threadElementsSnapshotCount = threadElementsSnapshotCount;
         return this;

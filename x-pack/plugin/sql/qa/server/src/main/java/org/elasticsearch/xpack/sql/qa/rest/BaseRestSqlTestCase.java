@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CLIENT_ID_NAME;
@@ -154,6 +155,11 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
 
         public RequestObjectBuilder indexIncludeFrozen(boolean includeFrozen) {
             request.append(field(INDEX_INCLUDE_FROZEN_NAME, includeFrozen));
+            return this;
+        }
+
+        public RequestObjectBuilder allowPartialSearchResults(boolean allowPartialSearchResults) {
+            request.append(field(ALLOW_PARTIAL_SEARCH_RESULTS_NAME, allowPartialSearchResults));
             return this;
         }
 

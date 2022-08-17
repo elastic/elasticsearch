@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -110,7 +109,6 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>();
         classpathPlugins.add(SearchBusinessRules.class);
-        classpathPlugins.add(TestGeoShapeFieldMapperPlugin.class);
         return classpathPlugins;
     }
 
@@ -154,13 +152,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },
-                "ids": [ "1", "2" ],
-                "boost": 1.0
+                "ids": [ "1", "2" ]
               }
             }""";
 
@@ -178,13 +174,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },
-                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ],
-                "boost": 1.0
+                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ]
               }
             }""";
 

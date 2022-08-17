@@ -57,6 +57,12 @@ public abstract class LegacySortedSetDocValues {
     public abstract long nextOrd();
 
     /**
+     * Retrieves the number of unique ords for the current document. This must always be greater than
+     * zero. It is illegal to call this method after advanceExact(int) returned {@code false}.
+     */
+    public abstract int docValueCount();
+
+    /**
      * Sets iteration to the specified docID
      * @param docID document ID
      */

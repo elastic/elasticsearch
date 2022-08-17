@@ -73,6 +73,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetadata.INDEX_FORMAT_SETTING,
         IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
         IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
+        IndexMetadata.INDEX_ROLLUP_STATUS,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -161,6 +162,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
         DataTier.TIER_PREFERENCE_SETTING,
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {
@@ -187,7 +189,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         result.add(IndexMetadata.INDEX_ROUTING_PATH);
         result.add(IndexSettings.TIME_SERIES_START_TIME);
         result.add(IndexSettings.TIME_SERIES_END_TIME);
-        result.add(IndexSettings.LOOK_AHEAD_TIME);
         return Set.copyOf(result);
     }
 

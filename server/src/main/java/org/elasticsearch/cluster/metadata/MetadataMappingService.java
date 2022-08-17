@@ -24,8 +24,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -94,18 +94,18 @@ public class MetadataMappingService {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<PutMappingClusterStateUpdateTask>> taskContexts)
-            throws Exception {
+        public ClusterState execute(BatchExecutionContext<PutMappingClusterStateUpdateTask> batchExecutionContext) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             try {
-                for (final var taskContext : taskContexts) {
+                var currentState = batchExecutionContext.initialState();
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     final var task = taskContext.getTask();
                     final PutMappingClusterStateUpdateRequest request = task.request;
-                    try {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
                             final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
-                                MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
+                                MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
                                 mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);

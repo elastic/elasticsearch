@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +29,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
 
@@ -191,11 +192,11 @@ public class DatafeedNodeSelector {
                 );
             }
         } catch (Exception e) {
-            String msg = new ParameterizedMessage(
-                "failed resolving indices given [{}] and indices_options [{}]",
-                Strings.arrayToCommaDelimitedString(index),
+            String msg = format(
+                "failed resolving indices given [%s] and indices_options [%s]",
+                arrayToCommaDelimitedString(index),
                 indicesOptions
-            ).getFormattedMessage();
+            );
             LOGGER.debug("[" + datafeedId + "] " + msg, e);
             return new AssignmentFailure(
                 "cannot start datafeed [" + datafeedId + "] because it " + msg + " with exception [" + e.getMessage() + "]",

@@ -152,7 +152,7 @@ public class RepositoryMetadata implements Writeable {
             out.writeString(uuid);
         }
         out.writeString(type);
-        Settings.writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         out.writeLong(generation);
         out.writeLong(pendingGeneration);
     }

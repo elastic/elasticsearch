@@ -242,11 +242,12 @@ public class MetadataRolloverService {
             );
         }
 
+        final Metadata metadata = currentState.getMetadata();
         final ComposableIndexTemplate templateV2;
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            templateV2 = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+            templateV2 = lookupTemplateForDataStream(dataStreamName, metadata);
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
@@ -278,7 +279,7 @@ public class MetadataRolloverService {
             createIndexClusterStateRequest,
             silent,
             (builder, indexMetadata) -> builder.put(
-                ds.rollover(indexMetadata.getIndex(), newGeneration, templateV2.getDataStreamTemplate().getIndexMode())
+                ds.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
             )
         );
 

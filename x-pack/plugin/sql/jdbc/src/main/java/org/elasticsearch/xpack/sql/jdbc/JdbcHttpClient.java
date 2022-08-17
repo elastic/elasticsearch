@@ -74,7 +74,8 @@ class JdbcHttpClient {
             new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
             conCfg.fieldMultiValueLeniency(),
             conCfg.indexIncludeFrozen(),
-            conCfg.binaryCommunication()
+            conCfg.binaryCommunication(),
+            conCfg.allowPartialSearchResults()
         );
         ResponseWithWarnings<SqlQueryResponse> response = httpClient.query(sqlRequest);
         return new DefaultCursor(
@@ -97,7 +98,8 @@ class JdbcHttpClient {
             TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
             TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
             new RequestInfo(Mode.JDBC),
-            conCfg.binaryCommunication()
+            conCfg.binaryCommunication(),
+            conCfg.allowPartialSearchResults()
         );
         SqlQueryResponse response = httpClient.query(sqlRequest).response();
         return new Tuple<>(response.cursor(), response.rows());

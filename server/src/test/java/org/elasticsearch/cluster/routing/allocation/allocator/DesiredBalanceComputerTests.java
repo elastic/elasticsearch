@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -385,6 +386,39 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), List.of(), input -> true);
 
         assertDesiredAssignments(desiredBalance, Map.of());
+    }
+
+    public void testAppliesMoveCommands() {
+        var desiredBalanceComputer = createDesiredBalanceComputer();
+        var clusterState = createInitialClusterState();
+        var index = clusterState.metadata().index(TEST_INDEX).getIndex();
+
+        var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
+        var routingNodes = clusterState.mutableRoutingNodes();
+        for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            var shardRouting = iterator.next();
+            routingNodes.startShard(logger, iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes), changes);
+        }
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
+            .build();
+
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.INITIAL,
+            createInput(clusterState),
+            List.of(new MoveAllocationCommand(index.getName(), 0, "node-0", "node-2")),
+            input -> true
+        );
+
+        assertDesiredAssignments(
+            desiredBalance,
+            Map.of(
+                new ShardId(index, 0),
+                new ShardAssignment(Set.of("node-1", "node-2"), 2, 0, 0),
+                new ShardId(index, 1),
+                new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
+            )
+        );
     }
 
     public void testDesiredBalanceShouldConvergeInABigCluster() {

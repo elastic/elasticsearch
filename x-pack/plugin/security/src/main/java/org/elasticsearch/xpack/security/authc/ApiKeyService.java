@@ -1735,26 +1735,25 @@ public class ApiKeyService {
         if (authentication.isApiKey()) {
             return (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
-            final Authentication.RealmRef effectiveSubjectRealm = authentication.getEffectiveSubject().getRealm();
-            // The effective subject realm can only be `null` when run-as look up fails. The owner is always the effective subject, so there
-            // is no owner information to return here
-            return effectiveSubjectRealm != null ? effectiveSubjectRealm.getName() : null;
+            return authentication.getSourceRealm().getName();
         }
     }
 
     /**
      * Returns the realm names that the username can access resources across.
      */
-    public static String[] getOwnersRealmNames(Authentication authentication) {
+    public static String[] getOwnersRealmNames(final Authentication authentication) {
         if (authentication.isApiKey()) {
             return new String[] {
                 (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
         } else {
             final Authentication.RealmRef effectiveSubjectRealm = authentication.getEffectiveSubject().getRealm();
-            // The effective subject realm can only be `null` when run-as look up fails. The owner is always the effective subject, so there
+            // The effective subject realm can only be `null` when run-as lookup fails. The owner is always the effective subject, so there
             // is no owner information to return here
             if (effectiveSubjectRealm == null) {
-                return new String[] {};
+                final var message = "Cannot determine owner realms without an effective subject for non-API key authentication object";
+                assert false : message;
+                throw new IllegalStateException(message);
             }
             final RealmDomain domain = effectiveSubjectRealm.getDomain();
             if (domain != null) {
@@ -1776,10 +1775,7 @@ public class ApiKeyService {
         if (authentication.isApiKey()) {
             return (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
-            final Authentication.RealmRef effectiveSubjectRealm = authentication.getEffectiveSubject().getRealm();
-            // The effective subject realm can only be `null` when run-as look up fails. The owner is always the effective subject, so there
-            // is no owner information to return here
-            return effectiveSubjectRealm != null ? effectiveSubjectRealm.getType() : null;
+            return authentication.getSourceRealm().getType();
         }
     }
 

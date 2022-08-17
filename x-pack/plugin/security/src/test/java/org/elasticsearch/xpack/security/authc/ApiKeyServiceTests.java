@@ -1396,18 +1396,13 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         // Realm
         final Authentication authentication3 = AuthenticationTests.randomRealmAuthentication(randomBoolean());
-        assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getEffectiveSubject().getRealm().getName()));
-        assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getEffectiveSubject().getRealm().getType()));
+        assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getSourceRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getSourceRealm().getType()));
 
         // Realm run-as
         final Authentication authentication4 = authentication3.runAs(AuthenticationTests.randomUser(), lookupRealmRef);
         assertThat(ApiKeyService.getCreatorRealmName(authentication4), equalTo(lookupRealmRef.getName()));
         assertThat(ApiKeyService.getCreatorRealmType(authentication4), equalTo(lookupRealmRef.getType()));
-
-        // Realm run-as look up failure (no lookup realm ref)
-        final Authentication authentication6 = authentication3.runAs(AuthenticationTests.randomUser(), null);
-        assertNull(ApiKeyService.getCreatorRealmName(authentication6));
-        assertNull(ApiKeyService.getCreatorRealmType(authentication6));
 
         // Others (cannot run-as)
         final Authentication authentication5 = randomFrom(
@@ -1415,8 +1410,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             AuthenticationTests.randomAnonymousAuthentication(),
             AuthenticationTests.randomInternalAuthentication()
         );
-        assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getEffectiveSubject().getRealm().getName()));
-        assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getEffectiveSubject().getRealm().getType()));
+        assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getSourceRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getSourceRealm().getType()));
     }
 
     public void testGetOwnersRealmNames() {
@@ -1438,8 +1433,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             Arrays.asList(ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), realmRef).token())),
             contains(realmRef.getName())
         );
-        // realm run-as look up failure (no lookup realm ref)
-        assertThat(ApiKeyService.getOwnersRealmNames(authentication.runAs(AuthenticationTests.randomUser(), null)), emptyArray());
         // realm under domain
         realmRef = AuthenticationTests.randomRealmRef(true);
         authentication = Authentication.newRealmAuthentication(AuthenticationTests.randomUser(), realmRef);

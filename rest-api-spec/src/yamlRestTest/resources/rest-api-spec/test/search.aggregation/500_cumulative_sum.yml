@@ -43,23 +43,23 @@ basic:
                 distinct_users:
                   cardinality:
                     field: user
-                total_users:
-                  cumulative_cardinality:
+                users_sum:
+                  cumulative_sum:
                     buckets_path: distinct_users
   - match: { hits.total.value: 11 }
   - length: { aggregations.@timestamp.buckets: 4 }
   - match: { aggregations.@timestamp.buckets.0.key_as_string:        "2022-01-01T00:00:00.000Z" }
   - match: { aggregations.@timestamp.buckets.0.distinct_users.value: 2 }
-  - match: { aggregations.@timestamp.buckets.0.total_users.value:    2 }
+  - match: { aggregations.@timestamp.buckets.0.users_sum.value:      2 }
   - match: { aggregations.@timestamp.buckets.1.key_as_string:        "2022-01-02T00:00:00.000Z" }
   - match: { aggregations.@timestamp.buckets.1.distinct_users.value: 3 }
-  - match: { aggregations.@timestamp.buckets.1.total_users.value:    3 }
+  - match: { aggregations.@timestamp.buckets.1.users_sum.value:      5 }
   - match: { aggregations.@timestamp.buckets.2.key_as_string:        "2022-01-03T00:00:00.000Z" }
   - match: { aggregations.@timestamp.buckets.2.distinct_users.value: 3 }
-  - match: { aggregations.@timestamp.buckets.2.total_users.value:    4 }
+  - match: { aggregations.@timestamp.buckets.2.users_sum.value:      8 }
   - match: { aggregations.@timestamp.buckets.3.key_as_string:        "2022-01-04T00:00:00.000Z" }
   - match: { aggregations.@timestamp.buckets.3.distinct_users.value: 2 }
-  - match: { aggregations.@timestamp.buckets.3.total_users.value:    5 }
+  - match: { aggregations.@timestamp.buckets.3.users_sum.value:     10 }
 
 ---
 format:
@@ -77,24 +77,24 @@ format:
                 distinct_users:
                   cardinality:
                     field: user
-                total_users:
-                  cumulative_cardinality:
+                users_sum:
+                  cumulative_sum:
                     buckets_path: distinct_users
                     format: "00"
   - match: { hits.total.value: 11 }
   - length: { aggregations.@timestamp.buckets: 4 }
   - match: { aggregations.@timestamp.buckets.0.key_as_string:               "2022-01-01T00:00:00.000Z" }
   - match: { aggregations.@timestamp.buckets.0.distinct_users.value:        2 }
-  - match: { aggregations.@timestamp.buckets.0.total_users.value_as_string: "02" }
+  - match: { aggregations.@timestamp.buckets.0.users_sum.value_as_string:   "02" }
   - match: { aggregations.@timestamp.buckets.1.key_as_string:               "2022-01-02T00:00:00.000Z" }
   - match: { aggregations.@timestamp.buckets.1.distinct_users.value:        3 }
-  - match: { aggregations.@timestamp.buckets.1.total_users.value_as_string: "03" }
+  - match: { aggregations.@timestamp.buckets.1.users_sum.value_as_string:   "05" }
   - match: { aggregations.@timestamp.buckets.2.key_as_string:               "2022-01-03T00:00:00.000Z" }
   - match: { aggregations.@timestamp.buckets.2.distinct_users.value:        3 }
-  - match: { aggregations.@timestamp.buckets.2.total_users.value_as_string: "04" }
+  - match: { aggregations.@timestamp.buckets.2.users_sum.value_as_string:   "08" }
   - match: { aggregations.@timestamp.buckets.3.key_as_string:               "2022-01-04T00:00:00.000Z" }
   - match: { aggregations.@timestamp.buckets.3.distinct_users.value:        2 }
-  - match: { aggregations.@timestamp.buckets.3.total_users.value_as_string: "05" }
+  - match: { aggregations.@timestamp.buckets.3.users_sum.value_as_string:   "10" }
 
 ---
 no results:
@@ -115,8 +115,8 @@ no results:
                 distinct_users:
                   cardinality:
                     field: user
-                total_users:
-                  cumulative_cardinality:
+                users_sum:
+                  cumulative_sum:
                     buckets_path: distinct_users
   - match: { hits.total.value: 0 }
   - length: { aggregations.@timestamp.buckets: 0 }
@@ -138,6 +138,6 @@ bad path:
                 distinct_users:
                   cardinality:
                     field: user
-                total_users:
-                  cumulative_cardinality:
+                users_sum:
+                  cumulative_sum:
                     buckets_path: missing

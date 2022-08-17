@@ -9,8 +9,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
@@ -57,62 +55,5 @@ public class ValuesSourceRegistryTests extends ESTestCase {
         ValuesSourceRegistry registry = new ValuesSourceRegistry(Map.of(key, List.of()), null);
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, fieldOnly));
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, scriptOnly));
-    }
-
-    public void testValueSourceTypeNullUnregisteredExceptionHandler() {
-        final ValuesSourceConfig configMock = mock(ValuesSourceConfig.class);
-        when(configMock.valueSourceType()).thenReturn(new ValuesSourceType() {
-            @Override
-            public ValuesSource getEmpty() {
-                throw new IllegalArgumentException("Unmapped fields not supported");
-            }
-
-            @Override
-            public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-                throw new AggregationExecutionException("Script not supported");
-            }
-
-            @Override
-            public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-                throw new IllegalArgumentException("Unable to get field");
-            }
-
-            @Override
-            public ValuesSource replaceMissing(
-                ValuesSource valuesSource,
-                Object rawMissing,
-                DocValueFormat docValueFormat,
-                AggregationContext context
-            ) {
-                throw new IllegalArgumentException("Missing values not supported");
-            }
-
-            @Override
-            public String typeName() {
-                return "test_type";
-            }
-
-            @Override
-            public RuntimeException getUnregisteredException(String message) {
-                return null;
-            }
-        });
-
-        final String registryKeyName = "foo";
-        final ValuesSourceRegistry.RegistryKey<HistogramAggregatorSupplier> key = new ValuesSourceRegistry.RegistryKey<>(
-            registryKeyName,
-            HistogramAggregatorSupplier.class
-        );
-        final ValuesSourceRegistry registry = new ValuesSourceRegistry(Map.of(key, List.of()), null);
-
-        final AssertionError assertionError = expectThrows(AssertionError.class, () -> registry.getAggregator(key, configMock));
-        assertEquals(
-            "Value source type ["
-                + configMock.valueSourceType()
-                + "] did not return a valid exception for aggregation ["
-                + registryKeyName
-                + "]",
-            assertionError.getMessage()
-        );
     }
 }

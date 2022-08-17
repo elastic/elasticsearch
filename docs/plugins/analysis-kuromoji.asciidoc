@@ -10,9 +10,9 @@ include::install_remove.asciidoc[]
 [[analysis-kuromoji-analyzer]]
 ==== `kuromoji` analyzer
 
-The `kuromoji` analyzer consists of the following tokenizer and token filters:
+The `kuromoji` analyzer consists of the following char filters, tokenizer, and token filters:
 
-* `cjk_width` char filter
+* `CJKWidthCharFilter` from Lucene
 * <<analysis-kuromoji-tokenizer,`kuromoji_tokenizer`>>
 * <<analysis-kuromoji-baseform,`kuromoji_baseform`>> token filter
 * <<analysis-kuromoji-speech,`kuromoji_part_of_speech`>> token filter

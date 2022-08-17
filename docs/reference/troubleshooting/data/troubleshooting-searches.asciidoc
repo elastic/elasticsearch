@@ -1,0 +1,130 @@
+[[troubleshooting-searches]]
+== Troubleshooting searches
+
+When you query your data, Elasticsearch may return an error, return no search
+results, or return results in an unexpected order. This guide describes how to
+troubleshoot Elasticsearch searches.
+
+[discrete]
+[[troubleshooting-searches-exists]]
+=== Ensure the data stream, index, or alias exists
+
+Elasticsearch may return a `index_not_found_exception` when the data stream,
+index or alias you try to query does not exist. This can happen when you
+misspell the name or when the data has been indexed to a different data stream
+or index.
+
+Use the <<exists API,>> to check whether a data stream, index, or alias exists:
+[source,console]
+----
+HEAD my-data-stream
+----
+
+Use the <<data stream stats API,>> to list all data streams:
+[source,console]
+----
+GET /_data_stream/_stats?human=true
+----
+
+Use the <<cat indices API,>> to list all indices:
+[source,console]
+----
+GET _cat/indices?v=true&s=index&h=index,docs.count,status,health
+----
+
+Use the <<cat aliases API,>> to list all aliases:
+​​[source,console]
+----
+GET _cat/aliases?v=true&s=alias,h=alias,index,is_write_index&s=index
+----
+
+[discrete]
+[[troubleshooting-searches-data]]
+=== Ensure the data stream or index contains data
+
+When your search request returns no hits, the data streams or indices may
+contain no data. This may happen when there is a data ingestion issue. For
+example, the data may have been indexed to a data stream or index with another
+name.
+
+Use the <<count API,>> to retrieve the number of documents in a data stream or
+index. Check that `count` in the response is not 0.
+​​////
+[source,console]
+----
+PUT my-index-000001
+----
+////
+[source,console]
+----
+GET /my-index-000001/_count
+----
+//TEST[continued]
+
+[discrete]
+[[troubleshooting-searches-field-exists]]
+=== Ensure the field exists and has data
+
+Your search request may not return any data because you try to query a field
+that does not exist or has no data.
+
+Use the <<`exists` query,>> to find documents that contain an indexed value for
+a field. Check that `count` in the response is not 0.
+[source,console]
+----
+GET my-index-000001/_count
+{
+  "query": {
+    "exists": {
+      "field": "my-field"
+    }
+  }
+}
+----
+
+If the field exists, and is not of type `text`, use a <<terms aggregation,>> to
+retrieve the most common values for a field:
+​​////
+[source,console]
+----
+PUT my-index-000001
+----
+////
+[source,console]
+----
+GET my-index-000001/_search?filter_path=aggregations
+{
+  "size": 0,
+  "aggs": {
+    "top_values": {
+      "terms": {
+        "field": "my-field",
+        "size": 10
+      }
+    }
+  }
+}
+----
+//TEST[continued]
+
+If the field does not exist or does not have any values, check the data
+ingestion process. The field may have a different name.
+
+NOTE: index pattern timestamp
+
+[discrete]
+[[troubleshooting-searches-mapping]]
+=== Validate the mapping of the field is correct
+
+- GET _mapping API
+- text analysis
+
+If not, change mapping and reindex
+
+[discrete]
+[[troubleshooting-searches-settings]]
+=== Validate index settings
+
+- use the search profiler
+
+NOTE: How to retrieve Kibana query via inspect -> view request

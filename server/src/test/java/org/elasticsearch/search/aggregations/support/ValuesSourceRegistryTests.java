@@ -89,7 +89,7 @@ public class ValuesSourceRegistryTests extends ESTestCase {
 
             @Override
             public String typeName() {
-                return "test_typeg";
+                return "test_type";
             }
 
             @Override

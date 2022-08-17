@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -108,8 +109,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         assertThat(c.getModule().getName(), equalTo("synthetic"));
     }
 
-    // Test our loadClass methods
-    public void testSingleJarLoadClass() throws Exception {
+    public void testSingleJarFindClass() throws Exception {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-jar-with-resources.jar");
         // TODO: add more resources than just the class
@@ -140,6 +140,21 @@ public class StablePluginClassLoaderTests extends ESTestCase {
             c = loader.findClass(null, "p.MyClass");
             assertThat(c, nullValue());
         }
+    }
+    public void testSingleJarLoadClass() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-jar-with-resources.jar");
+        // TODO: add more resources than just the class
+        createJarWithSingleClass(jar, "MyClass");
+
+        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
+            StablePluginClassLoaderTests.class.getClassLoader(),
+            List.of(jar)
+        );
+        Class<?> c = loader.loadClass("p.MyClass");
+        assertThat(c, notNullValue());
+        ClassNotFoundException e = expectThrows(ClassNotFoundException.class, () -> loader.loadClass("p.DoesNotExist"));
+        assertThat(e.getMessage(), equalTo("p.DoesNotExist"));
     }
 
     public void testSingleJarFindResources() throws Exception {
@@ -240,9 +255,41 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         assertThat(instance3.toString(), equalTo("ThirdClass"));
     }
 
+    public void testModuleDenyList() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-jar-with-resources.jar");
+        // TODO: add more resources than just the class
+        createJarWithSingleClass(jar, "MyImportingClass", """
+            package p;
+            import java.lang.management.ThreadInfo;
+            import java.sql.ResultSet;
+            public class MyImportingClass {
+                @Override
+                public String toString() {
+                    return "MyImportingClass[imports " + ThreadInfo.class.getSimpleName() + "," + ResultSet.class.getSimpleName() + "]";
+                }
+            }
+            """);
+
+        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
+            StablePluginClassLoaderTests.class.getClassLoader(),
+            List.of(jar),
+            Set.of("java.sql")
+        );
+        Class<?> c = loader.loadClass("p.MyImportingClass");
+        assertThat(c, notNullValue());
+        Object instance = c.getConstructor().newInstance();
+        IllegalAccessError e = expectThrows(IllegalAccessError.class, instance::toString);
+        assertThat(e.getMessage(), containsString("cannot access class java.sql.ResultSet (in module java.sql)"));
+    }
+
     private static void createJarWithSingleClass(Path jar, String className) throws IOException {
+        createJarWithSingleClass(jar, className, getSimpleSourceString("p", className, className));
+    }
+
+    private static void createJarWithSingleClass(Path jar, String className, String source) throws IOException {
         Map<String, CharSequence> sources = new HashMap<>();
-        sources.put("p." + className, getSimpleSourceString("p", className, className));
+        sources.put("p." + className, source);
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();

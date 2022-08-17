@@ -8,14 +8,11 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.util.set.Sets;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -75,16 +72,21 @@ import java.util.stream.Collectors;
  */
 public class StablePluginClassLoader extends SecureClassLoader {
 
-    private final ModuleReference module;
+    private final ModuleReference mref;
+    private final Module module;
     private final URLClassLoader internalLoader;
     private final CodeSource codeSource;
     private final ModuleLayer.Controller moduleController;
-
+    private final Set<String> moduleDenyList;
     private final Set<String> packageNames;
 
-    @SuppressWarnings("removal")
     static StablePluginClassLoader getInstance(ClassLoader parent, List<Path> jarPaths) {
-        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(parent, jarPaths);
+        return getInstance(parent, jarPaths, Set.of());
+    }
+
+    @SuppressWarnings("removal")
+    static StablePluginClassLoader getInstance(ClassLoader parent, List<Path> jarPaths, Set<String> moduleDenyList) {
+        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(parent, jarPaths, moduleDenyList);
         return AccessController.doPrivileged(pa);
     }
     /**
@@ -100,8 +102,11 @@ public class StablePluginClassLoader extends SecureClassLoader {
      *
      * TODO: consider a factory pattern for more specific exception handling for scan, etc.
      */
-    public StablePluginClassLoader(ClassLoader parent, List<Path> jarPaths) {
+    public StablePluginClassLoader(ClassLoader parent, List<Path> jarPaths, Set<String> moduleDenyList) {
         super(parent);
+
+        this.moduleDenyList = moduleDenyList;
+
         // TODO: module name should be derived from plugin descriptor (plugin names should be distinct, might
         //   need to munge the characters a little)
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", jarPaths.toArray(new Path[0]), Set.of());
@@ -113,7 +118,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
                 jarURLs.add(toURL);
             }
             this.internalLoader = new URLClassLoader(jarURLs.toArray(new URL[0]));
-            this.module = finder.find("synthetic").orElseThrow();
+            this.mref = finder.find("synthetic").orElseThrow();
             // we'll need to make up a code source for multiple jar files
             this.codeSource = new CodeSource(jarURLs.get(0), (CodeSigner[]) null);
         } catch (IOException e) {
@@ -125,6 +130,16 @@ public class StablePluginClassLoader extends SecureClassLoader {
         Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of("synthetic"));
         // TODO: do we need to hold on to the controller?
         this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
+
+        this.module = this.moduleController.layer().findModule("synthetic").orElseThrow();
+
+        // Every module reads java.base by default, but we can add all other modules
+        // that are not in the deny list so that plugins can use, for example, java.management
+        mparent.modules().stream()
+            .filter(Module::isNamed)
+            .filter(m -> "java.base".equals(m.getName()) == false)
+            .filter(m -> moduleDenyList.contains(m.getName()) == false)
+            .forEach(m -> moduleController.addReads(module, m));
 
         // open this as versioned jar - most recent version of class file
         // TODO: verify behavior w/ versioned jar, c.f. EmbeddedImplClassLoader
@@ -169,7 +184,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
         //
         // jdk.internal.loader.Loader can pull a class out of a loaded module pretty easily;
         // ModuleReference does a lot of the work
-        if (Objects.isNull(moduleName) || this.module.descriptor().name().equals(moduleName) == false) {
+        if (Objects.isNull(moduleName) || this.mref.descriptor().name().equals(moduleName) == false) {
             return null;
         }
         return findClass(name);
@@ -230,7 +245,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // TODO: Is this the behavior we want?
         // If we are requesting a resource and have the correct module name, try to find it. Otherwise
         // return null. Problem: will calling code ever know the synthetic module name?
-        if (Objects.isNull(moduleName) || this.module.descriptor().name().equals(moduleName) == false) {
+        if (Objects.isNull(moduleName) || this.mref.descriptor().name().equals(moduleName) == false) {
             return null;
         }
         return findResource(name);

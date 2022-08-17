@@ -165,4 +165,92 @@ class TriangleTreeReader {
          * visiting the tree. */
         boolean push(int minX, int minY, int maxX, int maxY);
     }
+
+    /** Visitor for triangle interval tree which decodes the coordinates */
+    public abstract static class DecodedVisitor implements Visitor {
+
+        private final CoordinateEncoder encoder;
+
+        DecodedVisitor(CoordinateEncoder encoder) {
+            this.encoder = encoder;
+        }
+
+        @Override
+        public void visitPoint(int x, int y) {
+            doVisitPoint(encoder.decodeX(x), encoder.decodeY(y));
+        }
+
+        /**
+         * Equivalent to {@link #visitPoint(int, int)} but coordinates are decoded.
+         */
+        abstract void doVisitPoint(double x, double y);
+
+        @Override
+        public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
+            doVisitLine(encoder.decodeX(aX), encoder.decodeY(aY), encoder.decodeX(bX), encoder.decodeY(bY), metadata);
+        }
+
+        /**
+         * Equivalent to {@link #visitLine(int, int, int, int, byte)} but coordinates are decoded.
+         */
+        abstract void doVisitLine(double aX, double aY, double bX, double bY, byte metadata);
+
+        @Override
+        public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
+            doVisitTriangle(
+                encoder.decodeX(aX),
+                encoder.decodeY(aY),
+                encoder.decodeX(bX),
+                encoder.decodeY(bY),
+                encoder.decodeX(cX),
+                encoder.decodeY(cY),
+                metadata
+            );
+        }
+
+        /**
+         * Equivalent to {@link #visitTriangle(int, int, int, int, int, int, byte)} but coordinates are decoded.
+         */
+        abstract void doVisitTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata);
+
+        @Override
+        public boolean pushX(int minX) {
+            return doPushX(encoder.decodeX(minX));
+        }
+
+        /**
+         * Equivalent to {@link #pushX(int)}  but coordinates are decoded.
+         */
+        abstract boolean doPushX(double minX);
+
+        @Override
+        public boolean pushY(int minY) {
+            return doPushY(encoder.decodeY(minY));
+        }
+
+        /**
+         * Equivalent to {@link #pushY(int)}  but coordinates are decoded.
+         */
+        abstract boolean doPushY(double minX);
+
+        @Override
+        public boolean push(int maxX, int maxY) {
+            return doPush(encoder.decodeX(maxX), encoder.decodeY(maxY));
+        }
+
+        /**
+         * Equivalent to {@link #push(int, int)} but coordinates are decoded.
+         */
+        abstract boolean doPush(double maxX, double maxY);
+
+        @Override
+        public boolean push(int minX, int minY, int maxX, int maxY) {
+            return doPush(encoder.decodeX(minX), encoder.decodeY(minY), encoder.decodeX(maxX), encoder.decodeY(maxY));
+        }
+
+        /**
+         * Equivalent to {@link #push(int, int, int, int)} but coordinates are decoded.
+         */
+        abstract boolean doPush(double minX, double minY, double maxX, double maxY);
+    }
 }

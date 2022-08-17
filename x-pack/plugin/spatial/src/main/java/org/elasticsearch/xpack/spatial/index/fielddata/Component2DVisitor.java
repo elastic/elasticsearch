@@ -15,14 +15,13 @@ import org.apache.lucene.index.PointValues;
  * A {@link TriangleTreeReader.Visitor} implementation for {@link Component2D} geometries.
  * It can solve spatial relationships against a serialize triangle tree.
  */
-public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
+public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisitor {
 
     protected final Component2D component2D;
-    private final CoordinateEncoder encoder;
 
     private Component2DVisitor(Component2D component2D, CoordinateEncoder encoder) {
+        super(encoder);
         this.component2D = component2D;
-        this.encoder = encoder;
     }
 
     /** If the relationship has been honour. */
@@ -32,59 +31,24 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
     public abstract void reset();
 
     @Override
-    public void visitPoint(int x, int y) {
-        doVisitPoint(encoder.decodeX(x), encoder.decodeY(y));
-    }
-
-    abstract void doVisitPoint(double x, double y);
-
-    @Override
-    public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
-        doVisitLine(encoder.decodeX(aX), encoder.decodeY(aY), encoder.decodeX(bX), encoder.decodeY(bY), metadata);
-    }
-
-    abstract void doVisitLine(double aX, double aY, double bX, double bY, byte metadata);
-
-    @Override
-    public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
-        doVisitTriangle(
-            encoder.decodeX(aX),
-            encoder.decodeY(aY),
-            encoder.decodeX(bX),
-            encoder.decodeY(bY),
-            encoder.decodeX(cX),
-            encoder.decodeY(cY),
-            metadata
-        );
-    }
-
-    abstract void doVisitTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata);
-
-    @Override
-    public boolean pushX(int minX) {
-        return component2D.getMaxX() >= encoder.decodeX(minX);
+    public boolean doPushX(double minX) {
+        return component2D.getMaxX() >= minX;
     }
 
     @Override
-    public boolean pushY(int minY) {
-        return component2D.getMaxY() >= encoder.decodeY(minY);
+    public boolean doPushY(double minY) {
+        return component2D.getMaxY() >= minY;
     }
 
     @Override
-    public boolean push(int maxX, int maxY) {
-        return component2D.getMinX() <= encoder.decodeX(maxX) && component2D.getMinY() <= encoder.decodeY(maxY);
+    public boolean doPush(double maxX, double maxY) {
+        return component2D.getMinX() <= maxX && component2D.getMinY() <= maxY;
 
     }
 
     @Override
-    public boolean push(int minX, int minY, int maxX, int maxY) {
-        final PointValues.Relation relation = component2D.relate(
-            encoder.decodeX(minX),
-            encoder.decodeX(maxX),
-            encoder.decodeY(minY),
-            encoder.decodeY(maxY)
-        );
-        return doPush(relation);
+    public boolean doPush(double minX, double minY, double maxX, double maxY) {
+        return doPush(component2D.relate(minX, maxX, minY, maxY));
     }
 
     /** Relation between the query shape and the doc value bounding box. Depending on the query relationship,

@@ -440,12 +440,12 @@ public class EsExecutorsTests extends ESTestCase {
     public void testNodeProcessorsBound() {
         final Setting<Double> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
         final int available = Runtime.getRuntime().availableProcessors();
-        final int processors = randomIntBetween(available + 1, Integer.MAX_VALUE);
+        final double processors = randomDoubleBetween(available + Math.ulp(available), Float.MAX_VALUE, true);
         final Settings settings = Settings.builder().put(processorsSetting.getKey(), processors).build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
         final String expected = String.format(
             Locale.ROOT,
-            "Failed to parse value [%d] for setting [%s] must be <= %d",
+            "Failed to parse value [%s] for setting [%s] must be <= %d",
             processors,
             processorsSetting.getKey(),
             available
@@ -470,13 +470,20 @@ public class EsExecutorsTests extends ESTestCase {
         );
 
         assertThat(
-            EsExecutors.allocatedProcessors(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 3).build()),
-            is(equalTo(3))
+            EsExecutors.allocatedProcessors(
+                Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), Runtime.getRuntime().availableProcessors()).build()
+            ),
+            is(equalTo(Runtime.getRuntime().availableProcessors()))
         );
     }
 
     public void testNodeProcessorsFloatValidation() {
         final Setting<Double> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), 0.0).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
 
         {
             final Settings settings = Settings.builder().put(processorsSetting.getKey(), Double.NaN).build();

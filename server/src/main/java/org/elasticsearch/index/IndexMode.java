@@ -27,7 +27,6 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
-import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledField;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 
 import java.io.IOException;
@@ -212,14 +211,14 @@ public enum IndexMode {
         @Override
         public void validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType, String message) {
             if (DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(intervalType)) {
-                throw new UnsupportedAggregationOnDownsampledField(message);
+                throw new IllegalArgumentException(message);
             }
         }
 
         @Override
         public void validateCalendarTimeZone(ZoneId tz, String message) {
             if (tz != null && ZoneId.of("UTC").equals(tz) == false) {
-                throw new UnsupportedAggregationOnDownsampledField(message);
+                throw new IllegalArgumentException(message);
             }
         }
     };

@@ -60,7 +60,7 @@ setup:
                 calendar_interval: hour
 
   - match: { status: 400 }
-  - match: { error.root_cause.0.type: unsupported_aggregation_on_downsampled_field }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
   - match: { error.root_cause.0.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with interval type [calendar_interval]" }
 
 ---
@@ -83,7 +83,7 @@ setup:
                 time_zone: "America/New_York"
 
   - match: { status: 400 }
-  - match: { error.root_cause.0.type: unsupported_aggregation_on_downsampled_field }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
   - match: { error.root_cause.0.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with timezone [America/New_York]" }
 
 ---

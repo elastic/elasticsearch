@@ -83,12 +83,7 @@ public class RoutingAllocation {
     @Nullable
     private final DesiredNodes desiredNodes;
 
-    private static final TimeValue CACHE_TTL = TimeValue.timeValueMinutes(1);
-    private static final Cache<RoutingNode, Long> unaccountableSearchableSnapshotSizes = CacheBuilder.<RoutingNode, Long>builder()
-        // Using a TTL cache here so we recalculate new unaccountable searchable snapshot size
-        // for routing nodes when cluster info get changed and as well as remove old routing nodes.
-        .setExpireAfterWrite(CACHE_TTL)
-        .build();
+    private Map<String, Long> unaccountableSearchableSnapshotSizes;
 
     public RoutingAllocation(
         AllocationDeciders deciders,
@@ -132,6 +127,25 @@ public class RoutingAllocation {
         }
         this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        unaccountableSearchableSnapshotSizes = new HashMap<>();
+        for (RoutingNode node : clusterState.getRoutingNodes()) {
+            long totalSize = 0;
+            for (ShardRouting shard : node.started()) {
+                if (clusterInfo == null) {
+                    continue;
+                }
+                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
+                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
+                if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                    && reservedSpace.containsShardId(shard.shardId()) == false
+                    && clusterInfo.getShardSize(shard) == null) {
+                    totalSize += Math.max(shard.getExpectedShardSize(), 0L);
+                }
+            }
+            if (totalSize > 0) {
+                unaccountableSearchableSnapshotSizes.put(node.nodeId(), totalSize);
+            }
+        }
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -346,31 +360,8 @@ public class RoutingAllocation {
         this.hasPendingAsyncFetch = true;
     }
 
-    public long unaccountableSearchableSnapshotSize(RoutingNode node) {
-        try {
-            return unaccountableSearchableSnapshotSizes.computeIfAbsent(node, k -> {
-                long totalSize = 0;
-                // Count the STARTED searchable snapshot shards which are unaccounted in the cluster
-                for (ShardRouting shard : node.started()) {
-                    if (clusterInfo == null) {
-                        continue;
-                    }
-                    DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
-                    ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(
-                        node.nodeId(),
-                        usage != null ? usage.getPath() : ""
-                    );
-                    if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
-                        && reservedSpace.containsShardId(shard.shardId()) == false
-                        && clusterInfo.getShardSize(shard) == null) {
-                        totalSize += Math.max(shard.getExpectedShardSize(), 0L);
-                    }
-                }
-                return totalSize;
-            });
-        } catch (ExecutionException ignore) {
-            return 0L;
-        }
+    public long unaccountableSearchableSnapshotSize(RoutingNode routingNode) {
+        return unaccountableSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
     }
 
     public enum DebugMode {

@@ -265,7 +265,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     state = executeTask(state, results, taskContext, listener);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
@@ -282,7 +282,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     1024,
                     reason
                 );
-                state = allocationService.reroute(state, reason.toString(), listener.reroute());
+                try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                    state = allocationService.reroute(state, reason.toString(), listener.reroute());
+                }
             } else {
                 listener.noRerouteNeeded();
             }

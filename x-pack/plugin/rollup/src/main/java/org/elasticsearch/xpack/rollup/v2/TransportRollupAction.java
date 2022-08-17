@@ -97,7 +97,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
                 final var task = taskContext.getTask();
-                state = task.execute(state);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    state = task.execute(state);
+                }
                 taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
@@ -265,6 +267,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                             // Number of replicas had been previously set to 0 to speed up index population
                             if (sourceIndexMetadata.getNumberOfReplicas() > 0) {
                                 settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas());
+                            }
+                            // Setting index.hidden has been initially set to true. We revert this to the value of the source index
+                            if (sourceIndexMetadata.isHidden() == false) {
+                                if (sourceIndexMetadata.getSettings().keySet().contains(IndexMetadata.SETTING_INDEX_HIDDEN)) {
+                                    settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, false);
+                                } else {
+                                    settings.putNull(IndexMetadata.SETTING_INDEX_HIDDEN);
+                                }
                             }
                             UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings.build(), rollupIndexName);
                             updateSettingsReq.setParentTask(parentTask);
@@ -544,7 +554,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
              * case rollup will fail.
              */
             Settings.builder()
-                .put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), true)
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")

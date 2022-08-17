@@ -78,6 +78,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -185,6 +186,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final IndicesService indicesService;
 
+    private final FileSettingsService fileSettingsService;
+
     private final ThreadPool threadPool;
 
     private volatile boolean refreshRepositoryUuidOnRestore;
@@ -199,6 +202,7 @@ public class RestoreService implements ClusterStateApplier {
         ShardLimitValidator shardLimitValidator,
         SystemIndices systemIndices,
         IndicesService indicesService,
+        FileSettingsService fileSettingsService,
         ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
@@ -214,6 +218,7 @@ public class RestoreService implements ClusterStateApplier {
         this.shardLimitValidator = shardLimitValidator;
         this.systemIndices = systemIndices;
         this.indicesService = indicesService;
+        this.fileSettingsService = fileSettingsService;
         this.threadPool = threadPool;
         this.refreshRepositoryUuidOnRestore = REFRESH_REPO_UUID_ON_RESTORE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -1395,6 +1400,7 @@ public class RestoreService implements ClusterStateApplier {
             // Restore global state if needed
             if (request.includeGlobalState()) {
                 applyGlobalStateRestore(currentState, mdBuilder);
+                fileSettingsService.handleSnapshotRestore(currentState, mdBuilder);
             }
 
             if (completed(shards)) {

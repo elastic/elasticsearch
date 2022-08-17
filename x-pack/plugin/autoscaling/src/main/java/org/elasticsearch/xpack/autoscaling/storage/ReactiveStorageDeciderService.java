@@ -288,8 +288,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 false
             )
                 .filter(shard -> canAllocate(shard, allocation) == false)
-                .map(shard -> cannotAllocateDueToStorage(shard, allocation))
-                .filter(r -> r.decision)
+                .flatMap(shard -> Optional.of(cannotAllocateDueToStorage(shard, allocation)).filter(r -> r.decision).stream())
                 .toList();
             return new ShardsSize(
                 unassignedShards.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum(),
@@ -332,8 +331,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
             List<DecisionAllocationResult> unallocatedDecisionAllocationResults = candidates.stream()
                 .filter(Predicate.not(unmovableShards::contains))
-                .map(shard -> cannotAllocateDueToStorage(shard, allocation))
-                .filter(e -> e.decision)
+                .flatMap(shard -> Optional.of(cannotAllocateDueToStorage(shard, allocation)).filter(e -> e.decision).stream())
                 .toList();
             long unallocatableBytes = unallocatedDecisionAllocationResults.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
 

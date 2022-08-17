@@ -110,7 +110,7 @@ PUT _ilm/policy/my_policy
       "hot": {
         "actions": {
           "rollover" : {
-            "max_primary_shard_size": "50GB"
+            "max_primary_shard_size": "50gb"
           }
         }
       }
@@ -133,7 +133,7 @@ PUT _ilm/policy/my_policy
       "hot": {
         "actions": {
           "rollover" : {
-            "max_size": "100GB"
+            "max_size": "100gb"
           }
         }
       }
@@ -228,7 +228,7 @@ PUT _ilm/policy/my_policy
         "actions": {
           "rollover" : {
             "max_age": "7d",
-            "max_size": "100GB"
+            "max_size": "100gb"
           }
         }
       }
@@ -255,7 +255,7 @@ PUT /_ilm/policy/rollover_policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_size": "50GB"
+            "max_size": "50gb"
           }
         }
       },

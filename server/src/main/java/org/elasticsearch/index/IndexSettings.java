@@ -550,12 +550,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> USE_BLOOM_FILTER_FOR_ID_FIELD = Setting.boolSetting(
-        "index.use_bloom_filter_for_id_field",
-        false,
-        Property.IndexScope
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -646,8 +640,6 @@ public final class IndexSettings {
     private volatile int maxRegexLength;
 
     private final IndexRouting indexRouting;
-
-    private final boolean useBloomFilterForIdField;
 
     /**
      * Returns the default search fields for this index.
@@ -767,7 +759,6 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-        useBloomFilterForIdField = scopedSettings.get(USE_BLOOM_FILTER_FOR_ID_FIELD);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -1376,9 +1367,5 @@ public final class IndexSettings {
      */
     public IndexRouting getIndexRouting() {
         return indexRouting;
-    }
-
-    public boolean isUseBloomFilterForIdField() {
-        return useBloomFilterForIdField;
     }
 }

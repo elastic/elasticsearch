@@ -174,7 +174,7 @@ public class ValuesSourceRegistry {
                         valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
                     );
                 assert unmappedException != null
-                    : "value source type ["
+                    : "Value source type ["
                         + valuesSourceConfig.valueSourceType()
                         + "] did not return a valid exception for aggregation ["
                         + registryKey.getName()

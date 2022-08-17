@@ -133,10 +133,11 @@ public class RoutingAllocation {
                         node.nodeId(),
                         usage != null ? usage.getPath() : ""
                     );
-                    if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                    if (shard.getExpectedShardSize() > 0
+                        && clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
                         && reservedSpace.containsShardId(shard.shardId()) == false
                         && clusterInfo.getShardSize(shard) == null) {
-                        totalSize += Math.max(shard.getExpectedShardSize(), 0L);
+                        totalSize += shard.getExpectedShardSize();
                     }
                 }
                 if (totalSize > 0) {

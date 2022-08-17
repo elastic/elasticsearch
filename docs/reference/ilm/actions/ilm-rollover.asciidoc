@@ -97,7 +97,7 @@ The `docs` value shows the number of documents each shard.
 
 `min_age`::
 (Optional,  <<time-units, time units>>)
-Prevents rollover until after the maximum elapsed time from index creation is reached.
+Prevents rollover until after the minimum elapsed time from index creation is reached.
 See notes on `max_age`.
 
 `min_docs`::
@@ -113,7 +113,7 @@ See notes on `max_size`.
 `min_primary_shard_size`::
 (Optional, <<byte-units, byte units>>)
 Prevents rollover until the largest primary shard in the index reaches a certain size.
-See notes on `min_primary_shard_size`.
+See notes on `max_primary_shard_size`.
 
 `min_primary_shard_docs`::
 (Optional, integer)

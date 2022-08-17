@@ -44,7 +44,7 @@ tasks.register('initfulfillingCluster', RunTask) {
   useCluster testClusters.named("fulfilling-cluster")
   initOnly = true //only initialize the testCluster, don't start it
   portOffset = 1 //when only initializing, instruct to use one above the normal ports to avoid collisions when other cluster also initializes
-  debug = true //this task doesn't honor the command line options for run-ccs, so need to statically configure debug
+  //debug = true //this task doesn't honor the command line options for run-ccs, so need to statically configure debug
 }
 
 tasks.register("run-ccs", RunTask) {

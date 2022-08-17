@@ -79,7 +79,8 @@ public class RoutingAllocation {
     @Nullable
     private final DesiredNodes desiredNodes;
 
-    private Map<String, Long> unaccountableSearchableSnapshotSizes;
+    // Tracks the sizes of the searchable snapshots that aren't yet registered in ClusterInfo by their cluster node id
+    private final Map<String, Long> unaccountedSearchableSnapshotSizes;
 
     public RoutingAllocation(
         AllocationDeciders deciders,
@@ -123,7 +124,7 @@ public class RoutingAllocation {
         }
         this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
-        unaccountableSearchableSnapshotSizes = new HashMap<>();
+        unaccountedSearchableSnapshotSizes = new HashMap<>();
         if (clusterInfo != null) {
             for (RoutingNode node : clusterState.getRoutingNodes()) {
                 long totalSize = 0;
@@ -141,7 +142,7 @@ public class RoutingAllocation {
                     }
                 }
                 if (totalSize > 0) {
-                    unaccountableSearchableSnapshotSizes.put(node.nodeId(), totalSize);
+                    unaccountedSearchableSnapshotSizes.put(node.nodeId(), totalSize);
                 }
             }
         }
@@ -359,8 +360,8 @@ public class RoutingAllocation {
         this.hasPendingAsyncFetch = true;
     }
 
-    public long unaccountableSearchableSnapshotSize(RoutingNode routingNode) {
-        return unaccountableSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
+    public long unaccountedSearchableSnapshotSize(RoutingNode routingNode) {
+        return unaccountedSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
     }
 
     public enum DebugMode {

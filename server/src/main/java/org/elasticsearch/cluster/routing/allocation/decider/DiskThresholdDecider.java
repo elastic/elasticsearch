@@ -206,7 +206,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.metadata(),
                 allocation.routingTable(),
-                allocation.unaccountableSearchableSnapshotSize(node)
+                allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
                 "fewer free bytes remaining than the size of all incoming shards: "
@@ -426,7 +426,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.metadata(),
                 allocation.routingTable(),
-                allocation.unaccountableSearchableSnapshotSize(node)
+                allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
                 "fewer free bytes remaining than the size of all incoming shards: "
@@ -505,7 +505,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.metadata(),
                 allocation.routingTable(),
-                allocation.unaccountableSearchableSnapshotSize(node)
+                allocation.unaccountedSearchableSnapshotSize(node)
             )
         );
         logger.trace("getDiskUsage(subtractLeavingShards={}) returning {}", subtractLeavingShards, diskUsageWithRelocations);

@@ -157,7 +157,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
      * @return
      */
     @Override
-    public Class<?> findClass(String moduleName, String name) {
+    protected Class<?> findClass(String moduleName, String name) {
         // built-in classloader:
         // 1. if we have a module name, we get the package name and look up the module,
         //      then load from the module by calling define class with the name and module
@@ -182,7 +182,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
      * @return
      */
     @Override
-    public Class<?> findClass(String name) {
+    protected Class<?> findClass(String name) {
         // built-in classloaders:
         // try to find a module for the class name by looking up package, then do what
         //   findClass(String, String) does

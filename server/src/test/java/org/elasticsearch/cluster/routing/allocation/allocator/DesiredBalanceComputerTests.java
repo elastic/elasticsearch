@@ -406,7 +406,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,
             createInput(clusterState),
-            List.of(new MoveAllocationCommand(index.getName(), 0, "node-0", "node-2")),
+            List.of(new MoveAllocationCommand(index.getName(), 0, "node-1", "node-2")),
             input -> true
         );
 
@@ -414,7 +414,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             desiredBalance,
             Map.of(
                 new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-1", "node-2"), 2, 0, 0),
+                new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0),
                 new ShardId(index, 1),
                 new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
             )

@@ -1,0 +1,332 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "admin_role"
+        body:  >
+            {
+              "cluster": ["manage_api_key"],
+              "indices": [
+                {
+                  "names": "*",
+                  "privileges": ["all"]
+                }
+              ],
+              "applications": [
+                {
+                  "application": "myapp",
+                  "privileges": ["*"],
+                  "resources": ["*"]
+                }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "api_key_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "admin_role" ],
+            "full_name" : "API key user"
+          }
+
+
+
+---
+teardown:
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_user"
+        ignore: 404
+
+---
+"Test API key role descriptors in Get and Query responses":
+  - skip:
+      features: transform_and_set
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+          {
+            "name": "key-0-with-implicit-inherit"
+          }
+  - match: { name: "key-0-with-implicit-inherit" }
+  - is_true: id
+  - set: { id: api_key_id_0 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        id: "$api_key_id_0"
+  - match: { "api_keys.0.id": "$api_key_id_0" }
+  - match: { "api_keys.0.role_descriptors": { } }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+          {
+            "name": "key-1-with-explicit-inherit",
+            "role_descriptors": {}
+          }
+  - match: { name: "key-1-with-explicit-inherit" }
+  - is_true: id
+  - set: { id: api_key_id_1 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        id: "$api_key_id_1"
+  - match: { "api_keys.0.id": "$api_key_id_1" }
+  - match: { "api_keys.0.role_descriptors": { } }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+          {
+            "name": "key-2-with-single-assigned-role-descriptor",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["all"],
+                "index": [
+                  {
+                    "names": ["index-a"],
+                    "privileges": ["read"]
+                  }
+                ]
+              }
+            }
+          }
+  - match: { name: "key-2-with-single-assigned-role-descriptor" }
+  - is_true: id
+  - set: { id: api_key_id_2 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        id: "$api_key_id_2"
+  - match: { "api_keys.0.id": "$api_key_id_2" }
+  - match: { "api_keys.0.role_descriptors": {
+    "role-a": {
+      "cluster": [
+        "all"
+      ],
+      "indices": [
+        {
+          "names": [
+            "index-a"
+          ],
+          "privileges": [
+            "read"
+          ],
+          "allow_restricted_indices": false
+        }
+      ],
+      "applications": [ ],
+      "run_as": [ ],
+      "metadata": { },
+      "transient_metadata": {
+        "enabled": true
+      }
+    }
+  }
+  }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+          {
+            "name": "key-3-with-multiple-assigned-role-descriptors",
+            "expiration": "1d",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["all"],
+                "index": [
+                  {
+                    "names": ["index-a"],
+                    "privileges": ["read"]
+                  }
+                ]
+              },
+              "role-b": {
+                "cluster": ["manage"],
+                "index": [
+                  {
+                    "names": ["index-b"],
+                    "privileges": ["all"]
+                  }
+                ]
+              }
+            }
+          }
+  - match: { name: "key-3-with-multiple-assigned-role-descriptors" }
+  - is_true: id
+  - set: { id: api_key_id_3 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        id: "$api_key_id_3"
+  - match: { "api_keys.0.id": "$api_key_id_3" }
+  - match: { "api_keys.0.role_descriptors": {
+    "role-a": {
+      "cluster": [
+        "all"
+      ],
+      "indices": [
+        {
+          "names": [
+            "index-a"
+          ],
+          "privileges": [
+            "read"
+          ],
+          "allow_restricted_indices": false
+        }
+      ],
+      "applications": [ ],
+      "run_as": [ ],
+      "metadata": { },
+      "transient_metadata": {
+        "enabled": true
+      }
+    },
+    "role-b": {
+      "cluster": [
+        "manage"
+      ],
+      "indices": [
+        {
+          "names": [
+            "index-b"
+          ],
+          "privileges": [
+            "all"
+          ],
+          "allow_restricted_indices": false
+        }
+      ],
+      "applications": [ ],
+      "run_as": [ ],
+      "metadata": { },
+      "transient_metadata": {
+        "enabled": true
+      }
+    }
+  }
+  }
+
+  # Query API keys
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.query_api_keys:
+        body: >
+          {
+            "sort": [ "name" ]
+          }
+  - match: { total: 4 }
+  - match: { count: 4 }
+  - match: { "api_keys.0.name": "key-0-with-implicit-inherit" }
+  - match: { "api_keys.0.role_descriptors": { } }
+  - match: { "api_keys.1.name": "key-1-with-explicit-inherit" }
+  - match: { "api_keys.1.role_descriptors": { } }
+  - match: { "api_keys.2.name": "key-2-with-single-assigned-role-descriptor"}
+  - match: { "api_keys.2.role_descriptors": {
+    "role-a": {
+      "cluster": [
+        "all"
+      ],
+      "indices": [
+        {
+          "names": [
+            "index-a"
+          ],
+          "privileges": [
+            "read"
+          ],
+          "allow_restricted_indices": false
+        }
+      ],
+      "applications": [ ],
+      "run_as": [ ],
+      "metadata": { },
+      "transient_metadata": {
+        "enabled": true
+      }
+    }
+  }
+  }
+  - match: { "api_keys.3.name": "key-3-with-multiple-assigned-role-descriptors"}
+  - match: { "api_keys.3.role_descriptors": {
+    "role-a": {
+      "cluster": [
+        "all"
+      ],
+      "indices": [
+        {
+          "names": [
+            "index-a"
+          ],
+          "privileges": [
+            "read"
+          ],
+          "allow_restricted_indices": false
+        }
+      ],
+      "applications": [ ],
+      "run_as": [ ],
+      "metadata": { },
+      "transient_metadata": {
+        "enabled": true
+      }
+    },
+    "role-b": {
+      "cluster": [
+        "manage"
+      ],
+      "indices": [
+        {
+          "names": [
+            "index-b"
+          ],
+          "privileges": [
+            "all"
+          ],
+          "allow_restricted_indices": false
+        }
+      ],
+      "applications": [ ],
+      "run_as": [ ],
+      "metadata": { },
+      "transient_metadata": {
+        "enabled": true
+      }
+    }
+  }
+  }
+

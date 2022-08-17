@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -45,7 +46,7 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(RoutingTable.builder().addAsNew(metadata.index("idx")).build())
             .build();
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         Set<String> failedNodeIds = new HashSet<>();
 
         // track the failed nodes if shard is not started

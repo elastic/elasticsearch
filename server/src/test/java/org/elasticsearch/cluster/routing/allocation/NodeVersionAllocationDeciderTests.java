@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -112,7 +113,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(3));
@@ -143,7 +144,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3", VersionUtils.getPreviousVersion())))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(3));
@@ -153,7 +154,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(3));

@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -53,7 +54,9 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
             .build();
 
         AllocationService strategy = createAllocationService();
-        clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
+            .build();
 
         String clusterStateString = Strings.toString(clusterState);
         assertNotNull(clusterStateString);

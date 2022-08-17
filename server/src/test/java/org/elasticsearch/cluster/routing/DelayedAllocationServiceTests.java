@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -86,7 +87,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
             .build();
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // starting replicas
@@ -141,7 +142,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         final long baseTimestampNanos = System.nanoTime();
         allocationService.setNanoTimeOverride(baseTimestampNanos);
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // starting replicas
@@ -255,7 +256,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             )
             .build();
         // allocate shards
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         // start primaries
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // start replicas
@@ -442,7 +443,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         final long nodeLeftTimestampNanos = System.nanoTime();
         allocationService.setNanoTimeOverride(nodeLeftTimestampNanos);
-        clusterState = allocationService.reroute(clusterState, "reroute");
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         // starting replicas

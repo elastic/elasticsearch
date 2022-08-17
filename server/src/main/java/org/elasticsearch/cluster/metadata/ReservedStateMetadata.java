@@ -217,6 +217,18 @@ public record ReservedStateMetadata(
         /**
          * Creates an reserved state metadata builder
          *
+         * @param metadata  the previous metadata
+         */
+        public Builder(ReservedStateMetadata metadata) {
+            this(metadata.namespace);
+            this.version = metadata.version;
+            this.handlers = new HashMap<>(metadata.handlers);
+            this.errorMetadata = metadata.errorMetadata;
+        }
+
+        /**
+         * Creates an reserved state metadata builder
+         *
          * @param namespace the namespace for which we are storing metadata, e.g. file_settings
          * @param metadata  the previous metadata
          */

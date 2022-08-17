@@ -1770,11 +1770,21 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         /**
          * Adds a {@link ReservedStateMetadata} for a given namespace to the metadata builder
-         * @param metadata an {@link ReservedStateMetadata}
+         * @param metadata a {@link ReservedStateMetadata}
          * @return {@link Builder}
          */
         public Builder put(ReservedStateMetadata metadata) {
             reservedStateMetadata.put(metadata.namespace(), metadata);
+            return this;
+        }
+
+        /**
+         * Removes a {@link ReservedStateMetadata} for a given namespace
+         * @param metadata a {@link ReservedStateMetadata}
+         * @return {@link Builder}
+         */
+        public Builder removeReservedState(ReservedStateMetadata metadata) {
+            reservedStateMetadata.remove(metadata.namespace());
             return this;
         }
 

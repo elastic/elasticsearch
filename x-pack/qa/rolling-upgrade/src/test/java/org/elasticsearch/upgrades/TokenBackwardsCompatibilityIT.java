@@ -19,7 +19,6 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -119,7 +118,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         storeTokens(client(), 4, refreshedAccessToken, refreshedRefreshToken, refreshedTokenExpirationTime);
     }
 
-    @Ignore
     public void testInvalidatingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
         // Creates access and refresh tokens and tries to use the access tokens several times
@@ -154,7 +152,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
-    @Ignore
     public void testTokensStayInvalidatedInMixedCluster() throws Exception {
         // Verify that an old, invalidated token remains invalidated during all stages of the rolling upgrade
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
@@ -163,7 +160,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertRefreshTokenInvalidated((String) source.get("refresh_token"));
     }
 
-    @Ignore
     public void testGeneratingTokensInMixedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         // Creates two access and refresh tokens and stores them in the token_backwards_compatibility_it index to be used for tests in the
@@ -196,7 +192,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
-    @Ignore
     public void testRefreshingTokensInMixedCluster() throws Exception {
         // verify new nodes can refresh tokens created by old nodes and vice versa
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
@@ -218,7 +213,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
-    @Ignore
     public void testInvalidatingTokensInMixedCluster() throws Exception {
         // Verify that we can invalidate an access and refresh token in a mixed cluster
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
@@ -234,7 +228,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertRefreshTokenInvalidated(refreshToken);
     }
 
-    @Ignore
     public void testTokensStayInvalidatedInUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
         for (int tokenIdx : Arrays.asList(2, 5)) {

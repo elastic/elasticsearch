@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.spatial.search;
 
+import org.apache.lucene.geo.Circle;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 import org.hamcrest.Matchers;
@@ -273,8 +274,11 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         // Check label position is in the geometry, but with a tolerance constructed as a circle of 1m radius to handle quantization
         Point labelPosition = new Point(fields.get("label_lon").getValue(), fields.get("label_lat").getValue());
-        Circle tolerance = new Circle(labelPosition.getX(), labelPosition.getY(), 1);
-        assertTrue("Expect label position " + labelPosition + " to intersect geometry " + geometry, value.intersects(tolerance));
+        Circle tolerance = new Circle(labelPosition.getY(), labelPosition.getX(), 1);
+        assertTrue(
+            "Expect label position " + labelPosition + " to intersect geometry " + geometry,
+            value.relate(tolerance) != GeoRelation.QUERY_DISJOINT
+        );
 
         // Check that the label position is the expected one, or the centroid in certain polygon cases
         if (expectedLabelPosition != null) {

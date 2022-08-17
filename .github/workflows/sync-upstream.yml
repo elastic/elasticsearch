@@ -51,3 +51,10 @@ jobs:
 #           method: merge
 #           number: ${{ steps.pr-create-esql.outputs.number }}
 #           github-token: ${{ secrets.ELASTICSEARCHMACHINE }}
+
+      - name: Merge ESQL PR
+        id: pr-mark-auto-merge
+        if: steps.pr-create-esql.outputs.created == 'true'
+        uses: alexwilson/enable-github-automerge-action@1.0.0
+        with:
+           github-token: ${{ secrets.ELASTICSEARCHMACHINE }}

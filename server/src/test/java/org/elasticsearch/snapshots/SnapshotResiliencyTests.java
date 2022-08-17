@@ -166,6 +166,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -1933,6 +1934,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,
                     indicesService,
+                    mock(FileSettingsService.class),
                     threadPool
                 );
                 actions.put(
@@ -2173,7 +2175,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     random(),
                     rerouteService,
                     ElectionStrategy.DEFAULT_INSTANCE,
-                    () -> new StatusInfo(HEALTHY, "healthy-info")
+                    () -> new StatusInfo(HEALTHY, "healthy-info"),
+                    new NoneCircuitBreakerService()
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

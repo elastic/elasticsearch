@@ -65,7 +65,9 @@ class IndexLifecycleRunner {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     try {
                         final var task = taskContext.getTask();
-                        state = task.execute(state);
+                        try (var ignored = taskContext.captureResponseHeaders()) {
+                            state = task.execute(state);
+                        }
                         taskContext.success(
                             new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, batchExecutionContext.initialState())
                         );

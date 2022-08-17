@@ -210,7 +210,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(stateService).process(any(), (XContentParser) any(), any());
 
         service.start();
-        service.startWatcher(true);
+        service.startWatcher(clusterService.state(), true);
 
         verify(service, times(1)).processFileSettings(any(), any());
 

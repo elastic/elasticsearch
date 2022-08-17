@@ -240,8 +240,10 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testAccessTokensWorkInUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
         for (int tokenIdx : Arrays.asList(3, 4, 10, 12)) {
-            Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
-            assertAccessTokenWorks((String) source.get("token"));
+            final Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
+            final var accessToken = (String) source.get("token");
+            final var expirationTime = Instant.ofEpochMilli((Long) source.get("expiration_time"));
+            assertAccessTokenWorksUnlessExpired(accessToken, expirationTime);
         }
     }
 
@@ -314,10 +316,16 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
+    /**
+     * Our rolling upgrade tests are long-running. Sometimes, tokens created in the old cluster are expired (max lifetime is 1h) by the time
+     * we attempt to use them in a mixed/upgraded cluster. This method accounts for this by asserting that a token works if it's not expired
+     * and that we get an expiration error otherwise.
+     */
     private void assertAccessTokenWorksUnlessExpired(final String token, final Instant expirationTime) throws IOException {
         for (RestClient client : twoClients) {
             final var now = Instant.now();
             final int slackForExpirationInSeconds = 10;
+            // To avoid test flakiness, treat tokens close to expiration time as possibly expired
             if (now.plusSeconds(slackForExpirationInSeconds).isBefore(expirationTime)) {
                 assertAccessTokenWorks(client, token);
             } else {

@@ -324,12 +324,10 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private void assertAccessTokenWorksUnlessExpired(final String token, final Instant expirationTime) throws IOException {
         for (RestClient client : twoClients) {
             final var now = Instant.now();
-            final int slackForExpirationInSeconds = 120;
+            final int slackForExpirationInSeconds = 10;
             if (now.plusSeconds(slackForExpirationInSeconds).isBefore(expirationTime)) {
-                logger.info("Asserting access token works");
                 assertAccessTokenWorks(client, token);
             } else {
-                logger.info("Asserting access token may be expired");
                 assertAccessTokenMaybeExpired(client, token);
             }
         }
@@ -345,7 +343,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertOK(response);
             assertEquals("test_user", entityAsMap(response).get("username"));
         } catch (ResponseException e) {
-            logger.info("Token expired");
+            logger.info("Access token expired due to long-running test suite");
             assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
             final Response response = e.getResponse();
             assertEquals("""

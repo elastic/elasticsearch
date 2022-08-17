@@ -368,6 +368,7 @@ tasks.named("thirdPartyAudit").configure {
           // We don't use the kms dependency
           'com.amazonaws.services.kms.AWSKMS',
           'com.amazonaws.services.kms.AWSKMSClient',
+          'com.amazonaws.services.kms.AWSKMSClientBuilder',
           'com.amazonaws.services.kms.model.DecryptRequest',
           'com.amazonaws.services.kms.model.DecryptResult',
           'com.amazonaws.services.kms.model.EncryptRequest',

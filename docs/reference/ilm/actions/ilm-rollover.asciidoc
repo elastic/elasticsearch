@@ -102,7 +102,7 @@ See notes on `max_age`.
 
 `min_docs`::
 (Optional, integer)
-Prevents rollover until after the specified maximum number of documents is reached.
+Prevents rollover until after the specified minimum number of documents is reached.
 See notes on `max_docs`.
 
 `min_size`::

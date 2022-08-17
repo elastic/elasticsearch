@@ -59,14 +59,13 @@ public interface ShardsAllocator {
         // we ignore disable allocation, because commands are explicit
         allocation.ignoreDisable(true);
 
-        if (retryFailed) {
-            allocation.resetFailedAllocationCounter();
-        }
-
         try {
+            if (retryFailed) {
+                allocation.routingNodes().unassigned().resetFailedAllocationCounter(allocation.changes());
+            }
             return commands.execute(allocation, explain);
         } finally {
-            // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
+            // revert the ignore disable flag, since when rerouting, we want the original setting to take place
             allocation.ignoreDisable(false);
             allocation.setDebugMode(originalDebugMode);
         }

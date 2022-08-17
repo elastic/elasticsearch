@@ -150,10 +150,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             final var accessToken = (String) source.get("token");
             final var expirationTime = Instant.ofEpochMilli((Long) source.get("expiration_time"));
             final var now = Instant.now();
-            final int slackInSeconds = 10;
-            if (now.plusSeconds(slackInSeconds).isAfter(expirationTime)) {
-                // test took long enough for token to expire or almost expire; to avoid flakiness check that it's expired
-                assertBusy(() -> assertAccessTokenDoesNotWork(accessToken));
+            final int slackForExpirationInSeconds = 10;
+            if (now.plusSeconds(slackForExpirationInSeconds).isAfter(expirationTime)) {
+                // Test took long enough for token to be potentially expired. We allow for a window of slack for the edge case where
+                // a token is not yet expired when the call is made
+                assertAccessTokenMaybeExpired(accessToken);
             } else {
                 assertAccessTokenWorks(accessToken);
             }
@@ -315,6 +316,26 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertEquals("""
                 Bearer realm="security", error="invalid_token", error_description="The access token expired"\
                 """, response.getHeader("WWW-Authenticate"));
+        }
+    }
+
+    private void assertAccessTokenMaybeExpired(final String token) throws IOException {
+        for (RestClient client : twoClients) {
+            final var request = new Request("GET", "/_security/_authenticate");
+            final RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+            request.setOptions(options);
+            try {
+                final Response response = client.performRequest(request);
+                assertOK(response);
+                assertEquals("test_user", entityAsMap(response).get("username"));
+            } catch (ResponseException e) {
+                assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
+                final Response response = e.getResponse();
+                assertEquals("""
+                    Bearer realm="security", error="invalid_token", error_description="The access token expired"\
+                    """, response.getHeader("WWW-Authenticate"));
+            }
         }
     }
 

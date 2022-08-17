@@ -62,26 +62,26 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         // Creates two access and refresh tokens and stores them in the token_backwards_compatibility_it index to be used for tests in the
         // mixed/upgraded clusters
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
+        Integer expiresIn = (Integer) responseMap.get("expires_in");
+        assertNotNull(expiresIn);
+        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
-        Integer expiresIn = (Integer) responseMap.get("expires_in");
-        assertNotNull(expiresIn);
-        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
 
         storeTokens(client(), 1, accessToken, refreshToken, expirationTime);
 
         responseMap = createTokens(client(), "test_user", "x-pack-test-password");
+        expiresIn = (Integer) responseMap.get("expires_in");
+        assertNotNull(expiresIn);
+        expirationTime = Instant.now().plusSeconds(expiresIn);
         accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
         refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
-        expiresIn = (Integer) responseMap.get("expires_in");
-        assertNotNull(expiresIn);
-        expirationTime = Instant.now().plusSeconds(expiresIn);
 
         storeTokens(client(), 2, accessToken, refreshToken, expirationTime);
     }
@@ -90,25 +90,25 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
         // Creates access and refresh tokens and uses the refresh token. The new resulting tokens are used in different phases
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
+        Integer expiresIn = (Integer) responseMap.get("expires_in");
+        assertNotNull(expiresIn);
+        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
-        Integer expiresIn = (Integer) responseMap.get("expires_in");
-        assertNotNull(expiresIn);
-        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
 
         storeTokens(client(), 3, accessToken, refreshToken, expirationTime);
 
         // refresh the token just created. The old token is invalid (tested further) and the new refresh token is tested in the upgraded
         // cluster
         Map<String, Object> refreshResponseMap = refreshToken(client(), refreshToken);
-        String refreshedAccessToken = (String) refreshResponseMap.get("access_token");
-        String refreshedRefreshToken = (String) refreshResponseMap.get("refresh_token");
         Integer refreshedTokenExpiresIn = (Integer) responseMap.get("expires_in");
         assertNotNull(refreshedTokenExpiresIn);
         Instant refreshedTokenExpirationTime = Instant.now().plusSeconds(refreshedTokenExpiresIn);
+        String refreshedAccessToken = (String) refreshResponseMap.get("access_token");
+        String refreshedRefreshToken = (String) refreshResponseMap.get("refresh_token");
         assertNotNull(refreshedAccessToken);
         assertNotNull(refreshedRefreshToken);
         assertAccessTokenWorks(refreshedAccessToken);
@@ -122,14 +122,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
         // Creates access and refresh tokens and tries to use the access tokens several times
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
+        Integer expiresIn = (Integer) responseMap.get("expires_in");
+        assertNotNull(expiresIn);
+        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
-        Integer expiresIn = (Integer) responseMap.get("expires_in");
-        assertNotNull(expiresIn);
-        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
 
         storeTokens(client(), 5, accessToken, refreshToken, expirationTime);
 
@@ -167,26 +167,26 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         int generatedTokenIdxDuringMixed = 10;
         for (RestClient client : twoClients) {
             Map<String, Object> responseMap = createTokens(client, "test_user", "x-pack-test-password");
+            Integer expiresIn = (Integer) responseMap.get("expires_in");
+            assertNotNull(expiresIn);
+            Instant expirationTime = Instant.now().plusSeconds(expiresIn);
             String accessToken = (String) responseMap.get("access_token");
             assertNotNull(accessToken);
             assertAccessTokenWorks(accessToken);
             String refreshToken = (String) responseMap.get("refresh_token");
             assertNotNull(refreshToken);
-            Integer expiresIn = (Integer) responseMap.get("expires_in");
-            assertNotNull(expiresIn);
-            Instant expirationTime = Instant.now().plusSeconds(expiresIn);
 
             storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken, expirationTime);
 
             responseMap = createTokens(client, "test_user", "x-pack-test-password");
+            expiresIn = (Integer) responseMap.get("expires_in");
+            assertNotNull(expiresIn);
+            expirationTime = Instant.now().plusSeconds(expiresIn);
             accessToken = (String) responseMap.get("access_token");
             assertNotNull(accessToken);
             assertAccessTokenWorks(accessToken);
             refreshToken = (String) responseMap.get("refresh_token");
             assertNotNull(refreshToken);
-            expiresIn = (Integer) responseMap.get("expires_in");
-            assertNotNull(expiresIn);
-            expirationTime = Instant.now().plusSeconds(expiresIn);
 
             storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken, expirationTime);
         }

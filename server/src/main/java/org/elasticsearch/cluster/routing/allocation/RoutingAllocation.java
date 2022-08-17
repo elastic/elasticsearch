@@ -23,10 +23,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -35,7 +32,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptySet;
 
@@ -128,22 +124,24 @@ public class RoutingAllocation {
         this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         unaccountableSearchableSnapshotSizes = new HashMap<>();
-        for (RoutingNode node : clusterState.getRoutingNodes()) {
-            long totalSize = 0;
-            for (ShardRouting shard : node.started()) {
-                if (clusterInfo == null) {
-                    continue;
+        if (clusterInfo != null) {
+            for (RoutingNode node : clusterState.getRoutingNodes()) {
+                long totalSize = 0;
+                for (ShardRouting shard : node.started()) {
+                    DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
+                    ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(
+                        node.nodeId(),
+                        usage != null ? usage.getPath() : ""
+                    );
+                    if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                        && reservedSpace.containsShardId(shard.shardId()) == false
+                        && clusterInfo.getShardSize(shard) == null) {
+                        totalSize += Math.max(shard.getExpectedShardSize(), 0L);
+                    }
                 }
-                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
-                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
-                if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
-                    && reservedSpace.containsShardId(shard.shardId()) == false
-                    && clusterInfo.getShardSize(shard) == null) {
-                    totalSize += Math.max(shard.getExpectedShardSize(), 0L);
+                if (totalSize > 0) {
+                    unaccountableSearchableSnapshotSizes.put(node.nodeId(), totalSize);
                 }
-            }
-            if (totalSize > 0) {
-                unaccountableSearchableSnapshotSizes.put(node.nodeId(), totalSize);
             }
         }
     }

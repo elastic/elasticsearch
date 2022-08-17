@@ -418,25 +418,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
         final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
-        context.getIndexSettings()
-            .getMode()
-            .validateCalendarIntervalType(
-                dateHistogramIntervalType,
-                config.getDescription()
-                    + " is not supported for aggregation ["
-                    + this.getName()
-                    + "] with interval type ["
-                    + dateHistogramIntervalType.getPreferredName()
-                    + "]"
-            );
+        context.getIndexSettings().getMode().validateCalendarIntervalType(dateHistogramIntervalType, config.getDescription(), getName());
 
         final ZoneId tz = timeZone();
-        context.getIndexSettings()
-            .getMode()
-            .validateCalendarTimeZone(
-                tz,
-                config.getDescription() + " is not supported for aggregation [" + this.getName() + "] with timezone [" + tz + "]"
-            );
+        context.getIndexSettings().getMode().validateCalendarTimeZone(tz, config.getDescription(), getName());
 
         DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);

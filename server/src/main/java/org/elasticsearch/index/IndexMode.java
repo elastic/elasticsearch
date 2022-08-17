@@ -113,10 +113,14 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum unusedIntervalType, String unusedMessage) {}
+        public void validateCalendarIntervalType(
+            DateIntervalWrapper.IntervalTypeEnum intervalType,
+            String valuesSourceDescription,
+            String aggregationName
+        ) {}
 
         @Override
-        public void validateCalendarTimeZone(ZoneId tz, String message) {}
+        public void validateCalendarTimeZone(ZoneId tz, String valuesSourceDescription, String aggregationName) {}
     },
     TIME_SERIES("time_series") {
         @Override
@@ -209,16 +213,29 @@ public enum IndexMode {
          * @param intervalType the type of interval used by the date histogram
          */
         @Override
-        public void validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType, String message) {
+        public void validateCalendarIntervalType(
+            DateIntervalWrapper.IntervalTypeEnum intervalType,
+            String valuesSourceDescription,
+            String aggregationName
+        ) {
             if (DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(intervalType)) {
-                throw new IllegalArgumentException(message);
+                throw new IllegalArgumentException(
+                    valuesSourceDescription
+                        + " is not supported for aggregation ["
+                        + aggregationName
+                        + "] with interval type ["
+                        + intervalType.getPreferredName()
+                        + "]"
+                );
             }
         }
 
         @Override
-        public void validateCalendarTimeZone(ZoneId tz, String message) {
+        public void validateCalendarTimeZone(ZoneId tz, String valuesSourceDescription, String aggregationName) {
             if (tz != null && ZoneId.of("UTC").equals(tz) == false) {
-                throw new IllegalArgumentException(message);
+                throw new IllegalArgumentException(
+                    valuesSourceDescription + " is not supported for aggregation [" + aggregationName + "] with timezone [" + tz + "]"
+                );
             }
         }
     };
@@ -357,7 +374,11 @@ public enum IndexMode {
         return getName();
     }
 
-    public abstract void validateCalendarIntervalType(DateIntervalWrapper.IntervalTypeEnum intervalType, String message);
+    public abstract void validateCalendarIntervalType(
+        DateIntervalWrapper.IntervalTypeEnum intervalType,
+        String valuesSourceDescription,
+        String aggregationName
+    );
 
-    public abstract void validateCalendarTimeZone(ZoneId tz, String message);
+    public abstract void validateCalendarTimeZone(ZoneId tz, String valueSourceDescription, String aggregationName);
 }

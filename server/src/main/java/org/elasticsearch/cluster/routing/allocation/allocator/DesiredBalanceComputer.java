@@ -173,7 +173,14 @@ public class DesiredBalanceComputer {
             try {
                 command.execute(routingAllocation, false);
             } catch (RuntimeException e) {
-                logger.debug("[{}] command failed during applying it to the desired balance", command);
+                logger.debug(
+                    () -> "move shard ["
+                        + command.index()
+                        + ":"
+                        + command.shardId()
+                        + "] command failed during applying it to the desired balance",
+                    e
+                );
             }
         }
 

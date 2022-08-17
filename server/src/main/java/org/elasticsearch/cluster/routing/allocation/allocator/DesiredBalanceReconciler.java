@@ -71,6 +71,7 @@ public class DesiredBalanceReconciler {
         logger.trace("Reconciler#allocateUnassigned");
         allocateUnassigned();
         assert allocateUnassignedInvariant();
+
         // 2. move any shards that cannot remain where they are
         logger.trace("Reconciler#moveShards");
         moveShards();

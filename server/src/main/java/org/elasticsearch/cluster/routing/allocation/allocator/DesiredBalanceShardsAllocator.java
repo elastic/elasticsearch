@@ -31,6 +31,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -65,7 +67,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
-    private final SynchronizedListBuffer<MoveAllocationCommand> pendingDesiredBalanceMoves = new SynchronizedListBuffer<>();
+    private final ConcurrentLinkedQueue<MoveAllocationCommand> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
 
@@ -98,7 +100,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                     desiredBalanceComputer.compute(
                         currentDesiredBalance,
                         desiredBalanceInput,
-                        pendingDesiredBalanceMoves.clearAndGetAll(),
+                        pollAll(pendingDesiredBalanceMoves),
                         this::isFresh
                     )
                 );
@@ -186,7 +188,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         } else {
             reset();
             queue.completeAllAsNotMaster();
-            pendingDesiredBalanceMoves.clearAndGetAll();
+            pollAll(pendingDesiredBalanceMoves);
         }
     }
 
@@ -236,18 +238,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         return builder.append(newLine).toString();
     }
 
-    private static class SynchronizedListBuffer<T> {
-
-        private final List<T> buffer = new ArrayList<>();
-
-        private synchronized void add(T item) {
-            buffer.add(item);
+    private static <T> List<T> pollAll(Queue<T> queue) {
+        var list = new ArrayList<T>();
+        T item;
+        while ((item = queue.poll()) != null) {
+            list.add(item);
         }
-
-        private synchronized List<T> clearAndGetAll() {
-            var copy = new ArrayList<T>(buffer);
-            buffer.clear();
-            return copy;
-        }
+        return list;
     }
 }

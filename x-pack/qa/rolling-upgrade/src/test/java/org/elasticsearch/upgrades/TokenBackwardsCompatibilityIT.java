@@ -318,8 +318,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     /**
      * Our rolling upgrade tests are long-running. Sometimes, tokens created in the old cluster are expired (max lifetime is 1h) by the time
-     * we attempt to use them in a mixed/upgraded cluster. This method accounts for this by asserting that a token works if it's not expired
-     * and that we get an expiration error otherwise.
+     * we attempt to use them in a mixed/upgraded cluster. This method accounts for this by asserting the expected token state based on its
+     * expected expiration time.
      */
     private void assertAccessTokenWorksUnlessExpired(final String token, final Instant expirationTime) throws IOException {
         for (RestClient client : twoClients) {

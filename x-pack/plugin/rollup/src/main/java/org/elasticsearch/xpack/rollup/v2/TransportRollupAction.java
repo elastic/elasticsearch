@@ -267,6 +267,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                             if (sourceIndexMetadata.getNumberOfReplicas() > 0) {
                                 settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas());
                             }
+                            // Setting index.hidden has been initially set to true. We revert this to the value of the source index
+                            if (sourceIndexMetadata.isHidden() == false) {
+                                if (sourceIndexMetadata.getSettings().keySet().contains(IndexMetadata.SETTING_INDEX_HIDDEN)) {
+                                    settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, false);
+                                } else {
+                                    settings.putNull(IndexMetadata.SETTING_INDEX_HIDDEN);
+                                }
+                            }
                             UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings.build(), rollupIndexName);
                             updateSettingsReq.setParentTask(parentTask);
                             client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
@@ -545,7 +553,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
              * case rollup will fail.
              */
             Settings.builder()
-                .put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), true)
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")

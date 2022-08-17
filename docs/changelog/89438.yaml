@@ -1,0 +1,6 @@
+pr: 89438
+summary: Upgrade `OpenTelemetry` API and remove workaround
+area: Infra/Core
+type: upgrade
+issues:
+ - 89414

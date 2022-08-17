@@ -1754,7 +1754,7 @@ public class ApiKeyService {
                 final var message =
                     "Cannot determine owner realms without an effective subject realm for non-API key authentication object";
                 assert false : message;
-                throw new IllegalStateException(message);
+                throw new IllegalArgumentException(message);
             }
             final RealmDomain domain = effectiveSubjectRealm.getDomain();
             if (domain != null) {

@@ -173,19 +173,13 @@ public class ValuesSourceRegistry {
                     .getUnregisteredException(
                         valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
                     );
-                if (unmappedException != null) {
-                    throw unmappedException;
-                } else {
-                    throw new IllegalArgumentException(
-                        "Unexpected null exception handler provided for field ["
-                            + valuesSourceConfig.fieldType().name()
-                            + "] of type ["
-                            + valuesSourceConfig.fieldType().typeName()
-                            + "] in aggregation ["
-                            + registryKey.getName()
-                            + "]"
-                    );
-                }
+                assert unmappedException != null
+                    : "value source type ["
+                        + valuesSourceConfig.valueSourceType()
+                        + "] did not return a valid exception for aggregation ["
+                        + registryKey.getName()
+                        + "]";
+                throw unmappedException;
             }
             return supplier;
         }

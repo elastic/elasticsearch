@@ -75,7 +75,10 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source(id, b -> b.field("field", "value"), null)).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                SearchLookup lookup = new SearchLookup(
+                    mapperService::fieldType,
+                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths)
+                );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");

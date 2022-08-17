@@ -203,13 +203,13 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
             "block",
             new ExpectSuccessTask(),
             ClusterStateTaskConfig.build(Priority.URGENT),
-            (currentState, taskContexts) -> {
+            batchExecutionContext -> {
                 executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
                 executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
-                for (final var taskContext : taskContexts) {
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     taskContext.success(() -> {});
                 }
-                return currentState;
+                return batchExecutionContext.initialState();
             }
         );
 

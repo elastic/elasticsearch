@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -187,10 +188,10 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Marking the shard as failed");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        newState = strategy.applyFailedShard(
+        newState = strategy.applyFailedShards(
             clusterState,
-            routingNodes.node("node1").shardsWithState(INITIALIZING).get(0),
-            randomBoolean()
+            List.of(new FailedShard(routingNodes.node("node1").shardsWithState(INITIALIZING).get(0), null, null, randomBoolean())),
+            List.of()
         );
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;

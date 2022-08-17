@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -80,17 +81,21 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings, random),
             new TestGatewayAllocator(),
-            switch (SHARDS_ALLOCATOR_TYPE_SETTING.get(settings)) {
-            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
-            case DESIRED_BALANCE_ALLOCATOR -> create(settings);
-            default -> throw new AssertionError("Unknown allocator");
-            },
+            createShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
     }
 
-    private static DesiredBalanceShardsAllocator create(Settings settings) {
+    private static ShardsAllocator createShardsAllocator(Settings settings) {
+        return switch (SHARDS_ALLOCATOR_TYPE_SETTING.get(settings)) {
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
+            default -> throw new AssertionError("Unknown allocator");
+        };
+    }
+
+    private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
         return new DesiredBalanceShardsAllocator(
             new BalancedShardsAllocator(settings),
@@ -99,6 +104,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 /* noop as reconciliation will await balance calculation result*/
             }
         ) {
+            @Override
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+                super.allocate(allocation, listener);
+                clusterChanged(new ClusterChangedEvent("test", allocation.getClusterState(), allocation.getClusterState()));
+            }
+
             @Override
             protected void maybeAwaitBalance() {
                 queue.runAllTasks();

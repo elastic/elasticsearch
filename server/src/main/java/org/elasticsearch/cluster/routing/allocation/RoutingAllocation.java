@@ -191,6 +191,10 @@ public class RoutingAllocation {
         return clusterState.nodes();
     }
 
+    public ClusterState getClusterState() {
+        return clusterState;
+    }
+
     public ClusterInfo clusterInfo() {
         return clusterInfo;
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -79,6 +80,10 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
 
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
+            return currentState;
+        }
+
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
 
@@ -127,5 +132,50 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         }
 
         return reservedStateMetadata.handlers().get(handlerName).keys();
+    }
+
+    static boolean checkMetadataVersion(
+        String namespace,
+        ReservedStateMetadata existingMetadata,
+        ReservedStateVersion reservedStateVersion
+    ) {
+        if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
+            logger.warn(
+                () -> format(
+                    "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
+                    reservedStateVersion.minCompatibleVersion(),
+                    namespace
+                )
+            );
+            return false;
+        }
+
+        // Version 0 is special, snapshot restores will reset to 0.
+        if (reservedStateVersion.version() <= 0L) {
+            logger.warn(
+                () -> format(
+                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
+                    namespace,
+                    reservedStateVersion.version(),
+                    existingMetadata.version()
+                )
+            );
+            return false;
+        }
+
+        if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
+            logger.warn(
+                () -> format(
+                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
+                        + " to the current metadata version [%s]",
+                    namespace,
+                    reservedStateVersion.version(),
+                    existingMetadata.version()
+                )
+            );
+            return false;
+        }
+
+        return true;
     }
 }

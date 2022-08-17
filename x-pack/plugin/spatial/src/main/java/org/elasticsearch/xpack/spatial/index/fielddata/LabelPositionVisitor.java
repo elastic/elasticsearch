@@ -26,30 +26,30 @@ public class LabelPositionVisitor<T> extends TriangleTreeReader.DecodedVisitor {
     }
 
     @Override
-    void doVisitPoint(double x, double y) {
+    void visitDecodedPoint(double x, double y) {
         assert labelPosition == null;
         labelPosition = pointMaker.apply(x, y);
     }
 
     @Override
-    public void doVisitLine(double aX, double aY, double bX, double bY, byte metadata) {
+    public void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
         assert labelPosition == null;
         labelPosition = pointMaker.apply((aX + bX) / 2.0, (aY + bY) / 2.0);
     }
 
     @Override
-    public void doVisitTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
+    public void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
         assert labelPosition == null;
         labelPosition = pointMaker.apply((aX + bX + cX) / 3.0, (aY + bY + cY) / 3.0);
     }
 
     @Override
-    boolean doPushX(double minX) {
+    boolean pushDecodedX(double minX) {
         return labelPosition == null;
     }
 
     @Override
-    boolean doPushY(double minX) {
+    boolean pushDecodedY(double minX) {
         return labelPosition == null;
     }
 
@@ -60,7 +60,7 @@ public class LabelPositionVisitor<T> extends TriangleTreeReader.DecodedVisitor {
     }
 
     @Override
-    boolean doPush(double maxX, double maxY) {
+    boolean pushDecoded(double maxX, double maxY) {
         return labelPosition == null;
     }
 
@@ -71,7 +71,7 @@ public class LabelPositionVisitor<T> extends TriangleTreeReader.DecodedVisitor {
     }
 
     @Override
-    boolean doPush(double minX, double minY, double maxX, double maxY) {
+    boolean pushDecoded(double minX, double minY, double maxX, double maxY) {
         return labelPosition == null;
     }
 

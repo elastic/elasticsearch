@@ -716,7 +716,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "doc.date.get(0)"
+                source: "doc.date_no_doc_values.get(0)"
   - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
 
   - do:
@@ -728,7 +728,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "doc.date.value"
+                source: "doc.date_no_doc_values.value"
   - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
 
   - do:
@@ -739,7 +739,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "field('date').get(null)"
+                source: "field('date_no_doc_values').get(null)"
   - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
 
   - do:
@@ -750,7 +750,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "/* avoid yaml stash */ $('date', null)"
+                source: "/* avoid yaml stash */ $('date_no_doc_values', null)"
   - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
 
   - do:
@@ -761,7 +761,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "doc.date.get(0).getMillis()"
+                source: "field('date_no_doc_values').get(null).getMillis()"
   - match: { hits.hits.0.fields.field.0: 1483272672000 }
 
   - do:
@@ -772,7 +772,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "doc.date.value.getMillis()"
+                source: "/* avoid yaml stash */ $('date_no_doc_values', null).getMillis()"
   - match: { hits.hits.0.fields.field.0: 1483272672000 }
 
   - do:
@@ -783,7 +783,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "field('date').get(null).getMillis()"
+                source: "field('date_no_doc_values').get(null).millis"
   - match: { hits.hits.0.fields.field.0: 1483272672000 }
 
   - do:
@@ -794,51 +794,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "/* avoid yaml stash */ $('date', null).getMillis()"
-  - match: { hits.hits.0.fields.field.0: 1483272672000 }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        body:
-          query: { term: { _id: 1 } }
-          script_fields:
-            field:
-              script:
-                source: "doc.date.get(0).millis"
-  - match: { hits.hits.0.fields.field.0: 1483272672000 }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        body:
-          query: { term: { _id: 1 } }
-          script_fields:
-            field:
-              script:
-                source: "doc.date.value.millis"
-  - match: { hits.hits.0.fields.field.0: 1483272672000 }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        body:
-          query: { term: { _id: 1 } }
-          script_fields:
-            field:
-              script:
-                source: "field('date').get(null).millis"
-  - match: { hits.hits.0.fields.field.0: 1483272672000 }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        body:
-          query: { term: { _id: 1 } }
-          script_fields:
-            field:
-              script:
-                source: "/* avoid yaml stash */ $('date', null).millis"
+                source: "/* avoid yaml stash */ $('date_no_doc_values', null).millis"
   - match: { hits.hits.0.fields.field.0: 1483272672000 }
 
   - do:
@@ -849,7 +805,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "field('date').get(ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+                source: "field('date_no_doc_values').get(ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
   - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
 
   - do:
@@ -860,7 +816,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "/* avoid yaml stash */ $('date', ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+                source: "/* avoid yaml stash */ $('date_no_doc_values', ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
   - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
 
   - do:
@@ -871,7 +827,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "doc['nanos'].value"
+                source: "field('nanos_no_doc_values').get(null)"
   - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
 
   - do:
@@ -882,18 +838,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "field('nanos').get(null)"
-  - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        body:
-          query: { term: { _id: "1" } }
-          script_fields:
-            field:
-              script:
-                source: "/* avoid yaml stash */ $('nanos', null)"
+                source: "/* avoid yaml stash */ $('nanos_no_doc_values', null)"
   - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
 
   - do:
@@ -904,7 +849,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "field('nanos').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+                source: "field('nanos_no_doc_values').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
   - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
 
   - do:
@@ -915,7 +860,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "/* avoid yaml stash */ $('nanos', ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+                source: "/* avoid yaml stash */ $('nanos_no_doc_values', ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
   - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
 
   - do:
@@ -926,7 +871,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "doc['nanos'].value.getNano()"
+                source: "field('nanos_no_doc_values').get(null).getNano()"
   - match: { hits.hits.0.fields.field.0: 123456789 }
 
   - do:
@@ -937,18 +882,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "field('nanos').get(null).getNano()"
-  - match: { hits.hits.0.fields.field.0: 123456789 }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        body:
-          query: { term: { _id: "1" } }
-          script_fields:
-            field:
-              script:
-                source: "/* avoid yaml stash */ $('nanos', null).getNano()"
+                source: "/* avoid yaml stash */ $('nanos_no_doc_values', null).getNano()"
   - match: { hits.hits.0.fields.field.0: 123456789 }
 
   - do:
@@ -959,7 +893,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "field('nanos').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z')).getNano()"
+                source: "field('nanos_no_doc_values').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z')).getNano()"
   - match: { hits.hits.0.fields.field.0: 123000000 }
 
   - do:
@@ -970,7 +904,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "field('date').get(1, null)"
+                source: "field('date_no_doc_values').get(1, null)"
   - match: { hits.hits.0.fields.field.0: "2018-01-01T12:11:12.000Z" }
 
   - do:
@@ -981,7 +915,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "field('nanos').get(1, null)"
+                source: "field('nanos_no_doc_values').get(1, null)"
   - match: { hits.hits.0.fields.field.0: "2015-01-01T12:10:30.987654321Z" }
 
   - do:
@@ -992,7 +926,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('date')) times.add(zdt); times"
+                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('date_no_doc_values')) times.add(zdt); times"
   - match: { hits.hits.0.fields.field: ["2017-01-01T12:11:12.000Z", "2018-01-01T12:11:12.000Z"] }
 
   - do:
@@ -1003,7 +937,7 @@ setup:
           script_fields:
             field:
               script:
-                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('nanos')) times.add(zdt); times"
+                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('nanos_no_doc_values')) times.add(zdt); times"
   - match: { hits.hits.0.fields.field: ["2015-01-01T12:10:30.123456789Z", "2015-01-01T12:10:30.987654321Z"] }
 
 ---

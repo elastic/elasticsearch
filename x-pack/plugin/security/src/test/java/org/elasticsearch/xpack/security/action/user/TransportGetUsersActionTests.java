@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -20,14 +21,22 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
+import org.elasticsearch.xpack.security.profile.ProfileService;
+import org.elasticsearch.xpack.security.profile.ProfileService.SubjectSearchResultsAndErrors;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -37,6 +46,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -48,6 +58,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.AdditionalMatchers.aryEq;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -100,7 +111,9 @@ public class TransportGetUsersActionTests extends ESTestCase {
             mock(ActionFilters.class),
             usersStore,
             transportService,
-            reservedRealm
+            reservedRealm,
+            mockRealms(),
+            mockProfileService()
         );
 
         GetUsersRequest request = new GetUsersRequest();
@@ -164,7 +177,9 @@ public class TransportGetUsersActionTests extends ESTestCase {
             mock(ActionFilters.class),
             usersStore,
             transportService,
-            reservedRealm
+            reservedRealm,
+            mockRealms(),
+            mockProfileService()
         );
 
         logger.error("names {}", names);
@@ -225,7 +240,9 @@ public class TransportGetUsersActionTests extends ESTestCase {
             mock(ActionFilters.class),
             usersStore,
             transportService,
-            reservedRealm
+            reservedRealm,
+            mockRealms(),
+            mockProfileService()
         );
 
         GetUsersRequest request = new GetUsersRequest();
@@ -291,7 +308,9 @@ public class TransportGetUsersActionTests extends ESTestCase {
             mock(ActionFilters.class),
             usersStore,
             transportService,
-            mock(ReservedRealm.class)
+            mock(ReservedRealm.class),
+            mockRealms(),
+            mockProfileService()
         );
 
         GetUsersRequest request = new GetUsersRequest();
@@ -355,7 +374,9 @@ public class TransportGetUsersActionTests extends ESTestCase {
             mock(ActionFilters.class),
             usersStore,
             transportService,
-            mock(ReservedRealm.class)
+            mock(ReservedRealm.class),
+            mockRealms(),
+            mockProfileService()
         );
 
         GetUsersRequest request = new GetUsersRequest();
@@ -400,5 +421,38 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
     private List<User> randomUsersWithInternalUsernames() {
         return AuthenticationTestHelper.randomInternalUsernames().stream().map(User::new).collect(Collectors.toList());
+    }
+
+    private Realms mockRealms() {
+        final Realms realms = mock(Realms.class);
+        when(realms.getRealmRefs()).thenReturn(
+            Map.of(
+                new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME),
+                new Authentication.RealmRef(
+                    NativeRealmSettings.DEFAULT_NAME,
+                    NativeRealmSettings.TYPE,
+                    randomAlphaOfLengthBetween(3, 8),
+                    null
+                )
+            )
+        );
+        return realms;
+    }
+
+    @SuppressWarnings("unchecked")
+    private ProfileService mockProfileService() {
+        final ProfileService profileService = mock(ProfileService.class);
+        doAnswer(invocation -> {
+            final List<Subject> subjects = (List<Subject>) invocation.getArguments()[0];
+            final var listener = (ActionListener<SubjectSearchResultsAndErrors<Profile>>) invocation.getArguments()[1];
+            listener.onResponse(
+                new SubjectSearchResultsAndErrors<>(
+                    subjects.stream().map(subject -> new Tuple<>(subject, (Profile) null)).toList(),
+                    Map.of()
+                )
+            );
+            return null;
+        }).when(profileService).searchProfilesForSubjects(anyList(), anyActionListener());
+        return profileService;
     }
 }

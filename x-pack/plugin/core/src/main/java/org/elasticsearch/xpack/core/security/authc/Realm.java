@@ -11,9 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
@@ -145,9 +143,8 @@ public abstract class Realm implements Comparable<Realm> {
         listener.onResponse(stats);
     }
 
-    public void initRealmRef(@Nullable RealmDomain domain) {
-        final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
-        this.realmRef.set(new RealmRef(config.name(), config.type(), nodeName, domain));
+    public void initRealmRef(RealmRef realmRef) {
+        this.realmRef.set(realmRef);
     }
 
     public RealmRef realmRef() {

@@ -51,26 +51,40 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] usernames = request.paramAsStringArray("username", Strings.EMPTY_ARRAY);
+        final boolean withProfileUid = request.paramAsBoolean("with_profile_uid", false);
 
-        return channel -> new GetUsersRequestBuilder(client).usernames(usernames).execute(new RestBuilderListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(GetUsersResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                for (User user : response.users()) {
-                    builder.field(user.principal(), user);
+        return channel -> new GetUsersRequestBuilder(client).usernames(usernames)
+            .withProfileUid(withProfileUid)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(GetUsersResponse response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    for (User user : response.users()) {
+                        builder.field(user.principal());
+                        builder.startObject();
+                        {
+                            user.innerToXContent(builder);
+                            if (response.getProfileUidLookup() != null) {
+                                final String profileUid = response.getProfileUidLookup().get(user.principal());
+                                if (profileUid != null) {
+                                    builder.field("profile_uid", profileUid);
+                                }
+                            }
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    // if the user asked for specific users, but none of them were found
+                    // we'll return an empty result and 404 status code
+                    if (usernames.length != 0 && response.users().length == 0) {
+                        return new RestResponse(RestStatus.NOT_FOUND, builder);
+                    }
+
+                    // either the user asked for all users, or at least one of the users
+                    // was found
+                    return new RestResponse(RestStatus.OK, builder);
                 }
-                builder.endObject();
-
-                // if the user asked for specific users, but none of them were found
-                // we'll return an empty result and 404 status code
-                if (usernames.length != 0 && response.users().length == 0) {
-                    return new RestResponse(RestStatus.NOT_FOUND, builder);
-                }
-
-                // either the user asked for all users, or at least one of the users
-                // was found
-                return new RestResponse(RestStatus.OK, builder);
-            }
-        });
+            });
     }
 }

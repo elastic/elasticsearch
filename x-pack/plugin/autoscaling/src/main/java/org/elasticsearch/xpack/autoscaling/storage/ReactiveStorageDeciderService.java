@@ -143,14 +143,16 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         long unassignedBytes = unassignedBytesUnassignedShards.sizeInBytes();
         long maxShardSize = allocationState.maxShardSize();
         long maxNodeLockedSize = allocationState.maxNodeLockedSize();
-        long minimumNodeSize = nodeSizeForDataBelowLowWatermark(Math.max(maxShardSize, maxNodeLockedSize), diskThresholdSettings)
-            + NODE_DISK_OVERHEAD;
         assert assignedBytes >= 0;
         assert unassignedBytes >= 0;
         assert maxShardSize >= 0;
         String message = message(unassignedBytes, assignedBytes);
+        long requiredTotalStorage = autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes;
+        long minimumNodeSize = requiredTotalStorage > 0L
+            ? nodeSizeForDataBelowLowWatermark(Math.max(maxShardSize, maxNodeLockedSize), diskThresholdSettings) + NODE_DISK_OVERHEAD
+            : 0L;
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null, null)
+            .total(requiredTotalStorage, null, null)
             .node(minimumNodeSize, null, null)
             .build();
         return new AutoscalingDeciderResult(

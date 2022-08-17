@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.query.QueryShardException;
@@ -829,6 +830,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(163, RepositoryConflictException.class);
         ids.put(164, VersionConflictException.class);
         ids.put(165, SnapshotNameAlreadyInUseException.class);
+        ids.put(166, HealthNodeNotDiscoveredException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

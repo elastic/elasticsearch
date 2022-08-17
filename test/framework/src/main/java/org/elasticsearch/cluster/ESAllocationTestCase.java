@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -42,6 +44,9 @@ import java.util.Random;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
@@ -75,10 +80,30 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings, random),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(settings),
+            switch (SHARDS_ALLOCATOR_TYPE_SETTING.get(settings)) {
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case DESIRED_BALANCE_ALLOCATOR -> create(settings);
+            default -> throw new AssertionError("Unknown allocator");
+            },
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
+    }
+
+    private static DesiredBalanceShardsAllocator create(Settings settings) {
+        var queue = new DeterministicTaskQueue();
+        return new DesiredBalanceShardsAllocator(
+            new BalancedShardsAllocator(settings),
+            queue.getThreadPool(),
+            () -> (reason, priority, listener) -> {
+                /* noop as reconciliation will await balance calculation result*/
+            }
+        ) {
+            @Override
+            protected void maybeAwaitBalance() {
+                queue.runAllTasks();
+            }
+        };
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {

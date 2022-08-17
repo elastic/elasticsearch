@@ -138,8 +138,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
 
-        // TODO possibly add a bounded wait for the computation to complete?
-        // Otherwise we will have to do a second cluster state update straight away.
+        maybeAwaitBalance();
 
         appliedDesiredBalance = currentDesiredBalance;
         logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
@@ -153,6 +152,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             logger.trace("Executing listeners up to [{}] as routing nodes have not changed", queue.getCompletedIndex());
             queue.resume();
         }
+    }
+
+    protected void maybeAwaitBalance() {
+        // do not wait for balance by default
     }
 
     @Override

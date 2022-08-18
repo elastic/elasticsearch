@@ -91,6 +91,8 @@ setup:
                     from: 401.0
 
   - match: { status: 400 }
+  # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
+  # errors while running aggregations on rollup indices.
   - match: { error.root_cause.0.type: unsupported_aggregation_on_downsampled_field }
   - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [range]" }
 

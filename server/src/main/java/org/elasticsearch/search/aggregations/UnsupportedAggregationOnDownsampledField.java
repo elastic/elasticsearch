@@ -13,6 +13,8 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
+// NOTE: the name of this class is part of a contract with Kibana which uses it to detect specific
+// errors while running aggregations on rollup indices.
 /**
  * Thrown when executing an aggregation on a time series index field whose type is not supported.
  * Downsampling uses specific types while aggregating some fields (like 'aggregate_metric_double').

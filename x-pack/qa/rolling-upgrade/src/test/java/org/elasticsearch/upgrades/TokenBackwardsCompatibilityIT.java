@@ -454,5 +454,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final Response bulkResponse = client.performRequest(bulkRequest);
         assertOK(bulkResponse);
         assertEquals(false, entityAsMap(bulkResponse).get("errors"));
+        // TODO assert more here
     }
 }

@@ -101,6 +101,11 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
                     if (handlerMetadata != null && handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec")) {
+                        assertThat(
+                            event.state().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
+                            equalTo("50mb")
+                        );
+
                         clusterService.removeListener(this);
                         savedClusterState.countDown();
                     }
@@ -114,13 +119,6 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
     private void assertClusterStateSaveOK(CountDownLatch savedClusterState) throws Exception {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
-
-        final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
-
-        assertThat(
-            clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
-            equalTo("50mb")
-        );
 
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")

@@ -92,7 +92,7 @@ public interface ChunkedRestResponseBody {
                 this.target = chunkStream;
                 while (serialization.hasNext()) {
                     serialization.next().toXContent(builder, params);
-                    if (chunkStream.size() > sizeHint) {
+                    if (chunkStream.size() >= sizeHint) {
                         break;
                     }
                 }

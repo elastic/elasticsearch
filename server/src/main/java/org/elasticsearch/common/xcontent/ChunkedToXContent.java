@@ -24,7 +24,7 @@ public interface ChunkedToXContent extends ToXContent {
     /**
      * Create an iterator of {@link ToXContent} chunks, that must be serialized individually with the same {@link XContentBuilder} and
      * {@link ToXContent.Params} for each call until it is fully drained.
-     * @return iterator o over chunks of {@link ToXContent}
+     * @return iterator over chunks of {@link ToXContent}
      */
     Iterator<ToXContent> toXContentChunked();
 

@@ -173,7 +173,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
         }),
             getSnapshots().stream().map(snapshotInfo -> (ToXContent) snapshotInfo::toXContentExternal).iterator(),
             Iterators.single((b, p) -> {
-                // no more snapshot infos to write, close array and write the remaining fields in the last invocation
                 b.endArray();
                 if (failures.isEmpty() == false) {
                     b.startObject("failures");

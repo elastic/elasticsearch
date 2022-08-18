@@ -116,7 +116,9 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand("test", 0, "node1", true)),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop()
         ).clusterState();
 
         // check that in-sync allocation ids are reset by forcing an empty primary

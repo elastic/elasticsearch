@@ -109,7 +109,9 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop()
         );
         assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.clusterState();
@@ -134,7 +136,9 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop()
         );
         assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.clusterState();

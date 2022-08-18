@@ -939,7 +939,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         }
         commands.add(new MoveAllocationCommand("test", 0, primaryNode, "A-4"));
 
-        clusterState = strategy.reroute(clusterState, commands, false, false).clusterState();
+        clusterState = strategy.reroute(clusterState, commands, false, false, false, ActionListener.noop()).clusterState();
 
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(0));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(1));

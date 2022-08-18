@@ -84,7 +84,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // so we cannot check state consistency of this cluster
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testIndexCleanup() throws Exception {
         internalCluster().startNode(nonDataNode());
         final String node_1 = internalCluster().startNode(nonMasterNode());

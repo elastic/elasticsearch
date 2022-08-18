@@ -378,26 +378,23 @@ public class AllocationService {
         }
     }
 
-    public CommandsResult reroute(final ClusterState clusterState, AllocationCommands commands, boolean explain, boolean retryFailed) {
-        // we don't shuffle the unassigned shards here, to try and get as close as possible to
-        // a consistent result of the effect the commands have on the routing
-        // this allows systems to dry run the commands, see the resulting cluster state, and act on it
+    public CommandsResult reroute(
+        ClusterState clusterState,
+        AllocationCommands commands,
+        boolean explain,
+        boolean retryFailed,
+        boolean dryRun,
+        ActionListener<Void> reroute
+    ) {
         RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
-        // don't short circuit deciders, we want a full explanation
-        allocation.debugDecision(true);
-        // we ignore disable allocation, because commands are explicit
-        allocation.ignoreDisable(true);
-
-        if (retryFailed) {
-            allocation.routingNodes().unassigned().resetFailedAllocationCounter(allocation.changes());
-        }
-
-        RoutingExplanations explanations = commands.execute(allocation, explain);
-        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
-        allocation.ignoreDisable(false);
+        var explanations = shardsAllocator.execute(allocation, commands, explain, retryFailed);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
-        reroute(allocation, DesiredBalanceShardsAllocator.REMOVE_ME);
+        if (dryRun == false) {
+            reroute(allocation, reroute);
+        } else {
+            reroute.onResponse(null);
+        }
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 

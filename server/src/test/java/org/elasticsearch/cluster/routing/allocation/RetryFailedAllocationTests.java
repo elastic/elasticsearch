@@ -83,7 +83,9 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
                 new AllocateReplicaAllocationCommand(INDEX_NAME, 0, getPrimary().currentNodeId().equals("node1") ? "node2" : "node1")
             ),
             false,
-            true
+            true,
+            false,
+            ActionListener.noop()
         );
         clusterState = result.clusterState();
 

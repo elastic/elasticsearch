@@ -310,7 +310,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new MoveAllocationCommand("test", 0, "node2", "node4")),
             true,
-            false
+            false,
+            false,
+            ActionListener.noop()
         );
         assertEquals(commandsResult.explanations().explanations().size(), 1);
         assertEquals(commandsResult.explanations().explanations().get(0).decisions().type(), Decision.Type.THROTTLE);

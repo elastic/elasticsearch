@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
@@ -44,6 +46,7 @@ public class DesiredBalanceComputer {
     public DesiredBalance compute(
         DesiredBalance previousDesiredBalance,
         DesiredBalanceInput desiredBalanceInput,
+        Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
         Predicate<DesiredBalanceInput> isFresh
     ) {
 
@@ -163,6 +166,24 @@ public class DesiredBalanceComputer {
                 if (nodeIds != null && nodeIds.isEmpty() == false) {
                     final String nodeId = nodeIds.removeFirst();
                     routingNodes.startShard(logger, unassignedReplicaIterator.initialize(nodeId, null, 0L, changes), changes);
+                }
+            }
+        }
+
+        List<MoveAllocationCommand> commands;
+        while ((commands = pendingDesiredBalanceMoves.poll()) != null) {
+            for (MoveAllocationCommand command : commands) {
+                try {
+                    command.execute(routingAllocation, false);
+                } catch (RuntimeException e) {
+                    logger.debug(
+                        () -> "move shard ["
+                            + command.index()
+                            + ":"
+                            + command.shardId()
+                            + "] command failed during applying it to the desired balance",
+                        e
+                    );
                 }
             }
         }

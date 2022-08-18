@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -101,12 +100,10 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
-                    if (handlerMetadata == null) {
-                        fail("Should've found cluster settings in this metadata");
+                    if (handlerMetadata != null && handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec")) {
+                        clusterService.removeListener(this);
+                        savedClusterState.countDown();
                     }
-                    assertThat(handlerMetadata.keys(), contains("indices.recovery.max_bytes_per_sec"));
-                    clusterService.removeListener(this);
-                    savedClusterState.countDown();
                 }
             }
         });
@@ -190,7 +187,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null) {
+                if (reservedState != null && reservedState.errorMetadata() != null) {
                     assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, reservedState.errorMetadata().errorKind());
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
                     assertThat(

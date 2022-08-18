@@ -115,7 +115,15 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         TimeValue frequency = TimeValue.timeValueSeconds(10);
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";
-        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true, true, true, true, 10);
+        SettingsConfig settings = new SettingsConfig.Builder().setMaxPageSearchSize(4_000)
+            .setRequestsPerSecond(4_000.400F)
+            .setDatesAsEpochMillis(true)
+            .setAlignCheckpoints(true)
+            .setUsePit(true)
+            .setDeduceMappings(true)
+            .setNumFailureRetries(10)
+            .setUnattended(true)
+            .build();
         Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));
         update = new TransformConfigUpdate(
@@ -204,7 +212,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(4_000, null, (Boolean) null, null, null, null, null),
+            new SettingsConfig.Builder().setMaxPageSearchSize(4_000).build(),
             null,
             null
         );
@@ -223,7 +231,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(null, 43.244F, (Boolean) null, null, null, null, null),
+            new SettingsConfig.Builder().setRequestsPerSecond(43.244F).build(),
             null,
             null
         );
@@ -240,7 +248,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(-1, null, (Boolean) null, null, null, null, null),
+            new SettingsConfig.Builder().setMaxPageSearchSize(null).build(),
             null,
             null
         );
@@ -256,7 +264,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(-1, -1F, (Boolean) null, null, null, null, null),
+            new SettingsConfig.Builder().setMaxPageSearchSize(null).setRequestsPerSecond(null).build(),
             null,
             null
         );

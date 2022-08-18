@@ -114,7 +114,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                 }
             };
         }
-        return getCollector(sub, aggCtx);
+        return getLeafCollectorInternal(context, sub, aggCtx);
     }
 
     @Override

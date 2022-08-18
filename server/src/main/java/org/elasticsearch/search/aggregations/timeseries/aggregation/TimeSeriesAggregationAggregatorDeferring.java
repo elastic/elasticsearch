@@ -466,6 +466,14 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
             };
         }
 
+        return getLeafCollectorInternal(context, sub, aggContext);
+    }
+
+    protected LeafBucketCollector getLeafCollectorInternal(
+        LeafReaderContext context,
+        LeafBucketCollector sub,
+        AggregationExecutionContext aggContext
+    ) throws IOException {
         if (deferring) {
             SortedDocValues tsids = DocValues.getSorted(context.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
             final AtomicInteger tsidOrd = new AtomicInteger(-1);

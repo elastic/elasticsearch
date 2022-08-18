@@ -128,7 +128,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
-    //TODO: refactor this method after adding more rollup metadata
+    // TODO: refactor this method after adding more rollup metadata
     public boolean isRollupIndex() {
         final String sourceIndex = settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY);
         final String indexRollupStatus = settings.get(IndexMetadata.INDEX_ROLLUP_STATUS_KEY);

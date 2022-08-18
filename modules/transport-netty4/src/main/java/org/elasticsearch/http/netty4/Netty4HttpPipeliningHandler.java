@@ -190,6 +190,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     private void doWrite(ChannelHandlerContext ctx, Netty4RestResponse readyResponse, ChannelPromise promise) throws IOException {
+        assert currentChunkedWrite == null : "unexpected existing write [" + currentChunkedWrite + "]";
         if (readyResponse instanceof Netty4HttpResponse) {
             doWrite(ctx, (Netty4HttpResponse) readyResponse, promise);
         } else {
@@ -210,7 +211,6 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     private void doWrite(ChannelHandlerContext ctx, Netty4ChunkedHttpResponse readyResponse, ChannelPromise promise) throws IOException {
-        assert currentChunkedWrite == null : "unexpected existing write [" + currentChunkedWrite + "]";
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
         currentChunkedWrite = new ChunkedWrite(combiner, promise, readyResponse);
         final ChannelPromise first = ctx.newPromise();

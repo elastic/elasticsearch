@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -105,7 +106,7 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions() {
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
             return new DocumentDimensions.OnlySingleValueAllowed();
         }
 
@@ -206,8 +207,9 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions() {
-            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
         }
 
         @Override
@@ -368,7 +370,7 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract DocumentDimensions buildDocumentDimensions();
+    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings);
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.

@@ -1733,8 +1733,10 @@ public class ApiKeyService {
      */
     public static String getCreatorRealmName(final Authentication authentication) {
         if (authentication.isApiKey()) {
-            return (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+            return (String) authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
+            // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
+            // `null`. Since this method is used in audit logging, this requires some care.
             return authentication.getSourceRealm().getName();
         }
     }
@@ -1745,7 +1747,7 @@ public class ApiKeyService {
     public static String[] getOwnersRealmNames(final Authentication authentication) {
         if (authentication.isApiKey()) {
             return new String[] {
-                (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
+                (String) authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
         } else {
             final Authentication.RealmRef effectiveSubjectRealm = authentication.getEffectiveSubject().getRealm();
             // The effective subject realm can only be `null` when run-as lookup fails. The owner is always the effective subject, so there
@@ -1774,8 +1776,10 @@ public class ApiKeyService {
      */
     public static String getCreatorRealmType(final Authentication authentication) {
         if (authentication.isApiKey()) {
-            return (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
+            return (String) authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
+            // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
+            // `null`. Since this method is used in audit logging, this requires some care.
             return authentication.getSourceRealm().getType();
         }
     }
@@ -1792,11 +1796,11 @@ public class ApiKeyService {
                 "authentication realm must be ["
                     + AuthenticationField.API_KEY_REALM_TYPE
                     + "], got ["
-                    + authentication.getAuthenticatingSubject().getRealm().getType()
+                    + authentication.getEffectiveSubject().getRealm().getType()
                     + "]"
             );
         }
-        final Object apiKeyMetadata = authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
+        final Object apiKeyMetadata = authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
         if (apiKeyMetadata != null) {
             final Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
                 (BytesReference) apiKeyMetadata,

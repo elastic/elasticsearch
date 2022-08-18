@@ -89,7 +89,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
         builder.register(
             TimeSeriesAggregationAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC),
-            TimeSeriesAggregationAggregatorDeferring::new,
+            TimeSeriesAggregationAggregator::new,
             true
         );
     }
@@ -105,7 +105,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
             thresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(thresholds.getRequiredSize()));
         }
         thresholds.ensureValidity();
-        return new TimeSeriesAggregationAggregatorDeferring(
+        return new TimeSeriesAggregationAggregator(
             name,
             factories,
             keyed,

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -26,7 +25,6 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.Downsample;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregator;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregatorDeferring;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
@@ -37,7 +35,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
-public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAggregationAggregatorDeferring {
+public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAggregationAggregator {
     private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
 
     public AggregateMetricTimeSeriesAggregationAggregator(

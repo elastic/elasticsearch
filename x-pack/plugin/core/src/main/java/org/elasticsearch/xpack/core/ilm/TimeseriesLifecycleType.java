@@ -159,6 +159,11 @@ public class TimeseriesLifecycleType implements LifecycleType {
             return false;
         }
 
+        // do not inject if MigrateAction is not supported for this phase (such as hot phase)
+        if (ALLOWED_ACTIONS.get(phase.getName()).contains(MigrateAction.NAME) == false) {
+            return false;
+        }
+
         // if the user configured the {@link MigrateAction} already we won't automatically configure it
         if (phase.getActions().get(MigrateAction.NAME) != null) {
             return false;

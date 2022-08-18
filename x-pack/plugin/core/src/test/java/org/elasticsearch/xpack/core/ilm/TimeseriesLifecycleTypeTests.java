@@ -843,6 +843,12 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
+        {
+            // hot phase
+            Phase phase = new Phase(HOT_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
     }
 
     public void testValidatingSearchableSnapshotRepos() {

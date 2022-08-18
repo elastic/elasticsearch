@@ -215,11 +215,13 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         currentChunkedWrite = new ChunkedWrite(combiner, promise, readyResponse);
         final ChannelPromise first = ctx.newPromise();
         combiner.add((Future<Void>) first);
-        enqueueWrite(ctx, readyResponse, first);
-        while (ctx.channel().isWritable()) {
-            if (writeChunk(ctx, combiner, readyResponse.body())) {
-                finishChunkedWrite();
-                return;
+        if (enqueueWrite(ctx, readyResponse, first)) {
+            // we were able to write out the first chunk directly, try writing out subsequent chunks until the channel becomes unwritable
+            while (ctx.channel().isWritable()) {
+                if (writeChunk(ctx, combiner, readyResponse.body())) {
+                    finishChunkedWrite();
+                    return;
+                }
             }
         }
     }
@@ -368,12 +370,14 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         return p;
     }
 
-    private void enqueueWrite(ChannelHandlerContext ctx, HttpObject msg, ChannelPromise promise) {
+    // returns true if the write was actually executed and false if it was just queued up
+    private boolean enqueueWrite(ChannelHandlerContext ctx, HttpObject msg, ChannelPromise promise) {
         if (ctx.channel().isWritable() && queuedWrites.isEmpty()) {
             ctx.write(msg, promise);
-        } else {
-            queuedWrites.add(new WriteOperation(msg, promise));
+            return true;
         }
+        queuedWrites.add(new WriteOperation(msg, promise));
+        return false;
     }
 
     @Override

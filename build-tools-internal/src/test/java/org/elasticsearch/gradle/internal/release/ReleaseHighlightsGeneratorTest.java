@@ -16,8 +16,8 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 public class ReleaseHighlightsGeneratorTest {
 
@@ -33,7 +33,7 @@ public class ReleaseHighlightsGeneratorTest {
         );
 
         // when:
-        final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("7.17.3-SNAPSHOT"), template, List.of());
+        final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, List.of());
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));
@@ -53,38 +53,31 @@ public class ReleaseHighlightsGeneratorTest {
         final List<ChangelogEntry> entries = getEntries();
 
         // when:
-        final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("7.18.0-SNAPSHOT"), template, entries);
+        final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, entries);
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));
     }
 
     private List<ChangelogEntry> getEntries() {
-        ChangelogEntry entry1 = new ChangelogEntry();
-        ChangelogEntry.Highlight highlight1 = new ChangelogEntry.Highlight();
-        entry1.setHighlight(highlight1);
+        ChangelogEntry entry123 = makeChangelogEntry(123, true);
+        ChangelogEntry entry456 = makeChangelogEntry(456, true);
+        ChangelogEntry entry789 = makeChangelogEntry(789, false);
+        // Return unordered list, to test correct re-ordering
+        return List.of(entry456, entry123, entry789);
+    }
 
-        highlight1.setNotable(true);
-        highlight1.setTitle("Notable release highlight number 1");
-        highlight1.setBody("Notable release body number 1");
+    private ChangelogEntry makeChangelogEntry(int pr, boolean notable) {
+        ChangelogEntry entry = new ChangelogEntry();
+        entry.setPr(pr);
+        ChangelogEntry.Highlight highlight = new ChangelogEntry.Highlight();
+        entry.setHighlight(highlight);
 
-        ChangelogEntry entry2 = new ChangelogEntry();
-        ChangelogEntry.Highlight highlight2 = new ChangelogEntry.Highlight();
-        entry2.setHighlight(highlight2);
+        highlight.setNotable(notable);
+        highlight.setTitle("Notable release highlight number " + pr);
+        highlight.setBody("Notable release body number " + pr);
 
-        highlight2.setNotable(true);
-        highlight2.setTitle("Notable release highlight number 2");
-        highlight2.setBody("Notable release body number 2");
-
-        ChangelogEntry entry3 = new ChangelogEntry();
-        ChangelogEntry.Highlight highlight3 = new ChangelogEntry.Highlight();
-        entry3.setHighlight(highlight3);
-
-        highlight3.setNotable(false);
-        highlight3.setTitle("Notable release highlight number 3");
-        highlight3.setBody("Notable release body number 3");
-
-        return List.of(entry1, entry2, entry3);
+        return entry;
     }
 
     private String getResource(String name) throws Exception {

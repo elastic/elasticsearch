@@ -211,15 +211,9 @@ public class MetadataIndexStateService {
     private record AddBlocksToCloseTask(CloseIndexClusterStateUpdateRequest request, ActionListener<CloseIndexResponse> listener)
         implements
             ClusterStateTaskListener {
-
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
         }
     }
 
@@ -292,15 +286,9 @@ public class MetadataIndexStateService {
         Map<Index, CloseIndexResponse.IndexResult> verifyResults,
         ActionListener<CloseIndexResponse> listener
     ) implements ClusterStateTaskListener {
-
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
         }
     }
 
@@ -547,11 +535,6 @@ public class MetadataIndexStateService {
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
-        }
     }
 
     private static class FinalizeBlocksExecutor implements ClusterStateTaskExecutor<FinalizeBlocksTask> {
@@ -592,15 +575,9 @@ public class MetadataIndexStateService {
         Map<Index, AddBlockResult> verifyResults,
         ActionListener<AddIndexBlockResponse> listener
     ) implements ClusterStateTaskListener {
-
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
         }
     }
 
@@ -1242,11 +1219,6 @@ public class MetadataIndexStateService {
         @Override
         public TimeValue ackTimeout() {
             return request.ackTimeout();
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
         }
     }
 }

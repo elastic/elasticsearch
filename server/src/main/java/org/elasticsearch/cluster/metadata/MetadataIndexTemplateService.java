@@ -158,11 +158,6 @@ public class MetadataIndexTemplateService {
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
-        }
     }
 
     @Inject

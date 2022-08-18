@@ -184,8 +184,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(1, request.indices().length);
         assertEquals(rolloverTarget, request.indices()[0]);
         assertEquals(rolloverTarget, request.getRolloverTarget());
-        assertEquals(expectedConditions.size(), request.getConditions().size());
         assertTrue(request.isDryRun());
+        assertEquals(expectedConditions.size(), request.getConditions().size());
         Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
         Set<Object> actualConditionValues = request.getConditions().values().stream().map(Condition::value).collect(Collectors.toSet());
         assertEquals(expectedConditionValues, actualConditionValues);

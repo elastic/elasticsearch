@@ -107,6 +107,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
+    /**
+     * The {@link FieldType} used to store "original" that have been ignored
+     * by {@link KeywordFieldType#ignoreAbove()} so that they can be rebuilt
+     * for synthetic source.
+     */
     private static final FieldType ORIGINAL_FIELD_TYPE = new FieldType();
     static {
         ORIGINAL_FIELD_TYPE.setTokenized(false);
@@ -955,6 +960,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (value.length() > fieldType().ignoreAbove()) {
             context.addIgnoredField(name());
             if (context.isSyntheticSource()) {
+                // Save a copy of the field so synthetic source can load it
                 context.doc().add(new Field(originalName(), value, ORIGINAL_FIELD_TYPE));
             }
             return;
@@ -1058,6 +1064,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         return normalizerName != null;
     }
 
+    /**
+     * The name used to store "original" that have been ignored
+     * by {@link KeywordFieldType#ignoreAbove()} so that they can be rebuilt
+     * for synthetic source.
+     */
     private String originalName() {
         return name() + "._original";
     }

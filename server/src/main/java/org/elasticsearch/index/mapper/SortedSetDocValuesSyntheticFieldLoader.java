@@ -33,15 +33,25 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     private final String name;
     private final String simpleName;
+    private DocValues docValues = NO_VALUES;
+
+    /**
+     * Optionally loads stored fields values.
+     */
     @Nullable
     private final String storedValuesName;
     private List<Object> storedValues = emptyList();
-    private DocValues docValues = NO_VALUES;
 
-    public SortedSetDocValuesSyntheticFieldLoader(String name, String simpleName, @Nullable String originalName) {
+    /**
+     * Build a loader from doc values and, optionally, a stored field.
+     * @param name the name of the field to load from doc values
+     * @param simpleName the name to give the field in the rendered {@code _source}
+     * @param storedValuesName the name of a stored field to load or null if there aren't any stored field for this field
+     */
+    public SortedSetDocValuesSyntheticFieldLoader(String name, String simpleName, @Nullable String storedValuesName) {
         this.name = name;
         this.simpleName = simpleName;
-        this.storedValuesName = originalName;
+        this.storedValuesName = storedValuesName;
     }
 
     @Override
@@ -201,7 +211,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
         return new SingletonDocValuesLoader(docIdsInLeaf, ords, uniqueOrds, converted);
     }
 
-    private class SingletonDocValuesLoader implements DocValuesLoader, DocValues {
+    private static class SingletonDocValuesLoader implements DocValuesLoader, DocValues {
         private final int[] docIdsInLeaf;
         private final int[] ords;
         private final int[] uniqueOrds;

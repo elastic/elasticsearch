@@ -142,16 +142,16 @@ class IndexLifecycleRunner {
         }
         final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
         final long now = nowSupplier.getAsLong();
-        final long ageMillis = now - lifecycleDate;
-        final TimeValue age;
-        if (ageMillis >= 0) {
-            age = new TimeValue(ageMillis);
-        } else if (ageMillis == Long.MIN_VALUE) {
-            age = new TimeValue(Long.MAX_VALUE);
-        } else {
-            age = new TimeValue(-ageMillis);
-        }
         if (logger.isTraceEnabled()) {
+            final long ageMillis = now - lifecycleDate;
+            final TimeValue age;
+            if (ageMillis >= 0) {
+                age = new TimeValue(ageMillis);
+            } else if (ageMillis == Long.MIN_VALUE) {
+                age = new TimeValue(Long.MAX_VALUE);
+            } else {
+                age = new TimeValue(-ageMillis);
+            }
             logger.trace(
                 "[{}] checking for index age to be at least [{}] before performing actions in "
                     + "the \"{}\" phase. Now: {}, lifecycle date: {}, age: [{}{}/{}s]",

@@ -233,6 +233,8 @@ setup:
                 calendar_interval: hour
                 min_doc_count: 1
 
+  # NOTE: the rollup index is created with the same number of shards of the source index.
+  # As a result we have 1 shard for the 'test' index and 1 shard for the 'rollup-test' index.
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 1 }
   - match: { _shards.failed: 1 }

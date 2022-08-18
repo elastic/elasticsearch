@@ -1623,11 +1623,8 @@ public class NumberFieldMapper extends FieldMapper {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
             List<IndexableField> fields = context.doc().getFields();
             IndexableField last = fields.get(fields.size() - 1);
-            assert last.name().equals(fieldType().name()) : "last field name ["
-                + last.name()
-                + "] mis match field name ["
-                + fieldType().name()
-                + "]";
+            assert last.name().equals(fieldType().name())
+                : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
             context.doc().onlyAddKey(fieldType().name(), fields.get(fields.size() - 1));
         }
 

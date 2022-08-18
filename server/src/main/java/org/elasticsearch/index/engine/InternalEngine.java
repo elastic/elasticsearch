@@ -1895,7 +1895,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -1908,7 +1908,7 @@ public class InternalEngine extends Engine {
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
-                    return;
+                    return false;
                 }
                 logger.trace("waiting for in-flight flush to finish");
                 flushLock.lock();
@@ -1967,6 +1967,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
+        return true;
     }
 
     private void refreshLastCommittedSegmentInfos() {

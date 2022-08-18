@@ -237,7 +237,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        mockRolloverIndexCall(alias, step);
+        mockRolloverIndexCall(alias, step, true);
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
@@ -270,7 +270,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        mockRolloverIndexCall(dataStreamName, step);
+        mockRolloverIndexCall(dataStreamName, step, true);
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder()
@@ -338,7 +338,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         verifyNoMoreInteractions(indicesClient);
     }
 
-    private void mockRolloverIndexCall(String rolloverTarget, WaitForRolloverReadyStep step) {
+    private void mockRolloverIndexCall(String rolloverTarget, WaitForRolloverReadyStep step, boolean conditionResult) {
         Mockito.doAnswer(invocation -> {
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
@@ -346,7 +346,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             Set<Condition<?>> expectedConditions = getExpectedConditions(step);
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
-                .collect(Collectors.toMap(Condition::toString, condition -> true));
+                .collect(Collectors.toMap(Condition::toString, condition -> conditionResult));
             listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
@@ -529,17 +529,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .build();
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        Mockito.doAnswer(invocation -> {
-            RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = getExpectedConditions(step);
-            assertRolloverIndexRequest(request, alias, expectedConditions);
-            Map<String, Boolean> conditionResults = expectedConditions.stream()
-                .collect(Collectors.toMap(Condition::toString, condition -> false));
-            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
-            return null;
-        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+        mockRolloverIndexCall(alias, step, false);
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {

@@ -191,6 +191,41 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(expectedConditionValues, actualConditionValues);
     }
 
+    private static Set<Condition<?>> getExpectedConditions(WaitForRolloverReadyStep step) {
+        Set<Condition<?>> expectedConditions = new HashSet<>();
+        if (step.getMaxSize() != null) {
+            expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+        }
+        if (step.getMaxPrimaryShardSize() != null) {
+            expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
+        }
+        if (step.getMaxAge() != null) {
+            expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
+        }
+        if (step.getMaxDocs() != null) {
+            expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+        }
+        if (step.getMaxPrimaryShardDocs() != null) {
+            expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
+        }
+        if (step.getMinSize() != null) {
+            expectedConditions.add(new MinSizeCondition(step.getMinSize()));
+        }
+        if (step.getMinPrimaryShardSize() != null) {
+            expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
+        }
+        if (step.getMinAge() != null) {
+            expectedConditions.add(new MinAgeCondition(step.getMinAge()));
+        }
+        if (step.getMinDocs() != null) {
+            expectedConditions.add(new MinDocsCondition(step.getMinDocs()));
+        }
+        if (step.getMinPrimaryShardDocs() != null) {
+            expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
+        }
+        return expectedConditions;
+    }
+
     public void testEvaluateCondition() {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
@@ -308,37 +343,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxSize() != null) {
-                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-            }
-            if (step.getMaxPrimaryShardSize() != null) {
-                expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
-            }
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
-            if (step.getMaxDocs() != null) {
-                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-            }
-            if (step.getMaxPrimaryShardDocs() != null) {
-                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
-            }
-            if (step.getMinSize() != null) {
-                expectedConditions.add(new MinSizeCondition(step.getMinSize()));
-            }
-            if (step.getMinPrimaryShardSize() != null) {
-                expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
-            }
-            if (step.getMinAge() != null) {
-                expectedConditions.add(new MinAgeCondition(step.getMinAge()));
-            }
-            if (step.getMinDocs() != null) {
-                expectedConditions.add(new MinDocsCondition(step.getMinDocs()));
-            }
-            if (step.getMinPrimaryShardDocs() != null) {
-                expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
-            }
+            Set<Condition<?>> expectedConditions = getExpectedConditions(step);
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
                 .collect(Collectors.toMap(Condition::toString, condition -> true));
@@ -528,37 +533,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxSize() != null) {
-                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-            }
-            if (step.getMaxPrimaryShardSize() != null) {
-                expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
-            }
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
-            if (step.getMaxDocs() != null) {
-                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-            }
-            if (step.getMaxPrimaryShardDocs() != null) {
-                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
-            }
-            if (step.getMinSize() != null) {
-                expectedConditions.add(new MinSizeCondition(step.getMinSize()));
-            }
-            if (step.getMinPrimaryShardSize() != null) {
-                expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
-            }
-            if (step.getMinAge() != null) {
-                expectedConditions.add(new MinAgeCondition(step.getMinAge()));
-            }
-            if (step.getMinDocs() != null) {
-                expectedConditions.add(new MinDocsCondition(step.getMinDocs()));
-            }
-            if (step.getMinPrimaryShardDocs() != null) {
-                expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
-            }
+            Set<Condition<?>> expectedConditions = getExpectedConditions(step);
             assertRolloverIndexRequest(request, alias, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
                 .collect(Collectors.toMap(Condition::toString, condition -> false));
@@ -602,37 +577,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxSize() != null) {
-                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-            }
-            if (step.getMaxPrimaryShardSize() != null) {
-                expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
-            }
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
-            if (step.getMaxDocs() != null) {
-                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-            }
-            if (step.getMaxPrimaryShardDocs() != null) {
-                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
-            }
-            if (step.getMinSize() != null) {
-                expectedConditions.add(new MinSizeCondition(step.getMinSize()));
-            }
-            if (step.getMinPrimaryShardSize() != null) {
-                expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
-            }
-            if (step.getMinAge() != null) {
-                expectedConditions.add(new MinAgeCondition(step.getMinAge()));
-            }
-            if (step.getMinDocs() != null) {
-                expectedConditions.add(new MinDocsCondition(step.getMinDocs()));
-            }
-            if (step.getMinPrimaryShardDocs() != null) {
-                expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
-            }
+            Set<Condition<?>> expectedConditions = getExpectedConditions(step);
             assertRolloverIndexRequest(request, alias, expectedConditions);
             listener.onFailure(exception);
             return null;

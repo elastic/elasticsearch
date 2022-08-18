@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -57,6 +58,8 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -73,7 +76,10 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardCommand() {
         AllocationService allocation = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+            Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
+                .build()
         );
 
         logger.info("creating an index with 1 shard, no replica");
@@ -135,6 +141,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
                 .build()
         );
         final String index = "test";
@@ -351,6 +358,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
                 .build()
         );
         final String index = "test";
@@ -412,6 +420,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
                 .build()
         );
 
@@ -816,7 +825,10 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardToNonDataNode() {
         AllocationService allocation = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+            Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
+                .build()
         );
 
         logger.info("creating an index with 1 shard, no replica");
@@ -884,7 +896,10 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardFromNonDataNode() {
         AllocationService allocation = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+            Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
+                .build()
         );
 
         logger.info("creating an index with 1 shard, no replica");
@@ -954,6 +969,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
                 .build()
         );
 
@@ -1058,5 +1074,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 ActionListener.noop()
             );
         }).getMessage(), containsString("all copies of [" + index3 + "][0] are already assigned. Use the move allocation command instead"));
+    }
+
+    private static String randomShardsAllocator() {
+        return randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR);
     }
 }

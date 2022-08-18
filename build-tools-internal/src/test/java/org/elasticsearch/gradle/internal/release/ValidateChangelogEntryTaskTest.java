@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import org.checkerframework.checker.units.qual.C;
 import org.gradle.api.GradleException;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;

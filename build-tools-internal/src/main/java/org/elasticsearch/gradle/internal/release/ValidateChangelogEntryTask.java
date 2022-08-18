@@ -77,9 +77,7 @@ public class ValidateChangelogEntryTask extends DefaultTask {
             }
 
             if (entry.getArea() == null) {
-                throw new GradleException(
-                    "[" + path + "] must provide an [area] (only 'known-issue' and 'security' entries can omit this"
-                );
+                throw new GradleException("[" + path + "] must provide an [area] (only 'known-issue' and 'security' entries can omit this");
             }
         }
 

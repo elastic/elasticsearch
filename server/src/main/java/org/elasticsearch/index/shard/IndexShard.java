@@ -1343,7 +1343,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Executes the given flush request against the engine.
      *
      * @param request the flush request
-     * @return <code>true</code> if the flush happened, else <code>false</code> (e.g., if it did not wait for an ongoing request)
+     * @return <code>false</code> if the flush did not wait for an ongoing request and returned, else <code>true</code>
      */
     public boolean flush(FlushRequest request) {
         final boolean waitIfOngoing = request.waitIfOngoing();
@@ -1357,9 +1357,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         final long time = System.nanoTime();
         boolean flushHappened = getEngine().flush(force, waitIfOngoing);
-        if (flushHappened) {
-            flushMetric.inc(System.nanoTime() - time);
-        }
+        flushMetric.inc(System.nanoTime() - time);
         return flushHappened;
     }
 
@@ -2192,12 +2190,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     @Override
                     protected void doRun() {
-                        if (flush(new FlushRequest().waitIfOngoing(false).force(false))) {
-                            periodicFlushMetric.inc();
-                        } else {
+                        if (flush(new FlushRequest().waitIfOngoing(false).force(false)) == false) {
                             // In case the flush did not happen, revert active flag so that a next flushOnIdle request can happen (#87888)
                             active.set(true);
                         }
+                        periodicFlushMetric.inc();
                     }
                 });
             }

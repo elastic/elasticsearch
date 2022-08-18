@@ -116,6 +116,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -3895,6 +3896,63 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         });
         closeShards(shard);
+    }
+
+    @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")
+    public void testFlushOnIdleConcurrentFlushDoesNotWait() throws Exception {
+        final MockLogAppender mockLogAppender = new MockLogAppender();
+        try {
+            IndexShard shard = newStartedShard();
+            final int manyDocs = randomIntBetween(50, 100);
+            for (int i = 0; i < manyDocs; i++) {
+                indexDoc(shard, "_doc", Integer.toString(i));
+            }
+
+            mockLogAppender.start();
+            Loggers.addAppender(LogManager.getLogger(Engine.class), mockLogAppender);
+
+            shard.flushOnIdle(0); // flush happens in the background using the flush threadpool
+            assertFalse(shard.isActive());
+
+            // Wait for log message that flush acquired lock immediately
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see first flush getting lock immediately",
+                    Engine.class.getCanonicalName(),
+                    Level.TRACE,
+                    "acquired flush lock immediately"
+                )
+            );
+            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+
+            // While the previous flushOnIdle request is happening, immediately issue a second flush request with waitIfOngoing=false
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see second flush returning since it will not wait for the ongoing flush",
+                    Engine.class.getCanonicalName(),
+                    Level.TRACE,
+                    "returning as there is an in-flight flush that we do not need to wait for"
+                )
+            );
+            assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
+            mockLogAppender.assertAllExpectationsMatched();
+
+            // Wait for first flush to log a message that it released the flush lock
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see first flush releasing lock",
+                    Engine.class.getCanonicalName(),
+                    Level.TRACE,
+                    "released flush lock"
+                )
+            );
+            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+
+            closeShards(shard);
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger(Engine.class), mockLogAppender);
+            mockLogAppender.stop();
+        }
     }
 
     public void testOnCloseStats() throws IOException {

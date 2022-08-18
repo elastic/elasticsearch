@@ -1908,6 +1908,7 @@ public class InternalEngine extends Engine {
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
+                    logger.trace("returning as there is an in-flight flush that we do not need to wait for");
                     return false;
                 }
                 logger.trace("waiting for in-flight flush to finish");
@@ -1960,6 +1961,7 @@ public class InternalEngine extends Engine {
                 throw ex;
             } finally {
                 flushLock.unlock();
+                logger.trace("released flush lock");
             }
         }
         // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving

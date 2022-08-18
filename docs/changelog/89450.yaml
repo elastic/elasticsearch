@@ -1,12 +1,23 @@
 pr: 89450
 summary: Reject unknown bulk actions
 area: CRUD
-type: "breaking, bug"
+type: breaking
 issues: []
 breaking:
   title: Reject unknown bulk actions
   area: CRUD
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: Requests to the bulk API comprise a sequence of items, each of which
+    starts with a JSON object describing the item. This object includes the
+    type of action to perform with the item which should be one of `create`,
+    `update`, `index`, or `delete`. In earlier versions {es} would ignore items
+    with an unrecognized type, skipping the next line in the request, but this
+    lenient behaviour means that there is no way for the client to associate
+    the items in the response with the items in the request, and in some cases
+    it would cause the remainder of the request to be parsed incorrectly.
+
+    From version 8.5 onwards, requests to the bulk API must comprise only items
+    with recognized types. {es} will reject requests containing any items with
+    an unrecognized type with a `400 Bad Request` error response.
+  impact: Ensure your application only sends items with type `create`,
+    `update`, `index` or `delete` to the bulk API.
   notable: false

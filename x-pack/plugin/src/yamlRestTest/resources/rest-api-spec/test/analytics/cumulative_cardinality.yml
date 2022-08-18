@@ -1,86 +1,143 @@
 setup:
-  - skip:
-      features: headers
   - do:
-      indices.create:
-        index: foo
-        body:
-          mappings:
-            properties:
-              timestamp:
-                type: date
-              user:
-                type: keyword
-
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       bulk:
+        index: test
         refresh: true
         body:
-          - index:
-              _index: "foo"
-          - timestamp: "2017-01-01T05:00:00Z"
-            user: "a"
-
-          - index:
-              _index: "foo"
-          - timestamp: "2017-01-01T05:00:00Z"
-            user: "b"
-
-          - index:
-              _index: "foo"
-          - timestamp: "2017-01-01T05:00:00Z"
-            user: "c"
-
-          - index:
-              _index: "foo"
-          - timestamp: "2017-01-02T05:00:00Z"
-            user: "a"
-
-          - index:
-              _index: "foo"
-          - timestamp: "2017-01-02T05:00:00Z"
-            user: "b"
-
-          - index:
-              _index: "foo"
-          - timestamp: "2017-01-03T05:00:00Z"
-            user: "d"
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", "user": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T01:00:00", "user": 2 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T02:00:00", "user": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-02T00:00:00", "user": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-02T01:00:00", "user": 2 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-02T02:00:00", "user": 3 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-03T00:00:00", "user": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-03T01:00:00", "user": 2 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-03T03:00:00", "user": 4 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-04T00:00:00", "user": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-04T01:00:00", "user": 5 }
 
 ---
-"Basic Search":
-
+basic:
   - do:
       search:
-        index: "foo"
+        index: test
         body:
           size: 0
           aggs:
-            histo:
+            "@timestamp":
               date_histogram:
-                field: "timestamp"
-                calendar_interval: "day"
+                field: "@timestamp"
+                calendar_interval: day
               aggs:
                 distinct_users:
                   cardinality:
-                    field: "user"
+                    field: user
                 total_users:
                   cumulative_cardinality:
-                    buckets_path: "distinct_users"
+                    buckets_path: distinct_users
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.@timestamp.buckets: 4 }
+  - match: { aggregations.@timestamp.buckets.0.key_as_string:        "2022-01-01T00:00:00.000Z" }
+  - match: { aggregations.@timestamp.buckets.0.distinct_users.value: 2 }
+  - match: { aggregations.@timestamp.buckets.0.total_users.value:    2 }
+  - match: { aggregations.@timestamp.buckets.1.key_as_string:        "2022-01-02T00:00:00.000Z" }
+  - match: { aggregations.@timestamp.buckets.1.distinct_users.value: 3 }
+  - match: { aggregations.@timestamp.buckets.1.total_users.value:    3 }
+  - match: { aggregations.@timestamp.buckets.2.key_as_string:        "2022-01-03T00:00:00.000Z" }
+  - match: { aggregations.@timestamp.buckets.2.distinct_users.value: 3 }
+  - match: { aggregations.@timestamp.buckets.2.total_users.value:    4 }
+  - match: { aggregations.@timestamp.buckets.3.key_as_string:        "2022-01-04T00:00:00.000Z" }
+  - match: { aggregations.@timestamp.buckets.3.distinct_users.value: 2 }
+  - match: { aggregations.@timestamp.buckets.3.total_users.value:    5 }
 
-  - length: { aggregations.histo.buckets: 3 }
-  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
-  - match: { aggregations.histo.buckets.0.doc_count: 3 }
-  - match: { aggregations.histo.buckets.0.distinct_users.value: 3 }
-  - match: { aggregations.histo.buckets.0.total_users.value: 3 }
-  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
-  - match: { aggregations.histo.buckets.1.doc_count: 2 }
-  - match: { aggregations.histo.buckets.1.distinct_users.value: 2 }
-  - match: { aggregations.histo.buckets.1.total_users.value: 3 }
-  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
-  - match: { aggregations.histo.buckets.2.doc_count: 1 }
-  - match: { aggregations.histo.buckets.2.distinct_users.value: 1 }
-  - match: { aggregations.histo.buckets.2.total_users.value: 4 }
+---
+format:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: day
+              aggs:
+                distinct_users:
+                  cardinality:
+                    field: user
+                total_users:
+                  cumulative_cardinality:
+                    buckets_path: distinct_users
+                    format: "00"
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.@timestamp.buckets: 4 }
+  - match: { aggregations.@timestamp.buckets.0.key_as_string:               "2022-01-01T00:00:00.000Z" }
+  - match: { aggregations.@timestamp.buckets.0.distinct_users.value:        2 }
+  - match: { aggregations.@timestamp.buckets.0.total_users.value_as_string: "02" }
+  - match: { aggregations.@timestamp.buckets.1.key_as_string:               "2022-01-02T00:00:00.000Z" }
+  - match: { aggregations.@timestamp.buckets.1.distinct_users.value:        3 }
+  - match: { aggregations.@timestamp.buckets.1.total_users.value_as_string: "03" }
+  - match: { aggregations.@timestamp.buckets.2.key_as_string:               "2022-01-03T00:00:00.000Z" }
+  - match: { aggregations.@timestamp.buckets.2.distinct_users.value:        3 }
+  - match: { aggregations.@timestamp.buckets.2.total_users.value_as_string: "04" }
+  - match: { aggregations.@timestamp.buckets.3.key_as_string:               "2022-01-04T00:00:00.000Z" }
+  - match: { aggregations.@timestamp.buckets.3.distinct_users.value:        2 }
+  - match: { aggregations.@timestamp.buckets.3.total_users.value_as_string: "05" }
 
+---
+no results:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          query:
+            match:
+              missing_field: not_found
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: day
+              aggs:
+                distinct_users:
+                  cardinality:
+                    field: user
+                total_users:
+                  cumulative_cardinality:
+                    buckets_path: distinct_users
+  - match: { hits.total.value: 0 }
+  - length: { aggregations.@timestamp.buckets: 0 }
+
+---
+bad path:
+  - do:
+      catch: '/Validation Failed: 1: No aggregation found for path \[missing\];/'
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: day
+              aggs:
+                distinct_users:
+                  cardinality:
+                    field: user
+                total_users:
+                  cumulative_cardinality:
+                    buckets_path: missing

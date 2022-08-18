@@ -360,6 +360,15 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         assertWarnings("Adding multifields to [shape] mappers has no effect and will be forbidden in future");
     }
 
+    public void testSelfIntersectPolygon() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field(FIELD_NAME, "POLYGON((0 0, 1 1, 0 1, 1 0, 0 0))")))
+        );
+        assertThat(ex.getCause().getMessage(), containsString("Polygon self-intersection at lat=0.5 lon=0.5"));
+    }
+
     public String toXContentString(ShapeFieldMapper mapper, boolean includeDefaults) {
         if (includeDefaults) {
             ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));

@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
@@ -131,7 +132,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testAccessTokensWorkInMixedCluster() throws Exception {
         // Verify that an old token continues to work during all stages of the rolling upgrade
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
-        extendExpirationTimeForAllTokens(twoClients.iterator().next());
+        extendExpirationTimeForAllTokens(twoClients.iterator().next(), 5);
         for (int tokenIdx : Arrays.asList(1, 3, 4)) { // 2 is invalidated in another mixed-cluster test, 5 is invalidated in the old cluster
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
             assertAccessTokenWorks((String) source.get("token"));
@@ -219,7 +220,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testAccessTokensWorkInUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
-        extendExpirationTimeForAllTokens(twoClients.iterator().next());
+        extendExpirationTimeForAllTokens(twoClients.iterator().next(), 12);
         for (int tokenIdx : Arrays.asList(3, 4, 10, 12)) {
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
             assertAccessTokenWorks((String) source.get("token"));
@@ -395,26 +396,33 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
      *
      * This method extends the expiration time of all tokens by writing to the `.security-token` index directly.
      */
-    private void extendExpirationTimeForAllTokens(final RestClient client) throws IOException {
-        final var searchTokenRequest = new Request("POST", "/.security-tokens/_search");
-        searchTokenRequest.setOptions(searchTokenRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        final Response searchTokenResponse = client.performRequest(searchTokenRequest);
+    private void extendExpirationTimeForAllTokens(final RestClient client, final int expectedNumberOfTokens) throws IOException {
+        final var searchRequest = new Request("POST", "/.security-tokens/_search");
+        searchRequest.setOptions(searchRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+
+        final Response searchTokenResponse = client.performRequest(searchRequest);
+
         assertOK(searchTokenResponse);
         final SearchHit[] hits = SearchResponse.fromXContent(responseAsParser(searchTokenResponse)).getHits().getHits();
+        assertEquals(expectedNumberOfTokens, hits.length);
 
-        final var newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS);
-        final var bulkRequestJson = new StringBuilder();
-        for (var hit : hits) {
-            bulkRequestJson.append("""
-                {"update": {"_id": "%s"}}
-                {"doc": {"access_token": {"user_token": {"expiration_time": %s}}}}
+        final long newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli();
+        final String bulkRequestJson = Arrays.stream(hits).map(hit -> """
+            {"update": {"_id": "%s"}}
+            {"doc": {"access_token": {"user_token": {"expiration_time": %s}}}}
 
-                """.formatted(hit.getId(), newExpirationTime.toEpochMilli()));
-        }
+            """.formatted(hit.getId(), newExpirationTime)).collect(Collectors.joining());
         final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
         bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        bulkRequest.setJsonEntity(bulkRequestJson.toString());
-        final Response bulkUpdateResponse = client.performRequest(bulkRequest);
-        assertOK(bulkUpdateResponse);
+        bulkRequest.setJsonEntity(bulkRequestJson);
+
+        final Response bulkResponse = client.performRequest(bulkRequest);
+
+        assertOK(bulkResponse);
+        final Map<String, Object> bulkResponseAsMap = entityAsMap(bulkResponse);
+        assertEquals(false, bulkResponseAsMap.get("errors"));
+        @SuppressWarnings("unchecked")
+        final var items = (List<Map<String, Object>>) bulkResponseAsMap.get("items");
+        assertEquals(expectedNumberOfTokens, items.size());
     }
 }

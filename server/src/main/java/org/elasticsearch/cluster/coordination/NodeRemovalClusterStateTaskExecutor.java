@@ -68,23 +68,23 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
             taskContext.success(task.onClusterStateProcessed::run);
         }
 
-        final ClusterState finalState;
+        if (removed == false) {
+            // no nodes to remove, keep the current cluster state
+            return initialState;
+        }
 
-        if (removed) {
-            final ClusterState remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);
-            final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
-            finalState = allocationService.disassociateDeadNodes(
+        try (var ignored = batchExecutionContext.dropHeadersContext()) {
+            // suppress deprecation warnings e.g. from reroute()
+
+            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);
+            final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
+            return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
                 true,
                 describeTasks(batchExecutionContext.taskContexts().stream().map(TaskContext::getTask).toList()),
                 rerouteCompletionIsNotRequired() // the change is not triggered by a user request
             );
-        } else {
-            // no nodes to remove, keep the current cluster state
-            finalState = initialState;
         }
-
-        return finalState;
     }
 
     // visible for testing

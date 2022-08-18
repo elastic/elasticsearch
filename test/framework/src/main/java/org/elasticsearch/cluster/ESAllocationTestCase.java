@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -257,7 +258,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterState clusterState,
         List<ShardRouting> initializingShards
     ) {
-        return allocationService.reroute(allocationService.applyStartedShards(clusterState, initializingShards), "reroute after starting");
+        return allocationService.reroute(
+            allocationService.applyStartedShards(clusterState, initializingShards),
+            "reroute after starting",
+            ActionListener.noop()
+        );
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

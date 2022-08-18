@@ -138,7 +138,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             if (nodesRemoved) {
                 clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute", ActionListener.noop());
             } else {
-                clusterState = strategy.reroute(clusterState, "reroute");
+                clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
             }
             if (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0) {
                 clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -161,7 +161,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         int iterations = 0;
         do {
             iterations++;
-            clusterState = strategy.reroute(clusterState, "reroute");
+            clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
             if (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0) {
                 clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }

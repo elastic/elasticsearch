@@ -50,7 +50,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("Start the primary shards");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -67,7 +67,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
 
         logger.info("Start another node and perform rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("find the replica shard that gets relocated");
         IndexShardRoutingTable indexShardRoutingTable = null;

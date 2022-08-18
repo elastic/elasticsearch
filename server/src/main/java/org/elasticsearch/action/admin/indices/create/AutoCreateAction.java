@@ -116,7 +116,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 ClusterState state = batchExecutionContext.initialState();
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
-                    try {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
                         state = task.execute(state, successfulRequests, taskContext, listener);
                         assert successfulRequests.containsKey(task.request);
                     } catch (Exception e) {

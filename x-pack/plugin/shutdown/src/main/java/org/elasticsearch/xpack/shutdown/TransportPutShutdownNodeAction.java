@@ -123,7 +123,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             boolean changed = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);

@@ -666,7 +666,8 @@ public class IndexNameExpressionResolver {
         );
         Collection<String> resolved = resolveExpressions(Arrays.asList(expressions), context);
         if (resolved instanceof Set<String>) {
-            return (Set<String>) resolved;
+            // unmodifiable without creating a new collection as it might contain many items
+            return Collections.unmodifiableSet((Set<String>)resolved);
         } else {
             return Set.copyOf(resolved);
         }

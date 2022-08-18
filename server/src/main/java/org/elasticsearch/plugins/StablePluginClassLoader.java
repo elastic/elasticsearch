@@ -72,12 +72,10 @@ import java.util.stream.Collectors;
  */
 public class StablePluginClassLoader extends SecureClassLoader {
 
-    private final ModuleReference mref;
     private final Module module;
     private final URLClassLoader internalLoader;
     private final CodeSource codeSource;
     private final ModuleLayer.Controller moduleController;
-    private final Set<String> moduleDenyList;
     private final Set<String> packageNames;
 
     static StablePluginClassLoader getInstance(ClassLoader parent, List<Path> jarPaths) {
@@ -105,8 +103,6 @@ public class StablePluginClassLoader extends SecureClassLoader {
     public StablePluginClassLoader(ClassLoader parent, List<Path> jarPaths, Set<String> moduleDenyList) {
         super(parent);
 
-        this.moduleDenyList = moduleDenyList;
-
         // TODO: module name should be derived from plugin descriptor (plugin names should be distinct, might
         //   need to munge the characters a little)
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", jarPaths.toArray(new Path[0]), Set.of());
@@ -118,7 +114,6 @@ public class StablePluginClassLoader extends SecureClassLoader {
                 jarURLs.add(toURL);
             }
             this.internalLoader = new URLClassLoader(jarURLs.toArray(new URL[0]));
-            this.mref = finder.find("synthetic").orElseThrow();
             // we'll need to make up a code source for multiple jar files
             this.codeSource = new CodeSource(jarURLs.get(0), (CodeSigner[]) null);
         } catch (IOException e) {
@@ -184,7 +179,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
         //
         // jdk.internal.loader.Loader can pull a class out of a loaded module pretty easily;
         // ModuleReference does a lot of the work
-        if (Objects.isNull(moduleName) || this.mref.descriptor().name().equals(moduleName) == false) {
+        if (Objects.isNull(moduleName) || this.module.getName().equals(moduleName) == false) {
             return null;
         }
         return findClass(name);
@@ -227,51 +222,44 @@ public class StablePluginClassLoader extends SecureClassLoader {
     }
 
     /**
+     * This classloader does not restrict access to resources in its jars. Users should
+     * expect the same behavior as that provided by {@link URLClassLoader}.
+     *
+     * @param moduleName Name of this classloader's synthetic module
      * @param name The resource name
-     * @return
+     * @return a URL for the resource, or null if the resource could not be found,
+     *   if the module name does not match, or if the loader is closed.
      */
     @Override
     protected URL findResource(String moduleName, String name) {
-        // built-in classloaders:
-        // look up module with package name, then find resource on module reference
-        // if no module defined, then find on classpath. Finding on classpath involves
-        // using URLClassPath, which we can't use because it's in jdk.internal.
-        //
-        // URLClassLoader does not implement this
-        //
-        // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
-        // searching the current module, then other modules, and checking access levels
-
-        // TODO: Is this the behavior we want?
-        // If we are requesting a resource and have the correct module name, try to find it. Otherwise
-        // return null. Problem: will calling code ever know the synthetic module name?
-        if (Objects.isNull(moduleName) || this.mref.descriptor().name().equals(moduleName) == false) {
+        if (Objects.isNull(moduleName) || this.module.getName().equals(moduleName) == false) {
             return null;
         }
         return findResource(name);
     }
 
     /**
+     * This classloader does not restrict access to resources in its jars. Users should
+     * expect the same behavior as that provided by {@link URLClassLoader}.
+     *
      * @param name The resource name
-     * @return
+     * @return a URL for the resource, or null if the resource could not be found,
+     *   or if the loader is closed.
      */
     @Override
     protected URL findResource(String name) {
-        // URLClassLoader basically delegates to URLClassPath, which handles access to jars and files
-        //
-        // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
-        // searching the current module, then other modules, and checking access levels
-
         return internalLoader.findResource(name);
     }
 
+    /**
+     * This classloader does not restrict access to resources in its jars. Users should
+     * expect the same behavior as that provided by {@link URLClassLoader}.
+     *
+     * @param name The resource name
+     * @return an Enumeration of URLs. If the loader is closed, the Enumeration contains no elements.
+     */
     @Override
     protected Enumeration<URL> findResources(String name) throws IOException {
-        // URLClassLoader also delegates here
-        //
-        // jdk.internal.loader.Loader uses a ModuleReader for the ModuleReference class,
-        // searching the current module, then other modules, and checking access levels
-
         return internalLoader.findResources(name);
     }
 

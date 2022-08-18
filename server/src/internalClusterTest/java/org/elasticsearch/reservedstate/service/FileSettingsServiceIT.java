@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.nullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsServiceIT extends ESIntegTestCase {
 
-    private AtomicLong versionCounter = new AtomicLong(1);
+    private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testJSON = """
         {

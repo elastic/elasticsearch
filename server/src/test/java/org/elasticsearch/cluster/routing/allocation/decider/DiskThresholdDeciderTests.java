@@ -134,7 +134,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         logShardStates(clusterState);
 
         // Primary shard should be initializing, replica should not
@@ -159,7 +159,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> adding node3");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logShardStates(clusterState);
         // Assert that the replica is initialized now that node3 is available with enough space
@@ -199,7 +199,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         logShardStates(clusterState);
 
         // Shards remain started
@@ -231,7 +231,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logShardStates(clusterState);
         // Shards remain started
@@ -244,7 +244,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> adding node4");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logShardStates(clusterState);
         // Shards remain started
@@ -316,7 +316,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         logShardStates(clusterState);
 
         // Primary should initialize, even though both nodes are over the limit initialize
@@ -349,7 +349,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         logShardStates(clusterState);
 
         // Now the replica should be able to initialize
@@ -372,7 +372,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> adding node3");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logShardStates(clusterState);
         // Assert that the replica is initialized now that node3 is available with enough space
@@ -413,7 +413,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         logShardStates(clusterState);
 
         // Shards remain started
@@ -446,7 +446,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logShardStates(clusterState);
         // Shards remain started
@@ -459,7 +459,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> adding node4");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logShardStates(clusterState);
         // Shards remain started
@@ -482,7 +482,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> adding node5");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node5"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logShardStates(clusterState);
         // Shards remain started on node3 and node4
@@ -561,7 +561,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                                                                                      // automatically ignore single-node clusters
             )
             .build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logger.info("--> start the shards (primaries)");
         routingTable = startInitializingShardsAndReroute(strategy, clusterState).routingTable();
@@ -632,7 +632,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                                                                                      // automatically ignore single-node clusters
             )
             .build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         // Shard can be allocated to node1, even though it only has 25% free,
@@ -728,7 +728,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         logShardStates(clusterState);
 
         // shards should be initializing
@@ -805,7 +805,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
             clusterInfoReference.set(overfullClusterInfo);
 
-            strategy.reroute(clusterState, "foo"); // ensure reroute doesn't fail even though there is negative free space
+            strategy.reroute(clusterState, "foo", ActionListener.noop()); // ensure reroute doesn't fail even though there is negative free
+                                                                          // space
         }
 
         {
@@ -1002,7 +1003,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
         // Ensure that the reroute call doesn't alter the routing table, since the first primary is relocating away
         // and therefore we will have sufficient disk space on node1.
-        ClusterState result = strategy.reroute(clusterState, "reroute");
+        ClusterState result = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(result, equalTo(clusterState));
         assertThat(result.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
         assertThat(result.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
@@ -1082,7 +1083,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             cis,
             EmptySnapshotsInfoService.INSTANCE
         );
-        ClusterState result = strategy.reroute(clusterState, "reroute");
+        ClusterState result = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         ShardRouting shardRouting = result.routingTable().index("test").shard(0).primaryShard();
         assertThat(shardRouting.state(), equalTo(UNASSIGNED));
@@ -1239,7 +1240,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
 
         // reroute triggers snapshot shard size fetching
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         logShardStates(clusterState);
 
         // shard cannot be assigned yet as the snapshot shard size is unknown

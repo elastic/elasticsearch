@@ -62,7 +62,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
 
     public void testRetryFailedResetForAllocationCommands() {
         final int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
-        clusterState = strategy.reroute(clusterState, "initial allocation");
+        clusterState = strategy.reroute(clusterState, "initial allocation", ActionListener.noop());
         clusterState = startShardsAndReroute(strategy, clusterState, getPrimary());
 
         // Exhaust all replica allocation attempts with shard failures
@@ -71,10 +71,10 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
                 new FailedShard(getReplica(), "failing-shard::attempt-" + i, new ElasticsearchException("simulated"), randomBoolean())
             );
             clusterState = strategy.applyFailedShards(clusterState, failedShards, List.of());
-            clusterState = strategy.reroute(clusterState, "allocation retry attempt-" + i);
+            clusterState = strategy.reroute(clusterState, "allocation retry attempt-" + i, ActionListener.noop());
         }
         assertThat("replica should not be assigned", getReplica().state(), equalTo(ShardRoutingState.UNASSIGNED));
-        assertThat("reroute should be a no-op", strategy.reroute(clusterState, "test"), sameInstance(clusterState));
+        assertThat("reroute should be a no-op", strategy.reroute(clusterState, "test", ActionListener.noop()), sameInstance(clusterState));
 
         // Now allocate replica with retry_failed flag set
         AllocationService.CommandsResult result = strategy.reroute(

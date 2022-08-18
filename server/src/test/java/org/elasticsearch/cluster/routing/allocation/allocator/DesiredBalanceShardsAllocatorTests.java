@@ -216,13 +216,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
 
         // next reroute picks up the new desired balance, reconciles the cluster state by allocating the shard, but needs no extra reroute
-        clusterState = allocationService.reroute(clusterState, "test");
+        clusterState = allocationService.reroute(clusterState, "test", ActionListener.noop());
         deterministicTaskQueue.runAllTasks();
         rerouteService.assertNoPendingReroute();
         assertTrue(clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard().assignedToNode());
 
         // another reroute does nothing
-        assertSame(clusterState, allocationService.reroute(clusterState, "test"));
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         deterministicTaskQueue.runAllTasks();
         rerouteService.assertNoPendingReroute();
 
@@ -231,7 +231,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             clusterState,
             List.of(clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard())
         );
-        assertSame(clusterState, allocationService.reroute(clusterState, "test"));
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         deterministicTaskQueue.runAllTasks();
         rerouteService.assertNoPendingReroute();
     }

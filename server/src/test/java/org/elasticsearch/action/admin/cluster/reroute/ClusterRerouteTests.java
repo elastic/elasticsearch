@@ -178,7 +178,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = service.reroute(clusterState, "reroute").routingTable();
+        routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertEquals(prevRoutingTable.index("idx").size(), 1);

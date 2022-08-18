@@ -89,7 +89,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("start primary shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -168,7 +168,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                     .add(newNode("node4", singleton(DiscoveryNodeRole.MASTER_ROLE)))
             )
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
 
         logger.info("--> allocating to non-existent node, should fail");
@@ -377,7 +377,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         final String node1 = "node1";
         final String node2 = "node2";
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode(node1)).add(newNode(node2))).build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         // mark all shards as stale
         final List<ShardRouting> shardRoutings = shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED);
@@ -428,7 +428,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
 
         logger.info("--> allocating empty primary shard with accept_data_loss flag set to true");
@@ -1000,7 +1000,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         final String node1 = "node1";
         final String node2 = "node2";
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode(node1)).add(newNode(node2))).build();
-        final ClusterState finalClusterState = allocation.reroute(clusterState, "reroute");
+        final ClusterState finalClusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("--> allocating same index primary in multiple commands should fail");
         assertThat(expectThrows(IllegalArgumentException.class, () -> {

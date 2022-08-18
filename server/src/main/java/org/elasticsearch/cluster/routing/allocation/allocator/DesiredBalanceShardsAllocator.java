@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -67,7 +66,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
-    private final ConcurrentLinkedQueue<MoveAllocationCommand> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
 
@@ -97,12 +96,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
 
                 setCurrentDesiredBalance(
-                    desiredBalanceComputer.compute(
-                        currentDesiredBalance,
-                        desiredBalanceInput,
-                        pollAll(pendingDesiredBalanceMoves),
-                        this::isFresh
-                    )
+                    desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, this::isFresh)
                 );
                 var isFresh = isFresh(desiredBalanceInput);
 
@@ -172,12 +166,21 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     @Override
     public RoutingExplanations execute(RoutingAllocation allocation, AllocationCommands commands, boolean explain, boolean retryFailed) {
         var explanations = ShardsAllocator.super.execute(allocation, commands, explain, retryFailed);
-        for (AllocationCommand command : commands.commands()) {
-            if (command instanceof MoveAllocationCommand move) {
-                pendingDesiredBalanceMoves.add(move);
-            }
+        var moves = getMoveCommands(commands);
+        if (moves.isEmpty() == false) {
+            pendingDesiredBalanceMoves.add(moves);
         }
         return explanations;
+    }
+
+    private static List<MoveAllocationCommand> getMoveCommands(AllocationCommands commands) {
+        var moves = new ArrayList<MoveAllocationCommand>();
+        for (AllocationCommand command : commands.commands()) {
+            if (command instanceof MoveAllocationCommand move) {
+                moves.add(move);
+            }
+        }
+        return moves;
     }
 
     @Override
@@ -188,7 +191,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         } else {
             reset();
             queue.completeAllAsNotMaster();
-            pollAll(pendingDesiredBalanceMoves);
+            pendingDesiredBalanceMoves.clear();
         }
     }
 
@@ -236,14 +239,5 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
         }
         return builder.append(newLine).toString();
-    }
-
-    private static <T> List<T> pollAll(Queue<T> queue) {
-        var list = new ArrayList<T>();
-        T item;
-        while ((item = queue.poll()) != null) {
-            list.add(item);
-        }
-        return list;
     }
 }

@@ -39,8 +39,10 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,7 +61,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var clusterState = createInitialClusterState();
         var index = clusterState.metadata().index(TEST_INDEX).getIndex();
 
-        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), List.of(), input -> true);
+        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
         assertDesiredAssignments(
             desiredBalance,
@@ -79,7 +81,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         // if the isFresh flag is false then we only do one iteration, allocating the primaries but not the replicas
         var desiredBalance0 = DesiredBalance.INITIAL;
-        var desiredBalance1 = desiredBalanceComputer.compute(desiredBalance0, createInput(clusterState), List.of(), input -> false);
+        var desiredBalance1 = desiredBalanceComputer.compute(desiredBalance0, createInput(clusterState), queue(), input -> false);
         assertDesiredAssignments(
             desiredBalance1,
             Map.of(
@@ -91,12 +93,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         );
 
         // the next iteration allocates the replicas whether stale or fresh
-        var desiredBalance2 = desiredBalanceComputer.compute(
-            desiredBalance1,
-            createInput(clusterState),
-            List.of(),
-            input -> randomBoolean()
-        );
+        var desiredBalance2 = desiredBalanceComputer.compute(desiredBalance1, createInput(clusterState), queue(), input -> randomBoolean());
         assertDesiredAssignments(
             desiredBalance2,
             Map.of(
@@ -117,7 +114,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,
             createInput(clusterState, primaryShard),
-            List.of(),
+            queue(),
             input -> true
         );
 
@@ -142,7 +139,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,
             createInput(clusterState, replicaShard),
-            List.of(),
+            queue(),
             input -> true
         );
 
@@ -184,7 +181,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
             .build();
 
-        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), List.of(), input -> true);
+        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
         assertDesiredAssignments(
             desiredBalance,
@@ -232,7 +229,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
             .build();
 
-        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), List.of(), input -> true);
+        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
         assertDesiredAssignments(
             desiredBalance,
@@ -289,7 +286,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(RoutingTable.of(clusterState.routingTable().version(), desiredRoutingNodes))
             .build();
 
-        var desiredBalance1 = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), List.of(), input -> true);
+        var desiredBalance1 = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
         assertDesiredAssignments(
             desiredBalance1,
             Map.of(
@@ -366,7 +363,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         allocateCalled.set(false);
 
-        var desiredBalance2 = desiredBalanceComputer.compute(desiredBalance1, createInput(clusterState), List.of(), input -> true);
+        var desiredBalance2 = desiredBalanceComputer.compute(desiredBalance1, createInput(clusterState), queue(), input -> true);
         assertDesiredAssignments(
             desiredBalance2,
             Map.of(
@@ -383,7 +380,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(0);
 
-        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), List.of(), input -> true);
+        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
         assertDesiredAssignments(desiredBalance, Map.of());
     }
@@ -406,7 +403,10 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,
             createInput(clusterState),
-            List.of(new MoveAllocationCommand(index.getName(), 0, "node-1", "node-2")),
+            queue(
+                new MoveAllocationCommand(index.getName(), 0, "node-1", "node-2"),
+                new MoveAllocationCommand(index.getName(), 1, "node-1", "node-2")
+            ),
             input -> true
         );
 
@@ -416,7 +416,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 new ShardId(index, 0),
                 new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0),
                 new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
+                new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)
             )
         );
     }
@@ -515,7 +515,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(Settings.EMPTY)).compute(
             DesiredBalance.INITIAL,
             input,
-            List.of(),
+            queue(),
             ignored -> iteration.incrementAndGet() < 1000
         );
 
@@ -646,5 +646,9 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             SnapshotShardSizeInfo.EMPTY,
             0L
         );
+    }
+
+    private static Queue<List<MoveAllocationCommand>> queue(MoveAllocationCommand... commands) {
+        return new LinkedList<>(List.of(List.of(commands)));
     }
 }

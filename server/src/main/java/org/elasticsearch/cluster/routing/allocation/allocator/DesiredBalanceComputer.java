@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
@@ -45,7 +46,7 @@ public class DesiredBalanceComputer {
     public DesiredBalance compute(
         DesiredBalance previousDesiredBalance,
         DesiredBalanceInput desiredBalanceInput,
-        List<MoveAllocationCommand> pendingDesiredBalanceMoves,
+        Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
         Predicate<DesiredBalanceInput> isFresh
     ) {
 
@@ -169,18 +170,21 @@ public class DesiredBalanceComputer {
             }
         }
 
-        for (MoveAllocationCommand command : pendingDesiredBalanceMoves) {
-            try {
-                command.execute(routingAllocation, false);
-            } catch (RuntimeException e) {
-                logger.debug(
-                    () -> "move shard ["
-                        + command.index()
-                        + ":"
-                        + command.shardId()
-                        + "] command failed during applying it to the desired balance",
-                    e
-                );
+        List<MoveAllocationCommand> commands;
+        while ((commands = pendingDesiredBalanceMoves.poll()) != null) {
+            for (MoveAllocationCommand command : commands) {
+                try {
+                    command.execute(routingAllocation, false);
+                } catch (RuntimeException e) {
+                    logger.debug(
+                        () -> "move shard ["
+                            + command.index()
+                            + ":"
+                            + command.shardId()
+                            + "] command failed during applying it to the desired balance",
+                        e
+                    );
+                }
             }
         }
 

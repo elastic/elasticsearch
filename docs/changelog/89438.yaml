@@ -1,6 +1,0 @@
-pr: 89438
-summary: Upgrade OpenTelemetry API to 1.17.0
-area: Infra/Core
-type: upgrade
-issues:
- - 89414

@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
@@ -114,13 +116,19 @@ public enum IndexMode {
 
         @Override
         public void validateCalendarIntervalType(
+            IndexSettings indexSettings,
             DateIntervalWrapper.IntervalTypeEnum intervalType,
             String valuesSourceDescription,
             String aggregationName
         ) {}
 
         @Override
-        public void validateCalendarTimeZone(ZoneId tz, String valuesSourceDescription, String aggregationName) {}
+        public void validateCalendarTimeZone(
+            IndexSettings indexSettings,
+            ZoneId tz,
+            String valuesSourceDescription,
+            String aggregationName
+        ) {}
     },
     TIME_SERIES("time_series") {
         @Override
@@ -214,11 +222,12 @@ public enum IndexMode {
          */
         @Override
         public void validateCalendarIntervalType(
+            IndexSettings indexSettings,
             DateIntervalWrapper.IntervalTypeEnum intervalType,
             String valuesSourceDescription,
             String aggregationName
         ) {
-            if (DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(intervalType)) {
+            if (indexSettings.getIndexMetadata().isRollupIndex() && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(intervalType)) {
                 throw new IllegalArgumentException(
                     valuesSourceDescription
                         + " is not supported for aggregation ["
@@ -231,14 +240,28 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateCalendarTimeZone(ZoneId tz, String valuesSourceDescription, String aggregationName) {
-            if (tz != null && ZoneId.of("UTC").equals(tz) == false) {
+        public void validateCalendarTimeZone(
+            IndexSettings indexSettings,
+            ZoneId tz,
+            String valuesSourceDescription,
+            String aggregationName
+        ) {
+            if (indexSettings.getIndexMetadata().isRollupIndex() && tz != null && ZoneId.of("UTC").equals(tz) == false) {
                 throw new IllegalArgumentException(
                     valuesSourceDescription + " is not supported for aggregation [" + aggregationName + "] with timezone [" + tz + "]"
                 );
             }
         }
     };
+
+    private static boolean isIndexRollup(final IndexSettings indexSettings) {
+        final String sourceIndex = indexSettings.getIndexMetadata().getSettings().get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY);
+        final String indexRollupStatus = indexSettings.getIndexMetadata().getSettings().get(IndexMetadata.INDEX_ROLLUP_STATUS_KEY);
+        final boolean rollupSuccess = IndexMetadata.RollupTaskStatus.SUCCESS.name()
+            .toLowerCase(Locale.ROOT)
+            .equals(indexRollupStatus != null ? indexRollupStatus.toLowerCase(Locale.ROOT) : IndexMetadata.RollupTaskStatus.UNKNOWN);
+        return Strings.isNullOrEmpty(sourceIndex) == false && rollupSuccess;
+    }
 
     protected static String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
@@ -375,10 +398,16 @@ public enum IndexMode {
     }
 
     public abstract void validateCalendarIntervalType(
+        IndexSettings indexSettings,
         DateIntervalWrapper.IntervalTypeEnum intervalType,
         String valuesSourceDescription,
         String aggregationName
     );
 
-    public abstract void validateCalendarTimeZone(ZoneId tz, String valueSourceDescription, String aggregationName);
+    public abstract void validateCalendarTimeZone(
+        IndexSettings indexSettings,
+        ZoneId tz,
+        String valueSourceDescription,
+        String aggregationName
+    );
 }

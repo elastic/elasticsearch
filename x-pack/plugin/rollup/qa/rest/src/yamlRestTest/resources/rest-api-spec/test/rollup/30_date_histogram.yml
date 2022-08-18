@@ -24,33 +24,95 @@ setup:
                 type: keyword
                 time_series_dimension: true
               total_memory_used:
-                type: aggregate_metric_double
-                metrics: [ min, max ]
-                default_metric: min
+                type: integer
+                time_series_metric: gauge
   - do:
       bulk:
         refresh: true
         index: test
         body:
           - '{ "index": {} }'
-          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "001", "total_memory_used": { "min": 99198, "max": 106780 } }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "001", "total_memory_used": 106780 }'
           - '{ "index": {} }'
-          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "002", "total_memory_used": { "min": 102334, "max": 110450 } }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "002", "total_memory_used": 110450 }'
           - '{ "index": {} }'
-          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "003", "total_memory_used": { "min": 98012, "max": 109009 } }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "003", "total_memory_used": 109009 }'
           - '{ "index": {} }'
-          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "004", "total_memory_used": { "min": 101990, "max": 120770 } }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "004", "total_memory_used": 120770 }'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
 
 ---
-"Date aggregation with calendar_interval":
+"Date histogram aggregation on time series index and rollup indexs":
   - skip:
       version: " - 8.4.99"
       reason: "rollup: unsupported aggregations errors added in 8.5.0"
+      features: close_to
 
+  - do:
+      rollup.rollup:
+        index: test
+        rollup_index: rollup-test
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: rollup-test
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+
+  - match: { hits.hits.0._index: "rollup-test" }
+  - match: { hits.hits.0._source._doc_count: 1 }
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.uid: "001" }
+  - close_to: { hits.hits.0._source.total_memory_used.min: { value: 106780.0, error: 0.00001 } }
+  - close_to: { hits.hits.0._source.total_memory_used.max: { value: 106780.0, error: 0.00001 } }
+  - close_to: { hits.hits.0._source.total_memory_used.sum: { value: 106780.0, error: 0.00001 } }
+  - match: { hits.hits.0._source.total_memory_used.value_count: 1 }
+
+  - match: { hits.hits.1._index: "rollup-test" }
+  - match: { hits.hits.1._source._doc_count: 1 }
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.1._source.uid: "002" }
+  - close_to: { hits.hits.1._source.total_memory_used.min: { value: 110450.0, error: 0.00001 } }
+  - close_to: { hits.hits.1._source.total_memory_used.max: { value: 110450.0, error: 0.00001 } }
+  - close_to: { hits.hits.1._source.total_memory_used.sum: { value: 110450.0, error: 0.00001 } }
+  - match: { hits.hits.1._source.total_memory_used.value_count: 1 }
+
+  - match: { hits.hits.2._index: "rollup-test" }
+  - match: { hits.hits.2._source._doc_count: 1 }
+  - match: { hits.hits.2._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.2._source.uid: "003" }
+  - close_to: { hits.hits.2._source.total_memory_used.min: { value: 109009.0, error: 0.00001 } }
+  - close_to: { hits.hits.2._source.total_memory_used.max: { value: 109009.0, error: 0.00001 } }
+  - close_to: { hits.hits.2._source.total_memory_used.sum: { value: 109009.0, error: 0.00001 } }
+  - match: { hits.hits.2._source.total_memory_used.value_count: 1 }
+
+  - match: { hits.hits.3._index: "rollup-test" }
+  - match: { hits.hits.3._source._doc_count: 1 }
+  - match: { hits.hits.3._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.3._source.uid: "004" }
+  - close_to: { hits.hits.3._source.total_memory_used.min: { value: 120770.0, error: 0.00001 } }
+  - close_to: { hits.hits.3._source.total_memory_used.max: { value: 120770.0, error: 0.00001 } }
+  - close_to: { hits.hits.3._source.total_memory_used.sum: { value: 120770.0, error: 0.00001 } }
+  - match: { hits.hits.3._source.total_memory_used.value_count: 1 }
+
+  # date histogram aggregation with calendar interval on rollup index not supported
   - do:
       catch: bad_request
       search:
-        index: test
+        index: rollup-test
         body:
           size: 0
           aggs:
@@ -63,14 +125,8 @@ setup:
   - match: { error.root_cause.0.type: illegal_argument_exception }
   - match: { error.root_cause.0.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with interval type [calendar_interval]" }
 
----
-"Date aggregation with non utc timezone":
-  - skip:
-      version: " - 8.4.99"
-      reason: "rollup: unsupported aggregations errors added in 8.5.0"
-
+  # date histogram aggregation with calendar interval on time series index supported
   - do:
-      catch: bad_request
       search:
         index: test
         body:
@@ -79,15 +135,33 @@ setup:
             date_histogram:
               date_histogram:
                 field: "@timestamp"
-                fixed_interval: 1m
+                calendar_interval: hour
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0..doc_count: 4 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z"}
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+
+  # date histogram aggregation with non-utc timezone on rollup index not supported
+  - do:
+      catch: bad_request
+      search:
+        index: rollup-test
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
                 time_zone: "America/New_York"
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: illegal_argument_exception }
   - match: { error.root_cause.0.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with timezone [America/New_York]" }
 
----
-"Date aggregation with fixed_interval":
+  # date histogram aggregation with non-utc timezone on time series index supported
   - do:
       search:
         index: test
@@ -97,15 +171,51 @@ setup:
             date_histogram:
               date_histogram:
                 field: "@timestamp"
-                fixed_interval: 1m
+                fixed_interval: 1h
+                time_zone: "America/New_York"
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0..doc_count: 4 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T14:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+
+  # date histogram aggregation with fixed interval and utc timezone on rollup index supported
+  - do:
+      search:
+        index: rollup-test
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
                 min_doc_count: 1
 
   - match: { hits.total.value: 4 }
   - match: { hits.total.relation: "eq" }
-  - length: { aggregations.date_histogram.buckets: 2 }
-  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:50:00.000Z" }
-  - match: { aggregations.date_histogram.buckets.0.key: 1619635800000 }
-  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }
-  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2021-04-28T18:55:00.000Z" }
-  - match: { aggregations.date_histogram.buckets.1.key: 1619636100000 }
-  - match: { aggregations.date_histogram.buckets.1.doc_count: 2 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+
+  # date histogram aggregation with fixed interval and utc timezone on time series index supported
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                min_doc_count: 1
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }

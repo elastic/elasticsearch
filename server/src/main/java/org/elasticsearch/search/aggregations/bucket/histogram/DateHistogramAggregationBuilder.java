@@ -418,10 +418,13 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
         final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
-        context.getIndexSettings().getMode().validateCalendarIntervalType(dateHistogramIntervalType, config.getDescription(), getName());
+
+        context.getIndexSettings()
+            .getMode()
+            .validateCalendarIntervalType(context.getIndexSettings(), dateHistogramIntervalType, config.getDescription(), getName());
 
         final ZoneId tz = timeZone();
-        context.getIndexSettings().getMode().validateCalendarTimeZone(tz, config.getDescription(), getName());
+        context.getIndexSettings().getMode().validateCalendarTimeZone(context.getIndexSettings(), tz, config.getDescription(), getName());
 
         DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);

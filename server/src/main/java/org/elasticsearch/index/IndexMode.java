@@ -11,7 +11,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -29,13 +28,10 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
@@ -114,22 +110,6 @@ public enum IndexMode {
         public boolean shouldValidateTimestamp() {
             return false;
         }
-
-        @Override
-        public void validateCalendarIntervalType(
-            IndexSettings indexSettings,
-            DateIntervalWrapper.IntervalTypeEnum intervalType,
-            String valuesSourceDescription,
-            String aggregationName
-        ) {}
-
-        @Override
-        public void validateCalendarTimeZone(
-            IndexSettings indexSettings,
-            ZoneId tz,
-            String valuesSourceDescription,
-            String aggregationName
-        ) {}
     },
     TIME_SERIES("time_series") {
         @Override
@@ -215,44 +195,6 @@ public enum IndexMode {
         @Override
         public boolean shouldValidateTimestamp() {
             return true;
-        }
-
-        /**
-         * For a time series index we just support 'fixed_interval' aggregations.
-         *
-         * @param intervalType the type of interval used by the date histogram
-         */
-        @Override
-        public void validateCalendarIntervalType(
-            IndexSettings indexSettings,
-            DateIntervalWrapper.IntervalTypeEnum intervalType,
-            String valuesSourceDescription,
-            String aggregationName
-        ) {
-            if (indexSettings.getIndexMetadata().isRollupIndex() && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(intervalType)) {
-                throw new IllegalArgumentException(
-                    valuesSourceDescription
-                        + " is not supported for aggregation ["
-                        + aggregationName
-                        + "] with interval type ["
-                        + intervalType.getPreferredName()
-                        + "]"
-                );
-            }
-        }
-
-        @Override
-        public void validateCalendarTimeZone(
-            IndexSettings indexSettings,
-            ZoneId tz,
-            String valuesSourceDescription,
-            String aggregationName
-        ) {
-            if (indexSettings.getIndexMetadata().isRollupIndex() && tz != null && ZoneId.of("UTC").equals(tz) == false) {
-                throw new IllegalArgumentException(
-                    valuesSourceDescription + " is not supported for aggregation [" + aggregationName + "] with timezone [" + tz + "]"
-                );
-            }
         }
     };
 
@@ -389,18 +331,4 @@ public enum IndexMode {
     public String toString() {
         return getName();
     }
-
-    public abstract void validateCalendarIntervalType(
-        IndexSettings indexSettings,
-        DateIntervalWrapper.IntervalTypeEnum intervalType,
-        String valuesSourceDescription,
-        String aggregationName
-    );
-
-    public abstract void validateCalendarTimeZone(
-        IndexSettings indexSettings,
-        ZoneId tz,
-        String valueSourceDescription,
-        String aggregationName
-    );
 }

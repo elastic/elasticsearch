@@ -8,6 +8,7 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -142,10 +143,12 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                 DiscoveryNode node = nodes.get(nodeId);
                 if (node != null) {
                     if (nodeEntry.isFailed()) {
-                        // if its failed, remove it from the list of nodes, so if this run doesn't work
-                        // we try again next round to fetch it again
-                        it.remove();
-                        failedNodes.add(nodeEntry.getNodeId());
+                        if (isPersistent(nodeEntry.getFailure()) == false) {
+                            // if the failure is transient, remove it from the list of nodes,
+                            // so if this run doesn't work we try again next round to fetch it again
+                            it.remove();
+                            failedNodes.add(nodeEntry.getNodeId());
+                        }
                     } else {
                         if (nodeEntry.getValue() != null) {
                             fetchData.put(node, nodeEntry.getValue());
@@ -164,6 +167,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             }
             return new FetchResult<>(shardId, fetchData, allIgnoreNodes);
         }
+    }
+
+    private boolean isPersistent(Throwable t) {
+        var cause = ExceptionsHelper.unwrapCause(t).getCause();
+        return cause instanceof CorruptIndexException;
     }
 
     /**

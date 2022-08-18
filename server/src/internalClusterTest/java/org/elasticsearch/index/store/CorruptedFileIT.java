@@ -67,6 +67,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -616,7 +617,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * nodes, so that replica won't be sneaky and allocated on a node that doesn't have a corrupted
      * replica.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
+    @TestLogging(
+        reason = "This test produced too many exception traces",
+        value = "org.elasticsearch.gateway.GatewayAllocator.InternalReplicaShardAllocator:ERROR,"
+            + "org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata:ERROR,"
+            + "org.elasticsearch.indices.recovery.PeerRecoveryTargetService:ERROR"
+    )
     public void testReplicaCorruption() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -633,11 +639,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
-        for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
-        }
-        indexRandom(true, builders);
+        indexRandom(true, "test", numDocs);
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog

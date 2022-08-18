@@ -295,8 +295,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                 if (currentChunkedWrite != null) {
                     if (writeChunk(ctx, currentChunkedWrite.combiner, currentChunkedWrite.response.body())) {
                         finishChunkedWrite();
-                        continue;
                     }
+                    continue;
                 }
                 break;
             }

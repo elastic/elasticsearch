@@ -285,6 +285,39 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertTrue(promise2.isDone());
     }
 
+    public void testChunkedWithSmallChunksResumesAfterSingleMessage() {
+        final List<Object> messagesSeen = new ArrayList<>();
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
+        embeddedChannel.writeInbound(createHttpRequest("/chunked"));
+        final Netty4HttpRequest request1 = embeddedChannel.readInbound();
+        embeddedChannel.writeInbound(createHttpRequest("/chunked2"));
+        final Netty4HttpRequest request2 = embeddedChannel.readInbound();
+
+        final int chunks2 = randomIntBetween(2, 10);
+        final HttpResponse response1 = request1.createResponse(
+            RestStatus.OK,
+            new BytesArray(randomByteArrayOfLength(Math.toIntExact(embeddedChannel.bytesBeforeUnwritable() * 2)))
+        );
+        final HttpResponse response2 = request2.createResponse(
+            RestStatus.OK,
+            getRepeatedChunkResponseBody(chunks2, new BytesArray(randomByteArrayOfLength(randomIntBetween(10, 512))))
+        );
+        final ChannelPromise promise1 = embeddedChannel.newPromise();
+        embeddedChannel.write(response1, promise1);
+        assertFalse(embeddedChannel.isWritable());
+        final ChannelPromise promise2 = embeddedChannel.newPromise();
+        embeddedChannel.write(response2, promise2);
+        assertFalse("should not be fully flushed right away", promise1.isDone());
+        assertThat("unexpected [" + messagesSeen + "]", messagesSeen, hasSize(1));
+        embeddedChannel.flush();
+        assertTrue(promise1.isDone());
+        assertThat(messagesSeen, hasSize(chunks2 + 2));
+        assertThat(messagesSeen.get(0), instanceOf(Netty4HttpResponse.class));
+        assertThat(messagesSeen.get(1), instanceOf(Netty4ChunkedHttpResponse.class));
+        assertThat(messagesSeen.get(chunks2 + 1), instanceOf(LastHttpContent.class));
+        assertTrue(promise2.isDone());
+    }
+
     public void testPipeliningRequestsAreReleasedAfterFailureOnChunked() {
         final List<Object> messagesSeen = new ArrayList<>();
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());

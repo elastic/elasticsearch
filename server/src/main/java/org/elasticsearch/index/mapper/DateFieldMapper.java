@@ -281,9 +281,9 @@ public final class DateFieldMapper extends FieldMapper {
             }
         }
 
-        private DateFormatter buildFormatter() {
+        DateFormatter buildFormatter() {
             try {
-                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+                return DateFormatter.forPattern(format.getValue(), indexCreatedVersion).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 if (indexCreatedVersion.isLegacyIndexVersion()) {
                     logger.warn(() -> "Error parsing format [" + format.getValue() + "] of legacy index, falling back to default", e);
@@ -915,7 +915,7 @@ public final class DateFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName()) {
             @Override
             protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(fieldType().format(value, fieldType().dateTimeFormatter()));

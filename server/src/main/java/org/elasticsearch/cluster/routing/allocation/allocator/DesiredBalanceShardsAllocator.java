@@ -155,7 +155,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     }
 
     protected void maybeAwaitBalance() {
-        // do not wait for balance by default
+        // TODO possibly add a bounded wait for the computation to complete?
+        // Otherwise we will have to do a second cluster state update straight away.
     }
 
     @Override

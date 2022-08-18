@@ -87,8 +87,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         );
     }
 
+    private static final Settings BALANCED_ALLOCATOR_BY_DEFAULT = Settings.builder()
+        .put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR)
+        .build();
+
     private static ShardsAllocator createShardsAllocator(Settings settings) {
-        return switch (SHARDS_ALLOCATOR_TYPE_SETTING.get(settings)) {
+        return switch (SHARDS_ALLOCATOR_TYPE_SETTING.get(settings, BALANCED_ALLOCATOR_BY_DEFAULT)) {
             case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
             case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
             default -> throw new AssertionError("Unknown allocator");
@@ -107,6 +111,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 super.allocate(allocation, listener);
+                // We have to call clusterChanged to resume listener queue execution. Otherwise, reroute listeners will never be executed.
                 clusterChanged(new ClusterChangedEvent("test", allocation.getClusterState(), allocation.getClusterState()));
             }
 

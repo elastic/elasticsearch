@@ -56,7 +56,8 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
         URLClassLoader parent = URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
         PrivilegedAction<URLClassLoader> pa = () -> URLClassLoader.newInstance(urls, parent);
-        try (@SuppressWarnings("removal") URLClassLoader loader = AccessController.doPrivileged(pa)) {
+        try (@SuppressWarnings("removal")
+        URLClassLoader loader = AccessController.doPrivileged(pa)) {
             Class<?> c = loader.loadClass("p.MyClass");
             Object instance = c.getConstructor().newInstance();
             assertThat(instance.toString(), equalTo("MyClass"));
@@ -78,8 +79,11 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Configuration cf = mparent.configuration().resolve(moduleFinder, ModuleFinder.of(), Set.of("p"));
         // we have the module, but how do we load the class?
 
-        PrivilegedAction<ClassLoader> pa =
-            () -> ModuleLayer.defineModulesWithOneLoader(cf, List.of(mparent), this.getClass().getClassLoader()).layer().findLoader("p");
+        PrivilegedAction<ClassLoader> pa = () -> ModuleLayer.defineModulesWithOneLoader(
+            cf,
+            List.of(mparent),
+            this.getClass().getClassLoader()
+        ).layer().findLoader("p");
         @SuppressWarnings("removal")
         ClassLoader loader = AccessController.doPrivileged(pa);
         Class<?> c = loader.loadClass("p.MyClass");
@@ -141,6 +145,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
             assertThat(c, nullValue());
         }
     }
+
     public void testSingleJarLoadClass() throws Exception {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-jar-with-resources.jar");
@@ -228,6 +233,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
     }
 
     public void testMultipleJarLoadClass() throws Exception {
+        // TODO: put classes in different packages, add specific test for split packages
         Path tempDir = createTempDir(getTestName());
         Path jar1 = tempDir.resolve("my-jar-1.jar");
         Path jar2 = tempDir.resolve("my-jar-2.jar");

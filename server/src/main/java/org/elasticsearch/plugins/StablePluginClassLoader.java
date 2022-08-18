@@ -8,11 +8,12 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
-import java.lang.module.ModuleReference;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -87,6 +88,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
         PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(parent, jarPaths, moduleDenyList);
         return AccessController.doPrivileged(pa);
     }
+
     /**
      * Constructor
      *
@@ -100,11 +102,12 @@ public class StablePluginClassLoader extends SecureClassLoader {
      *
      * TODO: consider a factory pattern for more specific exception handling for scan, etc.
      */
+    @SuppressForbidden(reason = "need access to the jar file")
     public StablePluginClassLoader(ClassLoader parent, List<Path> jarPaths, Set<String> moduleDenyList) {
         super(parent);
 
         // TODO: module name should be derived from plugin descriptor (plugin names should be distinct, might
-        //   need to munge the characters a little)
+        // need to munge the characters a little)
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", jarPaths.toArray(new Path[0]), Set.of());
         try {
             List<URL> jarURLs = new ArrayList<>();
@@ -123,14 +126,14 @@ public class StablePluginClassLoader extends SecureClassLoader {
         // we need a module layer to bind our module to this classloader
         ModuleLayer mparent = ModuleLayer.boot();
         Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of("synthetic"));
-        // TODO: do we need to hold on to the controller?
         this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
 
         this.module = this.moduleController.layer().findModule("synthetic").orElseThrow();
 
         // Every module reads java.base by default, but we can add all other modules
         // that are not in the deny list so that plugins can use, for example, java.management
-        mparent.modules().stream()
+        mparent.modules()
+            .stream()
             .filter(Module::isNamed)
             .filter(m -> "java.base".equals(m.getName()) == false)
             .filter(m -> moduleDenyList.contains(m.getName()) == false)
@@ -141,14 +144,16 @@ public class StablePluginClassLoader extends SecureClassLoader {
         this.packageNames = new HashSet<>();
         for (Path jar : jarPaths) {
             try (JarFile jarFile = new JarFile(jar.toFile())) {
-                Set<String> jarPackages = ModuleSupport.scan(jarFile).classFiles().stream()
+                Set<String> jarPackages = ModuleSupport.scan(jarFile)
+                    .classFiles()
+                    .stream()
                     .map(e -> ModuleSupport.toPackageName(e, "/"))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toSet());
 
                 // TODO: We could enforce "split packages" on our jars here, but
-                //   that seems too restrictive
+                // that seems too restrictive
                 this.packageNames.addAll(jarPackages);
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
@@ -170,7 +175,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
     protected Class<?> findClass(String moduleName, String name) {
         // built-in classloader:
         // 1. if we have a module name, we get the package name and look up the module,
-        //      then load from the module by calling define class with the name and module
+        // then load from the module by calling define class with the name and module
         // 2. if there's no moduleName, search on the classpath
         // The system has a map of packages to modules that it gets by loading the module
         // layer -- do we have this for our plugin loading?
@@ -195,7 +200,7 @@ public class StablePluginClassLoader extends SecureClassLoader {
     protected Class<?> findClass(String name) {
         // built-in classloaders:
         // try to find a module for the class name by looking up package, then do what
-        //   findClass(String, String) does
+        // findClass(String, String) does
         //
         // URLClassLoader is constructed with a list of classpaths, and searches those classpaths
         // for resources. If it finds a .class file, it calls defineClass
@@ -208,14 +213,14 @@ public class StablePluginClassLoader extends SecureClassLoader {
         try (InputStream in = internalLoader.getResourceAsStream(rn)) {
             if (in == null) {
                 // TODO: we can check package name to know whether or not the resource
-                //   should definitely be in this module's packages or not
-                //   i.e. we can throw class not found if the resource's package is owned by this
-                //   classloader's module
+                // should definitely be in this module's packages or not
+                // i.e. we can throw class not found if the resource's package is owned by this
+                // classloader's module
                 return null;
             }
             byte[] bytes = in.readAllBytes();
             return defineClass(name, bytes, 0, bytes.length, codeSource);
-        } catch (IOException e){
+        } catch (IOException e) {
             // TODO
             throw new IllegalStateException(e);
         }
@@ -276,16 +281,15 @@ public class StablePluginClassLoader extends SecureClassLoader {
             Class<?> c = findLoadedClass(cn);
 
             if (c == null) {
-               if (this.packageNames.contains(packageName)) {
-                   // find in module or null
-                   c = findClass(cn);
-               } else {
-                   c = getParent().loadClass(cn);
-               }
+                if (this.packageNames.contains(packageName)) {
+                    // find in module or null
+                    c = findClass(cn);
+                } else {
+                    c = getParent().loadClass(cn);
+                }
             }
 
-            if (c == null)
-                throw new ClassNotFoundException(cn);
+            if (c == null) throw new ClassNotFoundException(cn);
 
             if (resolve) {
                 resolveClass(c);

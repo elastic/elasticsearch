@@ -87,6 +87,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         );
     }
 
+    // TODO these tests should work with both allocators
     private static final Settings BALANCED_ALLOCATOR_BY_DEFAULT = Settings.builder()
         .put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR)
         .build();

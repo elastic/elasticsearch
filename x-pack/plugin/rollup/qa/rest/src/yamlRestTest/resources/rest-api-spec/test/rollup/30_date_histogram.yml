@@ -219,3 +219,30 @@ setup:
   - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
   - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
   - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+
+  # date histogram aggregation on both indices resulting in partial results and shard failures
+  - do:
+      search:
+        index: test,rollup-test
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: hour
+                min_doc_count: 1
+
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 1 }
+  - match: { _shards.failed: 1 }
+  - match: { hits.total.value: 4 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+  - length: { _shards.failures: 1 }
+  - match: { _shards.failures.0.index: "rollup-test" }
+  - match: { _shards.failures.0.reason.type: illegal_argument_exception }
+  - match: { _shards.failures.0.reason.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with interval type [calendar_interval]" }

@@ -14,7 +14,8 @@ highlight:
      As an example, the following ILM policy would roll an index over if it is at least 7 days old or
      at least 100 gigabytes, but only as long as the index is not empty.
 
-     ```
+     [source,console]
+     ----
      PUT _ilm/policy/my_policy
      {
        "policy": {
@@ -31,5 +32,5 @@ highlight:
          }
        }
      }
-     ```
+     ----
    notable: true

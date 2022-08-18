@@ -131,7 +131,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testAccessTokensWorkInMixedCluster() throws Exception {
         // Verify that an old token continues to work during all stages of the rolling upgrade
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
-        // TODO does this need to run against both clients?
         extendExpirationTimeForAllTokens(twoClients.iterator().next());
         for (int tokenIdx : Arrays.asList(1, 3, 4)) { // 2 is invalidated in another mixed-cluster test, 5 is invalidated in the old cluster
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
@@ -220,6 +219,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testAccessTokensWorkInUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
+        extendExpirationTimeForAllTokens(twoClients.iterator().next());
         for (int tokenIdx : Arrays.asList(3, 4, 10, 12)) {
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
             assertAccessTokenWorks((String) source.get("token"));
@@ -339,41 +339,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }""".formatted(username, password));
         Response response = client().performRequest(createTokenRequest);
         assertOK(response);
-        Map<String, Object> responseMap = entityAsMap(response);
-        extendExpirationTimeForAllTokens(client);
-        return responseMap;
-    }
-
-    /**
-     * Hack to account for long-running tests. The max lifetime of a token is 1h, but sometimes our tests take longer so tokens created in
-     * the old cluster may be expired by the time we run tests in the mixed/upgraded clusters.
-     *
-     * This method extends the expiration time of all tokens by writing to the `.security-token` index directly.
-     */
-    private void extendExpirationTimeForAllTokens(final RestClient client) throws IOException {
-        final var searchTokenRequest = new Request("POST", "/.security-tokens/_search");
-        searchTokenRequest.setOptions(searchTokenRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        final Response searchTokenResponse = client.performRequest(searchTokenRequest);
-        assertOK(searchTokenResponse);
-        final var searchResponse = SearchResponse.fromXContent(responseAsParser(searchTokenResponse));
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            final var updateTokenRequest = new Request("POST", "/.security-tokens/_update/" + hit.docId());
-            // TODO bulk
-            // TODO refresh policy
-            updateTokenRequest.setOptions(updateTokenRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-            updateTokenRequest.setJsonEntity("""
-                {
-                  "doc": {
-                    "access_token": {
-                      "user_token": {
-                        "expiration_time": %s
-                      }
-                    }
-                  }
-                }""".formatted(Instant.now().plus(1, ChronoUnit.HOURS)));
-            final Response updateTokenResponse = client.performRequest(searchTokenRequest);
-            assertOK(updateTokenResponse);
-        }
+        return entityAsMap(response);
     }
 
     private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken) throws IOException {
@@ -421,5 +387,34 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         invalidateRequest.addParameter("error_trace", "true");
         Response invalidateResponse = client.performRequest(invalidateRequest);
         assertOK(invalidateResponse);
+    }
+
+    /**
+     * Hack to account for long-running tests. The max lifetime of a token is 1h, but sometimes our tests take longer so tokens created in
+     * the old cluster may be expired by the time we run tests in the mixed/upgraded clusters.
+     *
+     * This method extends the expiration time of all tokens by writing to the `.security-token` index directly.
+     */
+    private void extendExpirationTimeForAllTokens(final RestClient client) throws IOException {
+        final var searchTokenRequest = new Request("POST", "/.security-tokens/_search");
+        searchTokenRequest.setOptions(searchTokenRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        final Response searchTokenResponse = client.performRequest(searchTokenRequest);
+        assertOK(searchTokenResponse);
+        final SearchHit[] hits = SearchResponse.fromXContent(responseAsParser(searchTokenResponse)).getHits().getHits();
+
+        final var newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS);
+        final var bulkRequestJson = new StringBuilder();
+        for (var hit : hits) {
+            bulkRequestJson.append("""
+                {"update": {"_id": "%s"}}
+                {"doc": {"access_token": {"user_token": {"expiration_time": %s}}}}
+
+                """.formatted(hit.getId(), newExpirationTime.toEpochMilli()));
+        }
+        final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
+        bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        bulkRequest.setJsonEntity(bulkRequestJson.toString());
+        final Response bulkUpdateResponse = client.performRequest(bulkRequest);
+        assertOK(bulkUpdateResponse);
     }
 }

@@ -9,19 +9,21 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -42,7 +44,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         } else {
             assert clientsByVersion.size() == 1
                 : "A rolling upgrade has a maximum of two distinct node versions, found: " + clientsByVersion.keySet();
-            // tests assume exactly two clients to simplify some logic
+            // tests assumes exactly two clients to simplify some logic
             twoClients = new ArrayList<>();
             twoClients.add(clientsByVersion.values().iterator().next());
             twoClients.add(clientsByVersion.values().iterator().next());
@@ -62,51 +64,39 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         // Creates two access and refresh tokens and stores them in the token_backwards_compatibility_it index to be used for tests in the
         // mixed/upgraded clusters
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
-        Integer expiresIn = (Integer) responseMap.get("expires_in");
-        assertNotNull(expiresIn);
-        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
 
-        storeTokens(client(), 1, accessToken, refreshToken, expirationTime);
+        storeTokens(client(), 1, accessToken, refreshToken);
 
         responseMap = createTokens(client(), "test_user", "x-pack-test-password");
-        expiresIn = (Integer) responseMap.get("expires_in");
-        assertNotNull(expiresIn);
-        expirationTime = Instant.now().plusSeconds(expiresIn);
         accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
         refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
 
-        storeTokens(client(), 2, accessToken, refreshToken, expirationTime);
+        storeTokens(client(), 2, accessToken, refreshToken);
     }
 
     public void testRefreshingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
         // Creates access and refresh tokens and uses the refresh token. The new resulting tokens are used in different phases
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
-        Integer expiresIn = (Integer) responseMap.get("expires_in");
-        assertNotNull(expiresIn);
-        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
 
-        storeTokens(client(), 3, accessToken, refreshToken, expirationTime);
+        storeTokens(client(), 3, accessToken, refreshToken);
 
         // refresh the token just created. The old token is invalid (tested further) and the new refresh token is tested in the upgraded
         // cluster
         Map<String, Object> refreshResponseMap = refreshToken(client(), refreshToken);
-        Integer refreshedTokenExpiresIn = (Integer) responseMap.get("expires_in");
-        assertNotNull(refreshedTokenExpiresIn);
-        Instant refreshedTokenExpirationTime = Instant.now().plusSeconds(refreshedTokenExpiresIn);
         String refreshedAccessToken = (String) refreshResponseMap.get("access_token");
         String refreshedRefreshToken = (String) refreshResponseMap.get("refresh_token");
         assertNotNull(refreshedAccessToken);
@@ -115,23 +105,20 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         // assert previous access token still works
         assertAccessTokenWorks(accessToken);
 
-        storeTokens(client(), 4, refreshedAccessToken, refreshedRefreshToken, refreshedTokenExpirationTime);
+        storeTokens(client(), 4, refreshedAccessToken, refreshedRefreshToken);
     }
 
     public void testInvalidatingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
         // Creates access and refresh tokens and tries to use the access tokens several times
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
-        Integer expiresIn = (Integer) responseMap.get("expires_in");
-        assertNotNull(expiresIn);
-        Instant expirationTime = Instant.now().plusSeconds(expiresIn);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(refreshToken);
 
-        storeTokens(client(), 5, accessToken, refreshToken, expirationTime);
+        storeTokens(client(), 5, accessToken, refreshToken);
 
         // invalidate access token
         invalidateAccessToken(client(), accessToken);
@@ -144,11 +131,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testAccessTokensWorkInMixedCluster() throws Exception {
         // Verify that an old token continues to work during all stages of the rolling upgrade
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
+        // TODO does this need to run against both clients?
+        extendExpirationTimeForAllTokens(twoClients.iterator().next());
         for (int tokenIdx : Arrays.asList(1, 3, 4)) { // 2 is invalidated in another mixed-cluster test, 5 is invalidated in the old cluster
-            final Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
-            final var accessToken = (String) source.get("token");
-            final var expirationTime = Instant.ofEpochMilli((Long) source.get("expiration_time"));
-            assertAccessTokenWorksUnlessExpired(accessToken, expirationTime);
+            Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
+            assertAccessTokenWorks((String) source.get("token"));
         }
     }
 
@@ -167,28 +154,22 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         int generatedTokenIdxDuringMixed = 10;
         for (RestClient client : twoClients) {
             Map<String, Object> responseMap = createTokens(client, "test_user", "x-pack-test-password");
-            Integer expiresIn = (Integer) responseMap.get("expires_in");
-            assertNotNull(expiresIn);
-            Instant expirationTime = Instant.now().plusSeconds(expiresIn);
             String accessToken = (String) responseMap.get("access_token");
             assertNotNull(accessToken);
             assertAccessTokenWorks(accessToken);
             String refreshToken = (String) responseMap.get("refresh_token");
             assertNotNull(refreshToken);
 
-            storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken, expirationTime);
+            storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken);
 
             responseMap = createTokens(client, "test_user", "x-pack-test-password");
-            expiresIn = (Integer) responseMap.get("expires_in");
-            assertNotNull(expiresIn);
-            expirationTime = Instant.now().plusSeconds(expiresIn);
             accessToken = (String) responseMap.get("access_token");
             assertNotNull(accessToken);
             assertAccessTokenWorks(accessToken);
             refreshToken = (String) responseMap.get("refresh_token");
             assertNotNull(refreshToken);
 
-            storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken, expirationTime);
+            storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken);
         }
     }
 
@@ -240,10 +221,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testAccessTokensWorkInUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
         for (int tokenIdx : Arrays.asList(3, 4, 10, 12)) {
-            final Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
-            final var accessToken = (String) source.get("token");
-            final var expirationTime = Instant.ofEpochMilli((Long) source.get("expiration_time"));
-            assertAccessTokenWorksUnlessExpired(accessToken, expirationTime);
+            Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
+            assertAccessTokenWorks((String) source.get("token"));
         }
     }
 
@@ -287,18 +266,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private void assertAccessTokenWorks(String token) throws IOException {
         for (RestClient client : twoClients) {
-            assertAccessTokenWorks(client, token);
+            Request request = new Request("GET", "/_security/_authenticate");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+            request.setOptions(options);
+            Response authenticateResponse = client.performRequest(request);
+            assertOK(authenticateResponse);
+            assertEquals("test_user", entityAsMap(authenticateResponse).get("username"));
         }
-    }
-
-    private void assertAccessTokenWorks(final RestClient client, final String token) throws IOException {
-        Request request = new Request("GET", "/_security/_authenticate");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
-        request.setOptions(options);
-        Response authenticateResponse = client.performRequest(request);
-        assertOK(authenticateResponse);
-        assertEquals("test_user", entityAsMap(authenticateResponse).get("username"));
     }
 
     private void assertAccessTokenDoesNotWork(String token) {
@@ -310,43 +285,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(request));
             assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
-            assertEquals("""
-                Bearer realm="security", error="invalid_token", error_description="The access token expired"\
-                """, response.getHeader("WWW-Authenticate"));
-        }
-    }
-
-    /**
-     * Our rolling upgrade tests are long-running. Sometimes, tokens created in the old cluster are expired (max lifetime is 1h) by the time
-     * we attempt to use them in a mixed/upgraded cluster. This method accounts for this by asserting the expected token state based on its
-     * expected expiration time.
-     */
-    private void assertAccessTokenWorksUnlessExpired(final String token, final Instant expirationTime) throws IOException {
-        for (RestClient client : twoClients) {
-            final var now = Instant.now();
-            final int slackForExpirationInSeconds = 10;
-            // To avoid test flakiness, treat tokens close to expiration time as possibly expired
-            if (now.plusSeconds(slackForExpirationInSeconds).isBefore(expirationTime)) {
-                assertAccessTokenWorks(client, token);
-            } else {
-                assertAccessTokenMaybeExpired(client, token);
-            }
-        }
-    }
-
-    private void assertAccessTokenMaybeExpired(final RestClient client, final String token) throws IOException {
-        final var request = new Request("GET", "/_security/_authenticate");
-        final RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
-        request.setOptions(options);
-        try {
-            final Response response = client.performRequest(request);
-            assertOK(response);
-            assertEquals("test_user", entityAsMap(response).get("username"));
-        } catch (ResponseException e) {
-            logger.info("Access token expired due to long-running test suite");
-            assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
-            final Response response = e.getResponse();
             assertEquals("""
                 Bearer realm="security", error="invalid_token", error_description="The access token expired"\
                 """, response.getHeader("WWW-Authenticate"));
@@ -401,20 +339,52 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }""".formatted(username, password));
         Response response = client().performRequest(createTokenRequest);
         assertOK(response);
-        return entityAsMap(response);
+        Map<String, Object> responseMap = entityAsMap(response);
+        extendExpirationTimeForAllTokens(client);
+        return responseMap;
     }
 
-    private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken, Instant expirationTime)
-        throws IOException {
+    /**
+     * Hack to account for long-running tests. The max lifetime of a token is 1h, but sometimes our tests take longer so tokens created in
+     * the old cluster may be expired by the time we run tests in the mixed/upgraded clusters.
+     *
+     * This method extends the expiration time of all tokens by writing to the `.security-token` index directly.
+     */
+    private void extendExpirationTimeForAllTokens(final RestClient client) throws IOException {
+        final var searchTokenRequest = new Request("POST", "/.security-tokens/_search");
+        searchTokenRequest.setOptions(searchTokenRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        final Response searchTokenResponse = client.performRequest(searchTokenRequest);
+        assertOK(searchTokenResponse);
+        final var searchResponse = SearchResponse.fromXContent(responseAsParser(searchTokenResponse));
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            final var updateTokenRequest = new Request("POST", "/.security-tokens/_update/" + hit.docId());
+            // TODO bulk
+            // TODO refresh policy
+            updateTokenRequest.setOptions(updateTokenRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            updateTokenRequest.setJsonEntity("""
+                {
+                  "doc": {
+                    "access_token": {
+                      "user_token": {
+                        "expiration_time": %s
+                      }
+                    }
+                  }
+                }""".formatted(Instant.now().plus(1, ChronoUnit.HOURS)));
+            final Response updateTokenResponse = client.performRequest(searchTokenRequest);
+            assertOK(updateTokenResponse);
+        }
+    }
+
+    private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken) throws IOException {
         final Request indexRequest = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token" + idx);
-        indexRequest.setJsonEntity(
-            XContentTestUtils.convertToXContent(
-                Map.of("token", accessToken, "refresh_token", refreshToken, "expiration_time", expirationTime.toEpochMilli()),
-                XContentType.JSON
-            ).utf8ToString()
-        );
-        final Response indexResponse = client.performRequest(indexRequest);
-        assertOK(indexResponse);
+        indexRequest.setJsonEntity("""
+            {
+              "token": "%s",
+              "refresh_token": "%s"
+            }""".formatted(accessToken, refreshToken));
+        Response indexResponse1 = client.performRequest(indexRequest);
+        assertOK(indexResponse1);
     }
 
     @SuppressWarnings("unchecked")

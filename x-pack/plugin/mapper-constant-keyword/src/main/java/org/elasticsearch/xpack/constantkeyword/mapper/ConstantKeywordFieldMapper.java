@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -309,15 +311,25 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return (reader, docIdsInLeaf) -> new SourceLoader.SyntheticFieldLoader.Leaf() {
+        return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public boolean empty() {
-                return fieldType().value == null;
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.of();
             }
 
             @Override
-            public boolean advanceToDoc(int docId) throws IOException {
-                return fieldType().value != null;
+            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
+                /*
+                 * If there is a value we need to enable objects containing these
+                 * fields. We could build something special for fields that are
+                 * always "on", but constant_keyword fields are rare enough that
+                 * having an extra doc values loader that always returns `true`
+                 * isn't a big performance hit and gets the job done.
+                 */
+                if (fieldType().value == null) {
+                    return null;
+                }
+                return docId -> true;
             }
 
             @Override

@@ -17,12 +17,8 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class ObjectMapperMergeTests extends ESTestCase {
-
-    private final FieldMapper barFieldMapper = createTextFieldMapper("bar");
-    private final FieldMapper bazFieldMapper = createTextFieldMapper("baz");
 
     private final RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
@@ -35,10 +31,13 @@ public class ObjectMapperMergeTests extends ESTestCase {
         Map<String, Mapper> mappers = new HashMap<>();
         mappers.put("disabled", createObjectMapper("disabled", disabledFieldEnabled, emptyMap()));
         Map<String, Mapper> fooMappers = new HashMap<>();
+        MapperBuilderContext fooBuilderContext = MapperBuilderContext.ROOT.createChildContext("foo");
         if (includeBarField) {
+            FieldMapper barFieldMapper = createTextFieldMapper("bar", fooBuilderContext);
             fooMappers.put("bar", barFieldMapper);
         }
         if (includeBazField) {
+            FieldMapper bazFieldMapper = createTextFieldMapper("baz", fooBuilderContext);
             fooMappers.put("baz", bazFieldMapper);
         }
         mappers.put("foo", createObjectMapper("foo", fooFieldEnabled, Collections.unmodifiableMap(fooMappers)));
@@ -54,8 +53,14 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
         // THEN "baz" new field is added to merged mapping
         final ObjectMapper mergedFoo = (ObjectMapper) merged.getMapper("foo");
-        assertThat(mergedFoo.getMapper("bar"), notNullValue());
-        assertThat(mergedFoo.getMapper("baz"), notNullValue());
+        {
+            Mapper bar = mergedFoo.getMapper("bar");
+            assertEquals("bar", bar.simpleName());
+            assertEquals("foo.bar", bar.name());
+            Mapper baz = mergedFoo.getMapper("baz");
+            assertEquals("baz", baz.simpleName());
+            assertEquals("foo.baz", baz.name());
+        }
     }
 
     public void testMergeWhenDisablingField() {
@@ -263,8 +268,8 @@ public class ObjectMapperMergeTests extends ESTestCase {
             .build(MapperBuilderContext.ROOT);
     }
 
-    private TextFieldMapper createTextFieldMapper(String name) {
-        return new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers()).build(MapperBuilderContext.ROOT);
+    private TextFieldMapper createTextFieldMapper(String name, MapperBuilderContext mapperBuilderContext) {
+        return new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers()).build(mapperBuilderContext);
     }
 
     private TextFieldMapper createTextKeywordMultiField(String name, MapperBuilderContext mapperBuilderContext) {

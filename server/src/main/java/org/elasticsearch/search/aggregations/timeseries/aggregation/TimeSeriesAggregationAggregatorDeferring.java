@@ -466,7 +466,7 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
             };
         }
 
-        return getLeafCollectorInternal(context, sub, aggContext);
+        return getLeafCollectorInternal(context.getLeafReaderContext(), sub, context);
     }
 
     protected LeafBucketCollector getLeafCollectorInternal(
@@ -475,7 +475,7 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
         AggregationExecutionContext aggContext
     ) throws IOException {
         if (deferring) {
-            SortedDocValues tsids = DocValues.getSorted(context.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
+            SortedDocValues tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             final AtomicInteger tsidOrd = new AtomicInteger(-1);
             final AtomicLong currentBucketOrdinal = new AtomicLong();
             finishLeaf();
@@ -494,7 +494,7 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
                     }
 
                     if (aggCtx == null) {
-                        aggCtx = context;
+                        aggCtx = aggContext;
                         docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                         bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                     }
@@ -519,7 +519,7 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
                 }
             };
         } else {
-            return getCollector(sub, context);
+            return getCollector(sub, aggContext);
         }
     }
 

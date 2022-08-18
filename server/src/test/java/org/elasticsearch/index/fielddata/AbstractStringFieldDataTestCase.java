@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -313,11 +314,15 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         final IndexFieldData<?> indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
-        TopFieldDocs topDocs = searcher.search(
-            new MatchAllDocsQuery(),
+        TopFieldCollector topFieldCollector = TopFieldCollector.create(
+            new Sort(sortField),
             randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
-            new Sort(sortField)
+            null,
+            Integer.MAX_VALUE
         );
+        searcher.search(new MatchAllDocsQuery(), topFieldCollector);
+        TopFieldDocs topDocs = topFieldCollector.topDocs();
+
         assertEquals(numDocs, topDocs.totalHits.value);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {

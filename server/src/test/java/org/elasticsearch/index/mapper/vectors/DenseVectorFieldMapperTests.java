@@ -456,7 +456,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         assertThat(knnVectorsFormat, instanceOf(Lucene94HnswVectorsFormat.class));
-        String expectedString = "lucene94HnswVectorsFormat(name = lucene94HnswVectorsFormat, maxConn = "
+        String expectedString = "Lucene94HnswVectorsFormat(name=Lucene94HnswVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction

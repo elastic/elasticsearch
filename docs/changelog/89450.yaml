@@ -1,0 +1,12 @@
+pr: 89450
+summary: Reject unknown bulk actions
+area: CRUD
+type: "breaking, bug"
+issues: []
+breaking:
+  title: Reject unknown bulk actions
+  area: CRUD
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

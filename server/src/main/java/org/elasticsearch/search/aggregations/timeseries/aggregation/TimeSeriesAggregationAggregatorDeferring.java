@@ -30,10 +30,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.TimestampBounds;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.plain.SortedSetBytesLeafFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -70,6 +67,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.search.DocValueFormat.TIME_SERIES_ID;
@@ -111,8 +109,6 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
     protected Map<Long, AggregatorFunction> timeBucketMetrics; // TODO replace map
     private ObjectArray<Map<Long, InternalAggregation>> groupBucketValues; // TODO replace map
     private ObjectArray<AggregatorBucketFunction> aggregatorCollectors;
-
-    private final IndexFieldData<SortedSetBytesLeafFieldData> tsidFieldData;
 
     private List<Entry> entries = new ArrayList<>();
     private AggregationExecutionContext aggCtx;
@@ -190,11 +186,6 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
 
         groupBucketValues = bigArrays().newObjectArray(1);
         aggregatorCollectors = bigArrays().newObjectArray(1);
-
-        tsidFieldData = (IndexFieldData<SortedSetBytesLeafFieldData>) Objects.requireNonNull(
-            context.buildFieldContext("_tsid"),
-            "Cannot obtain tsid field"
-        ).indexFieldData();
     }
 
     @Override
@@ -476,8 +467,8 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
         }
 
         if (deferring) {
-            final SortedBinaryDocValues tsids = tsidFieldData.load(context.getLeafReaderContext()).getBytesValues();
-            BytesRef tsid = null;
+            SortedDocValues tsids = DocValues.getSorted(context.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
+            final AtomicInteger tsidOrd = new AtomicInteger(-1);
             final AtomicLong currentBucketOrdinal = new AtomicLong();
             finishLeaf();
             return new LeafBucketCollectorBase(sub, null) {
@@ -486,11 +477,11 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     if (tsids.advanceExact(doc)) {
-                        BytesRef newTsid = tsids.nextValue();
-                        if (tsid == null) {
-                            reset(newTsid, bucket);
-                        } else if (false == tsid.equals(newTsid)) {
-                            reset(newTsid, bucket);
+                        int newTsidOrd = tsids.ordValue();
+                        if (tsidOrd.get() < 0) {
+                            reset(newTsidOrd, bucket);
+                        } else if (tsidOrd.get() != newTsidOrd) {
+                            reset(newTsidOrd, bucket);
                         }
                     }
 
@@ -506,8 +497,9 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
                     collectBucket(sub, doc, currentBucketOrdinal.get());
                 }
 
-                private void reset(BytesRef tsid, long bucket) {
-                    tsid = BytesRef.deepCopyOf(tsid);
+                private void reset(int newTsidOrd, long bucket) throws IOException {
+                    tsidOrd.set(newTsidOrd);
+                    BytesRef tsid = tsids.lookupOrd(newTsidOrd);
 
                     BytesRef bucketValue = needAggregator ? packKey(tsid) : tsid;
                     long bucketOrdinal = bucketOrds.add(bucket, bucketValue);
@@ -523,10 +515,7 @@ public class TimeSeriesAggregationAggregatorDeferring extends BucketsAggregator 
         }
     }
 
-    protected LeafBucketCollector getCollector(
-        LeafBucketCollector sub,
-        AggregationExecutionContext aggCtx
-    ) throws IOException {
+    protected LeafBucketCollector getCollector(LeafBucketCollector sub, AggregationExecutionContext aggCtx) throws IOException {
         final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
         CheckedConsumer<Integer, IOException> docConsumer = (doc) -> {
             if (aggCtx.getTimestamp() + downsampleRange < preRounding) {

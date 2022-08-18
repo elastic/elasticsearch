@@ -256,15 +256,6 @@ public enum IndexMode {
         }
     };
 
-    private static boolean isIndexRollup(final IndexSettings indexSettings) {
-        final String sourceIndex = indexSettings.getIndexMetadata().getSettings().get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY);
-        final String indexRollupStatus = indexSettings.getIndexMetadata().getSettings().get(IndexMetadata.INDEX_ROLLUP_STATUS_KEY);
-        final boolean rollupSuccess = IndexMetadata.RollupTaskStatus.SUCCESS.name()
-            .toLowerCase(Locale.ROOT)
-            .equals(indexRollupStatus != null ? indexRollupStatus.toLowerCase(Locale.ROOT) : IndexMetadata.RollupTaskStatus.UNKNOWN);
-        return Strings.isNullOrEmpty(sourceIndex) == false && rollupSuccess;
-    }
-
     protected static String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }

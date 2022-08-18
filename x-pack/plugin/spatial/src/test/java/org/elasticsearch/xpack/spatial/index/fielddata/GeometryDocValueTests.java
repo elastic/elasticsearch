@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.apache.lucene.geo.Circle;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.LinearRing;
@@ -182,8 +182,8 @@ public class GeometryDocValueTests extends ESTestCase {
         double centroidY = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
         assertEquals(centroidX, labelPosition.lon(), 0.0000001);
         assertEquals(centroidY, labelPosition.lat(), 0.0000001);
-        Circle tolerance = new Circle(centroidX, centroidY, 1);
-        assertTrue("Expect label position to be within the geometry", shapeValue.intersects(tolerance));
+        Circle tolerance = new Circle(centroidY, centroidX, 1);
+        assertTrue("Expect label position to be within the geometry", shapeValue.relate(tolerance) != GeoRelation.QUERY_DISJOINT);
     }
 
     public void testFranceLabelPosition() throws Exception {
@@ -197,8 +197,8 @@ public class GeometryDocValueTests extends ESTestCase {
         double centroidY = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
         assertEquals(centroidX, labelPosition.lon(), 0.0000001);
         assertEquals(centroidY, labelPosition.lat(), 0.0000001);
-        Circle tolerance = new Circle(centroidX, centroidY, 1);
-        assertTrue("Expect label position to be within the geometry", shapeValue.intersects(tolerance));
+        Circle tolerance = new Circle(centroidY, centroidX, 1);
+        assertTrue("Expect label position to be within the geometry", shapeValue.relate(tolerance) != GeoRelation.QUERY_DISJOINT);
     }
 
     private Geometry loadResourceAsGeometry(String filename) throws IOException, ParseException {

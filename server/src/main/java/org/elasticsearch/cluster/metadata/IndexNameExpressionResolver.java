@@ -1176,9 +1176,10 @@ public class IndexNameExpressionResolver {
          * resource names only. All the returned resources are "accessible", in the given context, i.e. the resources exist
          * and are not an alias or a datastream if the context does not permit it.
          * Wildcard expressions, depending on the context:
-         *   - might not cover hidden or system resources (but plain names can refer to hidden or system resources)
-         *   - might throw an exception if they don't cover anything
-         *   - might cover aliases and datastreams, and it could be that their backing indices are what's ultimately returned
+         *   - might throw an exception if they don't resolve to anything
+         *   - might not resolve to hidden or system resources (but plain names can refer to hidden or system resources)
+         *   - might resolve to aliases and datastreams, and it could be (depending on the context) that their backing indices are what's
+         *   ultimately returned, instead of the alias or datastream name
          */
         private static Collection<String> innerResolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);

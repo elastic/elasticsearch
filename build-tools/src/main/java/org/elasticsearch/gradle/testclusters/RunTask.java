@@ -92,7 +92,7 @@ public class RunTask extends DefaultTestClustersTask {
 
     @Input
     @Optional
-    Boolean getInitOnly(){
+    Boolean getInitOnly() {
         return initOnly;
     }
 
@@ -105,7 +105,7 @@ public class RunTask extends DefaultTestClustersTask {
 
     @Input
     @Optional
-    public Integer getPortOffset(){
+    public Integer getPortOffset() {
         return offset;
     }
 

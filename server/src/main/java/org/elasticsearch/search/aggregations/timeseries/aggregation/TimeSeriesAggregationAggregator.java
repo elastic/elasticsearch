@@ -157,7 +157,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             ? downsample.getFunction()
             : (downsampleRange > 0 ? Function.origin_value : Function.last);
         if (this.downsampleRange <= 0) {
-            this.downsampleRange = this.interval;
+            this.downsampleRange = this.interval - 1;
         }
         this.downsampleParams = downsample != null && downsample.getParameters() != null
             ? new HashMap<>(downsample.getParameters())
@@ -368,7 +368,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 reset(newTsid, bucket);
             }
 
-            if (preRounding < 0 || aggCtx.getTimestamp() < preRounding - interval) {
+            if (preRounding < 0 || (aggCtx.getTimestamp() <= preRounding - interval) && preRounding > startTime) {
                 preRounding = rounding.nextRoundingValue(aggCtx.getTimestamp());
             }
 

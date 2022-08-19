@@ -53,7 +53,6 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
         BucketOrder order,
         long startTime,
         long endTime,
-        boolean deferring,
         ValuesSourceConfig valuesSourceConfig,
         AggregationContext context,
         Aggregator parent,
@@ -75,7 +74,6 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
             order,
             startTime,
             endTime,
-            deferring,
             null,
             context,
             parent,
@@ -117,7 +115,6 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
 
     @Override
     protected LeafBucketCollector getCollector(
-        LeafBucketCollector sub,
         AggregationExecutionContext aggCtx
     ) throws IOException {
         Metric metricType = getAggregateMetric();
@@ -148,11 +145,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                     }
                 }
             };
-            if (deferring) {
-                return new DeferringCollector(values, aggCtx, docConsumer);
-            } else {
-                return new Collector(sub, values, aggCtx, docConsumer);
-            }
+            return new DeferringCollector(values, aggCtx, docConsumer);
         } else {
             final SortedNumericDoubleValues aggregateSums = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), Metric.sum);
             final SortedNumericDoubleValues aggregateValueCounts = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), Metric.value_count);
@@ -194,11 +187,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                 }
             };
 
-            if (deferring) {
-                return new DeferringCollector(aggregateSums, aggCtx, docConsumer);
-            } else {
-                return new Collector(sub, aggregateSums, aggCtx, docConsumer);
-            }
+            return new DeferringCollector(aggregateSums, aggCtx, docConsumer);
         }
     }
 

@@ -99,7 +99,6 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private TimestampBounds timestampBounds;
     private long startTime;
     private long endTime;
-    protected boolean deferring;
 
     private BytesRef preTsid;
     private long preBucketOrdinal;
@@ -132,7 +131,6 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         BucketOrder order,
         long startTime,
         long endTime,
-        boolean deferring,
         ValuesSourceConfig valuesSourceConfig,
         AggregationContext context,
         org.elasticsearch.search.aggregations.Aggregator parent,
@@ -149,7 +147,6 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         }
         this.startTime = startTime;
         this.endTime = endTime;
-        this.deferring = deferring;
         this.rounding = new RoundingInterval(this.startTime, this.interval);
         this.offset = offset != null ? offset.estimateMillis() : 0;
         this.aggregator = aggregator;
@@ -223,6 +220,11 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 ordered.insertWithOverflow(bucket);
             }
 
+            if (this.selectedBuckets != null) {
+                throw new IllegalStateException("Already been replayed");
+            }
+            this.selectedBuckets = new LongHash(ordered.size(), BigArrays.NON_RECYCLING_INSTANCE);
+
             // Get the top buckets
             InternalTimeSeriesAggregation.InternalBucket[] bucketsForOrd = new InternalTimeSeriesAggregation.InternalBucket[ordered.size()];
             allBucketsPerOrd[ordIdx] = bucketsForOrd;
@@ -232,58 +234,49 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 allBucketsPerOrd[ordIdx][b] = bucket;
                 otherDocCounts[ordIdx] -= allBucketsPerOrd[ordIdx][b].getDocCount();
                 bucketList.add(bucket);
+                selectedBuckets.add(bucket.bucketOrd);
             }
 
-            if (deferring) {
-                if (this.selectedBuckets != null) {
-                    throw new IllegalStateException("Already been replayed");
+            PriorityQueue<LeafWalker> queue = new PriorityQueue<>(entries.size()) {
+                @Override
+                protected boolean lessThan(LeafWalker a, LeafWalker b) {
+                    return a.getTimestamp() > b.getTimestamp();
                 }
-                this.selectedBuckets = new LongHash(ordered.size(), BigArrays.NON_RECYCLING_INSTANCE);
-                for (InternalTimeSeriesAggregation.InternalBucket bucket : bucketList) {
-                    selectedBuckets.add(bucket.bucketOrd);
-                }
+            };
 
-                PriorityQueue<LeafWalker> queue = new PriorityQueue<>(entries.size()) {
-                    @Override
-                    protected boolean lessThan(LeafWalker a, LeafWalker b) {
-                        return a.getTimestamp() > b.getTimestamp();
+            List<LeafWalker> leafWalkers = new ArrayList<>();
+            for (Entry entry : entries) {
+                assert entry.docDeltas.size() > 0 : "segment should have at least one document to replay, got 0";
+                try {
+                    final PackedLongValues.Iterator docDeltaIterator = entry.docDeltas.iterator();
+                    final PackedLongValues.Iterator buckets = entry.buckets.iterator();
+                    LeafWalker leafWalker = new LeafWalker(entry.aggCtx.getLeafReaderContext(), docDeltaIterator, buckets);
+                    if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        leafWalkers.add(leafWalker);
                     }
-                };
+                } catch (CollectionTerminatedException e) {
+                    // collection was terminated prematurely
+                    // continue with the following leaf
+                }
+            }
 
-                List<LeafWalker> leafWalkers = new ArrayList<>();
-                for (Entry entry : entries) {
-                    assert entry.docDeltas.size() > 0 : "segment should have at least one document to replay, got 0";
-                    try {
-                        final PackedLongValues.Iterator docDeltaIterator = entry.docDeltas.iterator();
-                        final PackedLongValues.Iterator buckets = entry.buckets.iterator();
-                        LeafWalker leafWalker = new LeafWalker(entry.aggCtx.getLeafReaderContext(), docDeltaIterator, buckets);
-                        if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                            leafWalkers.add(leafWalker);
-                        }
-                    } catch (CollectionTerminatedException e) {
-                        // collection was terminated prematurely
-                        // continue with the following leaf
+            while (populateQueue(leafWalkers, queue)) {
+                do {
+                    LeafWalker walker = queue.top();
+                    walker.collectCurrent();
+                    if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
+                        queue.pop();
+                    } else {
+                        queue.updateTop();
                     }
-                }
+                } while (queue.size() > 0);
+            }
 
-                while (populateQueue(leafWalkers, queue)) {
-                    do {
-                        LeafWalker walker = queue.top();
-                        walker.collectCurrent();
-                        if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
-                            queue.pop();
-                        } else {
-                            queue.updateTop();
-                        }
-                    } while (queue.size() > 0);
-                }
-
-                /**
-                 * collect the last tsid
-                 */
-                if (timeBucketMetrics != null && timeBucketMetrics.size() > 0) {
-                    collectTimeSeriesValues(preBucketOrdinal);
-                }
+            /**
+             * collect the last tsid
+             */
+            if (timeBucketMetrics != null && timeBucketMetrics.size() > 0) {
+                collectTimeSeriesValues(preBucketOrdinal);
             }
 
             for (InternalTimeSeriesAggregation.InternalBucket bucket : bucketList) {
@@ -347,60 +340,6 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             }
         }
         Releasables.close(aggregatorCollectors);
-    }
-
-    public class Collector extends LeafBucketCollectorBase {
-        final SortedNumericDoubleValues values;
-        final AggregationExecutionContext aggCtx;
-        final LeafBucketCollector sub;
-        final CheckedConsumer<Integer, IOException> docConsumer;
-
-        public Collector(
-            LeafBucketCollector sub,
-            SortedNumericDoubleValues values,
-            AggregationExecutionContext aggCtx,
-            CheckedConsumer<Integer, IOException> docConsumer
-        ) {
-            super(sub, values);
-            this.sub = sub;
-            this.values = values;
-            this.aggCtx = aggCtx;
-            this.docConsumer = docConsumer;
-        }
-
-        @Override
-        public void collect(int doc, long bucket) throws IOException {
-            BytesRef newTsid = aggCtx.getTsid();
-
-            if (preTsid == null) {
-                reset(newTsid, bucket);
-            } else if (false == preTsid.equals(newTsid)) {
-                collectTimeSeriesValues(preBucketOrdinal);
-                reset(newTsid, bucket);
-            }
-
-            if (preRounding < 0 || aggCtx.getTimestamp() < preRounding - interval) {
-                preRounding = rounding.nextRoundingValue(aggCtx.getTimestamp());
-            }
-
-            // calculate the value of the current doc
-            docConsumer.accept(doc);
-            collectBucket(sub, doc, preBucketOrdinal);
-        }
-
-        private void reset(BytesRef tsid, long bucket) {
-            timeBucketMetrics = new TreeMap<>();
-            preTsid = BytesRef.deepCopyOf(tsid);
-            preRounding = -1;
-
-            BytesRef bucketValue = needAggregator ? packKey(preTsid) : preTsid;
-            long bucketOrdinal = bucketOrds.add(bucket, bucketValue);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = -1 - bucketOrdinal;
-                grow(bucketOrdinal + 1);
-            }
-            preBucketOrdinal = bucketOrdinal;
-        }
     }
 
     public class DeferringCollector extends LeafBucketCollector {
@@ -474,56 +413,52 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         LeafBucketCollector sub,
         AggregationExecutionContext aggContext
     ) throws IOException {
-        if (deferring) {
-            SortedDocValues tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
-            final AtomicInteger tsidOrd = new AtomicInteger(-1);
-            final AtomicLong currentBucketOrdinal = new AtomicLong();
-            finishLeaf();
-            return new LeafBucketCollectorBase(sub, null) {
-                int lastDoc = 0;
+        SortedDocValues tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
+        final AtomicInteger tsidOrd = new AtomicInteger(-1);
+        final AtomicLong currentBucketOrdinal = new AtomicLong();
+        finishLeaf();
+        return new LeafBucketCollectorBase(sub, null) {
+            int lastDoc = 0;
 
-                @Override
-                public void collect(int doc, long bucket) throws IOException {
-                    if (tsids.advanceExact(doc)) {
-                        int newTsidOrd = tsids.ordValue();
-                        if (tsidOrd.get() < 0) {
-                            reset(newTsidOrd, bucket);
-                        } else if (tsidOrd.get() != newTsidOrd) {
-                            reset(newTsidOrd, bucket);
-                        }
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (tsids.advanceExact(doc)) {
+                    int newTsidOrd = tsids.ordValue();
+                    if (tsidOrd.get() < 0) {
+                        reset(newTsidOrd, bucket);
+                    } else if (tsidOrd.get() != newTsidOrd) {
+                        reset(newTsidOrd, bucket);
                     }
-
-                    if (aggCtx == null) {
-                        aggCtx = aggContext;
-                        docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
-                        bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
-                    }
-                    docDeltasBuilder.add(doc - lastDoc);
-                    bucketsBuilder.add(currentBucketOrdinal.get());
-                    lastDoc = doc;
-
-                    collectBucket(sub, doc, currentBucketOrdinal.get());
                 }
 
-                private void reset(int newTsidOrd, long bucket) throws IOException {
-                    tsidOrd.set(newTsidOrd);
-                    BytesRef tsid = tsids.lookupOrd(newTsidOrd);
-
-                    BytesRef bucketValue = needAggregator ? packKey(tsid) : tsid;
-                    long bucketOrdinal = bucketOrds.add(bucket, bucketValue);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = -1 - bucketOrdinal;
-                        grow(bucketOrdinal + 1);
-                    }
-                    currentBucketOrdinal.set(bucketOrdinal);
+                if (aggCtx == null) {
+                    aggCtx = aggContext;
+                    docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+                    bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                 }
-            };
-        } else {
-            return getCollector(sub, aggContext);
-        }
+                docDeltasBuilder.add(doc - lastDoc);
+                bucketsBuilder.add(currentBucketOrdinal.get());
+                lastDoc = doc;
+
+                collectBucket(sub, doc, currentBucketOrdinal.get());
+            }
+
+            private void reset(int newTsidOrd, long bucket) throws IOException {
+                tsidOrd.set(newTsidOrd);
+                BytesRef tsid = tsids.lookupOrd(newTsidOrd);
+
+                BytesRef bucketValue = needAggregator ? packKey(tsid) : tsid;
+                long bucketOrdinal = bucketOrds.add(bucket, bucketValue);
+                if (bucketOrdinal < 0) { // already seen
+                    bucketOrdinal = -1 - bucketOrdinal;
+                    grow(bucketOrdinal + 1);
+                }
+                currentBucketOrdinal.set(bucketOrdinal);
+            }
+        };
     }
 
-    protected LeafBucketCollector getCollector(LeafBucketCollector sub, AggregationExecutionContext aggCtx) throws IOException {
+    protected LeafBucketCollector getCollector(AggregationExecutionContext aggCtx) throws IOException {
         final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
         CheckedConsumer<Integer, IOException> docConsumer = (doc) -> {
             if (aggCtx.getTimestamp() + downsampleRange < preRounding) {
@@ -550,26 +485,12 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 }
             }
         };
-        if (deferring) {
-            return new DeferringCollector(values, aggCtx, docConsumer);
-        } else {
-            return new Collector(sub, values, aggCtx, docConsumer);
-        }
+        return new DeferringCollector(values, aggCtx, docConsumer);
     }
 
     @Override
     protected void doPostCollection() throws IOException {
-        if (deferring) {
-            finishLeaf();
-        } else {
-            /**
-             * collect the last tsid
-             */
-            if (timeBucketMetrics != null && timeBucketMetrics.size() > 0) {
-                collectTimeSeriesValues(preBucketOrdinal);
-            }
-        }
-
+        finishLeaf();
     }
 
     /**
@@ -758,7 +679,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             this.docDeltaIterator = docDeltaIterator;
             this.buckets = buckets;
             AggregationExecutionContext aggContext = new AggregationExecutionContext(context, scratch::get, () -> timestamp);
-            this.collector = getCollector(null, aggContext);
+            this.collector = getCollector(aggContext);
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         }

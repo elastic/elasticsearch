@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -55,11 +56,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseNotesTemplate;
     private final RegularFileProperty releaseHighlightsTemplate;
     private final RegularFileProperty breakingChangesTemplate;
+    private final RegularFileProperty migrationIndexTemplate;
 
     private final RegularFileProperty releaseNotesIndexFile;
     private final RegularFileProperty releaseNotesFile;
     private final RegularFileProperty releaseHighlightsFile;
     private final RegularFileProperty breakingChangesMigrationFile;
+    private final RegularFileProperty migrationIndexFile;
 
     private final GitWrapper gitWrapper;
 
@@ -71,11 +74,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         releaseNotesTemplate = objectFactory.fileProperty();
         releaseHighlightsTemplate = objectFactory.fileProperty();
         breakingChangesTemplate = objectFactory.fileProperty();
+        migrationIndexTemplate = objectFactory.fileProperty();
 
         releaseNotesIndexFile = objectFactory.fileProperty();
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
         breakingChangesMigrationFile = objectFactory.fileProperty();
+        migrationIndexFile = objectFactory.fileProperty();
 
         gitWrapper = new GitWrapper(execOperations);
     }
@@ -136,6 +141,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             this.breakingChangesMigrationFile.get().getAsFile(),
             entries
         );
+
+        LOGGER.info("Updating migration/index...");
+        MigrationIndexGenerator.update(
+            getMinorVersions(versions),
+            this.migrationIndexTemplate.get().getAsFile(),
+            this.migrationIndexFile.get().getAsFile()
+        );
     }
 
     /**
@@ -146,11 +158,19 @@ public class GenerateReleaseNotesTask extends DefaultTask {
      */
     @VisibleForTesting
     static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
-        QualifiedVersion v = QualifiedVersion.of(currentVersion);
-        final String pattern = "v" + v.major() + ".*";
-        Set<QualifiedVersion> versions = gitWrapper.listVersions(pattern).collect(toSet());
-        versions.add(v);
-        return versions;
+        QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
+        final String pattern = "v" + qualifiedVersion.major() + ".*";
+        // We may be generating notes for a minor version prior to the latest minor, so we need to filter out versions that are too new.
+        return Stream.concat(gitWrapper.listVersions(pattern).filter(v -> v.isBefore(qualifiedVersion)), Stream.of(qualifiedVersion))
+            .collect(toSet());
+    }
+
+    /**
+     * Convert set of QualifiedVersion to MinorVersion by deleting all but the major and minor components.
+     */
+    @VisibleForTesting
+    static Set<MinorVersion> getMinorVersions(Set<QualifiedVersion> versions) {
+        return versions.stream().map(MinorVersion::of).collect(toSet());
     }
 
     /**
@@ -319,6 +339,15 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         this.breakingChangesTemplate.set(file);
     }
 
+    @InputFile
+    public RegularFileProperty getMigrationIndexTemplate() {
+        return migrationIndexTemplate;
+    }
+
+    public void setMigrationIndexTemplate(RegularFile file) {
+        this.migrationIndexTemplate.set(file);
+    }
+
     @OutputFile
     public RegularFileProperty getReleaseNotesIndexFile() {
         return releaseNotesIndexFile;
@@ -353,5 +382,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     public void setBreakingChangesMigrationFile(RegularFile file) {
         this.breakingChangesMigrationFile.set(file);
+    }
+
+    @OutputFile
+    public RegularFileProperty getMigrationIndexFile() {
+        return migrationIndexFile;
+    }
+
+    public void setMigrationIndexFile(RegularFile file) {
+        this.migrationIndexFile.set(file);
     }
 }

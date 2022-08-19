@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
 
 public class SourceValueFetcherMultiGeoPointIndexFieldData extends SourceValueFetcherIndexFieldData<MultiGeoPointValues> {
 
@@ -100,13 +99,18 @@ public class SourceValueFetcherMultiGeoPointIndexFieldData extends SourceValueFe
         @SuppressWarnings("unchecked")
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-            values = new TreeSet<>();
+            values.clear();
 
             for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+                assert value instanceof Map && ((Map<Object, Object>) value).get("coordinates") instanceof List;
                 List<Object> coordinates = ((Map<String, List<Object>>) value).get("coordinates");
-                values.add(new GeoPoint((double) coordinates.get(1), (double) coordinates.get(0)).getEncoded());
+                assert coordinates.size() == 2 && coordinates.get(1) instanceof Number && coordinates.get(0) instanceof Number;
+                values.add(
+                    new GeoPoint(((Number) coordinates.get(1)).doubleValue(), ((Number) coordinates.get(0)).doubleValue()).getEncoded()
+                );
             }
 
+            values.sort(Long::compare);
             iterator = values.iterator();
 
             return true;

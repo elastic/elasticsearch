@@ -202,7 +202,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
             if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                Settings.writeSettingsToStream(settings, out);
+                settings.writeTo(out);
             }
             parameters.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_7_14_0)) {

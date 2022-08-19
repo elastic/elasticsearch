@@ -105,6 +105,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             setFlagOnSuccess(becameMaster2)
         );
         runUntilFlag(deterministicTaskQueue, becameMaster2);
+        deterministicTaskQueue.runAllRunnableTasks();
 
         for (int i = 0; i < 3; i++) {
             final int initialRequestCount = client.requestCount;

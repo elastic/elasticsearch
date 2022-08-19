@@ -266,7 +266,7 @@ public class MetadataCreateIndexService {
                     shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
-                                "[{}] index created, but the operation timed out while waiting for " + "enough shards to be started.",
+                                "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
                                 request.index()
                             );
                         } else {
@@ -371,7 +371,7 @@ public class MetadataCreateIndexService {
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 currentState.metadata(),
                 name,
-                isHiddenFromRequest == null ? false : isHiddenFromRequest
+                isHiddenFromRequest != null && isHiddenFromRequest
             );
 
             if (v2Template != null) {

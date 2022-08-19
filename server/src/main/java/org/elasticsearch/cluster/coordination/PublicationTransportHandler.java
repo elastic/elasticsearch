@@ -423,24 +423,18 @@ public class PublicationTransportHandler {
                 listener.onFailure(new IllegalStateException("serialized cluster state released before transmission"));
                 return;
             }
-            try {
-                transportService.sendChildRequest(
-                    destination,
-                    PUBLISH_STATE_ACTION_NAME,
-                    new BytesTransportRequest(bytes, destination.getVersion()),
-                    task,
-                    STATE_REQUEST_OPTIONS,
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.runAfter(listener, bytes::decRef),
-                        PublishWithJoinResponse::new,
-                        ThreadPool.Names.CLUSTER_COORDINATION
-                    )
-                );
-            } catch (Exception e) {
-                assert false : e;
-                logger.warn(() -> format("error sending cluster state to %s", destination), e);
-                listener.onFailure(e);
-            }
+            transportService.sendChildRequest(
+                destination,
+                PUBLISH_STATE_ACTION_NAME,
+                new BytesTransportRequest(bytes, destination.getVersion()),
+                task,
+                STATE_REQUEST_OPTIONS,
+                new ActionListenerResponseHandler<>(
+                    ActionListener.runAfter(listener, bytes::decRef),
+                    PublishWithJoinResponse::new,
+                    ThreadPool.Names.CLUSTER_COORDINATION
+                )
+            );
         }
 
         @Override

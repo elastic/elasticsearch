@@ -193,12 +193,20 @@ public class LocalHealthMonitor implements ClusterStateListener {
                         maybeScheduleNextRun(monitorInterval);
                     })
                 );
+            } else {
+                inProgress.set(false);
+                maybeScheduleNextRun(monitorInterval);
             }
         }
     }
 
     DiskHealthInfo getLastReportedDiskHealthInfo() {
         return lastReportedDiskHealthInfo.get();
+    }
+
+    // Visible for testing
+    boolean isInProgress() {
+        return inProgress.get();
     }
 
     /**

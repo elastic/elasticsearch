@@ -96,7 +96,7 @@ final class ShardSplittingQuery extends Query {
                     }
                     if (indexMetadata.isRoutingPartitionedIndex()) {
                         // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
-                        // this this index is routing partitioned.
+                        // this index is routing partitioned.
                         Visitor visitor = new Visitor(leafReader);
                         TwoPhaseIterator twoPhaseIterator = parentBitSet == null
                             ? new RoutingPartitionedDocIdSetIterator(visitor)
@@ -122,10 +122,21 @@ final class ShardSplittingQuery extends Query {
                             return shardId == targetShardId;
                         }, leafReader, maybeWrapConsumer.apply(bitSet::set));
 
+                        // TODO have the IndexRouting build the query and pass routingRequired in
+                        boolean routingRequired = indexMetadata.mapping() == null ? false : indexMetadata.mapping().routingRequired();
                         // now if we have a mixed index where some docs have a _routing value and some don't we have to exclude the ones
-                        // with a routing value from the next iteration an delete / select based on the ID.
-                        if (terms.getDocCount() != leafReader.maxDoc()) {
-                            // this is a special case where some of the docs have no routing values this sucks but it's possible today
+                        // with a routing value from the next iteration and delete / select based on the ID.
+                        if (routingRequired == false && terms.getDocCount() != leafReader.maxDoc()) {
+                            /*
+                             * This is a special case where some docs don't have routing values.
+                             * It's annoying, but it's allowed to build an index where some documents
+                             * hve routing and others don't.
+                             *
+                             * Luckily, if the routing field is required in the mapping then we can
+                             * safely assume that all documents which are don't have a routing are
+                             * nested documents. And we pick those up later based on the assignment
+                             * of the document that contains them.
+                             */
                             FixedBitSet hasRoutingValue = new FixedBitSet(leafReader.maxDoc());
                             findSplitDocs(RoutingFieldMapper.NAME, ref -> false, leafReader, maybeWrapConsumer.apply(hasRoutingValue::set));
                             IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);

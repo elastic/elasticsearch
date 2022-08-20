@@ -201,7 +201,8 @@ public class ShrinkAction implements LifecycleAction {
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client);
         CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(
             checkTargetShardsCountKey,
-            cleanupShrinkIndexKey
+            cleanupShrinkIndexKey,
+            numberOfShards
         );
         // We generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
         // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and we haven't generated a

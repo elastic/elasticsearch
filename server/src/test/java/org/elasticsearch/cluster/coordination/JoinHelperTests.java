@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -74,7 +75,8 @@ public class JoinHelperTests extends ESTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
-            new JoinReasonService(() -> 0L)
+            new JoinReasonService(() -> 0L),
+            new NoneCircuitBreakerService()
         );
         transportService.start();
 
@@ -229,7 +231,8 @@ public class JoinHelperTests extends ESTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             nodeHealthServiceStatus::get,
-            new JoinReasonService(() -> 0L)
+            new JoinReasonService(() -> 0L),
+            new NoneCircuitBreakerService()
         );
         transportService.start();
 

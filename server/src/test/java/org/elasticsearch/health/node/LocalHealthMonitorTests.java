@@ -145,7 +145,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testDoNotUpdateHealthInfoOnFailure() {
+    public void testDoNotUpdateHealthInfoOnFailure() throws Exception {
         doAnswer(invocation -> {
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onFailure(new RuntimeException("simulated"));
@@ -157,7 +157,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
         localHealthMonitor.maybeScheduleNow();
         assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, null);
-        assertThat(localHealthMonitor.isInProgress(), equalTo(false));
+        assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
     }
 
     @SuppressWarnings("unchecked")
@@ -184,9 +184,10 @@ public class LocalHealthMonitorTests extends ESTestCase {
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
         localHealthMonitor.maybeScheduleNow();
         assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
+        assertThat(localHealthMonitor.isInProgress(), equalTo(false));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
         assertBusy(() -> assertThat(counter.get(), equalTo(2)));
-        assertThat(localHealthMonitor.isInProgress(), equalTo(false));
+        assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
     }
 
     @SuppressWarnings("unchecked")
@@ -218,7 +219,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         localHealthMonitor.setEnabled(true);
         DiskHealthInfo nextHealthStatus = new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
         assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(nextHealthStatus)));
-        assertThat(localHealthMonitor.isInProgress(), equalTo(false));
+        assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
     }
 
     private void assertRemainsUnchanged(Supplier<DiskHealthInfo> supplier, DiskHealthInfo expected) {

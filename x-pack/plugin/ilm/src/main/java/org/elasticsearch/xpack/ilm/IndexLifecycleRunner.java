@@ -69,7 +69,7 @@ class IndexLifecycleRunner {
                             state = task.execute(state);
                         }
                         taskContext.success(
-                            new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, batchExecutionContext.initialState())
+                            publishedState -> task.clusterStateProcessed(batchExecutionContext.initialState(), publishedState)
                         );
                     } catch (Exception e) {
                         taskContext.onFailure(e);

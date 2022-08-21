@@ -668,11 +668,6 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
             public boolean equals(Object o) {
                 if (this == o) {
                     return true;
@@ -850,11 +845,6 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                throw new AssertionError("should not complete task");
-            }
-
-            @Override
             public void onFailure(Exception e) {
                 assertThat(e, instanceOf(RuntimeException.class));
                 assertThat(e.getMessage(), equalTo("simulated"));
@@ -925,11 +915,6 @@ public class MasterServiceTests extends ESTestCase {
             Task(String responseHeaderValue, ActionListener<ClusterState> publishListener) {
                 this.responseHeaderValue = responseHeaderValue;
                 this.publishListener = publishListener;
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                throw new AssertionError("should not complete task");
             }
 
             @Override
@@ -1419,11 +1404,6 @@ public class MasterServiceTests extends ESTestCase {
                     public void onFailure(Exception e) {
                         throw new AssertionError(e);
                     }
-
-                    @Override
-                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        fail();
-                    }
                 }
 
                 masterService.submitStateUpdateTask(
@@ -1466,15 +1446,9 @@ public class MasterServiceTests extends ESTestCase {
                 });
 
                 class Task implements ClusterStateTaskListener {
-
                     @Override
                     public void onFailure(Exception e) {
                         throw new AssertionError(e);
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        fail();
                     }
                 }
 
@@ -1508,15 +1482,9 @@ public class MasterServiceTests extends ESTestCase {
                 });
 
                 class Task implements ClusterStateTaskListener {
-
                     @Override
                     public void onFailure(Exception e) {
                         throw new AssertionError(e);
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        fail();
                     }
                 }
 
@@ -1550,15 +1518,9 @@ public class MasterServiceTests extends ESTestCase {
                 });
 
                 class Task implements ClusterStateTaskListener {
-
                     @Override
                     public void onFailure(Exception e) {
                         throw new AssertionError(e);
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        fail();
                     }
                 }
 
@@ -1990,12 +1952,6 @@ public class MasterServiceTests extends ESTestCase {
         @Override
         public void onFailure(Exception e) {
             throw new AssertionError("should not be called", e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            // see parent method javadoc, we use dedicated listeners rather than calling this method
-            throw new AssertionError("should not be called");
         }
     }
 }

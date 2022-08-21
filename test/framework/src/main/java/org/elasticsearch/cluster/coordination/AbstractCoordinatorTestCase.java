@@ -1435,7 +1435,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return submitUpdateTask(
                     "new value [" + key + "=" + value + "]",
                     cs -> setValue(cs, key, value),
-                    new ClusterStateTaskListener() {
+                    new CoordinatorTestClusterStateUpdateTask() {
                         @Override
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             history.respond(eventId, value(oldState, key));
@@ -1460,7 +1460,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             void readValue(int key) {
                 final int eventId = history.invoke(new Tuple<>(key, null));
-                submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new ClusterStateTaskListener() {
+                submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new CoordinatorTestClusterStateUpdateTask() {
                     @Override
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         history.respond(eventId, value(newState, key));
@@ -1478,7 +1478,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             AckCollector submitUpdateTask(
                 String source,
                 UnaryOperator<ClusterState> clusterStateUpdate,
-                ClusterStateTaskListener taskListener
+                CoordinatorTestClusterStateUpdateTask taskListener
             ) {
                 final AckCollector ackCollector = new AckCollector();
                 onNode(() -> {
@@ -1955,5 +1955,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             assert trackedRefs.isEmpty() : trackedRefs;
         }
 
+    }
+
+    public interface CoordinatorTestClusterStateUpdateTask extends ClusterStateTaskListener {
+        default void clusterStateProcessed(ClusterState oldState, ClusterState newState) {}
     }
 }

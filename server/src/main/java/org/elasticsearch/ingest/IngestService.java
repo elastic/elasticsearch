@@ -146,11 +146,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
-        }
     }
 
     public IngestService(

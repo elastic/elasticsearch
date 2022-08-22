@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -242,7 +241,7 @@ public class AllocationService {
             allocator.applyFailedShards(failedShards, allocation);
         }
 
-        reroute(allocation, rerouteCompletionIsNotRequired());// reroute is not required as this is not triggered by a user request
+        reroute(allocation, rerouteCompletionIsNotRequired());// this is not triggered by a user request
         String failedShardsAsString = firstListElementsToCommaDelimitedString(
             failedShards,
             s -> s.routingEntry().shardId().toString(),
@@ -265,7 +264,7 @@ public class AllocationService {
             clusterState = buildResultAndLogHealthChange(clusterState, allocation, reason);
         }
         if (reroute) {
-            return reroute(clusterState, reason, DesiredBalanceShardsAllocator.REMOVE_ME);
+            return reroute(clusterState, reason, rerouteCompletionIsNotRequired());// this is not triggered by a user request
         } else {
             return clusterState;
         }
@@ -412,9 +411,6 @@ public class AllocationService {
     public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<Void> listener) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
         RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
-        if (listener == DesiredBalanceShardsAllocator.REMOVE_ME) {
-            logger.warn("Executing reroute [{}] using [REMOVE_ME] listener, async result is ignored", reason);
-        }
         reroute(allocation, listener);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;

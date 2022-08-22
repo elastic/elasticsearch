@@ -1,0 +1,331 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.slm.action;
+
+import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.reservedstate.TransformState;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
+import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
+import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.mockito.stubbing.Answer;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
+
+    private TransformState processJSON(ReservedSnapshotAction action, TransformState prevState, String json) throws Exception {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            return action.transform(action.fromXContent(parser), prevState);
+        }
+    }
+
+    public void testValidationFails() {
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        ReservedSnapshotAction action = new ReservedSnapshotAction();
+        TransformState prevState = new TransformState(state, Collections.emptySet());
+
+        String badPolicyJSON = """
+            {
+                "daily-snapshots": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                        "indices": ["foo-*", "important"],
+                        "ignore_unavailable": true,
+                        "include_global_state": false
+                    },
+                    "retention": {
+                        "expire_after_bad": "30d",
+                        "min_count": 1,
+                        "max_count": 50
+                    }
+                }
+            }""";
+
+        assertEquals(
+            "[1:2] [lifecycle_policy] unknown field [phase] did you mean [phases]?",
+            expectThrows(XContentParseException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+        );
+    }
+
+    public void testActionAddRemove() throws Exception {
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+
+        ReservedSnapshotAction action = new ReservedSnapshotAction();
+
+        String emptyJSON = "";
+
+        TransformState prevState = new TransformState(state, Collections.emptySet());
+
+        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        assertEquals(0, updatedState.keys().size());
+        assertEquals(prevState.state(), updatedState.state());
+
+        String twoPoliciesJSON = """
+            {
+                "daily-snapshots": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                        "indices": ["foo-*", "important"],
+                        "ignore_unavailable": true,
+                        "include_global_state": false
+                    },
+                    "retention": {
+                        "expire_after": "30d",
+                        "min_count": 1,
+                        "max_count": 50
+                    }
+                },
+                "daily-snapshots1": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                        "indices": ["bar-*", "not-important"],
+                        "ignore_unavailable": true,
+                        "include_global_state": false
+                    },
+                    "retention": {
+                        "expire_after": "30d",
+                        "min_count": 1,
+                        "max_count": 50
+                    }
+                }
+            }""";
+
+        prevState = updatedState;
+        updatedState = processJSON(action, prevState, twoPoliciesJSON);
+        assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
+        IndexLifecycleMetadata ilmMetadata = updatedState.state()
+            .metadata()
+            .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
+
+        String onePolicyRemovedJSON = """
+            {
+                "my_timeseries_lifecycle": {
+                    "phases": {
+                        "warm": {
+                            "min_age": "10s",
+                            "actions": {
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        prevState = updatedState;
+        updatedState = processJSON(action, prevState, onePolicyRemovedJSON);
+        assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle"));
+        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle"));
+
+        String onePolicyRenamedJSON = """
+            {
+                "my_timeseries_lifecycle2": {
+                    "phases": {
+                        "warm": {
+                            "min_age": "10s",
+                            "actions": {
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        prevState = updatedState;
+        updatedState = processJSON(action, prevState, onePolicyRenamedJSON);
+        assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle2"));
+        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle2"));
+    }
+
+    private void setupTaskMock(ClusterService clusterService, ClusterState state) {
+        doAnswer((Answer<Object>) invocation -> {
+            Object[] args = invocation.getArguments();
+
+            if ((args[3] instanceof ReservedStateUpdateTaskExecutor) == false) {
+                fail("Should have gotten a state update task to execute, instead got: " + args[3].getClass().getName());
+            }
+
+            ReservedStateUpdateTaskExecutor task = (ReservedStateUpdateTaskExecutor) args[3];
+
+            ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
+                @Override
+                public ReservedStateUpdateTask getTask() {
+                    return (ReservedStateUpdateTask) args[1];
+                }
+
+                @Override
+                public void success(Runnable onPublicationSuccess) {}
+
+                @Override
+                public void success(Consumer<ClusterState> publishedStateConsumer) {}
+
+                @Override
+                public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+
+                @Override
+                public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {}
+
+                @Override
+                public void onFailure(Exception failure) {
+                    fail("Shouldn't fail here");
+                }
+
+                @Override
+                public Releasable captureResponseHeaders() {
+                    return null;
+                }
+            };
+
+            task.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(context), () -> null));
+
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(), any());
+    }
+
+    public void testOperatorControllerFromJSONContent() throws IOException {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        when(clusterService.state()).thenReturn(state);
+
+        ReservedClusterStateService controller = new ReservedClusterStateService(
+            clusterService,
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
+        );
+
+        String testJSON = """
+            {
+                 "metadata": {
+                     "version": "1234",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {
+                         "indices.recovery.max_bytes_per_sec": "50mb"
+                     },
+                     "snapshot_repositories": {
+                        "repo": {
+                           "type": "fs",
+                           "settings": {
+                              "location": "my_backup_location"
+                           }
+                        }
+                     },
+                     "slm": {
+                        "daily-snapshots": {
+                            "schedule": "0 1 2 3 4 ?",
+                            "name": "<production-snap-{now/d}>",
+                            "repository": "repo",
+                            "config": {
+                                "indices": ["foo-*", "important"],
+                                "ignore_unavailable": true,
+                                "include_global_state": false
+                            },
+                            "retention": {
+                                "expire_after": "30d",
+                                "min_count": 1,
+                                "max_count": 50
+                            }
+                        },
+                        "daily-snapshots1": {
+                            "schedule": "0 1 2 3 4 ?",
+                            "name": "<production-snap-{now/d}>",
+                            "repository": "repo",
+                            "config": {
+                                "indices": ["bar-*", "not-important"],
+                                "ignore_unavailable": true,
+                                "include_global_state": false
+                            },
+                            "retention": {
+                                "expire_after": "30d",
+                                "min_count": 1,
+                                "max_count": 50
+                            }
+                        }
+                    }
+                 }
+            }""";
+
+        AtomicReference<Exception> x = new AtomicReference<>();
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            controller.process("operator", parser, (e) -> x.set(e));
+
+            assertTrue(x.get() instanceof IllegalStateException);
+            assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
+        }
+
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+
+        controller = new ReservedClusterStateService(
+            clusterService,
+            List.of(
+                new ReservedClusterSettingsAction(clusterSettings),
+                new ReservedSnapshotAction(),
+                new ReservedRepositoryAction(mock(RepositoriesService.class))
+            )
+        );
+
+        setupTaskMock(clusterService, state);
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            controller.process("operator", parser, (e) -> {
+                if (e != null) {
+                    fail("Should not fail");
+                }
+            });
+        }
+    }
+}

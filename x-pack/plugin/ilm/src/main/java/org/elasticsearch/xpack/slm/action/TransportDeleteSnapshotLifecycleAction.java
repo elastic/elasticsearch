@@ -28,9 +28,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
-import org.elasticsearch.xpack.ilm.action.ReservedLifecycleAction;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeAction<
@@ -65,7 +66,12 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<DeleteSnapshotLifecycleAction.Response> listener
     ) throws Exception {
-        submitUnbatchedTask("delete-snapshot-lifecycle-" + request.getLifecycleId(), new DeleteSnapshotPolicyTask(request, listener));
+        submitUnbatchedTask("delete-snapshot-lifecycle-" + request.getLifecycleId(), new DeleteSnapshotPolicyTask(request, listener) {
+            @Override
+            protected DeleteSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
+                return new DeleteSnapshotLifecycleAction.Response(acknowledged);
+            }
+        });
     }
 
     public static class DeleteSnapshotPolicyTask extends AckedClusterStateUpdateTask {
@@ -85,11 +91,6 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
          */
         DeleteSnapshotPolicyTask(String policyId) {
             this(new DeleteSnapshotLifecycleAction.Request(policyId), null);
-        }
-
-        @Override
-        protected DeleteSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
-            return new DeleteSnapshotLifecycleAction.Response(acknowledged);
         }
 
         @Override
@@ -137,5 +138,15 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
     @Override
     protected ClusterBlockException checkBlock(DeleteSnapshotLifecycleAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedSnapshotAction.NAME);
+    }
+
+    @Override
+    protected Set<String> modifiedKeys(DeleteSnapshotLifecycleAction.Request request) {
+        return Set.of(request.getLifecycleId());
     }
 }

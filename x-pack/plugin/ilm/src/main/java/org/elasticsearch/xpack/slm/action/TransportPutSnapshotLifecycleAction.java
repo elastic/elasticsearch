@@ -33,13 +33,14 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
-import org.elasticsearch.xpack.ilm.action.ReservedLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeAction<
     PutSnapshotLifecycleAction.Request,
@@ -86,8 +87,12 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
         submitUnbatchedTask(
-            "put-snapshot-lifecycle-" + request.getLifecycleId(),
-            new UpdateSnapshotPolicyTask(request, listener, filteredHeaders)
+            "put-snapshot-lifecycle-" + request.getLifecycleId(), new UpdateSnapshotPolicyTask(request, listener, filteredHeaders) {
+                @Override
+                protected PutSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
+                    return new PutSnapshotLifecycleAction.Response(acknowledged);
+                }
+            }
         );
     }
 
@@ -156,11 +161,6 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                 .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
                 .build();
         }
-
-        @Override
-        protected PutSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
-            return new PutSnapshotLifecycleAction.Response(acknowledged);
-        }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -171,5 +171,15 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
     @Override
     protected ClusterBlockException checkBlock(PutSnapshotLifecycleAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedSnapshotAction.NAME);
+    }
+
+    @Override
+    protected Set<String> modifiedKeys(PutSnapshotLifecycleAction.Request request) {
+        return Set.of(request.getLifecycleId());
     }
 }

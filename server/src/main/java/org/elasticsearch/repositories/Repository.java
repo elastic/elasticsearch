@@ -317,9 +317,6 @@ public interface Repository extends LifecycleComponent {
     void awaitIdle();
 
     static boolean assertSnapshotMetaThread() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT_META + ']') || threadName.startsWith("TEST-")
-            : "Expected current thread [" + Thread.currentThread() + "] to be a snapshot meta thread.";
-        return true;
+        return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
     }
 }

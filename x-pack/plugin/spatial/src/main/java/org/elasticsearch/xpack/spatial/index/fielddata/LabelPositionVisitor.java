@@ -7,54 +7,50 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import java.util.function.BiFunction;
 
 /**
- * Get the first node of the tree and provide a point in that gemetry (point, line or triangle)
+ * Get the first node of the tree and provide a point in that geometry (point, line or triangle)
  * as a suggested label position likely to be somewhere in the middle of the entire geometry.
  *
  * TODO: We could instead choose the point closer to the centroid which improves unbalanced trees
  */
-public class LabelPositionVisitor implements TriangleTreeReader.Visitor {
+public class LabelPositionVisitor<T> extends TriangleTreeReader.DecodedVisitor {
 
-    private GeoPoint labelPosition;
-    private final CoordinateEncoder encoder;
+    private T labelPosition;
+    private final BiFunction<Double, Double, T> pointMaker;
 
-    public LabelPositionVisitor(CoordinateEncoder encoder) {
-        this.encoder = encoder;
+    public LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, T> pointMaker) {
+        super(encoder);
+        this.pointMaker = pointMaker;
     }
 
     @Override
-    public void visitPoint(int x, int y) {
-        double lon = encoder.decodeX(x);
-        double lat = encoder.decodeY(y);
-        // System.out.println("Got point: (" + lon + "," + lat + ")");
+    void visitDecodedPoint(double x, double y) {
         assert labelPosition == null;
-        labelPosition = new GeoPoint(lat, lon);
+        labelPosition = pointMaker.apply(x, y);
     }
 
     @Override
-    public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
-        double aLon = encoder.decodeX(aX);
-        double aLat = encoder.decodeY(aY);
-        double bLon = encoder.decodeX(bX);
-        double bLat = encoder.decodeY(bY);
-        // System.out.println("Got line: (" + aLon + "," + aLat + ")-(" + bLon + "," + bLat + ")");
+    public void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
         assert labelPosition == null;
-        labelPosition = new GeoPoint((aLat + bLat) / 2.0, (aLon + bLon) / 2.0);
+        labelPosition = pointMaker.apply((aX + bX) / 2.0, (aY + bY) / 2.0);
     }
 
     @Override
-    public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
-        double aLon = encoder.decodeX(aX);
-        double aLat = encoder.decodeY(aY);
-        double bLon = encoder.decodeX(bX);
-        double bLat = encoder.decodeY(bY);
-        double cLon = encoder.decodeX(cX);
-        double cLat = encoder.decodeY(cY);
-        // System.out.println("Got triangle: (" + aLon + "," + aLat + ")-(" + bLon + "," + bLat + ")-(" + cLon + "," + cLat + ")");
+    public void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
         assert labelPosition == null;
-        labelPosition = new GeoPoint((aLat + bLat + cLat) / 3.0, (aLon + bLon + cLon) / 3.0);
+        labelPosition = pointMaker.apply((aX + bX + cX) / 3.0, (aY + bY + cY) / 3.0);
+    }
+
+    @Override
+    boolean pushDecodedX(double minX) {
+        return labelPosition == null;
+    }
+
+    @Override
+    boolean pushDecodedY(double minX) {
+        return labelPosition == null;
     }
 
     @Override
@@ -64,30 +60,22 @@ public class LabelPositionVisitor implements TriangleTreeReader.Visitor {
     }
 
     @Override
-    public boolean pushX(int minX) {
-        // Don't traverse deeper once we found a result
-        return labelPosition == null;
-    }
-
-    @Override
-    public boolean pushY(int minY) {
-        // Don't traverse deeper once we found a result
-        return labelPosition == null;
-    }
-
-    @Override
-    public boolean push(int maxX, int maxY) {
-        // Don't traverse deeper once we found a result
+    boolean pushDecoded(double maxX, double maxY) {
         return labelPosition == null;
     }
 
     @Override
     public boolean push(int minX, int minY, int maxX, int maxY) {
         // Always start the traversal
-        return true;
+        return labelPosition == null;
     }
 
-    public GeoPoint labelPosition() {
+    @Override
+    boolean pushDecoded(double minX, double minY, double maxX, double maxY) {
+        return labelPosition == null;
+    }
+
+    public T labelPosition() {
         return labelPosition;
     }
 }

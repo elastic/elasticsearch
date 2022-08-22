@@ -129,7 +129,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_3_0;
+        return Version.V_8_0_0;
     }
 
     @Override
@@ -153,6 +153,14 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    public boolean hasOutdatedAssignments() {
+        return modelRoutingEntries.values().stream().anyMatch(TrainedModelAssignment::hasOutdatedRoutingEntries);
+    }
+
+    public boolean hasModel(String modelId) {
+        return modelRoutingEntries.containsKey(modelId);
     }
 
     public static class Builder {
@@ -274,7 +282,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
         @Override
         public Version getMinimalSupportedVersion() {
-            return Version.V_8_3_0;
+            return Version.V_8_0_0;
         }
 
         @Override

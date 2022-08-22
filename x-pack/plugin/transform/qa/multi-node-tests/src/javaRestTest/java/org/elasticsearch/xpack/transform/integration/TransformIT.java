@@ -137,7 +137,7 @@ public class TransformIT extends TransformRestTestCase {
             indexName
         ).setPivotConfig(createPivotConfig(groups, aggs))
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .setSettings(new SettingsConfig(null, null, null, false, null, null, null))
+            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
@@ -322,6 +322,12 @@ public class TransformIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
+        // wait until transform has been triggered and indexed at least 1 document
+        assertBusy(() -> {
+            var stateAndStats = getTransformStats(config.getId());
+            assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), greaterThan(1));
+        });
+
         // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
         stopTransform(transformId, false, null, true);
 
@@ -385,7 +391,7 @@ public class TransformIT extends TransformRestTestCase {
         ).setPivotConfig(createPivotConfig(groups, aggs))
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             // set requests per second and page size low enough to fail the test if update does not succeed,
-            .setSettings(new SettingsConfig(10, 1F, null, false, null, null, null))
+            .setSettings(new SettingsConfig.Builder().setMaxPageSearchSize(20).setRequestsPerSecond(1F).setAlignCheckpoints(false).build())
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);

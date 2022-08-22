@@ -157,7 +157,7 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         String fieldName;
         boolean ignoreMissing;
         do {
-            ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+            ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
             fieldValue = RandomDocumentPicks.randomString(random());
             fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
             ignoreMissing = randomBoolean();

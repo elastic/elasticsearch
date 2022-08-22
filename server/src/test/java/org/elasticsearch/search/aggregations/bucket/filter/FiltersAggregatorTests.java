@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -61,6 +62,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -650,7 +652,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(createIndexSettings(), new BitsetFilterCache.Listener() {
+                final IndexSettings indexSettings = createIndexSettings();
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
                     @Override
                     public void onRemoval(ShardId shardId, Accountable accountable) {}
 
@@ -658,7 +661,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
                 IndexReader limitedReader = new DocumentSubsetDirectoryReader(
-                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(bitsetFilterCache.index(), 0)),
+                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
@@ -666,7 +669,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery());
                 FilterByFilterAggregator aggregator = createAggregator(builder, context);
                 aggregator.preCollection();
-                searcher.search(context.query(), aggregator);
+                searcher.search(context.query(), aggregator.asCollector());
                 aggregator.postCollection();
 
                 InternalAggregation result = aggregator.buildTopLevel();
@@ -726,7 +729,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(createIndexSettings(), new BitsetFilterCache.Listener() {
+                final IndexSettings indexSettings = createIndexSettings();
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
                     @Override
                     public void onRemoval(ShardId shardId, Accountable accountable) {}
 
@@ -734,7 +738,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
                 IndexReader limitedReader = new DocumentSubsetDirectoryReader(
-                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(bitsetFilterCache.index(), 0)),
+                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
@@ -742,7 +746,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), ft);
                 FilterByFilterAggregator aggregator = createAggregator(builder, context);
                 aggregator.preCollection();
-                searcher.search(context.query(), aggregator);
+                searcher.search(context.query(), aggregator.asCollector());
                 aggregator.postCollection();
 
                 InternalAggregation result = aggregator.buildTopLevel();
@@ -791,7 +795,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(createIndexSettings(), new BitsetFilterCache.Listener() {
+                final IndexSettings indexSettings = createIndexSettings();
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
                     @Override
                     public void onRemoval(ShardId shardId, Accountable accountable) {}
 
@@ -799,7 +804,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
                 IndexReader limitedReader = new DocumentSubsetDirectoryReader(
-                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(bitsetFilterCache.index(), 0)),
+                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", Long.MIN_VALUE, Long.MAX_VALUE)
                 );
@@ -807,7 +812,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), ft);
                 FilterByFilterAggregator aggregator = createAggregator(builder, context);
                 aggregator.preCollection();
-                searcher.search(context.query(), aggregator);
+                searcher.search(context.query(), aggregator.asCollector());
                 aggregator.postCollection();
 
                 InternalAggregation result = aggregator.buildTopLevel();
@@ -1607,7 +1612,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     private Map<String, Object> collectAndGetFilterDebugInfo(IndexSearcher searcher, Aggregator aggregator) throws IOException {
         aggregator.preCollection();
         for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
-            LeafBucketCollector leafCollector = aggregator.getLeafCollector(ctx);
+            LeafBucketCollector leafCollector = aggregator.getLeafCollector(new AggregationExecutionContext(ctx, null, null));
             assertTrue(leafCollector.isNoop());
         }
         Map<String, Object> debug = new HashMap<>();

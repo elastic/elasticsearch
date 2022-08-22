@@ -58,7 +58,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
     @Override
     protected void doExecute(Task task, DeleteModelSnapshotAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         // Verify the snapshot exists
-        jobResultsProvider.modelSnapshots(request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(), page -> {
+        jobResultsProvider.modelSnapshots(request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(), null, page -> {
             List<ModelSnapshot> deleteCandidates = page.results();
             if (deleteCandidates.size() > 1) {
                 logger.warn(

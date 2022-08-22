@@ -139,7 +139,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
                 .execute(() -> deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier));
         } else {
-            jobConfigProvider.expandJobs(request.getJobId(), false, true, ActionListener.wrap(jobBuilders -> {
+            jobConfigProvider.expandJobs(request.getJobId(), false, true, null, ActionListener.wrap(jobBuilders -> {
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
                     List<Job> jobs = jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
                     String[] jobIds = jobs.stream().map(Job::getId).toArray(String[]::new);

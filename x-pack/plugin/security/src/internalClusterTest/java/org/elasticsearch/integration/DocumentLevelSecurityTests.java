@@ -120,12 +120,6 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        // a test requires the real SpatialPlugin because it utilizes the shape query
-        return false;
-    }
-
-    @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
         return super.configUsers() + """

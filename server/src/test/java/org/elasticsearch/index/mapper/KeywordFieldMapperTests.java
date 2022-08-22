@@ -571,7 +571,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        return switch (between(0, 3)) {
+        return switch (between(0, 4)) {
             case 0 -> randomAlphaOfLengthBetween(1, 100);
             case 1 -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
             case 2 -> randomLong();
@@ -623,11 +623,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new KeywordSyntheticSourceSupport();
+        return new KeywordSyntheticSourceSupport(randomBoolean(), usually() ? null : randomAlphaOfLength(2));
     }
 
     static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+        private final boolean store;
+        private final String nullValue;
+
+        KeywordSyntheticSourceSupport(boolean store, String nullValue) {
+            this.store = store;
+            this.nullValue = nullValue;
+        }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
@@ -637,7 +643,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
-            List<String> outList = values.stream().map(Tuple::v2).collect(Collectors.toSet()).stream().sorted().toList();
+            List<String> outList = store
+                ? values.stream().map(Tuple::v2).toList()
+                : values.stream().map(Tuple::v2).collect(Collectors.toSet()).stream().sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -655,13 +663,22 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             if (nullValue != null) {
                 b.field("null_value", nullValue);
             }
+            if (store) {
+                b.field("store", true);
+                if (randomBoolean()) {
+                    b.field("doc_values", false);
+                }
+            }
         }
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of(
                 new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it doesn't have doc values"),
+                    equalTo(
+                        "field [field] of type [keyword] doesn't support synthetic source because "
+                            + "it doesn't have doc values and isn't stored"
+                    ),
                     b -> b.field("type", "keyword").field("doc_values", false)
                 ),
                 new SyntheticSourceInvalidExample(

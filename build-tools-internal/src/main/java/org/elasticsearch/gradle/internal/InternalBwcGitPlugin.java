@@ -69,29 +69,27 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
             createClone.onlyIf(task -> this.gitExtension.getCheckoutDir().get().exists() == false);
-            createClone.setCommandLine(asList("git", "clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get()));
+            createClone.commandLine("git", "clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get());
         });
 
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         TaskProvider<LoggedExec> findRemoteTaskProvider = tasks.register("findRemote", LoggedExec.class, findRemote -> {
             findRemote.dependsOn(createCloneTaskProvider);
-            // TODO Gradle should provide property based configuration here
-            findRemote.setWorkingDir(gitExtension.getCheckoutDir().get());
-            findRemote.setCommandLine(asList("git", "remote", "-v"));
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            findRemote.setStandardOutput(output);
-            findRemote.doLast(t -> { extraProperties.set("remoteExists", isRemoteAvailable(remote, output)); });
+            findRemote.getWorkingDir().set(gitExtension.getCheckoutDir());
+            findRemote.commandLine("git", "remote", "-v");
+            findRemote.getCaptureOutput().set(true);
+            findRemote.doLast(t -> { extraProperties.set("remoteExists", isRemoteAvailable(remote, findRemote.getOutput())); });
         });
 
         TaskProvider<LoggedExec> addRemoteTaskProvider = tasks.register("addRemote", LoggedExec.class, addRemote -> {
             addRemote.dependsOn(findRemoteTaskProvider);
             addRemote.onlyIf(task -> ((boolean) extraProperties.get("remoteExists")) == false);
-            addRemote.setWorkingDir(gitExtension.getCheckoutDir().get());
+            addRemote.getWorkingDir().set(gitExtension.getCheckoutDir().get());
             String remoteRepo = remote.get();
             // for testing only we can override the base remote url
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
                 .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
-            addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, remoteRepoUrl));
+            addRemote.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
         });
 
         boolean isOffline = project.getGradle().getStartParameter().isOffline();
@@ -107,8 +105,8 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             });
             fetchLatest.onlyIf(t -> isOffline == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
-            fetchLatest.setWorkingDir(gitExtension.getCheckoutDir().get());
-            fetchLatest.setCommandLine(asList("git", "fetch", "--all"));
+            fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir().get());
+            fetchLatest.commandLine("git", "fetch", "--all");
         });
 
         String projectPath = project.getPath();
@@ -210,7 +208,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         return os.toString().trim();
     }
 
-    private static boolean isRemoteAvailable(Provider<String> remote, ByteArrayOutputStream output) {
-        return new String(output.toByteArray()).lines().anyMatch(l -> l.contains(remote.get() + "\t"));
+    private static boolean isRemoteAvailable(Provider<String> remote, String output) {
+        return output.lines().anyMatch(l -> l.contains(remote.get() + "\t"));
     }
 }

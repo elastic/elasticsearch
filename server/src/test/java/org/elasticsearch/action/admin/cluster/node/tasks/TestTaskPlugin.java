@@ -416,7 +416,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         @Override
-        protected void taskOperation(UnblockTestTasksRequest request, Task task, ActionListener<UnblockTestTaskResponse> listener) {
+        protected void taskOperation(
+            Task actionTask,
+            UnblockTestTasksRequest request,
+            Task task,
+            ActionListener<UnblockTestTaskResponse> listener
+        ) {
             ((TestTask) task).unblock();
             listener.onResponse(new UnblockTestTaskResponse());
         }

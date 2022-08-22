@@ -1,0 +1,19 @@
+---
+"Verify that we can still use index with camel case date field":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "camel_case_on_format"}}'
+          - '{"date_field": "2019-02-01T00:00+01:00"}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: camel_case_on_format
+        body:
+          query:
+            range:
+              date_field:
+                gte: "2019-01-01T00:00+01:00"
+                lte: "2019-03-01T00:00+01:00"

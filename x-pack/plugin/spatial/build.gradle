@@ -17,6 +17,7 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api project(":libs:elasticsearch-h3")
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('vector-tile'))
 }
 

@@ -1,5 +1,0 @@
-pr: 87654
-summary: Throw exception on illegal `RepositoryData` updates
-area: Snapshot/Restore
-type: bug
-issues: []

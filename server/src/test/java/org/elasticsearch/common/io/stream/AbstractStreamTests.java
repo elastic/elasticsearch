@@ -256,10 +256,30 @@ public abstract class AbstractStreamTests extends ESTestCase {
             StreamOutput::writeCollection,
             in -> in.readList(FooBar::new)
         );
+
+        runWriteReadCollectionTest(
+            () -> new FooBar(randomInt(), randomInt()),
+            StreamOutput::writeOptionalCollection,
+            in -> in.readOptionalList(FooBar::new)
+        );
+
+        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalCollection(null), in -> in.readOptionalList(FooBar::new));
     }
 
     public void testStringCollection() throws IOException {
         runWriteReadCollectionTest(() -> randomUnicodeOfLength(16), StreamOutput::writeStringCollection, StreamInput::readStringList);
+    }
+
+    public void testOptionalStringCollection() throws IOException {
+        runWriteReadCollectionTest(
+            () -> randomUnicodeOfLength(16),
+            StreamOutput::writeOptionalStringCollection,
+            StreamInput::readOptionalStringList
+        );
+    }
+
+    public void testOptionalStringCollectionWithNullInput() throws IOException {
+        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalStringCollection(null), StreamInput::readOptionalStringList);
     }
 
     private <T> void runWriteReadCollectionTest(
@@ -276,6 +296,18 @@ public abstract class AbstractStreamTests extends ESTestCase {
             writer.accept(out, collection);
             try (StreamInput in = getStreamInput(out.bytes())) {
                 assertThat(collection, equalTo(reader.apply(in)));
+            }
+        }
+    }
+
+    private <T> void runWriteReadOptionalCollectionWithNullInput(
+        final CheckedConsumer<StreamOutput, IOException> nullWriter,
+        final CheckedFunction<StreamInput, Collection<T>, IOException> reader
+    ) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            nullWriter.accept(out);
+            try (StreamInput in = getStreamInput(out.bytes())) {
+                assertNull(reader.apply(in));
             }
         }
     }

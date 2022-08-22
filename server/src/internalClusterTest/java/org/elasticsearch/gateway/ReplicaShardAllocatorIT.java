@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -30,7 +31,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,8 +41,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -64,6 +67,16 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                )
+        );
+
         assertAcked(
             client().admin()
                 .indices()
@@ -97,7 +110,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             );
         }
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
+        internalCluster().stopNode(nodeWithReplica);
         if (randomBoolean()) {
             client().admin().indices().prepareForceMerge(indexName).setFlush(true).get();
         }
@@ -114,6 +127,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                     blockRecovery.await();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
                 }
             }
             connection.sendRequest(requestId, action, request, options);
@@ -122,17 +136,9 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         recoveryStarted.await();
         nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
         // AllocationService only calls GatewayAllocator if there are unassigned shards
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("dummy-index")
-                // make sure the new index does not get allocated to the node with the existing replica to prevent rebalancing from
-                // randomly moving the replica off of this node after the noop recovery
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", nodeWithReplica))
-                .setWaitForActiveShards(0)
-        );
+        assertAcked(client().admin().indices().prepareCreate("dummy-index").setWaitForActiveShards(0));
         ensureGreen(indexName);
-        assertThat(internalCluster().nodesInclude(indexName), hasItem(nodeWithReplica));
+        assertThat(internalCluster().nodesInclude(indexName), containsInAnyOrder(nodeWithPrimary, nodeWithReplica));
         assertNoOpRecoveries(indexName);
         blockRecovery.countDown();
         transportServiceOnPrimary.clearAllRules();
@@ -170,7 +176,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             IntStream.range(0, between(10, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
+        internalCluster().stopNode(nodeWithReplica);
         if (randomBoolean()) {
             indexRandom(
                 randomBoolean(),
@@ -321,7 +327,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         client().admin().indices().prepareFlush(indexName).get();
         String nodeWithLowerMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithLowerMatchingSettings = internalCluster().dataPathSettings(nodeWithLowerMatching);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithLowerMatching));
+        internalCluster().stopNode(nodeWithLowerMatching);
         ensureGreen(indexName);
 
         indexRandom(
@@ -333,7 +339,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithHigherMatching));
+        internalCluster().stopNode(nodeWithHigherMatching);
         if (usually()) {
             indexRandom(
                 randomBoolean(),
@@ -355,7 +361,12 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                        .putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
+                        .build()
+                )
         );
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), allOf(hasItem(nodeWithHigherMatching), not(hasItem(nodeWithLowerMatching))));
@@ -452,7 +463,12 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+                        .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+                        .build()
+                )
         );
         internalCluster().fullRestart();
         ensureYellow(indexName);
@@ -464,7 +480,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
+                .setPersistentSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()).build())
         );
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);

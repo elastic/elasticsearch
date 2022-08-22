@@ -64,6 +64,12 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/87240")
+    public void testReduceRandom() {
+        // The bug is in the assertReduced() method immediately below that the base class testReduceRandom() calls.
+        // To unmute after the bug is fixed, simply delete this entire method so that the base class method is used again.
+    }
+
     @Override
     protected void assertReduced(InternalCategorizationAggregation reduced, List<InternalCategorizationAggregation> inputs) {
         Map<Object, Long> reducedCounts = toCounts(reduced.getBuckets().stream());

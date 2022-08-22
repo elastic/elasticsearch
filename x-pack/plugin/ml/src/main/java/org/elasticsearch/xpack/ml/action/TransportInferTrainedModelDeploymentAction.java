@@ -18,7 +18,9 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -71,6 +73,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         InferTrainedModelDeploymentAction.Request request,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final String deploymentId = request.getDeploymentId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
@@ -78,7 +81,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             .orElse(null);
         if (assignment == null) {
             // If there is no assignment, verify the model even exists so that we can provide a nicer error message
-            provider.getTrainedModel(deploymentId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(config -> {
+            provider.getTrainedModel(deploymentId, GetTrainedModelsAction.Includes.empty(), taskId, ActionListener.wrap(config -> {
                 if (config.getModelType() != TrainedModelType.PYTORCH) {
                     listener.onFailure(
                         ExceptionsHelper.badRequestException(
@@ -136,15 +139,18 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         InferTrainedModelDeploymentAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
+        assert actionTask instanceof CancellableTask : "task [" + actionTask + "] not cancellable";
         task.infer(
             request.getDocs().get(0),
             request.getUpdate(),
             request.isSkipQueue(),
             request.getInferenceTimeout(),
+            actionTask,
             ActionListener.wrap(
                 pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult)),
                 listener::onFailure

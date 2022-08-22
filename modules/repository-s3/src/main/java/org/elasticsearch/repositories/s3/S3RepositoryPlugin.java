@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -98,7 +99,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         service.set(s3Service(environment));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
@@ -141,7 +143,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
             S3ClientSettings.USE_PATH_STYLE_ACCESS,
             S3ClientSettings.SIGNER_OVERRIDE,
-            S3ClientSettings.REGION
+            S3ClientSettings.REGION,
+            S3Repository.ACCESS_KEY_SETTING,
+            S3Repository.SECRET_KEY_SETTING
         );
     }
 

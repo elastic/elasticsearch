@@ -1,0 +1,5 @@
+pr: 88346
+summary: Updatable API keys - noop check
+area: Security
+type: enhancement
+issues: []

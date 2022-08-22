@@ -18,6 +18,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -78,7 +79,8 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             params.getModelBytes(),
             numberOfAllocations,
             params.getThreadsPerAllocation(),
-            params.getQueueCapacity()
+            params.getQueueCapacity(),
+            null
         );
     }
 
@@ -131,6 +133,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         InferenceConfigUpdate update,
         boolean skipQueue,
         TimeValue timeout,
+        Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         if (inferenceConfigHolder.get() == null) {
@@ -149,11 +152,23 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             );
             return;
         }
-        trainedModelAssignmentNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, skipQueue, timeout, listener);
+        trainedModelAssignmentNodeService.infer(
+            this,
+            update.apply(inferenceConfigHolder.get()),
+            doc,
+            skipQueue,
+            timeout,
+            parentActionTask,
+            listener
+        );
     }
 
     public Optional<ModelStats> modelStats() {
         return trainedModelAssignmentNodeService.modelStats(this);
+    }
+
+    public void clearCache(ActionListener<AcknowledgedResponse> listener) {
+        trainedModelAssignmentNodeService.clearCache(this, listener);
     }
 
     public void setFailed(String reason) {

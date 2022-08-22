@@ -17,14 +17,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.function.Predicate.isEqual;
-import static java.util.stream.Collectors.collectingAndThen;
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -64,20 +60,13 @@ public class HealthService {
     }
 
     /**
-     * Returns the list of HealthComponentResults for this cluster. If no componentName is specified, one HealthComponentResult is returned
-     * for each component in the system. If a componentName is given, only the single HealthComponentResult for that component is
-     * returned. If both a componentName and indicatorName are given, the returned HealthComponentResult will only have information about
-     * the given indicatorName.
-     * @param componentName If not null, only the component with this name is returned
-     * @param indicatorName If not null, the returned component will only have this indicator
-     * @param explain Whether to compute the details portion of the component results
-     * @return A list of all HealthComponentResults if componentName is null, or one HealthComponentResult if componentName is not null
-     * @throws ResourceNotFoundException if a component name is given and the component or indicator are not found
+     * Returns the list of HealthIndicatorResult for this cluster.
+     * @param indicatorName If not null, the returned results will only have this indicator
+     * @param explain Whether to compute the details portion of the results
+     * @return A list of all HealthIndicatorResult if indicatorName is null, or one HealthIndicatorResult if indicatorName is not null
+     * @throws ResourceNotFoundException if an indicator name is given and the indicator is not found
      */
-    public List<HealthComponentResult> getHealth(@Nullable String componentName, @Nullable String indicatorName, boolean explain) {
-        final boolean shouldDrillDownToIndicatorLevel = indicatorName != null;
-        final boolean showRolledUpComponentStatus = shouldDrillDownToIndicatorLevel == false;
-
+    public List<HealthIndicatorResult> getHealth(@Nullable String indicatorName, boolean explain) {
         // Determine if cluster is stable enough to calculate health before running other indicators
         List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()
             .map(service -> service.calculate(explain))
@@ -87,9 +76,8 @@ public class HealthService {
         boolean clusterHealthIsObtainable = preflightResults.isEmpty()
             || preflightResults.stream().map(HealthIndicatorResult::status).allMatch(isEqual(HealthStatus.GREEN));
 
-        // Filter remaining indicators by component name and indicator name if present before calculating their results
+        // Filter remaining indicators by indicator name if present before calculating their results
         Stream<HealthIndicatorService> filteredIndicators = healthIndicatorServices.stream()
-            .filter(service -> componentName == null || service.component().equals(componentName))
             .filter(service -> indicatorName == null || service.name().equals(indicatorName));
 
         Stream<HealthIndicatorResult> filteredIndicatorResults;
@@ -104,36 +92,18 @@ public class HealthService {
             );
         }
 
-        // Filter the cluster indicator results by component name and indicator name if present
+        // Filter the cluster indicator results by indicator name if present
         Stream<HealthIndicatorResult> filteredPreflightResults = preflightResults.stream()
-            .filter(result -> componentName == null || result.component().equals(componentName))
             .filter(result -> indicatorName == null || result.name().equals(indicatorName));
 
-        // Combine indicator results
-        List<HealthComponentResult> components = List.copyOf(
-            Stream.concat(filteredPreflightResults, filteredIndicatorResults)
-                .collect(
-                    groupingBy(
-                        HealthIndicatorResult::component,
-                        TreeMap::new,
-                        collectingAndThen(
-                            toList(),
-                            indicators -> HealthService.createComponentFromIndicators(indicators, showRolledUpComponentStatus)
-                        )
-                    )
-                )
-                .values()
-        );
-        if (components.isEmpty() && componentName != null) {
-            String errorMessage;
-            if (indicatorName != null) {
-                errorMessage = String.format(Locale.ROOT, "Did not find indicator %s in component %s", indicatorName, componentName);
-            } else {
-                errorMessage = String.format(Locale.ROOT, "Did not find component %s", componentName);
-            }
+        List<HealthIndicatorResult> results = Stream.concat(filteredPreflightResults, filteredIndicatorResults).toList();
+        assert findDuplicatesByName(results).isEmpty()
+            : String.format(Locale.ROOT, "Found multiple indicators with the same name: %s", findDuplicatesByName(results));
+        if (results.isEmpty() && indicatorName != null) {
+            String errorMessage = String.format(Locale.ROOT, "Did not find indicator %s", indicatorName);
             throw new ResourceNotFoundException(errorMessage);
         }
-        return components;
+        return results;
     }
 
     /**
@@ -171,25 +141,6 @@ public class HealthService {
         HealthIndicatorDetails details
     ) {
         return indicatorService.createIndicator(HealthStatus.UNKNOWN, summary, details, Collections.emptyList(), Collections.emptyList());
-    }
-
-    // Non-private for testing purposes
-    static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators, boolean showComponentSummary) {
-        assert indicators.size() > 0 : "Component should not be non empty";
-        assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
-            : "Should not mix indicators from different components";
-        assert findDuplicatesByName(indicators).isEmpty()
-            : String.format(
-                Locale.ROOT,
-                "Found multiple indicators with the same name within the %s component: %s",
-                indicators.get(0).component(),
-                findDuplicatesByName(indicators)
-            );
-        return new HealthComponentResult(
-            indicators.get(0).component(),
-            showComponentSummary ? HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)) : null,
-            indicators
-        );
     }
 
     private static Set<String> findDuplicatesByName(List<HealthIndicatorResult> indicators) {

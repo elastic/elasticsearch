@@ -17,6 +17,16 @@ import java.util.function.Predicate;
 
 public class QuestionAnsweringConfigTests extends InferenceConfigItemTestCase<QuestionAnsweringConfig> {
 
+    public static QuestionAnsweringConfig mutateForVersion(QuestionAnsweringConfig instance, Version version) {
+        return new QuestionAnsweringConfig(
+            instance.getNumTopClasses(),
+            instance.getMaxAnswerLength(),
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getResultsField()
+        );
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return true;
@@ -44,7 +54,7 @@ public class QuestionAnsweringConfigTests extends InferenceConfigItemTestCase<Qu
 
     @Override
     protected QuestionAnsweringConfig mutateInstanceForVersion(QuestionAnsweringConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static QuestionAnsweringConfig createRandom() {

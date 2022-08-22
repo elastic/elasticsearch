@@ -1,5 +1,0 @@
-pr: 86685
-summary: Improve "Has Privilege" performance for boolean-only response
-area: Authorization
-type: enhancement
-issues: []

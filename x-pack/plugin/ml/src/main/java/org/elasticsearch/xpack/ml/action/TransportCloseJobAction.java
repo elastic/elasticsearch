@@ -154,6 +154,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                 true,
                 tasksMetadata,
                 isForce,
+                null,
                 ActionListener.wrap(
                     expandedJobIds -> validate(
                         expandedJobIds,
@@ -340,7 +341,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
     void isolateDatafeeds(List<String> openJobs, List<String> runningDatafeedIds, ActionListener<Void> listener) {
 
-        GroupedActionListener<IsolateDatafeedAction.Response> groupedListener = new GroupedActionListener<IsolateDatafeedAction.Response>(
+        GroupedActionListener<IsolateDatafeedAction.Response> groupedListener = new GroupedActionListener<>(
             ActionListener.wrap(c -> listener.onResponse(null), e -> {
                 // This is deliberately NOT an error. The reasoning is as follows:
                 // - Isolate datafeed just sets a flag on the datafeed, so cannot fail IF it reaches the running datafeed code
@@ -415,7 +416,12 @@ public class TransportCloseJobAction extends TransportTasksAction<
     }
 
     @Override
-    protected void taskOperation(CloseJobAction.Request request, JobTask jobTask, ActionListener<CloseJobAction.Response> listener) {
+    protected void taskOperation(
+        Task actionTask,
+        CloseJobAction.Request request,
+        JobTask jobTask,
+        ActionListener<CloseJobAction.Response> listener
+    ) {
         JobTaskState taskState = new JobTaskState(JobState.CLOSING, jobTask.getAllocationId(), "close job (api)");
         jobTask.updatePersistentTaskState(taskState, ActionListener.wrap(task -> {
             // we need to fork because we are now on a network threadpool and closeJob method may take a while to complete:
@@ -502,51 +508,48 @@ public class TransportCloseJobAction extends TransportTasksAction<
             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
-                persistentTasksService.sendRemoveRequest(
-                    jobTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                            if (counter.incrementAndGet() == numberOfJobs) {
-                                sendResponseOrFailure(request.getJobId(), listener, failures);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            final int slot = counter.incrementAndGet();
-                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                                failures.set(slot - 1, e);
-                            }
-                            if (slot == numberOfJobs) {
-                                sendResponseOrFailure(request.getJobId(), listener, failures);
-                            }
-                        }
-
-                        private void sendResponseOrFailure(
-                            String jobId,
-                            ActionListener<CloseJobAction.Response> listener,
-                            AtomicArray<Exception> failures
-                        ) {
-                            List<Exception> caughtExceptions = failures.asList();
-                            if (caughtExceptions.size() == 0) {
-                                listener.onResponse(new CloseJobAction.Response(true));
-                                return;
-                            }
-
-                            String msg = "Failed to force close job ["
-                                + jobId
-                                + "] with ["
-                                + caughtExceptions.size()
-                                + "] failures, rethrowing last, all Exceptions: ["
-                                + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
-                                + "]";
-
-                            ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
-                            listener.onFailure(e);
+                persistentTasksService.sendRemoveRequest(jobTask.getId(), new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                        if (counter.incrementAndGet() == numberOfJobs) {
+                            sendResponseOrFailure(request.getJobId(), listener, failures);
                         }
                     }
-                );
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        final int slot = counter.incrementAndGet();
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
+                            failures.set(slot - 1, e);
+                        }
+                        if (slot == numberOfJobs) {
+                            sendResponseOrFailure(request.getJobId(), listener, failures);
+                        }
+                    }
+
+                    private void sendResponseOrFailure(
+                        String jobId,
+                        ActionListener<CloseJobAction.Response> listener,
+                        AtomicArray<Exception> failures
+                    ) {
+                        List<Exception> caughtExceptions = failures.asList();
+                        if (caughtExceptions.size() == 0) {
+                            listener.onResponse(new CloseJobAction.Response(true));
+                            return;
+                        }
+
+                        String msg = "Failed to force close job ["
+                            + jobId
+                            + "] with ["
+                            + caughtExceptions.size()
+                            + "] failures, rethrowing last, all Exceptions: ["
+                            + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
+                            + "]";
+
+                        ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
+                        listener.onFailure(e);
+                    }
+                });
             }
         }
     }

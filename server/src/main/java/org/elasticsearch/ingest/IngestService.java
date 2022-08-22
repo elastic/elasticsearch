@@ -108,14 +108,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Cluster state task executor for ingest pipeline operations
      */
-    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (currentState, taskContexts) -> {
-        final var allIndexMetadata = currentState.metadata().indices().values();
-        final IngestMetadata initialIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = batchExecutionContext -> {
+        final var allIndexMetadata = batchExecutionContext.initialState().metadata().indices().values();
+        final IngestMetadata initialIngestMetadata = batchExecutionContext.initialState().metadata().custom(IngestMetadata.TYPE);
         var currentIngestMetadata = initialIngestMetadata;
-        for (final var taskContext : taskContexts) {
+        for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
                 final var task = taskContext.getTask();
-                currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                }
                 taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
@@ -123,8 +125,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
         final var finalIngestMetadata = currentIngestMetadata;
         return finalIngestMetadata == initialIngestMetadata
-            ? currentState
-            : currentState.copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
+            ? batchExecutionContext.initialState()
+            : batchExecutionContext.initialState().copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
     };
 
     /**
@@ -143,11 +145,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
         }
     }
 
@@ -897,27 +894,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
+                org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
 
-                String newIndex = (String) metadataMap.get(IngestDocument.Metadata.INDEX);
                 // it's fine to set all metadata fields all the time, as ingest document holds their starting values
                 // before ingestion, which might also get modified during ingestion.
-                indexRequest.index(newIndex);
-                indexRequest.id((String) metadataMap.get(IngestDocument.Metadata.ID));
-                indexRequest.routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
-                indexRequest.version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
-                if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
-                    indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
+                indexRequest.index(metadata.getIndex());
+                indexRequest.id(metadata.getId());
+                indexRequest.routing(metadata.getRouting());
+                indexRequest.version(metadata.getVersion());
+                if (metadata.getVersionType() != null) {
+                    indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
                 }
-                if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
-                    indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
+                Number number;
+                if ((number = metadata.getIfSeqNo()) != null) {
+                    indexRequest.setIfSeqNo(number.longValue());
                 }
-                if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
-                    indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
+                if ((number = metadata.getIfPrimaryTerm()) != null) {
+                    indexRequest.setIfPrimaryTerm(number.longValue());
                 }
                 try {
                     boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
-                    indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType(), ensureNoSelfReferences);
+                    indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest
                     // processor creates a source map that is self-referencing.
@@ -932,10 +929,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     );
                     return;
                 }
-                if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
+                Map<String, String> map;
+                if ((map = metadata.getDynamicTemplates()) != null) {
                     Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    @SuppressWarnings("unchecked")
-                    Map<String, String> map = (Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES);
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }

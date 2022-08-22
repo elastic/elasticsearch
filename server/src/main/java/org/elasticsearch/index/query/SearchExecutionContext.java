@@ -392,7 +392,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Will there be {@code _source} values.
+     * Will there be {@code _source}.
      */
     public boolean isSourceEnabled() {
         return mappingLookup.isSourceEnabled();

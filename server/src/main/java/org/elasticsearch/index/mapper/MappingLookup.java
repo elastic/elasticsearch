@@ -404,7 +404,7 @@ public final class MappingLookup {
     }
 
     /**
-     * Will there be {@code _source} values.
+     * Will there be {@code _source}.
      */
     public boolean isSourceEnabled() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);

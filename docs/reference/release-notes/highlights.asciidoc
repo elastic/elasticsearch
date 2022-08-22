@@ -81,17 +81,17 @@ can be configured when creating a new transform or editing an existing one.
 [discrete]
 [[composite_aggregations_in_datafeeds_are_generally_available]]
 === Composite aggregations in datafeeds are Generally Available
-The support for 
+The support for
 {ml-docs}/ml-configuring-aggregation.html#aggs-using-composite[composite aggregations]
 in datafeeds is now generally available.
 
 [discrete]
 [[early-stopping-dfa]]
 === Optimizing speed of {dfanalytics}
-{dfanalytics-cap} is even faster in 8.4. The new function automatically 
-stops the process of hyperparameter optimization early in case of the 
-accuracy gain for a different set of hyperparameter values would be 
-insignificant. The early stopping of the optimization process results in a 
+{dfanalytics-cap} is even faster in 8.4. The new function automatically
+stops the process of hyperparameter optimization early in case the
+accuracy gain for a different set of hyperparameter values would be
+insignificant. The early stopping of the optimization process results in a
 shorter runtime for the {dfanalytics-job}.
 
 {es-pull}88589[#88589]

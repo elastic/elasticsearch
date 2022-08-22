@@ -14,6 +14,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
@@ -3902,8 +3903,20 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testFlushOnIdleConcurrentFlushDoesNotWait() throws Exception {
         final MockLogAppender mockLogAppender = new MockLogAppender();
         try {
-            IndexShard shard = newStartedShard();
-            final int manyDocs = randomIntBetween(50, 100);
+            CountDownLatch readyToCompleteFlushLatch = new CountDownLatch(1);
+            IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
+                @Override
+                protected void commitIndexWriter(final IndexWriter writer, final Translog translog) throws IOException {
+                    try {
+                        readyToCompleteFlushLatch.await();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                    super.commitIndexWriter(writer, translog);
+                }
+            });
+
+            final int manyDocs = randomIntBetween(1, 5);
             for (int i = 0; i < manyDocs; i++) {
                 indexDoc(shard, "_doc", Integer.toString(i));
             }
@@ -3925,17 +3938,20 @@ public class IndexShardTests extends IndexShardTestCase {
             );
             assertBusy(mockLogAppender::assertAllExpectationsMatched);
 
-            // While the previous flushOnIdle request is happening, immediately issue a second flush request with waitIfOngoing=false
+            // While the previous flushOnIdle request is happening, issue a second flush request with waitIfOngoing=false
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "should see second flush returning since it will not wait for the ongoing flush",
                     Engine.class.getCanonicalName(),
                     Level.TRACE,
-                    "returning as there is an in-flight flush that we do not need to wait for"
+                    "detected an in-flight flush, not blocking to wait for it's completion"
                 )
             );
             assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
             mockLogAppender.assertAllExpectationsMatched();
+
+            // Allow first flush to complete
+            readyToCompleteFlushLatch.countDown();
 
             // Wait for first flush to log a message that it released the flush lock
             mockLogAppender.addExpectation(

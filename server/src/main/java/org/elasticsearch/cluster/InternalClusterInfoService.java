@@ -18,12 +18,13 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -93,6 +94,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
+
+    private final ClusterService clusterService;
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
@@ -102,6 +105,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
+        this.clusterService = clusterService;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -191,76 +195,92 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsRequest.store(true);
             indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
             indicesStatsRequest.timeout(fetchTimeout);
-            client.admin().indices().stats(indicesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
-                @Override
-                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                    logger.trace("received indices stats response");
+            client.admin()
+                .indices()
+                .stats(
+                    indicesStatsRequest,
+                    new ThreadedActionListener<>(
+                        logger,
+                        threadPool,
+                        ThreadPool.Names.MANAGEMENT,
+                        ActionListener.runAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                                logger.trace("received indices stats response");
 
-                    if (indicesStatsResponse.getShardFailures().length > 0) {
-                        final Set<String> failedNodeIds = new HashSet<>();
-                        for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse.getShardFailures()) {
-                            if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
-                                if (failedNodeIds.add(failedNodeException.nodeId())) {
-                                    logger.warn(
-                                        () -> format("failed to retrieve shard stats from node [%s]", failedNodeException.nodeId()),
-                                        failedNodeException.getCause()
-                                    );
+                                if (indicesStatsResponse.getShardFailures().length > 0) {
+                                    final Set<String> failedNodeIds = new HashSet<>();
+                                    for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
+                                        if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
+                                            if (failedNodeIds.add(failedNodeException.nodeId())) {
+                                                logger.warn(
+                                                    () -> format(
+                                                        "failed to retrieve shard stats from node [%s]",
+                                                        failedNodeException.nodeId()
+                                                    ),
+                                                    failedNodeException.getCause()
+                                                );
+                                            }
+                                            logger.trace(
+                                                () -> format(
+                                                    "failed to retrieve stats for shard [%s][%s]",
+                                                    shardFailure.index(),
+                                                    shardFailure.shardId()
+                                                ),
+                                                shardFailure.getCause()
+                                            );
+                                        } else {
+                                            logger.warn(
+                                                () -> format(
+                                                    "failed to retrieve stats for shard [%s][%s]",
+                                                    shardFailure.index(),
+                                                    shardFailure.shardId()
+                                                ),
+                                                shardFailure.getCause()
+                                            );
+                                        }
+                                    }
                                 }
-                                logger.trace(
-                                    () -> format(
-                                        "failed to retrieve stats for shard [%s][%s]",
-                                        shardFailure.index(),
-                                        shardFailure.shardId()
-                                    ),
-                                    shardFailure.getCause()
+
+                                final ShardStats[] stats = indicesStatsResponse.getShards();
+                                final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
+                                final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
+                                final Map<ShardRouting, String> dataPathByShardRoutingBuilder = new HashMap<>();
+                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders =
+                                    new HashMap<>();
+                                buildShardLevelInfo(
+                                    clusterService.state().routingTable(),
+                                    stats,
+                                    shardSizeByIdentifierBuilder,
+                                    shardDataSetSizeBuilder,
+                                    dataPathByShardRoutingBuilder,
+                                    reservedSpaceBuilders
                                 );
-                            } else {
-                                logger.warn(
-                                    () -> format(
-                                        "failed to retrieve stats for shard [%s][%s]",
-                                        shardFailure.index(),
-                                        shardFailure.shardId()
-                                    ),
-                                    shardFailure.getCause()
+
+                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = new HashMap<>();
+                                reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
+
+                                indicesStatsSummary = new IndicesStatsSummary(
+                                    Map.copyOf(shardSizeByIdentifierBuilder),
+                                    Map.copyOf(shardDataSetSizeBuilder),
+                                    Map.copyOf(dataPathByShardRoutingBuilder),
+                                    Map.copyOf(rsrvdSpace)
                                 );
                             }
-                        }
-                    }
 
-                    final ShardStats[] stats = indicesStatsResponse.getShards();
-                    final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
-                    final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
-                    final Map<ShardRouting, String> dataPathByShardRoutingBuilder = new HashMap<>();
-                    final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders = new HashMap<>();
-                    buildShardLevelInfo(
-                        stats,
-                        shardSizeByIdentifierBuilder,
-                        shardDataSetSizeBuilder,
-                        dataPathByShardRoutingBuilder,
-                        reservedSpaceBuilders
-                    );
-
-                    final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = new HashMap<>();
-                    reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
-
-                    indicesStatsSummary = new IndicesStatsSummary(
-                        Map.copyOf(shardSizeByIdentifierBuilder),
-                        Map.copyOf(shardDataSetSizeBuilder),
-                        Map.copyOf(dataPathByShardRoutingBuilder),
-                        Map.copyOf(rsrvdSpace)
-                    );
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ClusterBlockException) {
-                        logger.trace("failed to retrieve indices stats", e);
-                    } else {
-                        logger.warn("failed to retrieve indices stats", e);
-                    }
-                    indicesStatsSummary = IndicesStatsSummary.EMPTY;
-                }
-            }, this::onStatsProcessed));
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (e instanceof ClusterBlockException) {
+                                    logger.trace("failed to retrieve indices stats", e);
+                                } else {
+                                    logger.warn("failed to retrieve indices stats", e);
+                                }
+                                indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                            }
+                        }, this::onStatsProcessed),
+                        false
+                    )
+                );
         }
 
         private void fetchNodeStats() {
@@ -426,6 +446,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     }
 
     static void buildShardLevelInfo(
+        RoutingTable routingTable,
         ShardStats[] stats,
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizeBuilder,
@@ -433,7 +454,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
     ) {
         for (ShardStats s : stats) {
-            final ShardRouting shardRouting = s.getShardRouting();
+            final ShardRouting shardRouting = routingTable.deduplicate(s.getShardRouting());
             newShardRoutingToDataPath.put(shardRouting, s.getDataPath());
 
             final StoreStats storeStats = s.getStats().getStore();

@@ -1,0 +1,60 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
+import org.elasticsearch.gradle.testclusters.RunTask
+
+boolean proxyMode = true;
+
+def fulfillingCluster = testClusters.register('fulfilling-cluster') {
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+}
+
+def queryingCluster = testClusters.register('querying-cluster') {
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  if (proxyMode) {
+    setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+    setting 'cluster.remote.my_remote_cluster.proxy_address', {
+      "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\""
+    }
+  } else {
+    setting 'cluster.remote.my_remote_cluster.seeds', {
+      fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
+    }
+  }
+  setting 'cluster.remote.connections_per_cluster', "1"
+
+  user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+}
+
+// the following task is needed to make sure the fulfilling cluster is fully configured before starting both clusters
+// this allows the quering cluster to use configuration from the fulfilling cluster while honoring the RunTasks configuration (such as use port 9200)
+tasks.register('initfulfillingCluster', RunTask) {
+  useCluster testClusters.named("fulfilling-cluster")
+  initOnly = true //only initialize the testCluster, don't start it
+  portOffset = 1 //when only initializing, instruct to use one above the normal ports to avoid collisions when other cluster also initializes
+  //debug = true //this task doesn't honor the command line options for run-ccs, so need to statically configure debug
+}
+
+tasks.register("run-ccs", RunTask) {
+  dependsOn initfulfillingCluster
+  useCluster testClusters.named("fulfilling-cluster")
+  useCluster testClusters.named("querying-cluster")
+  doFirst {
+    println "** Querying cluster HTTP endpoints are: ${-> queryingCluster.get().allHttpSocketURI.join(",")}"
+    println "** Querying cluster transport endpoints are: ${-> queryingCluster.get().getAllTransportPortURI().join(",")}"
+    println "** Fulfilling cluster HTTP endpoints are: ${-> fulfillingCluster.get().allHttpSocketURI.join(",")}"
+    println "** Fulfilling cluster transport endpoints are: ${-> fulfillingCluster.get().getAllTransportPortURI().join(",")}"
+  }
+}

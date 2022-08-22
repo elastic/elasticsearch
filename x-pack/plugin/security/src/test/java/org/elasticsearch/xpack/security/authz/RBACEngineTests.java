@@ -36,12 +36,14 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
-import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -56,10 +58,14 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Privilege
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -103,6 +109,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -132,8 +139,8 @@ public class RBACEngineTests extends ESTestCase {
         final boolean changePasswordRequest = randomBoolean();
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request()
-            : new AuthenticateRequestBuilder(mock(Client.class)).username(user.principal()).request();
-        final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
+            : new HasPrivilegesRequestBuilder(mock(Client.class)).username(user.principal()).request();
+        final String action = changePasswordRequest ? ChangePasswordAction.NAME : HasPrivilegesAction.NAME;
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(3, 8),
             changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12),
@@ -152,8 +159,8 @@ public class RBACEngineTests extends ESTestCase {
         final String username = randomFrom("", "joe" + randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(3, 10));
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request()
-            : new AuthenticateRequestBuilder(mock(Client.class)).username(username).request();
-        final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
+            : new HasPrivilegesRequestBuilder(mock(Client.class)).username(username).request();
+        final String action = changePasswordRequest ? ChangePasswordAction.NAME : HasPrivilegesAction.NAME;
 
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(3, 8),
@@ -178,9 +185,19 @@ public class RBACEngineTests extends ESTestCase {
         if (request instanceof ChangePasswordRequest) {
             ((ChangePasswordRequest) request).username("joe");
         } else {
-            ((AuthenticateRequest) request).username("joe");
+            ((HasPrivilegesRequest) request).username("joe");
         }
         assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
+    }
+
+    public void testSameUserPermissionForAuthenticateRequest() {
+        assertTrue(
+            RBACEngine.checkSameUserPermissions(
+                AuthenticateAction.NAME,
+                AuthenticateRequest.INSTANCE,
+                AuthenticationTestHelper.builder().build()
+            )
+        );
     }
 
     public void testSameUserPermissionDoesNotAllowOtherActions() {
@@ -206,7 +223,7 @@ public class RBACEngineTests extends ESTestCase {
         final boolean changePasswordRequest = randomBoolean();
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request()
-            : new AuthenticateRequestBuilder(mock(Client.class)).username(username).request();
+            : new HasPrivilegesRequestBuilder(mock(Client.class)).username(username).request();
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
 
         final Authentication.RealmRef authenticatedBy = AuthenticationTestHelper.randomRealmRef(false);
@@ -302,14 +319,22 @@ public class RBACEngineTests extends ESTestCase {
         final User user = new User("joe");
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(user, apiKeyId);
-        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final TransportRequest request = GetApiKeyRequest.builder().apiKeyId(apiKeyId).build();
         assertTrue(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+    }
+
+    public void testSameUserPermissionDeniesSelfApiKeyInfoRetrievalWithLimitedByWhenAuthenticatedByApiKey() {
+        final User user = new User("joe");
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(user, apiKeyId);
+        final TransportRequest request = GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(true).build();
+        assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenAuthenticatedByADifferentApiKey() {
         final User user = new User("joe");
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
-        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final TransportRequest request = GetApiKeyRequest.builder().apiKeyId(apiKeyId).ownedByAuthenticatedUser(false).build();
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(user, randomAlphaOfLength(8));
         assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
@@ -317,7 +342,7 @@ public class RBACEngineTests extends ESTestCase {
     public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenLookedupByIsPresent() {
         final User user = new User("joe");
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
-        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final TransportRequest request = GetApiKeyRequest.builder().apiKeyId(apiKeyId).ownedByAuthenticatedUser(false).build();
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(new User("not-joe"), apiKeyId)
             .runAs(user, new Authentication.RealmRef("name", "type", randomAlphaOfLengthBetween(3, 8)));
         assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
@@ -1483,6 +1508,39 @@ public class RBACEngineTests extends ESTestCase {
         verify(predicate, never()).test(anyString());
         // It also does not load twice
         verify(supplier, never()).get();
+    }
+
+    public void testGetUserPrivilegesThrowsIaeForUnsupportedOperation() {
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        final Role role = mock(Role.class);
+        when(authorizationInfo.getRole()).thenReturn(role);
+        when(role.cluster()).thenReturn(ClusterPermission.NONE);
+        when(role.indices()).thenReturn(IndicesPermission.NONE);
+        when(role.application()).thenReturn(ApplicationPermission.NONE);
+        when(role.runAs()).thenReturn(RunAsPermission.NONE);
+
+        final UnsupportedOperationException unsupportedOperationException = new UnsupportedOperationException();
+        switch (randomIntBetween(0, 3)) {
+            case 0 -> when(role.cluster()).thenThrow(unsupportedOperationException);
+            case 1 -> when(role.indices()).thenThrow(unsupportedOperationException);
+            case 2 -> when(role.application()).thenThrow(unsupportedOperationException);
+            case 3 -> when(role.runAs()).thenThrow(unsupportedOperationException);
+            default -> throw new IllegalStateException("unknown case number");
+        }
+
+        final PlainActionFuture<GetUserPrivilegesResponse> future = new PlainActionFuture<>();
+        engine.getUserPrivileges(authorizationInfo, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Cannot retrieve privileges for API keys with assigned role descriptors. "
+                    + "Please use the Get API key information API https://ela.st/es-api-get-api-key"
+            )
+        );
+        assertThat(e.getCause(), sameInstance(unsupportedOperationException));
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

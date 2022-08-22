@@ -25,11 +25,6 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
 
     protected void execute(ClusterState currentState) {}
 
-    @Override
-    public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        assert false : "not called";
-    }
-
     protected void onPublicationComplete() {}
 
     public void submit(MasterService masterService, String source) {

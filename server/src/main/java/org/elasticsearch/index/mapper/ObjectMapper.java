@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -28,6 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -567,52 +569,68 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        List<SourceLoader.SyntheticFieldLoader> fields = mappers.values()
-            .stream()
-            .sorted(Comparator.comparing(Mapper::name))
-            .map(Mapper::syntheticFieldLoader)
-            .filter(l -> l != null)
-            .toList();
-        return (reader, docIdsInLeaf) -> {
-            List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
+        return new SyntheticSourceFieldLoader(
+            mappers.values()
+                .stream()
+                .sorted(Comparator.comparing(Mapper::name))
+                .map(Mapper::syntheticFieldLoader)
+                .filter(l -> l != null)
+                .toList()
+        );
+    }
+
+    private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final List<SourceLoader.SyntheticFieldLoader> fields;
+        private boolean hasValue;
+
+        private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
+            this.fields = fields;
+        }
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return fields.stream().flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders).map(e -> Map.entry(e.getKey(), values -> {
+                hasValue = true;
+                e.getValue().load(values);
+            }));
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> loaders = new ArrayList<>();
             for (SourceLoader.SyntheticFieldLoader field : fields) {
-                SourceLoader.SyntheticFieldLoader.Leaf leaf = field.leaf(reader, docIdsInLeaf);
-                if (false == leaf.empty()) {
-                    l.add(leaf);
+                SourceLoader.SyntheticFieldLoader.DocValuesLoader loader = field.docValuesLoader(leafReader, docIdsInLeaf);
+                if (loader != null) {
+                    loaders.add(loader);
                 }
             }
-            SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
-            return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                private boolean hasValue;
-
-                @Override
-                public boolean empty() {
-                    return leaves.length == 0;
+            return docId -> {
+                for (SourceLoader.SyntheticFieldLoader.DocValuesLoader docValueLoader : loaders) {
+                    boolean leafHasValue = docValueLoader.advanceToDoc(docId);
+                    hasValue |= leafHasValue;
                 }
-
-                @Override
-                public boolean advanceToDoc(int docId) throws IOException {
-                    hasValue = false;
-                    for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                        boolean leafHasValue = leaf.advanceToDoc(docId);
-                        hasValue |= leafHasValue;
-                    }
-                    return hasValue;
-                }
-
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (hasValue == false) {
-                        return;
-                    }
-                    startSyntheticField(b);
-                    for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                        leaf.write(b);
-                    }
-                    b.endObject();
-                }
+                /*
+                 * Important and kind of sneaky note: this will return true
+                 * if there were any values loaded from stored fields as
+                 * well. That *is* how we "wake up" objects that contain just
+                 * stored field.
+                 */
+                return hasValue;
             };
-        };
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (hasValue == false) {
+                return;
+            }
+            startSyntheticField(b);
+            for (SourceLoader.SyntheticFieldLoader field : fields) {
+                field.write(b);
+            }
+            b.endObject();
+            hasValue = false;
+        }
     }
 
     protected void startSyntheticField(XContentBuilder b) throws IOException {

@@ -37,8 +37,8 @@ public interface TestClustersAware extends Task {
 
     default void beforeStart() {}
 
-    default void enableDebug() {
-        int debugPort = 5007;
+    default void enableDebug(int portOffset) {
+        int debugPort = 5007 + portOffset;
         for (ElasticsearchCluster cluster : getClusters()) {
             for (ElasticsearchNode node : cluster.getNodes()) {
                 getLogger().lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}", node, debugPort);

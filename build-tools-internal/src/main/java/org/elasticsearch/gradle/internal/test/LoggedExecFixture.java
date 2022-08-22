@@ -9,13 +9,13 @@
 package org.elasticsearch.gradle.internal.test;
 
 import groovy.lang.Closure;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Task;
-import org.gradle.api.file.DeleteSpec;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.Property;
@@ -24,12 +24,13 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.process.ExecOperations;
 
-import javax.inject.Inject;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
+
+import javax.inject.Inject;
 
 public abstract class LoggedExecFixture extends LoggedExec {
 
@@ -45,8 +46,8 @@ public abstract class LoggedExecFixture extends LoggedExec {
         getWorkingDir().set(getCwd());
         getCleanSpec().convention(spec -> {
             System.out.println("getWorkingDir().get() = " + getWorkingDir().get());
-//            spec.delete(getPidFile());
-//            spec.delete(getWorkingDir().get());
+            spec.delete(getPidFile());
+            spec.delete(getWorkingDir().get());
         });
         getIndentingConsoleOutput().set(getName());
         getWaitingCondition().convention((fixture) -> {
@@ -64,14 +65,14 @@ public abstract class LoggedExecFixture extends LoggedExec {
             @Override
             public void execute(Task task) {
                 long end = System.currentTimeMillis() + getMaxWaitInSeconds().get() * 1000;
-                while(System.currentTimeMillis() < end && callWaitingCondition() == false) {
+                while (System.currentTimeMillis() < end && callWaitingCondition() == false) {
                     try {
                         Thread.sleep(300);
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
                     }
                 }
-                if(callWaitingCondition() == false) {
+                if (callWaitingCondition() == false) {
                     throw new GradleException("Timeout waiting for " + getPath() + " waiting condition fullfilled.");
                 }
             }
@@ -79,7 +80,6 @@ public abstract class LoggedExecFixture extends LoggedExec {
 
         stopTask = createStopTask();
     }
-
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */
     private TaskProvider<LoggedExecFixtureStop> createStopTask() {

@@ -413,7 +413,6 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         assertMasterStability(client, HealthStatus.YELLOW, containsString(expectedMasterStabilitySymptomSubstring));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89431")
     public void testRepeatedNullMasterRecognizedAsGreenIfMasterDoesNotKnowItIsUnstable() throws Exception {
         /*
          * In this test we have a single master-eligible node. We pause it repeatedly (simulating a long GC pause for example) so that

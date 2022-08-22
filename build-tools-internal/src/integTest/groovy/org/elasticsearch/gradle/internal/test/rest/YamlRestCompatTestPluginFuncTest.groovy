@@ -141,7 +141,6 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTestVxCompatTest is wired into check and checkRestCompat"() {
         given:
-        withVersionCatalogue()
         subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {

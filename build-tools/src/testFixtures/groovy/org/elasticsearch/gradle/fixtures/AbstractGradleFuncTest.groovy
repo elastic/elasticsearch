@@ -49,6 +49,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         propertiesFile = testProjectDir.newFile('gradle.properties')
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+        withVersionCatalogue()
     }
 
     def cleanup() {
@@ -192,21 +193,19 @@ abstract class AbstractGradleFuncTest extends Specification {
         dir
     }
 
-    void withVersionCatalogue() {
-        file('build.versions.toml') << '''\
-[libraries]
-checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
-'''
+    private void withVersionCatalogue() {
         settingsFile << '''
             dependencyResolutionManagement {
               versionCatalogs {
                 buildLibs {
-                  from(files("build.versions.toml"))
+                  library('checkstyle', 'com.puppycrawl.tools:checkstyle:10.3')
+                }
+                libs {
+                  version('lucene', '9.3.0')
                 }
               }
             }
             '''
-
     }
 
     boolean featureFailed() {

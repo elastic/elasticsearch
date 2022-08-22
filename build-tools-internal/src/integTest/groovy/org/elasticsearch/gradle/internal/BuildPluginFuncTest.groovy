@@ -127,7 +127,6 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def "applies checks"() {
         given:
-        withVersionCatalogue()
         repository.generateJar("org.elasticsearch", "build-conventions", "unspecified", 'org.acme.CheckstyleStuff')
         repository.configureBuild(buildFile)
         setupJarHellJar(dir('local-repo/org/elasticsearch/elasticsearch-core/current/'))

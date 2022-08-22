@@ -26,7 +26,6 @@ class CheckstylePrecommitPluginFuncTest extends AbstractGradleInternalPluginFunc
     public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setup() {
-        withVersionCatalogue()
         buildFile << """
         apply plugin:'java'
         """

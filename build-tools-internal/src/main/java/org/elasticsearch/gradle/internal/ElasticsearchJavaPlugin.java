@@ -103,28 +103,22 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     }
 
     private static void configureJarManifest(Project project) {
-        project.getPlugins().withType(InfoBrokerPlugin.class).whenPluginAdded(manifestPlugin -> {
-            manifestPlugin.add("Module-Origin", toStringable(BuildParams::getGitOrigin));
-            manifestPlugin.add("Change", toStringable(BuildParams::getGitRevision));
-            manifestPlugin.add("X-Compile-Elasticsearch-Version", toStringable(VersionProperties::getElasticsearch));
-            manifestPlugin.add(
+        InfoBrokerPlugin infoBrokerPlugin = project.getPlugins().apply(InfoBrokerPlugin.class);
+        project.afterEvaluate(project1 -> {
+            infoBrokerPlugin.add("Module-Origin", toStringable(BuildParams::getGitOrigin));
+            infoBrokerPlugin.add("Change", toStringable(BuildParams::getGitRevision));
+            infoBrokerPlugin.add("X-Compile-Elasticsearch-Version", toStringable(VersionProperties::getElasticsearch));
+            VersionCatalogsExtension catalogsExtension = project1.getExtensions().getByType(VersionCatalogsExtension.class);
+            infoBrokerPlugin.add(
                 "X-Compile-Lucene-Version",
-                toStringable(
-                    () -> project.getExtensions()
-                        .getByType(VersionCatalogsExtension.class)
-                        .named("libs")
-                        .findVersion("lucene")
-                        .get()
-                        .getRequiredVersion()
-                )
+                toStringable(() -> catalogsExtension.named("libs").findVersion("lucene").get().getRequiredVersion())
             );
-            manifestPlugin.add(
+            infoBrokerPlugin.add(
                 "X-Compile-Elasticsearch-Snapshot",
                 toStringable(() -> Boolean.toString(VersionProperties.isElasticsearchSnapshot()))
             );
-        });
 
-        project.getPluginManager().apply("nebula.info-broker");
+        });
         project.getPluginManager().apply("nebula.info-basic");
         project.getPluginManager().apply("nebula.info-java");
         project.getPluginManager().apply("nebula.info-jar");

@@ -70,7 +70,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
     dependsOn project.configurations.hdfsFixture, krbFixtureProject.tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     getEnvironment().put('CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}")
-    maxWaitInSeconds 60
+    maxWaitInSeconds.set(60)
     onlyIf { BuildParams.inFipsJvm == false }
     waitingCondition { fixture
       // the hdfs.MiniHDFS fixture writes the ports file when

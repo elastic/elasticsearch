@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gradle;
 
-import org.apache.commons.io.FileUtils;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -184,7 +183,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     }
 
     private void maybeRunCleanSpec() {
-        if(getCleanSpec().isPresent()){
+        if (getCleanSpec().isPresent()) {
             fileSystemOperations.delete(getCleanSpec().get());
         }
     }

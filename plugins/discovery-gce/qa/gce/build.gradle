@@ -30,7 +30,7 @@ restResources {
 /** A task to start the GCEFixture which emulates a GCE service **/
 def gceFixtureProvider = tasks.register("gceFixture", LoggedExecFixture) {
   dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
-  getEnvironment().putAll('CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}")
+  getEnvironment().put('CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}")
   getExecutable().set("${BuildParams.runtimeJavaHome}/bin/java")
   getArgs().addAll('org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/yamlRestTest-1/config/unicast_hosts.txt")
 }

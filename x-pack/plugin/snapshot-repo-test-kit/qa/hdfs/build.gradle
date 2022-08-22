@@ -69,7 +69,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
   project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.LoggedExecFixture) {
     dependsOn project.configurations.hdfsFixture, krbFixtureProject.tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
-    env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
+    getEnvironment().put('CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}")
     maxWaitInSeconds 60
     onlyIf { BuildParams.inFipsJvm == false }
     waitingCondition { fixture

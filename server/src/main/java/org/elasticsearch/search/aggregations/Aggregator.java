@@ -135,6 +135,35 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
+     * Indicates if this aggregator has been updated to use the new {@link CollectedAggregator}
+     * serialization logic instead of the legacy {@link InternalAggregation} version.  As aggregators
+     * add support for the new style, they should override this to return true.
+     *
+     * Eventually we should drop this method once everything is migrated
+     *
+     * @return true iff this aggregation has been migrated to the new style
+     */
+    public boolean canUseCollectedAggregator() { return false; }
+
+    /**
+     * Build the results of this aggregation.
+     * @return a single {@link CollectedAggregator} object for the aggregation
+     */
+    public CollectedAggregator buildTopLevelCollectedAggregator() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Build the results of this aggregation.
+     * @param ordsToCollect the ordinals of the buckets that we want to
+     *        collect from this aggregation
+     * @return a single {@link CollectedAggregator} object for the aggregation
+     */
+    public CollectedAggregator buildCollectedAggregator(long[] ordsToCollect) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Build the results of this aggregation.
       * @param ordsToCollect the ordinals of the buckets that we want to
      *        collect from this aggregation

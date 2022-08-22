@@ -101,20 +101,38 @@ public class AggregationPhase {
 
         Aggregator[] aggregators = context.aggregations().aggregators();
 
-        List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
         if (context.aggregations().factories().context() != null) {
             // Rollup can end up here with a null context but not null factories.....
             context.aggregations().factories().context().multiBucketConsumer().reset();
         }
+        // decide if we're in new style or old style
+        boolean useNewStyle = true;
         for (Aggregator aggregator : context.aggregations().aggregators()) {
-            try {
-                aggregator.postCollection();
-                aggregations.add(aggregator.buildTopLevel());
-            } catch (IOException e) {
-                throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
-            }
+            useNewStyle = useNewStyle && aggregator.canUseCollectedAggregator();
         }
-        context.queryResult().aggregations(InternalAggregations.from(aggregations));
+        if (useNewStyle) {
+            List<CollectedAggregator> aggregations = new ArrayList<>(aggregators.length);
+            for (Aggregator aggregator : context.aggregations().aggregators()) {
+                try {
+                    aggregator.postCollection();
+                    aggregations.add(aggregator.buildTopLevelCollectedAggregator());
+                } catch (IOException e) {
+                    throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
+                }
+            }
+            context.queryResult().addNewAggregations(aggregations);
+        } else {
+            List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
+            for (Aggregator aggregator : context.aggregations().aggregators()) {
+                try {
+                    aggregator.postCollection();
+                    aggregations.add(aggregator.buildTopLevel());
+                } catch (IOException e) {
+                    throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
+                }
+            }
+            context.queryResult().aggregations(InternalAggregations.from(aggregations));
+        }
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);

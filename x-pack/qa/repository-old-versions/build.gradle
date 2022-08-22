@@ -124,7 +124,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         mkdir(dataPath)
       }
       getMaxWaitInSeconds().set(60)
-      waitCondition { fixture ->
+      waitingCondition { fixture ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
         // is ready, so we can just wait for the file to exist
         return fixture.portsFile.exists()

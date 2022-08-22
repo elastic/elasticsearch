@@ -448,7 +448,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             lessThanOrEqualTo(searchSize)
         );
         final List<String> tokenIds = Arrays.stream(searchHits.getHits()).map(searchHit -> {
-            assert searchHit.getId() != null;
+            assertNotNull(searchHit.getId());
             return searchHit.getId();
         }).toList();
         assertThat(tokenIds, not(empty()));

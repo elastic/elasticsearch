@@ -14,8 +14,14 @@ setup:
                             doc_values: false
                         date:
                             type: date
+                        date_no_doc_values:
+                            type: date
+                            doc_values: false
                         nanos:
                             type: date_nanos
+                        nanos_no_doc_values:
+                            type: date_nanos
+                            doc_values: false
                         geo_point:
                             type: geo_point
                         geo_point_no_doc_values:
@@ -70,6 +76,11 @@ setup:
                             type: scaled_float
                             scaling_factor: 100
                             doc_values: false
+                        text:
+                            type: text
+                            fielddata: true
+                        text_no_field_data:
+                            type: text
                         token_count:
                             type: token_count
                             analyzer: standard
@@ -88,7 +99,9 @@ setup:
                 boolean: true
                 boolean_no_doc_values: true
                 date: 2017-01-01T12:11:12
+                date_no_doc_values: 2017-01-01T12:11:12
                 nanos: 2015-01-01T12:10:30.123456789Z
+                nanos_no_doc_values: 2015-01-01T12:10:30.123456789Z
                 geo_point: 41.12,-71.34
                 geo_point_no_doc_values: 41.12,-71.34
                 ip: 192.168.0.19
@@ -110,6 +123,8 @@ setup:
                 half_float_no_doc_values: 3.140625
                 scaled_float: 3.14
                 scaled_float_no_doc_values: 3.14
+                text: "Lots of text."
+                text_no_field_data: "Lots of text."
                 token_count: count all these words please
 
     - do:
@@ -129,7 +144,9 @@ setup:
               boolean_no_doc_values: [true, false, true]
               ip: ["10.1.2.3", "2001:db8::2:1"]
               date: [2017-01-01T12:11:12, 2018-01-01T12:11:12]
+              date_no_doc_values: [2017-01-01T12:11:12, 2018-01-01T12:11:12]
               nanos: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
+              nanos_no_doc_values: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
               geo_point: [[-71.34,41.12],[60.32,21.25]]
               geo_point_no_doc_values: [[60.32,21.25],[-71.34,41.12]]
               keyword: ["one string", "another string"]
@@ -150,6 +167,8 @@ setup:
               half_float_no_doc_values: [2.234, 1.123]
               scaled_float: [-3.5, 2.5]
               scaled_float_no_doc_values: [2.5, -3.5]
+              text: ["Lots of text.", "even more text", "SOOOOO much text"]
+              text_no_field_data: ["Lots of text.", "even more text", "SOOOOO much text"]
 
 
     - do:
@@ -682,6 +701,244 @@ setup:
                 script:
                   source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('nanos')) times.add(zdt); times"
     - match: { hits.hits.0.fields.field: ["2015-01-01T12:10:30.123456789Z", "2015-01-01T12:10:30.987654321Z"] }
+
+---
+"date_no_doc_values":
+  - skip:
+      features: "warnings"
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date_no_doc_values.get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date_no_doc_values.value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(null)"
+  - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date_no_doc_values', null)"
+  - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(null).getMillis()"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date_no_doc_values', null).getMillis()"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(null).millis"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date_no_doc_values', null).millis"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+  - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date_no_doc_values', ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+  - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(null)"
+  - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('nanos_no_doc_values', null)"
+  - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+  - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('nanos_no_doc_values', ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+  - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(null).getNano()"
+  - match: { hits.hits.0.fields.field.0: 123456789 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('nanos_no_doc_values', null).getNano()"
+  - match: { hits.hits.0.fields.field.0: 123456789 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z')).getNano()"
+  - match: { hits.hits.0.fields.field.0: 123000000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: "2018-01-01T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: "2015-01-01T12:10:30.987654321Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('date_no_doc_values')) times.add(zdt); times"
+  - match: { hits.hits.0.fields.field: ["2017-01-01T12:11:12.000Z", "2018-01-01T12:11:12.000Z"] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('nanos_no_doc_values')) times.add(zdt); times"
+  - match: { hits.hits.0.fields.field: ["2015-01-01T12:10:30.123456789Z", "2015-01-01T12:10:30.987654321Z"] }
 
 ---
 "geo_point":
@@ -2718,6 +2975,264 @@ setup:
               script:
                 source: "int value = field('dne').get(1, 1); value"
   - match: { hits.hits.0.fields.field.0: 1 }
+
+---
+"text":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text'].get(0)"
+  - match: { hits.hits.0.fields.field.0: lots }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text'].value"
+  - match: { hits.hits.0.fields.field.0: lots }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text').get('')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('text', '')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text').get(defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('text', defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text').get(1, defaultText)"
+  - match: { hits.hits.0.fields.field.0: "default text" }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('text')) { cat += s; } cat + field('text').size();"
+  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+  - match: { hits.hits.1.fields.field.0: "0" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
+
+---
+"text_no_field_data":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text_no_field_data'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text_no_field_data'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_no_field_data').get('')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('text_no_field_data', '')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text_no_field_data').get(defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('text_no_field_data', defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_no_field_data').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text_no_field_data').get(1, defaultText)"
+  - match: { hits.hits.0.fields.field.0: "default text" }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_no_field_data').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('text_no_field_data')) { cat += s; } cat + field('text_no_field_data').size();"
+  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+  - match: { hits.hits.1.fields.field.0: "0" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
 
 ---
 "version and sequence number":

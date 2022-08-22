@@ -404,7 +404,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
      * given only an access token and refresh token.
      */
     private void extendExpirationTimeForAllTokens() throws Exception {
-        refreshSecurityTokensIndex();
         final List<String> tokensIds = getAllTokenIds();
         final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
         bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
@@ -427,6 +426,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private List<String> getAllTokenIds() throws IOException {
+        refreshSecurityTokensIndex();
         final long searchSize = 100L;
         final var searchRequest = new Request("POST", "/.security-tokens/_search?size=" + searchSize);
         searchRequest.setOptions(searchRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
@@ -442,7 +442,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertOK(searchResponse);
         final SearchHits searchHits = SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits();
         // Ensure we fetched all tokens
-        assertThat(searchHits.getTotalHits().value, lessThanOrEqualTo(searchSize));
+        assertThat(
+            "There are more tokens that require an expiration time extension than expected.",
+            searchHits.getTotalHits().value,
+            lessThanOrEqualTo(searchSize)
+        );
         final List<String> tokenIds = Arrays.stream(searchHits.getHits()).map(searchHit -> {
             assert searchHit.getId() != null;
             return searchHit.getId();

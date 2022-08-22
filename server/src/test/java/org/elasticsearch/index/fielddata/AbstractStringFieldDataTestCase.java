@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -54,6 +53,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -314,16 +314,13 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         final IndexFieldData<?> indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
-        TopFieldCollector topFieldCollector = TopFieldCollector.create(
-            new Sort(sortField),
+        TopFieldDocs topDocs = searcher.search(
+            new MatchAllDocsQuery(),
             randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
-            null,
-            Integer.MAX_VALUE
+            new Sort(sortField)
         );
-        searcher.search(new MatchAllDocsQuery(), topFieldCollector);
-        TopFieldDocs topDocs = topFieldCollector.topDocs();
 
-        assertEquals(numDocs, topDocs.totalHits.value);
+        assertThat(topDocs.totalHits.value, lessThanOrEqualTo((long) numDocs));
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");

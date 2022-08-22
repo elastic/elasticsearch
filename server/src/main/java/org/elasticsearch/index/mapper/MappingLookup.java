@@ -220,6 +220,13 @@ public final class MappingLookup {
         return fieldTypeLookup;
     }
 
+    /**
+     * Returns the number of all named fields, including field mappers (inclusive of flattened object mappers), alias and runtime fields.
+     */
+    public int getAllNamedFieldsSize() {
+        return fieldTypeLookup.getMatchingFieldNames("*").size();
+    }
+
     FieldTypeLookup indexTimeLookup() {
         return indexTimeLookup;
     }

@@ -110,6 +110,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.field_mappings
 
 ---
 "Metric - multi":
@@ -138,7 +139,8 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
-
+  - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.field_mappings
 
 ---
 "Metric - recovery":
@@ -168,6 +170,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.field_mappings
 
 ---
 "Metric - _all include_segment_file_sizes":
@@ -226,6 +229,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.field_mappings
   - is_true:   nodes.$node_id.indices.segments.file_sizes
 
 ---
@@ -258,6 +262,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.field_mappings
 
 ---
 "Metric - _all include_unloaded_segments":
@@ -388,3 +393,93 @@
       nodes.stats: { metric: _all }
 
   - gte: { nodes.$node_id.indices.shard_stats.total_count: 1 }
+
+---
+"Metric - blank for indices field_mappings":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 8.4.99"
+      reason:  "field mappings added in version 8.5.0"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: {}
+
+  - is_true:  nodes.$node_id.indices.field_mappings
+  - match: { nodes.$node_id.indices.field_mappings.total_count: 0 }
+  - match: { nodes.$node_id.indices.field_mappings.total_estimated_overhead_in_bytes: 0 }
+
+---
+"indices field_mappings test for indices level":
+
+  - skip:
+      features: [arbitrary_key]
+      version: " - 8.4.99"
+      reason:  "field mappings added in version 8.5.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "1"
+          mappings:
+            properties:
+              prop1:
+                type: "keyword"
+              prop2:
+                type: "keyword"
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all, level: "indices", human: true }
+
+  - gte: { nodes.$node_id.indices.field_mappings.total_count: 2 }
+  - is_true: nodes.$node_id.indices.field_mappings.total_estimated_overhead
+  - gte: { nodes.$node_id.indices.field_mappings.total_estimated_overhead_in_bytes: 2 }
+  - gte: { nodes.$node_id.indices.indices.index1.field_mappings.total_count: 1 }
+  - is_true: nodes.$node_id.indices.indices.index1.field_mappings.total_estimated_overhead
+  - gte: { nodes.$node_id.indices.indices.index1.field_mappings.total_estimated_overhead_in_bytes: 1 }
+
+---
+"indices field_mappings test for shards level":
+
+  - skip:
+      features: [arbitrary_key]
+      version: " - 8.4.99"
+      reason:  "field mappings added in version 8.5.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "1"
+          mappings:
+            properties:
+              prop1:
+                type: "keyword"
+              prop2:
+                type: "keyword"
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all, level: "shards", human: true }
+
+  - gte: { nodes.$node_id.indices.field_mappings.total_count: 2 }
+  - is_true: nodes.$node_id.indices.field_mappings.total_estimated_overhead
+  - gte: { nodes.$node_id.indices.field_mappings.total_estimated_overhead_in_bytes: 2 }
+  - is_false: nodes.$node_id.indices.shards.index1.0.field_mappings

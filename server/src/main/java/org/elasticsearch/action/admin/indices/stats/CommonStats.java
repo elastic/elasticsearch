@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.FieldMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -40,9 +42,12 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class CommonStats implements Writeable, ToXContentFragment {
+
+    private static final Version VERSION_SUPPORTING_FIELD_MAPPINGS = Version.V_8_5_0;
 
     @Nullable
     public DocsStats docs;
@@ -98,6 +103,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public ShardCountStats shards;
 
+    @Nullable
+    public FieldMappingStats fieldMappings;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -125,42 +133,97 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Recovery -> recoveryStats = new RecoveryStats();
                 case Bulk -> bulk = new BulkStats();
                 case Shards -> shards = new ShardCountStats();
+                case FieldMappings -> fieldMappings = new FieldMappingStats();
                 default -> throw new IllegalStateException("Unknown Flag: " + flag);
             }
         }
     }
 
-    public CommonStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
-        CommonStatsFlags.Flag[] setFlags = flags.getFlags();
-        for (CommonStatsFlags.Flag flag : setFlags) {
+    /**
+     * Filters the given flags for {@link CommonStatsFlags#SHARD_LEVEL} flags and calculates the corresponding statistics.
+     */
+    public static CommonStats getShardLevelStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
+        // Filter shard level flags
+        CommonStatsFlags filteredFlags = flags.clone();
+        Arrays.stream(filteredFlags.getFlags()).forEach(x -> filteredFlags.set(x, CommonStatsFlags.SHARD_LEVEL.isSet(x)));
+        CommonStats stats = new CommonStats(filteredFlags);
+
+        for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
             try {
                 switch (flag) {
-                    case Docs -> docs = indexShard.docStats();
-                    case Store -> store = indexShard.storeStats();
-                    case Indexing -> indexing = indexShard.indexingStats();
-                    case Get -> get = indexShard.getStats();
-                    case Search -> search = indexShard.searchStats(flags.groups());
-                    case Merge -> merge = indexShard.mergeStats();
-                    case Refresh -> refresh = indexShard.refreshStats();
-                    case Flush -> flush = indexShard.flushStats();
-                    case Warmer -> warmer = indexShard.warmerStats();
-                    case QueryCache -> queryCache = indicesQueryCache.getStats(indexShard.shardId());
-                    case FieldData -> fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
-                    case Completion -> completion = indexShard.completionStats(flags.completionDataFields());
-                    case Segments -> segments = indexShard.segmentStats(flags.includeSegmentFileSizes(), flags.includeUnloadedSegments());
-                    case Translog -> translog = indexShard.translogStats();
-                    case RequestCache -> requestCache = indexShard.requestCache().stats();
-                    case Recovery -> recoveryStats = indexShard.recoveryStats();
-                    case Bulk -> bulk = indexShard.bulkStats();
+                    case Docs -> stats.docs = indexShard.docStats();
+                    case Store -> stats.store = indexShard.storeStats();
+                    case Indexing -> stats.indexing = indexShard.indexingStats();
+                    case Get -> stats.get = indexShard.getStats();
+                    case Search -> stats.search = indexShard.searchStats(flags.groups());
+                    case Merge -> stats.merge = indexShard.mergeStats();
+                    case Refresh -> stats.refresh = indexShard.refreshStats();
+                    case Flush -> stats.flush = indexShard.flushStats();
+                    case Warmer -> stats.warmer = indexShard.warmerStats();
+                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId());
+                    case FieldData -> stats.fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
+                    case Completion -> stats.completion = indexShard.completionStats(flags.completionDataFields());
+                    case Segments -> stats.segments = indexShard.segmentStats(
+                        flags.includeSegmentFileSizes(),
+                        flags.includeUnloadedSegments()
+                    );
+                    case Translog -> stats.translog = indexShard.translogStats();
+                    case RequestCache -> stats.requestCache = indexShard.requestCache().stats();
+                    case Recovery -> stats.recoveryStats = indexShard.recoveryStats();
+                    case Bulk -> stats.bulk = indexShard.bulkStats();
                     case Shards ->
                         // Setting to 1 because the single IndexShard passed to this method implies 1 shard
-                        shards = new ShardCountStats(1);
+                        stats.shards = new ShardCountStats(1);
+                    case FieldMappings -> throw new IllegalStateException("Flag: " + flag + " must not be used at shard level");
                     default -> throw new IllegalStateException("Unknown Flag: " + flag);
                 }
             } catch (AlreadyClosedException e) {
                 // shard is closed - no stats is fine
             }
         }
+
+        return stats;
+    }
+
+    /**
+     * Filters the given flags for {@link CommonStatsFlags#INDEX_LEVEL} flags and calculates the corresponding statistics.
+     */
+    public static CommonStats getIndexLevelStats(final IndexService indexService, CommonStatsFlags flags) {
+        // Filter shard level flags
+        CommonStatsFlags filteredFlags = flags.clone();
+        Arrays.stream(filteredFlags.getFlags()).forEach(x -> filteredFlags.set(x, CommonStatsFlags.INDEX_LEVEL.isSet(x)));
+        CommonStats stats = new CommonStats(filteredFlags);
+
+        for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
+            switch (flag) {
+                case FieldMappings:
+                    stats.fieldMappings = indexService.getFieldMappingStats();
+                    break;
+                case Docs:
+                case Store:
+                case Indexing:
+                case Get:
+                case Search:
+                case Merge:
+                case Refresh:
+                case Flush:
+                case Warmer:
+                case QueryCache:
+                case FieldData:
+                case Completion:
+                case Segments:
+                case Translog:
+                case RequestCache:
+                case Recovery:
+                case Bulk:
+                case Shards:
+                    throw new IllegalStateException("Flag: " + flag + " must not be used at index level");
+                default:
+                    throw new IllegalStateException("Unknown Flag: " + flag);
+            }
+        }
+
+        return stats;
     }
 
     public CommonStats(StreamInput in) throws IOException {
@@ -184,6 +247,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
             bulk = in.readOptionalWriteable(BulkStats::new);
         }
         shards = in.readOptionalWriteable(ShardCountStats::new);
+        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_FIELD_MAPPINGS)) {
+            fieldMappings = in.readOptionalWriteable(FieldMappingStats::new);
+        }
     }
 
     @Override
@@ -208,6 +274,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
             out.writeOptionalWriteable(bulk);
         }
         out.writeOptionalWriteable(shards);
+        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_FIELD_MAPPINGS)) {
+            out.writeOptionalWriteable(fieldMappings);
+        }
     }
 
     @Override
@@ -232,7 +301,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             && Objects.equals(requestCache, that.requestCache)
             && Objects.equals(recoveryStats, that.recoveryStats)
             && Objects.equals(bulk, that.bulk)
-            && Objects.equals(shards, that.shards);
+            && Objects.equals(shards, that.shards)
+            && Objects.equals(fieldMappings, that.fieldMappings);
     }
 
     @Override
@@ -255,153 +325,161 @@ public class CommonStats implements Writeable, ToXContentFragment {
             requestCache,
             recoveryStats,
             bulk,
-            shards
+            shards,
+            fieldMappings
         );
     }
 
     public void add(CommonStats stats) {
-        if (docs == null) {
-            if (stats.getDocs() != null) {
+        if (stats.getDocs() != null) {
+            if (docs == null) {
                 docs = new DocsStats();
                 docs.add(stats.getDocs());
+            } else {
+                docs.add(stats.getDocs());
             }
-        } else {
-            docs.add(stats.getDocs());
         }
-        if (store == null) {
-            if (stats.getStore() != null) {
+        if (stats.getStore() != null) {
+            if (store == null) {
                 store = new StoreStats();
                 store.add(stats.getStore());
+            } else {
+                store.add(stats.getStore());
             }
-        } else {
-            store.add(stats.getStore());
         }
-        if (indexing == null) {
-            if (stats.getIndexing() != null) {
+        if (stats.getIndexing() != null) {
+            if (indexing == null) {
                 indexing = new IndexingStats();
                 indexing.add(stats.getIndexing());
+            } else {
+                indexing.add(stats.getIndexing());
             }
-        } else {
-            indexing.add(stats.getIndexing());
         }
-        if (get == null) {
-            if (stats.getGet() != null) {
+        if (stats.getGet() != null) {
+            if (get == null) {
                 get = new GetStats();
                 get.add(stats.getGet());
+            } else {
+                get.add(stats.getGet());
             }
-        } else {
-            get.add(stats.getGet());
         }
-        if (search == null) {
-            if (stats.getSearch() != null) {
+        if (stats.getSearch() != null) {
+            if (search == null) {
                 search = new SearchStats();
                 search.add(stats.getSearch());
+            } else {
+                search.add(stats.getSearch());
             }
-        } else {
-            search.add(stats.getSearch());
         }
-        if (merge == null) {
-            if (stats.getMerge() != null) {
+        if (stats.getMerge() != null) {
+            if (merge == null) {
                 merge = new MergeStats();
                 merge.add(stats.getMerge());
+            } else {
+                merge.add(stats.getMerge());
             }
-        } else {
-            merge.add(stats.getMerge());
         }
-        if (refresh == null) {
-            if (stats.getRefresh() != null) {
+        if (stats.getRefresh() != null) {
+            if (refresh == null) {
                 refresh = new RefreshStats();
                 refresh.add(stats.getRefresh());
+            } else {
+                refresh.add(stats.getRefresh());
             }
-        } else {
-            refresh.add(stats.getRefresh());
         }
-        if (flush == null) {
-            if (stats.getFlush() != null) {
+        if (stats.getFlush() != null) {
+            if (flush == null) {
                 flush = new FlushStats();
                 flush.add(stats.getFlush());
+            } else {
+                flush.add(stats.getFlush());
             }
-        } else {
-            flush.add(stats.getFlush());
         }
-        if (warmer == null) {
-            if (stats.getWarmer() != null) {
+        if (stats.getWarmer() != null) {
+            if (warmer == null) {
                 warmer = new WarmerStats();
                 warmer.add(stats.getWarmer());
+            } else {
+                warmer.add(stats.getWarmer());
             }
-        } else {
-            warmer.add(stats.getWarmer());
         }
-        if (queryCache == null) {
-            if (stats.getQueryCache() != null) {
+        if (stats.getQueryCache() != null) {
+            if (queryCache == null) {
                 queryCache = new QueryCacheStats();
                 queryCache.add(stats.getQueryCache());
+            } else {
+                queryCache.add(stats.getQueryCache());
             }
-        } else {
-            queryCache.add(stats.getQueryCache());
         }
-
-        if (fieldData == null) {
-            if (stats.getFieldData() != null) {
+        if (stats.getFieldData() != null) {
+            if (fieldData == null) {
                 fieldData = new FieldDataStats();
                 fieldData.add(stats.getFieldData());
+            } else {
+                fieldData.add(stats.getFieldData());
             }
-        } else {
-            fieldData.add(stats.getFieldData());
         }
-        if (completion == null) {
-            if (stats.getCompletion() != null) {
+        if (stats.getCompletion() != null) {
+            if (completion == null) {
                 completion = new CompletionStats();
                 completion.add(stats.getCompletion());
+            } else {
+                completion.add(stats.getCompletion());
             }
-        } else {
-            completion.add(stats.getCompletion());
         }
-        if (segments == null) {
-            if (stats.getSegments() != null) {
+        if (stats.getSegments() != null) {
+            if (segments == null) {
                 segments = new SegmentsStats();
                 segments.add(stats.getSegments());
+            } else {
+                segments.add(stats.getSegments());
             }
-        } else {
-            segments.add(stats.getSegments());
         }
-        if (translog == null) {
-            if (stats.getTranslog() != null) {
+        if (stats.getTranslog() != null) {
+            if (translog == null) {
                 translog = new TranslogStats();
                 translog.add(stats.getTranslog());
+            } else {
+                translog.add(stats.getTranslog());
             }
-        } else {
-            translog.add(stats.getTranslog());
         }
-        if (requestCache == null) {
-            if (stats.getRequestCache() != null) {
+        if (stats.getRequestCache() != null) {
+            if (requestCache == null) {
                 requestCache = new RequestCacheStats();
                 requestCache.add(stats.getRequestCache());
+            } else {
+                requestCache.add(stats.getRequestCache());
             }
-        } else {
-            requestCache.add(stats.getRequestCache());
         }
-        if (recoveryStats == null) {
-            if (stats.getRecoveryStats() != null) {
+        if (stats.getRecoveryStats() != null) {
+            if (recoveryStats == null) {
                 recoveryStats = new RecoveryStats();
                 recoveryStats.add(stats.getRecoveryStats());
+            } else {
+                recoveryStats.add(stats.getRecoveryStats());
             }
-        } else {
-            recoveryStats.add(stats.getRecoveryStats());
         }
-        if (bulk == null) {
-            if (stats.getBulk() != null) {
+        if (stats.getBulk() != null) {
+            if (bulk == null) {
                 bulk = new BulkStats();
                 bulk.add(stats.getBulk());
+            } else {
+                bulk.add(stats.getBulk());
             }
-        } else {
-            bulk.add(stats.getBulk());
         }
         if (stats.shards != null) {
             if (shards == null) {
                 shards = stats.shards;
             } else {
                 shards = shards.add(stats.shards);
+            }
+        }
+        if (stats.getFieldMappings() != null) {
+            if (fieldMappings == null) {
+                fieldMappings = new FieldMappingStats();
+                fieldMappings.add(stats.getFieldMappings());
+            } else {
+                fieldMappings.add(stats.getFieldMappings());
             }
         }
     }
@@ -496,6 +574,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return shards;
     }
 
+    @Nullable
+    public FieldMappingStats getFieldMappings() {
+        return fieldMappings;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (index writer, version map)
@@ -536,6 +619,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         addIfNonNull(builder, params, requestCache);
         addIfNonNull(builder, params, recoveryStats);
         addIfNonNull(builder, params, bulk);
+        addIfNonNull(builder, params, fieldMappings);
         return builder;
     }
 

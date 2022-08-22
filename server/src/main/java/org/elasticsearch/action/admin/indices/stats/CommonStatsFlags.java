@@ -18,9 +18,19 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 
+/**
+ * Contains flags that can be used to regulate the presence and calculation of different stat fields in {@link CommonStats}.
+ *
+ * The flags are split in two categories:
+ * - INDEX_LEVEL flags for stat fields that can be calculated only at the index level, but not at the shard level.
+ * - SHARD_LEVEL flags for stat fields that can be calculated at the shard level and then may be later aggregated at the index level
+ *   along with INDEX_LEVEL stat fields.
+ */
 public class CommonStatsFlags implements Writeable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
+    public static final CommonStatsFlags SHARD_LEVEL = new CommonStatsFlags().all().set(Flag.FieldMappings, false);
+    public static final CommonStatsFlags INDEX_LEVEL = new CommonStatsFlags().clear().set(Flag.FieldMappings, true);
     public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
 
     private EnumSet<Flag> flags = EnumSet.allOf(Flag.class);
@@ -214,7 +224,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         RequestCache("request_cache", 15),
         Recovery("recovery", 16),
         Bulk("bulk", 17),
-        Shards("shard_stats", 18);
+        Shards("shard_stats", 18),
+        FieldMappings("field_mappings", 19);
 
         private final String restName;
         private final int index;

@@ -457,7 +457,24 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags));
+    }
+
+    static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
+        final Map<Index, CommonStats> statsByIndex = new HashMap<>();
+
+        for (final IndexService indexService : indicesService) {
+            Index index = indexService.index();
+            CommonStats commonStats = CommonStats.getIndexLevelStats(indexService, flags);
+
+            if (statsByIndex.containsKey(index) == false) {
+                statsByIndex.put(index, commonStats);
+            } else {
+                statsByIndex.get(index).add(commonStats);
+            }
+        }
+
+        return statsByIndex;
     }
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -512,7 +529,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats

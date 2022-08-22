@@ -1,0 +1,5 @@
+pr: 89807
+summary: Introduce `FieldMappingStats` in `CommonStats`
+area: "Stats"
+type: enhancement
+issues: []

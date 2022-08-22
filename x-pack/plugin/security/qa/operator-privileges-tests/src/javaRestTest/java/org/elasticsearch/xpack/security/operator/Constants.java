@@ -160,6 +160,7 @@ public class Constants {
         "cluster:admin/xpack/ml/job/update",
         "cluster:admin/xpack/ml/job/validate",
         "cluster:admin/xpack/ml/job/validate/detector",
+        "cluster:admin/xpack/ml/trained_models/deployment/clear_cache",
         "cluster:admin/xpack/ml/trained_models/deployment/start",
         "cluster:admin/xpack/ml/trained_models/deployment/stop",
         "cluster:admin/xpack/ml/trained_models/part/put",
@@ -179,6 +180,7 @@ public class Constants {
         "cluster:admin/xpack/security/api_key/invalidate",
         "cluster:admin/xpack/security/api_key/query",
         "cluster:admin/xpack/security/api_key/update",
+        "cluster:admin/xpack/security/api_key/bulk_update",
         "cluster:admin/xpack/security/cache/clear",
         "cluster:admin/xpack/security/delegate_pki",
         "cluster:admin/xpack/security/enroll/node",
@@ -245,9 +247,6 @@ public class Constants {
         "cluster:internal/xpack/ml/trained_models/cache/info",
         "cluster:internal/xpack/ml/trained_models/deployments/stats/get",
         "cluster:internal/xpack/transform/reset_mode",
-        "cluster:internal/master_history/get",
-        "cluster:internal/coordination_diagnostics/info",
-        "cluster:internal/formation/info",
         "cluster:monitor/allocation/explain",
         "cluster:monitor/async_search/status",
         "cluster:monitor/ccr/follow_info",
@@ -481,6 +480,9 @@ public class Constants {
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info",
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info[n]",
         "internal:cluster/nodes/indices/shard/store",
+        "internal:cluster/master_history/get",
+        "internal:cluster/coordination_diagnostics/info",
+        "internal:cluster/formation/info",
         "internal:gateway/local/started_shards"
     );
 }

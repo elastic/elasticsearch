@@ -23,6 +23,7 @@ import java.util.List;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xcontent.ObjectParser.fromList;
 
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
@@ -43,10 +44,9 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest().fields(
-            Strings.splitStringByCommaToArray(request.param("fields"))
-        ).indices(indices);
+        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        final FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest();
+        fieldRequest.indices(indices);
 
         fieldRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
         fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));
@@ -57,16 +57,28 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
                 PARSER.parse(parser, fieldRequest, null);
             }
         });
+        if (request.hasParam("fields")) {
+            if (fieldRequest.fields().length > 0) {
+                throw new IllegalArgumentException(
+                    "can't specify a request body and [fields]"
+                        + " request parameter, either specify a request body or the"
+                        + " [fields] request parameter"
+                );
+            }
+            fieldRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
+        }
         return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
     }
 
     private static ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
     private static ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+    private static ParseField FIELDS_FIELD = new ParseField("fields");
 
     private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
 
     static {
         PARSER.declareObject(FieldCapabilitiesRequest::indexFilter, (p, c) -> parseInnerQueryBuilder(p), INDEX_FILTER_FIELD);
         PARSER.declareObject(FieldCapabilitiesRequest::runtimeFields, (p, c) -> p.map(), RUNTIME_MAPPINGS_FIELD);
+        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), FIELDS_FIELD);
     }
 }

@@ -50,6 +50,10 @@ public class Metadata {
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";
     protected static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
 
+    public static FieldProperty<Object> ObjectField = new FieldProperty<>(Object.class);
+    public static FieldProperty<String> StringField = new FieldProperty<>(String.class);
+    public static FieldProperty<Number> LongField = new FieldProperty<>(Number.class).withValidation(FieldProperty.LONGABLE_NUMBER);
+
     protected final Map<String, Object> map;
     protected final Map<String, FieldProperty<?>> properties;
     protected static final FieldProperty<?> BAD_KEY = new FieldProperty<>(null, false, false, null);
@@ -280,6 +284,31 @@ public class Metadata {
      */
     public record FieldProperty<T> (Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
 
+        public FieldProperty(Class<T> type) {
+            this(type, false, false, null);
+        }
+
+        public FieldProperty<T> withNullable() {
+            if (nullable) {
+                return this;
+            }
+            return new FieldProperty<>(type, true, writable, extendedValidation);
+        }
+
+        public FieldProperty<T> withWritable() {
+            if (writable) {
+                return this;
+            }
+            return new FieldProperty<>(type, nullable, true, extendedValidation);
+        }
+
+        public FieldProperty<T> withValidation(BiConsumer<String, T> extendedValidation) {
+            if (this.extendedValidation == extendedValidation) {
+                return this;
+            }
+            return new FieldProperty<>(type, nullable, writable, extendedValidation);
+        }
+
         public static BiConsumer<String, Number> LONGABLE_NUMBER = (k, v) -> {
             long version = v.longValue();
             // did we round?
@@ -345,5 +374,15 @@ public class Metadata {
                 extendedValidation.accept(key, (T) value);
             }
         }
+    }
+
+    public static BiConsumer<String, String> stringSetValidator(Set<String> valid) {
+        return (k, v) -> {
+            if (valid.contains(v) == false) {
+                throw new IllegalArgumentException(
+                    "[" + k + "] must be one of " + valid.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + v + "]"
+                );
+            }
+        };
     }
 }

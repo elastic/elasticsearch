@@ -81,6 +81,15 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Operation to specify what data structures are used to retrieve
+     * field data from and generate a representation of doc values.
+     */
+    public enum FielddataOperation {
+        SEARCH,
+        SCRIPT
+    }
+
+    /**
      * Return a fielddata builder for this field
      *
      * @param fieldDataContext the context for the fielddata

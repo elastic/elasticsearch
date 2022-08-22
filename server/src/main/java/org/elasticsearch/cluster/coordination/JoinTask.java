@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
@@ -36,11 +35,6 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         for (NodeJoinTask nodeJoinTask : nodeJoinTasks) {
             nodeJoinTask.listener.onFailure(e);
         }
-    }
-
-    @Override
-    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        assert false : "not called";
     }
 
     @Override

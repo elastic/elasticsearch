@@ -184,7 +184,7 @@ public class OperatorTests extends ESTestCase {
                 AtomicInteger rowCount = new AtomicInteger();
 
                 List<Driver> drivers = new ArrayList<>();
-                for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(reader, new MatchAllDocsQuery()).slice(
+                for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(reader, new MatchAllDocsQuery()).docSlice(
                     randomIntBetween(1, 10)
                 )) {
                     drivers.add(

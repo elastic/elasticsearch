@@ -29,6 +29,11 @@ public class PassthroughExchanger implements Exchanger {
         bufferMemoryManager = new ExchangeMemoryManager(bufferMaxPages);
     }
 
+    public PassthroughExchanger(ExchangeSource exchangeSource, ExchangeMemoryManager bufferMemoryManager) {
+        this.exchangeSource = exchangeSource;
+        this.bufferMemoryManager = bufferMemoryManager;
+    }
+
     @Override
     public void accept(Page page) {
         bufferMemoryManager.addPage();

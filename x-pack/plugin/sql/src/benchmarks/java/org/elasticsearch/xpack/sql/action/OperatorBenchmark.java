@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.sql.action.compute.data.Block;
@@ -38,19 +37,13 @@ import org.elasticsearch.xpack.sql.action.compute.data.Page;
 import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.xpack.sql.action.compute.lucene.NumericDocValuesExtractor;
 import org.elasticsearch.xpack.sql.action.compute.operator.Driver;
-import org.elasticsearch.xpack.sql.action.compute.operator.LongAvgOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongGroupingOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongMaxOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongTransformerOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 import org.elasticsearch.xpack.sql.action.compute.operator.PageConsumerOperator;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSink;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSinkOperator;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSource;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSourceOperator;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.PassthroughExchanger;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.RandomExchanger;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.RandomUnionSourceOperator;
+import org.elasticsearch.xpack.sql.action.compute.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.sql.action.compute.planner.PlanNode;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -72,8 +65,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 @Fork(value = 1)
 @Warmup(iterations = 1)
@@ -345,153 +336,51 @@ public class OperatorBenchmark {
 
     @Benchmark
     public long testLongAvgSingleThreadedAvg() {
-        return runWithDriver(
-            ByteSizeValue.ofKb(16).bytesAsInt(),
-            new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
-            new LongAvgOperator(2), // partial reduction
-            new LongAvgOperator(0, 1) // final reduction
+        return run(
+            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SINGLE).numericDocValues("value").avg("value")
         );
+    }
+
+    private long run(PlanNode.Builder builder) {
+        AtomicInteger rowCount = new AtomicInteger();
+        Driver.runToCompletion(
+            threadPool.executor(ThreadPool.Names.SEARCH),
+            new LocalExecutionPlanner(indexReader).plan(builder.build((l, p) -> rowCount.addAndGet(p.getPositionCount()))).createDrivers()
+        );
+        return rowCount.get();
     }
 
     @Benchmark
     public long testLongAvgMultiThreadedAvgWithSingleThreadedSearch() {
-        AtomicInteger rowCount = new AtomicInteger();
-        int parallelCount = ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY));
-        List<Driver> drivers = new ArrayList<>(parallelCount);
-        List<ExchangeSource> forkExchangeSources = new ArrayList<>(parallelCount);
-        List<ExchangeSource> joinExchangeSources = new ArrayList<>(parallelCount);
-        for (int i = 0; i < parallelCount; i++) {
-            ExchangeSource forkExchangeSource = new ExchangeSource();
-            forkExchangeSources.add(forkExchangeSource);
-            ExchangeSource joinExchangeSource = new ExchangeSource();
-            joinExchangeSources.add(joinExchangeSource);
-            List<Operator> operatorList = new ArrayList<>();
-            operatorList.add(new ExchangeSourceOperator(forkExchangeSource));
-            operatorList.addAll(
-                List.of(
-                    new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
-                    new LongAvgOperator(2), // PARTIAL
-                    new ExchangeSinkOperator(
-                        new ExchangeSink(new PassthroughExchanger(joinExchangeSource, Integer.MAX_VALUE), s -> joinExchangeSource.finish())
-                    )
-                )
-            );
-            Driver driver = new Driver(operatorList, () -> {});
-            drivers.add(driver);
-        }
-
-        Driver luceneDriver = new Driver(
-            List.of(
-                new LuceneSourceOperator(indexReader, new MatchAllDocsQuery(), ByteSizeValue.ofKb(16).bytesAsInt()),
-                new ExchangeSinkOperator(
-                    new ExchangeSink(
-                        new RandomExchanger(
-                            forkExchangeSources.stream()
-                                .map(exchangeSource -> (Consumer<Page>) page -> exchangeSource.addPage(page, () -> {}))
-                                .collect(Collectors.toList())
-                        ),
-                        sink -> forkExchangeSources.stream().forEach(ExchangeSource::finish)
-                    )
-                )
-            ),
-            () -> {}
+        return run(
+            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SINGLE)
+                .exchange(PlanNode.ExchangeNode.Type.REPARTITION, PlanNode.ExchangeNode.Partitioning.FIXED_ARBITRARY_DISTRIBUTION)
+                .numericDocValues("value")
+                .avgPartial("value")
+                .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
+                .avgFinal("value")
         );
-        drivers.add(luceneDriver);
-
-        Driver reduceDriver = new Driver(
-            List.of(
-                new RandomUnionSourceOperator(joinExchangeSources),
-                new LongAvgOperator(0, 1), // FINAL
-                new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount()))
-            ),
-            () -> {}
-        );
-        drivers.add(reduceDriver);
-
-        Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
-        return rowCount.get();
     }
 
     @Benchmark
     public long testLongAvgMultiThreadedAvgWithMultiThreadedSearch() {
-        AtomicInteger rowCount = new AtomicInteger();
-        int parallelCount = ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY));
-        List<Driver> drivers = new ArrayList<>(parallelCount);
-        List<ExchangeSource> joinExchangeSources = new ArrayList<>(parallelCount);
-
-        for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(
-            indexReader,
-            new MatchAllDocsQuery(),
-            ByteSizeValue.ofKb(16).bytesAsInt()
-        ).slice(parallelCount)) {
-            ExchangeSource joinExchangeSource = new ExchangeSource();
-            joinExchangeSources.add(joinExchangeSource);
-            Driver driver = new Driver(
-                List.of(
-                    luceneSourceOperator,
-                    new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
-                    new LongAvgOperator(2), // PARTIAL
-                    new ExchangeSinkOperator(
-                        new ExchangeSink(new PassthroughExchanger(joinExchangeSource, Integer.MAX_VALUE), s -> joinExchangeSource.finish())
-                    )
-                ),
-                () -> {}
-            );
-            drivers.add(driver);
-        }
-
-        Driver reduceDriver = new Driver(
-            List.of(
-                new RandomUnionSourceOperator(joinExchangeSources),
-                new LongAvgOperator(0, 1), // FINAL
-                new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount()))
-            ),
-            () -> {}
+        return run(
+            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.DOC)
+                .numericDocValues("value")
+                .avgPartial("value")
+                .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
+                .avgFinal("value")
         );
-        drivers.add(reduceDriver);
-
-        Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
-        return rowCount.get();
     }
 
     @Benchmark
     public long testLongAvgMultiThreadedAvgWithMultiThreadedSegmentSearch() {
-        AtomicInteger rowCount = new AtomicInteger();
-        List<Driver> drivers = new ArrayList<>();
-        List<ExchangeSource> joinExchangeSources = new ArrayList<>();
-
-        for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(
-            indexReader,
-            new MatchAllDocsQuery(),
-            ByteSizeValue.ofKb(16).bytesAsInt()
-        ).segmentSlice()) {
-            ExchangeSource joinExchangeSource = new ExchangeSource();
-            joinExchangeSources.add(joinExchangeSource);
-            Driver driver = new Driver(
-                List.of(
-                    luceneSourceOperator,
-                    new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
-                    new LongAvgOperator(2), // PARTIAL
-                    new ExchangeSinkOperator(
-                        new ExchangeSink(new PassthroughExchanger(joinExchangeSource, Integer.MAX_VALUE), s -> joinExchangeSource.finish())
-                    )
-                ),
-                () -> {}
-            );
-            drivers.add(driver);
-        }
-
-        Driver reduceDriver = new Driver(
-            List.of(
-                new RandomUnionSourceOperator(joinExchangeSources),
-                new LongAvgOperator(0, 1), // FINAL
-                new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount()))
-            ),
-            () -> {}
+        return run(
+            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SEGMENT)
+                .numericDocValues("value")
+                .avgPartial("value")
+                .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
+                .avgFinal("value")
         );
-        drivers.add(reduceDriver);
-
-        Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
-        return rowCount.get();
     }
 }

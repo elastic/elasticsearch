@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.function.Consumer;
 
 /**
  * Source for exchanging data, which can be thought of as simple FIFO queues of pages.
@@ -26,8 +27,18 @@ public class ExchangeSource {
 
     private final BlockingQueue<PageReference> buffer = new LinkedBlockingDeque<>();
 
+    private final Consumer<ExchangeSource> onFinish;
+
     private volatile boolean finishing;
     private ListenableActionFuture<Void> notEmptyFuture;
+
+    public ExchangeSource(Consumer<ExchangeSource> onFinish) {
+        this.onFinish = onFinish;
+    }
+
+    public ExchangeSource() {
+        this(exchangeSource -> {});
+    }
 
     /**
      * adds a new page to the FIFO queue, and registers a Runnable that is called once the page has been removed from the queue
@@ -52,6 +63,10 @@ public class ExchangeSource {
         }
     }
 
+    public void addPage(PageReference pageReference) {
+        addPage(pageReference.page(), pageReference.onRelease());
+    }
+
     /**
      * Removes a page from the FIFO queue
      */
@@ -59,6 +74,7 @@ public class ExchangeSource {
         PageReference page = buffer.poll();
         if (page != null) {
             page.onRelease.run();
+            checkFinished();
             return page.page;
         } else {
             return null;
@@ -97,6 +113,8 @@ public class ExchangeSource {
         if (notEmptyFuture != null) {
             notEmptyFuture.onResponse(null);
         }
+
+        checkFinished();
     }
 
     /**
@@ -141,6 +159,14 @@ public class ExchangeSource {
         // notify readers outside of lock since this may result in a callback
         if (notEmptyFuture != null) {
             notEmptyFuture.onResponse(null);
+        }
+
+        checkFinished();
+    }
+
+    private void checkFinished() {
+        if (isFinished()) {
+            onFinish.accept(this);
         }
     }
 

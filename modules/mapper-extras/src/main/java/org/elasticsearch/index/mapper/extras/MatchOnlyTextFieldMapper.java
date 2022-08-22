@@ -12,8 +12,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -36,8 +38,10 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -76,6 +80,19 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             FIELD_TYPE.freeze();
         }
 
+    }
+
+    /**
+     * The {@link FieldType} used to store "original" so that they can be
+     * rebuilt for synthetic source.
+     */
+    private static final FieldType ORIGINAL_FIELD_TYPE = new FieldType();
+    static {
+        ORIGINAL_FIELD_TYPE.setTokenized(false);
+        ORIGINAL_FIELD_TYPE.setOmitNorms(true);
+        ORIGINAL_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+        ORIGINAL_FIELD_TYPE.setStored(true);
+        ORIGINAL_FIELD_TYPE.freeze();
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -167,6 +184,35 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
                 );
+            }
+            if (searchExecutionContext.isSourceSynthetic()) {
+                String name = originalFieldName();
+                return context -> docID -> {
+                    try {
+                        List<Object> values = new ArrayList<>();
+                        context.reader().document(docID, new StoredFieldVisitor() {
+                            private Status found = Status.NO;
+
+                            @Override
+                            public Status needsField(FieldInfo fieldInfo) {
+                                if (fieldInfo.name.equals(name)) {
+                                    found = Status.STOP;
+                                    return Status.YES;
+                                }
+                                return found;
+                            }
+
+                            @Override
+                            public void stringField(FieldInfo fieldInfo, String value) {
+                                assert fieldInfo.name.equals(name);
+                                values.add(value);
+                            }
+                        });
+                        return values;
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                };
             }
             SourceLookup sourceLookup = searchExecutionContext.lookup().source();
             ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
@@ -279,6 +325,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
         }
 
+        private String originalFieldName() {
+            return name() + "._original";
+        }
     }
 
     private final Version indexCreatedVersion;
@@ -326,6 +375,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         Field field = new Field(fieldType().name(), value, fieldType);
         context.doc().add(field);
         context.addToFieldNames(fieldType().name());
+
+        if (context.isSyntheticSource()) {
+            context.doc().add(new Field(fieldType().originalFieldName(), value, ORIGINAL_FIELD_TYPE));
+        }
     }
 
     @Override
@@ -338,4 +391,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         return (MatchOnlyTextFieldType) super.fieldType();
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new StringStoredFieldFieldLoader(fieldType().originalFieldName(), simpleName());
+    }
 }

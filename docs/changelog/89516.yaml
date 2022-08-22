@@ -1,5 +1,5 @@
 pr: 89516
 summary: "Synthetic _source: support `match_only_text`"
-area: "Mapping, TSDB"
+area: "TSDB"
 type: enhancement
 issues: []

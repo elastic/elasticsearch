@@ -37,6 +37,7 @@ import static org.hamcrest.core.IsNot.not;
 
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
+    private static final int TOKEN_SEARCH_SIZE = 100;
     private Collection<RestClient> twoClients = null;
 
     @Before
@@ -223,8 +224,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testAccessTokensWorkInUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
-        // TODO remove me
-        Thread.sleep(30_000);
         extendExpirationTimeForAllTokens();
         for (int tokenIdx : Arrays.asList(3, 4, 10, 12)) {
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
@@ -396,6 +395,13 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertOK(invalidateResponse);
     }
 
+    private void refreshSecurityTokensIndex(final RestClient client) throws IOException {
+        // Ensure all tokens are available for search (token creation and other tokens operations have a WAIT_UNTIL refresh policy)
+        final var refreshRequest = new Request("POST", "/.security-tokens/_refresh");
+        refreshRequest.setOptions(refreshRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        assertOK(client.performRequest(refreshRequest));
+    }
+
     /**
      * Hack to account for long-running tests. The max lifetime of a token is 1h, but sometimes our tests take longer so tokens created in
      * the old cluster may be expired by the time we run tests in the mixed/upgraded clusters.
@@ -406,15 +412,38 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
      * given only an access token and refresh token.
      */
     private void extendExpirationTimeForAllTokens() throws Exception {
-        // TODO try with one of the clients
-        for (var client : twoClients) {
-            extendExpirationTimeForTokens(client, getIdsOfAllTokens(client));
-        }
+        refreshSecurityTokensIndex();
+        final List<String> tokensIds = getAllTokenIds();
+        final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
+        bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        final long newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli();
+        bulkRequest.setJsonEntity(tokensIds.stream().map(tokenId -> """
+            {"update": {"_id": "%s"}}
+            {
+              "doc": {
+                "access_token": {
+                  "user_token": {
+                    "expiration_time": %s
+                  }
+                }
+              }
+            }
+            """.formatted(tokenId, newExpirationTime)).collect(Collectors.joining("\n")));
+        final Response bulkResponse = client().performRequest(bulkRequest);
+        assertOK(bulkResponse);
+        final Map<String, Object> bulkResponseMap = entityAsMap(bulkResponse);
+        assertEquals(false, bulkResponseMap.get("errors"));
     }
 
-    private List<String> getIdsOfAllTokens(final RestClient client) throws IOException {
-        refreshSecurityTokensIndex(client);
-        final var searchRequest = new Request("POST", "/.security-tokens/_search");
+    private void refreshSecurityTokensIndex() throws IOException {
+        // Ensure all tokens are available for search (token creation and other tokens operations have a WAIT_UNTIL refresh policy)
+        final var refreshRequest = new Request("POST", "/.security-tokens/_refresh");
+        refreshRequest.setOptions(refreshRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        assertOK(client().performRequest(refreshRequest));
+    }
+
+    private List<String> getAllTokenIds() throws IOException {
+        final var searchRequest = new Request("POST", "/.security-tokens/_search?size=" + TOKEN_SEARCH_SIZE);
         searchRequest.setOptions(searchRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         searchRequest.setJsonEntity("""
             {
@@ -424,36 +453,13 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 }
               }
             }""");
-        final Response searchResponse = client.performRequest(searchRequest);
+        final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
-        final List<String> docIds = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
+        // TODO assert there aren't more search results
+        final List<String> tokenIds = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
             .map(SearchHit::getId)
             .toList();
-        assertThat(docIds, not(empty()));
-        return docIds;
-    }
-
-    private void refreshSecurityTokensIndex(final RestClient client) throws IOException {
-        // Ensure all tokens are available for search (token creation and other tokens operations have a WAIT_UNTIL refresh policy)
-        final var refreshRequest = new Request("POST", "/.security-tokens/_refresh");
-        refreshRequest.setOptions(refreshRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        assertOK(client.performRequest(refreshRequest));
-    }
-
-    private void extendExpirationTimeForTokens(final RestClient client, final List<String> tokenIds) throws IOException {
-        logger.info("Extending for tokens {}", tokenIds);
-        final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
-        bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        final long newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli();
-        final String bulkRequestJson = tokenIds.stream().map(docId -> """
-            {"update": {"_id": "%s"}}
-            {"doc": {"access_token": {"user_token": {"expiration_time": %s}}}}
-
-            """.formatted(docId, newExpirationTime)).collect(Collectors.joining());
-        bulkRequest.setJsonEntity(bulkRequestJson);
-        final Response bulkResponse = client.performRequest(bulkRequest);
-        assertOK(bulkResponse);
-        assertEquals(false, entityAsMap(bulkResponse).get("errors"));
-        // TODO assert more here
+        assertThat(tokenIds, not(empty()));
+        return tokenIds;
     }
 }

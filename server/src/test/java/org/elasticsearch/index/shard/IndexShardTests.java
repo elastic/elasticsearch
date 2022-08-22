@@ -3923,7 +3923,8 @@ public class IndexShardTests extends IndexShardTestCase {
             mockLogAppender.start();
             Loggers.addAppender(LogManager.getLogger(Engine.class), mockLogAppender);
 
-            shard.flushOnIdle(0); // flush happens in the background using the flush threadpool
+            // Issue the first flushOnIdle request. The flush happens in the background using the flush threadpool.
+            shard.flushOnIdle(0);
             assertFalse(shard.isActive());
 
             // Wait for log message that flush acquired lock immediately
@@ -3955,10 +3956,10 @@ public class IndexShardTests extends IndexShardTestCase {
             // A direct call to flush (with waitIfOngoing=false) should not wait and return false immediately
             assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
 
-            // Allow first flush to complete
+            // Allow first flushOnIdle to complete
             readyToCompleteFlushLatch.countDown();
 
-            // Wait for first flush to log a message that it released the flush lock
+            // Wait for first flushOnIdle to log a message that it released the flush lock
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "should see first flush releasing lock",
@@ -3969,10 +3970,10 @@ public class IndexShardTests extends IndexShardTestCase {
             );
             assertBusy(mockLogAppender::assertAllExpectationsMatched);
 
-            // The second flush (that did not happen) should have returned false and turned the active flag to true
+            // The second flushOnIdle (that did not happen) should have turned the active flag to true
             assertTrue(shard.isActive());
 
-            // After all the previous flushes, issue a final flush (for any remaining documents) that should return true
+            // After all the previous flushes are done, issue a final flush (for any remaining documents) that should return true
             assertTrue(shard.flush(new FlushRequest()));
 
             closeShards(shard);

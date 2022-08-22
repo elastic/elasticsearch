@@ -301,6 +301,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 .setExpiration(null)
                 .setRoleDescriptors(Collections.singletonList(descriptor))
                 .setMetadata(ApiKeyTests.randomMetadata())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
                 .get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
@@ -475,7 +476,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         refreshSecurityIndex();
 
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponseListener = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().realmName("file").build(), getApiKeyResponseListener);
         Set<String> expectedKeyIds = Sets.newHashSet(createdApiKeys.get(0).getId(), createdApiKeys.get(1).getId());
         boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
@@ -513,7 +514,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Verify that 1st invalidated API key is deleted whereas the next one may be or may not be as it depends on whether update was
         // indexed before ExpiredApiKeysRemover ran
         getApiKeyResponseListener = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().realmName("file").build(), getApiKeyResponseListener);
         expectedKeyIds = Sets.newHashSet(createdApiKeys.get(1).getId());
         apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
@@ -558,7 +559,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Instant created = Instant.now();
 
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponseListener = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().realmName("file").build(), getApiKeyResponseListener);
         assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(noOfKeys));
 
         // Expire the 1st key such that it cannot be deleted by the remover
@@ -596,7 +597,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Verify get API keys does not return api keys deleted by ExpiredApiKeysRemover
         getApiKeyResponseListener = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().realmName("file").build(), getApiKeyResponseListener);
 
         Set<String> expectedKeyIds = Sets.newHashSet(
             createdApiKeys.get(0).getId(),
@@ -1059,7 +1060,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         getClientForRunAsUser().execute(
             GetApiKeyAction.INSTANCE,
-            GetApiKeyRequest.usingRealmAndUserName(invalidRealmAndUserPair.v1(), invalidRealmAndUserPair.v2()),
+            GetApiKeyRequest.builder().realmName(invalidRealmAndUserPair.v1()).userName(invalidRealmAndUserPair.v2()).build(),
             listener
         );
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
@@ -1156,7 +1157,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Collections.singletonMap("Authorization", basicAuthHeaderValue(withUser, TEST_PASSWORD_SECURE_STRING))
         );
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forAllApiKeys(), listener);
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().build(), listener);
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> listener.actionGet());
         assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/get", withUser);
     }
@@ -1298,14 +1299,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final PlainActionFuture<GetApiKeyResponse> failureListener = new PlainActionFuture<>();
         client.execute(
             GetApiKeyAction.INSTANCE,
-            GetApiKeyRequest.usingApiKeyId(responses.get(1).getId(), randomBoolean()),
+            GetApiKeyRequest.builder().apiKeyId(responses.get(1).getId()).ownedByAuthenticatedUser(randomBoolean()).build(),
             failureListener
         );
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> failureListener.actionGet());
         assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/get", ES_TEST_ROOT_USER, responses.get(0).getId());
 
         final PlainActionFuture<GetApiKeyResponse> failureListener1 = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forOwnedApiKeys(), failureListener1);
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), failureListener1);
         ese = expectThrows(ElasticsearchSecurityException.class, () -> failureListener1.actionGet());
         assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/get", ES_TEST_ROOT_USER, responses.get(0).getId());
     }
@@ -1576,7 +1577,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final GetApiKeyResponse getApiKeyResponse = client.execute(
             GetApiKeyAction.INSTANCE,
-            GetApiKeyRequest.usingApiKeyId(response2.getId(), true)
+            GetApiKeyRequest.builder().apiKeyId(response2.getId()).ownedByAuthenticatedUser(true).build()
         ).actionGet();
         assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
         final ApiKey apiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
@@ -2729,7 +2730,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         new RefreshRequestBuilder(client, RefreshAction.INSTANCE).setIndices(SECURITY_MAIN_ALIAS).execute().get();
         assertEquals(
             0,
-            client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName(keyName, false)).get().getApiKeyInfos().length
+            client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().apiKeyName(keyName).ownedByAuthenticatedUser(false).build())
+                .get()
+                .getApiKeyInfos().length
         );
     }
 
@@ -2919,7 +2922,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             metadatas.add(metadata);
             final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(
                 namePrefix + randomAlphaOfLengthBetween(5, 9) + i
-            ).setExpiration(expiration).setRoleDescriptors(Collections.singletonList(descriptor)).setMetadata(metadata).get();
+            )
+                .setExpiration(expiration)
+                .setRoleDescriptors(Collections.singletonList(descriptor))
+                .setMetadata(metadata)
+                .setRefreshPolicy(i == noOfApiKeys - 1 ? WriteRequest.RefreshPolicy.IMMEDIATE : WriteRequest.RefreshPolicy.NONE)
+                .get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
             responses.add(response);

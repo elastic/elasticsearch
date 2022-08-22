@@ -36,7 +36,7 @@ jobs:
            base: esql/lang
            title: "🤖 ESQL: Merge upstream"
            body: ":robot: Generated PR to keep ESQL development branch up to date"
-           labels: "upstream-sync,esql"
+           labels: "upstream-sync,esql,gh-automerge"
            github_token: ${{ secrets.ELASTICSEARCHMACHINE }}
 
 ## Merging done by bot on CI check completion 
@@ -51,3 +51,12 @@ jobs:
 #           method: merge
 #           number: ${{ steps.pr-create-esql.outputs.number }}
 #           github-token: ${{ secrets.ELASTICSEARCHMACHINE }}
+
+      - name: Enable github auto-merge
+        id: enable-automerge-esql
+        if: steps.pr-create-esql.outputs.created == 'true'
+        uses: reitermarkus/automerge@v2.1.2
+        with:
+           required-labels: gh-automerge
+           pull-request: ${{ steps.pr-create-esql.outputs.number }}
+           token: ${{ secrets.ELASTICSEARCHMACHINE }}

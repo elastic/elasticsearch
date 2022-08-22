@@ -1365,7 +1365,7 @@ public class IndexNameExpressionResolver {
         private static void expandMatches(
             Context context,
             Collection<IndexAbstraction> matches,
-            final boolean implicitlyIncludeHidden,
+            final boolean expressionStartsWithDot,
             Consumer<String> expandConsumer
         ) {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
@@ -1379,7 +1379,7 @@ public class IndexNameExpressionResolver {
                 }
                 if (indexAbstraction.isHidden()
                     && context.getOptions().expandWildcardsHidden() == false
-                    && (indexAbstraction.getName().startsWith(".") && implicitlyIncludeHidden) == false) {
+                    && (indexAbstraction.getName().startsWith(".") && expressionStartsWithDot) == false) {
                     continue;
                 }
                 if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {

@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * This service manages the node allocation of a cluster. For this reason the
@@ -241,7 +242,7 @@ public class AllocationService {
             allocator.applyFailedShards(failedShards, allocation);
         }
 
-        reroute(allocation, DesiredBalanceShardsAllocator.REMOVE_ME);
+        reroute(allocation, rerouteCompletionIsNotRequired());// reroute is not required as this is not triggered by a user request
         String failedShardsAsString = firstListElementsToCommaDelimitedString(
             failedShards,
             s -> s.routingEntry().shardId().toString(),

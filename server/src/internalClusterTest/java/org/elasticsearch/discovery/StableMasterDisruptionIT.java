@@ -430,28 +430,24 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
                 .build()
         );
+        int nullTransitionsThreshold = 1;
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(
             2,
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), nullTransitionsThreshold)
                 .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(60, TimeUnit.SECONDS))
                 .build()
         );
         ensureStableCluster(3);
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < nullTransitionsThreshold + 1; i++) {
             final String masterNode = masterNodes.get(0);
 
             // Simulating a painful gc by suspending all threads for a long time on the current elected master node.
             SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(random(), masterNode);
 
             final CountDownLatch dataNodeMasterSteppedDown = new CountDownLatch(2);
-            internalCluster().getInstance(ClusterService.class, masterNode).addListener(event -> {
-                if (event.state().nodes().getMasterNodeId() == null) {
-                    dataNodeMasterSteppedDown.countDown();
-                }
-            });
             internalCluster().getInstance(ClusterService.class, dataNodes.get(0)).addListener(event -> {
                 if (event.state().nodes().getMasterNodeId() == null) {
                     dataNodeMasterSteppedDown.countDown();
@@ -470,7 +466,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             // Stop disruption
             logger.info("--> unfreezing node [{}]", masterNode);
             masterNodeDisruption.stopDisrupting();
-            ensureStableCluster(3);
+            ensureStableCluster(3, TimeValue.timeValueSeconds(30), false, randomFrom(dataNodes));
         }
         assertGreenMasterStability(internalCluster().client(randomFrom(dataNodes)));
     }

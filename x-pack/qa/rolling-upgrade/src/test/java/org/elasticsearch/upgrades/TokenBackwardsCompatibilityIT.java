@@ -305,7 +305,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                   "grant_type": "refresh_token"
                 }
                 """.formatted(refreshToken));
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(refreshTokenRequest));
+            ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(refreshTokenRequest));
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
             Map<String, Object> responseMap = entityAsMap(response);
@@ -342,7 +342,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
               "password": "%s",
               "grant_type": "password"
             }""".formatted(username, password));
-        Response response = client.performRequest(createTokenRequest);
+        Response response = client().performRequest(createTokenRequest);
         assertOK(response);
         return entityAsMap(response);
     }

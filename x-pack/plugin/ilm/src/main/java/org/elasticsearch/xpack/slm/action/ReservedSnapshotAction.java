@@ -71,7 +71,7 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
             state = task.execute(state);
         }
 
-        Set<String> entities = requests.stream().map(r -> r.getLifecycle().getName()).collect(Collectors.toSet());
+        Set<String> entities = requests.stream().map(r -> r.getLifecycle().getId()).collect(Collectors.toSet());
 
         Set<String> toDelete = new HashSet<>(prevState.keys());
         toDelete.removeAll(entities);

@@ -102,6 +102,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
             try (XContentParser repoParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
                 putRepositoryRequest.source(repoParser.mapOrdered());
             }
+            result.add(putRepositoryRequest);
         }
 
         return result;

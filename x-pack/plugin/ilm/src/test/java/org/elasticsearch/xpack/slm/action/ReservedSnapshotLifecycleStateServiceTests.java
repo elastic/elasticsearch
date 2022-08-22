@@ -30,6 +30,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -66,7 +68,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         String badPolicyJSON = """
             {
                 "daily-snapshots": {
-                    "schedule": "0 1 2 3 4 ?",
+                    "no_schedule": "0 1 2 3 4 ?",
                     "name": "<production-snap-{now/d}>",
                     "repository": "repo",
                     "config": {
@@ -75,7 +77,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
                         "include_global_state": false
                     },
                     "retention": {
-                        "expire_after_bad": "30d",
+                        "expire_after": "30d",
                         "min_count": 1,
                         "max_count": 50
                     }
@@ -83,8 +85,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         assertEquals(
-            "[1:2] [lifecycle_policy] unknown field [phase] did you mean [phases]?",
-            expectThrows(XContentParseException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+            "Required [schedule]",
+            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
         );
     }
 
@@ -141,49 +143,61 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, twoPoliciesJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
-        IndexLifecycleMetadata ilmMetadata = updatedState.state()
+        assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
+        SnapshotLifecycleMetadata slmMetadata = updatedState.state()
             .metadata()
-            .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
-        assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
+            .custom(SnapshotLifecycleMetadata.TYPE);
+        assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
 
         String onePolicyRemovedJSON = """
             {
-                "my_timeseries_lifecycle": {
-                    "phases": {
-                        "warm": {
-                            "min_age": "10s",
-                            "actions": {
-                            }
-                        }
+                "daily-snapshots": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                        "indices": ["foo-*", "important"],
+                        "ignore_unavailable": true,
+                        "include_global_state": false
+                    },
+                    "retention": {
+                        "expire_after": "30d",
+                        "min_count": 1,
+                        "max_count": 50
                     }
                 }
             }""";
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRemovedJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle"));
-        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
-        assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle"));
+        assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots"));
+        slmMetadata = updatedState.state().metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots"));
 
         String onePolicyRenamedJSON = """
             {
-                "my_timeseries_lifecycle2": {
-                    "phases": {
-                        "warm": {
-                            "min_age": "10s",
-                            "actions": {
-                            }
-                        }
+                "daily-snapshots-2": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                        "indices": ["foo-*", "important"],
+                        "ignore_unavailable": true,
+                        "include_global_state": false
+                    },
+                    "retention": {
+                        "expire_after": "30d",
+                        "min_count": 1,
+                        "max_count": 50
                     }
                 }
             }""";
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRenamedJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle2"));
-        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
-        assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle2"));
+        assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots-2"));
+        slmMetadata = updatedState.state().metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots-2"));
     }
 
     private void setupTaskMock(ClusterService clusterService, ClusterState state) {
@@ -239,9 +253,11 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
+        var repositoriesService = mock(RepositoriesService.class);
+
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
-            List.of(new ReservedClusterSettingsAction(clusterSettings))
+            List.of(new ReservedClusterSettingsAction(clusterSettings), new ReservedRepositoryAction(repositoriesService))
         );
 
         String testJSON = """
@@ -314,7 +330,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             List.of(
                 new ReservedClusterSettingsAction(clusterSettings),
                 new ReservedSnapshotAction(),
-                new ReservedRepositoryAction(mock(RepositoriesService.class))
+                new ReservedRepositoryAction(repositoriesService)
             )
         );
 

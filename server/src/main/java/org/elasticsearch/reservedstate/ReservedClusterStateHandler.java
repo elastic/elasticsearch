@@ -28,8 +28,6 @@ import java.util.Collections;
  * </p>
  */
 public interface ReservedClusterStateHandler<T> {
-    String CONTENT = "content";
-
     /**
      * Unique identifier for the handler.
      *

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -41,6 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.checkMetadataVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -177,9 +179,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception failure) {}
+
+            @Override
+            public Releasable captureResponseHeaders() {
+                return null;
+            }
         };
 
-        ClusterState newState = taskExecutor.execute(state, List.of(taskContext));
+        ClusterState newState = taskExecutor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext), () -> null)
+        );
         assertEquals(state, newState);
         assertTrue(successCalled.get());
         verify(task, times(1)).execute(any());
@@ -231,11 +240,18 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception failure) {}
+
+                @Override
+                public Releasable captureResponseHeaders() {
+                    return null;
+                }
             };
 
         ReservedStateErrorTaskExecutor executor = new ReservedStateErrorTaskExecutor();
 
-        ClusterState newState = executor.execute(state, List.of(taskContext));
+        ClusterState newState = executor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(taskContext), () -> null)
+        );
 
         verify(task, times(1)).execute(any());
 
@@ -286,7 +302,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata("one", Set.of("a", "b"));
         ReservedStateErrorMetadata emOne = new ReservedStateErrorMetadata(
-            1L,
+            2L,
             ReservedStateErrorMetadata.ErrorKind.VALIDATION,
             List.of("Test error 1", "Test error 2")
         );
@@ -300,17 +316,17 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(operatorMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
+        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 2L));
         assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 1L));
-        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 0L));
-        assertTrue(ReservedClusterStateService.isNewError(operatorMetadata, 2L));
-        assertTrue(ReservedClusterStateService.isNewError(null, 0L));
+        assertTrue(ReservedClusterStateService.isNewError(operatorMetadata, 3L));
+        assertTrue(ReservedClusterStateService.isNewError(null, 1L));
 
         // We submit a task with two handler, one will cause an exception, the other will create a new state.
         // When we fail to update the metadata because of version, we ensure that the returned state is equal to the
         // original state by pointer reference to avoid cluster state update task to run.
         ReservedStateUpdateTask task = new ReservedStateUpdateTask(
             "namespace_one",
-            new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(1L, Version.CURRENT)),
+            new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT)),
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             List.of(exceptionThrower.name(), newStateMaker.name()),
             (errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },
@@ -355,20 +371,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     public void testCheckMetadataVersion() {
         ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("test").version(123L).build();
 
-        assertTrue(
-            ReservedClusterStateService.checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(124L, Version.CURRENT))
-        );
+        assertTrue(checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(124L, Version.CURRENT)));
+
+        assertFalse(checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(123L, Version.CURRENT)));
 
         assertFalse(
-            ReservedClusterStateService.checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(123L, Version.CURRENT))
-        );
-
-        assertFalse(
-            ReservedClusterStateService.checkMetadataVersion(
-                "operator",
-                operatorMetadata,
-                new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1))
-            )
+            checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)))
         );
     }
 

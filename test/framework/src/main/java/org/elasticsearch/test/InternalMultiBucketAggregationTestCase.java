@@ -263,7 +263,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             List.of(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         ) {
-            @Override public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
+            @Override
+            public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
                 super.checkParentLimit(newBytesReserved, label);
             }
         };

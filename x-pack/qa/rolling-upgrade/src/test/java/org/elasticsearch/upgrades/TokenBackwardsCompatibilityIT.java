@@ -305,7 +305,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                   "grant_type": "refresh_token"
                 }
                 """.formatted(refreshToken));
-            ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(refreshTokenRequest));
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(refreshTokenRequest));
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
             Map<String, Object> responseMap = entityAsMap(response);
@@ -441,9 +441,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
         final SearchHits searchHits = SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits();
-        // Ensure we fetched all tokens
         assertThat(
-            "There are more tokens that require an expiration time extension than expected.",
+            "Search request used with size parameter that was too small to fetch all tokens.",
             searchHits.getTotalHits().value,
             lessThanOrEqualTo(searchSize)
         );

@@ -35,6 +35,7 @@ public class NumericDocValuesExtractor implements Operator {
 
     private LeafReaderContext lastLeafReaderContext;
     private NumericDocValues lastNumericDocValues;
+    private Thread lastThread;
 
     private Page lastPage;
 
@@ -85,22 +86,35 @@ public class NumericDocValuesExtractor implements Operator {
             int ord = leafOrd.getInt(0);
             if (lastLeafReaderContext == null || lastLeafReaderContext.ord != ord) {
                 lastLeafReaderContext = indexReader.getContext().leaves().get(ord);
-                try {
-                    SortedNumericDocValues sortedNumericDocValues = DocValues.getSortedNumeric(lastLeafReaderContext.reader(), field);
-                    lastNumericDocValues = DocValues.unwrapSingleton(sortedNumericDocValues);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                reinitializeDocValues();
+            }
+            // reset iterator when executing thread changes
+            if (Thread.currentThread() != lastThread) {
+                reinitializeDocValues();
             }
 
             long[] values = new long[docs.getPositionCount()];
+            if (docs.getPositionCount() > 0) {
+                int firstDoc = docs.getInt(0);
+                // reset iterator when blocks arrive out-of-order
+                if (firstDoc <= lastNumericDocValues.docID()) {
+                    reinitializeDocValues();
+                }
+            }
             try {
+                int lastDoc = -1;
                 for (int i = 0; i < docs.getPositionCount(); i++) {
                     int doc = docs.getInt(i);
+                    // docs within same block must be in order
+                    if (lastDoc >= doc) {
+                        throw new IllegalStateException();
+                    }
+                    // disallow sparse fields for now
                     if (lastNumericDocValues.advance(doc) != doc) {
                         throw new IllegalStateException();
                     }
                     values[i] = lastNumericDocValues.longValue();
+                    lastDoc = doc;
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -110,9 +124,20 @@ public class NumericDocValuesExtractor implements Operator {
         }
     }
 
+    private void reinitializeDocValues() {
+        try {
+            SortedNumericDocValues sortedNumericDocValues = DocValues.getSortedNumeric(lastLeafReaderContext.reader(), field);
+            lastNumericDocValues = DocValues.unwrapSingleton(sortedNumericDocValues);
+            lastThread = Thread.currentThread();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     @Override
     public void close() {
         lastLeafReaderContext = null;
         lastNumericDocValues = null;
+        lastThread = null;
     }
 }

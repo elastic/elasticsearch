@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.sql.action.compute.operator.Operator.NOT_BLOCKED;
+import static org.elasticsearch.xpack.sql.action.compute.operator.exchange.Exchanger.FINISHED;
 
 /**
  * Sink for exchanging data. Thread-safe.
@@ -27,6 +28,12 @@ public class ExchangeSink {
     public ExchangeSink(Exchanger exchanger, Consumer<ExchangeSink> onFinish) {
         this.exchanger = exchanger;
         this.onFinish = onFinish;
+    }
+
+    public static ExchangeSink finishedExchangeSink() {
+        ExchangeSink finishedSink = new ExchangeSink(FINISHED, sink -> {});
+        finishedSink.finish();
+        return finishedSink;
     }
 
     /**

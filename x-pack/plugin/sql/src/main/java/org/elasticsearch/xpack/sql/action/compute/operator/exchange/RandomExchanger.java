@@ -14,22 +14,35 @@ import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Exchanger implementation that randomly hands off the data to various exchange sources.
  */
 public class RandomExchanger implements Exchanger {
 
-    private final List<Consumer<Page>> buffers;
+    private final List<Consumer<ExchangeSource.PageReference>> buffers;
+    private final ExchangeMemoryManager memoryManager;
 
     public RandomExchanger(List<Consumer<Page>> buffers) {
+        this.buffers = buffers.stream().map(b -> (Consumer<ExchangeSource.PageReference>) pageReference -> {
+            pageReference.onRelease();
+            b.accept(pageReference.page());
+        }).collect(Collectors.toList());
+        this.memoryManager = new ExchangeMemoryManager(Integer.MAX_VALUE);
+    }
+
+    public RandomExchanger(List<Consumer<ExchangeSource.PageReference>> buffers, ExchangeMemoryManager memoryManager) {
         this.buffers = buffers;
+        this.memoryManager = memoryManager;
     }
 
     @Override
     public void accept(Page page) {
         int randomIndex = Randomness.get().nextInt(buffers.size());
-        buffers.get(randomIndex).accept(page);
+        ExchangeSource.PageReference pageReference = new ExchangeSource.PageReference(page, memoryManager::releasePage);
+        memoryManager.addPage();
+        buffers.get(randomIndex).accept(pageReference);
     }
 
     @Override

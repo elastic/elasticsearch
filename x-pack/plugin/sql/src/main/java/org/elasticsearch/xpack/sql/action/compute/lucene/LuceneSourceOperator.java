@@ -17,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.sql.action.compute.data.ConstantIntBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.IntBlock;
@@ -35,7 +36,7 @@ import java.util.stream.Collectors;
  */
 public class LuceneSourceOperator implements Operator {
 
-    private static final int PAGE_SIZE = 4096;
+    private static final int PAGE_SIZE = ByteSizeValue.ofKb(16).bytesAsInt();
 
     @Nullable
     private final IndexReader indexReader;
@@ -102,11 +103,24 @@ public class LuceneSourceOperator implements Operator {
     /**
      * Split this source operator into a given number of slices
      */
-    public List<LuceneSourceOperator> slice(int numSlices) {
+    public List<LuceneSourceOperator> docSlice(int numSlices) {
         if (weight != null) {
             throw new IllegalStateException("can only call slice method once");
         }
         initializeWeightIfNecessary();
+
+        List<LuceneSourceOperator> operators = new ArrayList<>();
+        for (List<PartialLeafReaderContext> slice : docSlices(indexReader, numSlices)) {
+            operators.add(new LuceneSourceOperator(weight, slice, maxPageSize));
+        }
+        return operators;
+    }
+
+    public static int numDocSlices(IndexReader indexReader, int numSlices) {
+        return docSlices(indexReader, numSlices).size();
+    }
+
+    private static List<List<PartialLeafReaderContext>> docSlices(IndexReader indexReader, int numSlices) {
         final int totalDocCount = indexReader.maxDoc();
         final int maxDocsPerSlice = (totalDocCount / numSlices) + 1;
 
@@ -137,12 +151,7 @@ public class LuceneSourceOperator implements Operator {
         if (currentSlice != null) {
             slices.add(currentSlice);
         }
-
-        List<LuceneSourceOperator> operators = new ArrayList<>();
-        for (List<PartialLeafReaderContext> slice : slices) {
-            operators.add(new LuceneSourceOperator(weight, slice, maxPageSize));
-        }
-        return operators;
+        return slices;
     }
 
     /**
@@ -154,7 +163,7 @@ public class LuceneSourceOperator implements Operator {
         }
         initializeWeightIfNecessary();
         List<LuceneSourceOperator> operators = new ArrayList<>();
-        for (IndexSearcher.LeafSlice leafSlice : IndexSearcher.slices(indexReader.leaves(), MAX_DOCS_PER_SLICE, MAX_SEGMENTS_PER_SLICE)) {
+        for (IndexSearcher.LeafSlice leafSlice : segmentSlices(indexReader)) {
             operators.add(
                 new LuceneSourceOperator(
                     weight,
@@ -164,6 +173,14 @@ public class LuceneSourceOperator implements Operator {
             );
         }
         return operators;
+    }
+
+    private static IndexSearcher.LeafSlice[] segmentSlices(IndexReader indexReader) {
+        return IndexSearcher.slices(indexReader.leaves(), MAX_DOCS_PER_SLICE, MAX_SEGMENTS_PER_SLICE);
+    }
+
+    public static int numSegmentSlices(IndexReader indexReader) {
+        return segmentSlices(indexReader).length;
     }
 
     private static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher

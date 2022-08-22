@@ -36,7 +36,11 @@ public class TotalHitsExtractor extends ConstantExtractor {
 
     private Object validate(Object value) {
         if (Number.class.isInstance(value) == false) {
-            throw new QlIllegalArgumentException("Inconsistent total hits count handling, expected a numeric value but found {}", value);
+            throw new QlIllegalArgumentException(
+                "Inconsistent total hits count handling, expected a numeric value but found a {}: {}",
+                value == null ? null : value.getClass().getSimpleName(),
+                value
+            );
         }
         if (((Number) value).longValue() < 0) {
             throw new QlIllegalArgumentException(

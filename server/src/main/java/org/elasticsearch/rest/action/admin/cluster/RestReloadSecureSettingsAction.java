@@ -78,7 +78,7 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
                 builder.field("cluster_name", response.getClusterName().value());
                 response.toXContent(builder, channel.request());
                 builder.endObject();
-                nodesRequestBuilder.request().closePassword();
+                nodesRequestBuilder.request().close();
                 return new RestResponse(RestStatus.OK, builder);
             }
         });

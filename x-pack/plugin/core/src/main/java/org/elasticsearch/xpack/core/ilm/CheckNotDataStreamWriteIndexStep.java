@@ -13,13 +13,9 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
-import java.io.IOException;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Some actions cannot be executed on a data stream's write index (eg. `searchable-snapshot`). This step checks if the managed index is
@@ -57,7 +53,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
             );
             // Index must have been since deleted
             logger.debug(errorMessage);
-            return new Result(false, new Info(errorMessage));
+            return new Result(false, new SingleMessageFieldInfo(errorMessage));
         }
 
         String policyName = indexMetadata.getLifecyclePolicyName();
@@ -77,50 +73,10 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
                     policyName
                 );
                 logger.debug(errorMessage);
-                return new Result(false, new Info(errorMessage));
+                return new Result(false, new SingleMessageFieldInfo(errorMessage));
             }
         }
 
         return new Result(true, null);
-    }
-
-    static final class Info implements ToXContentObject {
-
-        private final String message;
-
-        static final ParseField MESSAGE = new ParseField("message");
-
-        Info(String message) {
-            this.message = message;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MESSAGE.getPreferredName(), message);
-            builder.endObject();
-            return builder;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Info info = (Info) o;
-            return Objects.equals(message, info.message);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(message);
-        }
     }
 }

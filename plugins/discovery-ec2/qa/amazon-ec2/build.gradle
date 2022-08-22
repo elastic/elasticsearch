@@ -103,7 +103,7 @@ testClusters.matching { it.name == "yamlRestTestSystemProperties" }.configureEac
 
 // Extra config for ContainerCredentials
 tasks.named("ec2FixtureContainerCredentials").configure {
-  getEnvironment().addAll('ACTIVATE_CONTAINER_CREDENTIALS', true)
+  getEnvironment().putAll('ACTIVATE_CONTAINER_CREDENTIALS', true)
 }
 
 testClusters.matching { it.name == "yamlRestTestContainerCredentials" }.configureEach {
@@ -113,5 +113,5 @@ testClusters.matching { it.name == "yamlRestTestContainerCredentials" }.configur
 
 // Extra config for InstanceProfile
 tasks.named("ec2FixtureInstanceProfile").configure {
-  getEnvironment().addAll('ACTIVATE_INSTANCE_PROFILE', true)
+  getEnvironment().putAll('ACTIVATE_INSTANCE_PROFILE', true)
 }

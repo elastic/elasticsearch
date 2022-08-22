@@ -287,6 +287,7 @@ class ClientTransformIndexer extends TransformIndexer {
             seqNoPrimaryTermAndIndex,
             ActionListener.wrap(r -> {
                 updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
+                context.resetStatePersistenceFailureCount();
 
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
@@ -311,10 +312,12 @@ class ClientTransformIndexer extends TransformIndexer {
                 if (org.elasticsearch.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
                     // this should never happen, but indicates a race condition in state persistence:
                     // - there should be only 1 save persistence at a time
-                    // - this is not a catastrophic failure, if 2 state persistence calls run at the same time, 1 should succeed and update
-                    // seqNoPrimaryTermAndIndex
-                    // - for tests fail(assert), so we can debug the problem
-                    logger.error(
+                    // - there are reasons the seq_id, primary_term changes without user intervention, e.g. an internal
+                    // retry (seq_id) or an unexpected node failure (primary_term), these are rare
+                    // - in case re-get the versions and retry on the next persistence
+                    // - the transform can (extremely unlikely) fail if state persistence fails in a row
+                    // - for tests the number of allowed retries is set to 0 and therefore causes the transform to fail
+                    logger.warn(
                         () -> format(
                             "[%s] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
                             transformConfig.getId()
@@ -326,10 +329,24 @@ class ClientTransformIndexer extends TransformIndexer {
                         "Failure updating stats of transform, unexpected version conflict of internal state, resetting to recover: "
                             + statsExc.getMessage()
                     );
-                    assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
+
+                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings()) == false) {
+                        // get the current seqNo and primary term, however ignore the stored state
+                        transformsConfigManager.getTransformStoredDoc(
+                            transformConfig.getId(),
+                            false,
+                            ActionListener.wrap(storedDocAndSeqNoPrimaryTerm -> {
+                                updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, storedDocAndSeqNoPrimaryTerm.v2());
+                                listener.onFailure(statsExc);
+                            }, e2 -> listener.onFailure(statsExc))
+                        );
+                        // wrapped listener gets called
+                        return;
+                    }
                 } else {
-                    logger.error(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
+                    logger.warn(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
+                    failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings());
                 }
                 listener.onFailure(statsExc);
             })

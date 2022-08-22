@@ -59,8 +59,7 @@ parameter is set to 'true' as they are assumed to be the currently authenticated
 (Optional, Boolean) A boolean flag to return the snapshot of the owner user's role descriptors
 associated with the API key. An API key's actual permission is the intersection of
 its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's role descriptors
-(effectively limited by it). An API key cannot retrieve any API key's limited-by role descriptors
-(including itself) unless it has `manage_api_key` or higher privileges.
+(effectively limited by it). An API key must have `manage_api_key` or higher privileges to retrieve the limited-by role descriptors of any API key, including itself.
 
 NOTE: When none of the parameters "id", "name", "username" and "realm_name"
 are specified, and the "owner" is set to false then it will retrieve all API

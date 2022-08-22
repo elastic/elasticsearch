@@ -1908,7 +1908,7 @@ public class InternalEngine extends Engine {
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
-                    logger.trace("returning as there is an in-flight flush that we do not need to wait for");
+                    logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
                     return false;
                 }
                 logger.trace("waiting for in-flight flush to finish");

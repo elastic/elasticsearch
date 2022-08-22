@@ -40,7 +40,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
+            this.diskHealthInfo = new DiskHealthInfo(in);
         }
 
         public String getNodeId() {
@@ -60,7 +60,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            out.writeOptionalWriteable(diskHealthInfo);
+            diskHealthInfo.writeTo(out);
         }
     }
 

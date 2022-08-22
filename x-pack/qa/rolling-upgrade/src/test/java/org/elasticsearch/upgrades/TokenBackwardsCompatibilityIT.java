@@ -16,15 +16,16 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -32,7 +33,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -413,15 +413,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final long newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli();
         bulkRequest.setJsonEntity(tokensIds.stream().map(tokenId -> """
             {"update": {"_id": "%s"}}
-            {
-              "doc": {
-                "access_token": {
-                  "user_token": {
-                    "expiration_time": %s
-                  }
-                }
-              }
-            }
+            {"doc": {"access_token": {"user_token": {"expiration_time": %s}}}}
             """.formatted(tokenId, newExpirationTime)).collect(Collectors.joining("\n")));
         final Response bulkResponse = client().performRequest(bulkRequest);
         assertOK(bulkResponse);

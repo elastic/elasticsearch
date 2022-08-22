@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -31,13 +32,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNot.not;
 
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
-    private static final int TOKEN_SEARCH_SIZE = 100;
     private Collection<RestClient> twoClients = null;
 
     @Before
@@ -227,7 +229,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         extendExpirationTimeForAllTokens();
         for (int tokenIdx : Arrays.asList(3, 4, 10, 12)) {
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
-            logger.info("Checking token {} {}", tokenIdx, source);
             assertAccessTokenWorks((String) source.get("token"));
         }
     }
@@ -395,13 +396,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertOK(invalidateResponse);
     }
 
-    private void refreshSecurityTokensIndex(final RestClient client) throws IOException {
-        // Ensure all tokens are available for search (token creation and other tokens operations have a WAIT_UNTIL refresh policy)
-        final var refreshRequest = new Request("POST", "/.security-tokens/_refresh");
-        refreshRequest.setOptions(refreshRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        assertOK(client.performRequest(refreshRequest));
-    }
-
     /**
      * Hack to account for long-running tests. The max lifetime of a token is 1h, but sometimes our tests take longer so tokens created in
      * the old cluster may be expired by the time we run tests in the mixed/upgraded clusters.
@@ -443,7 +437,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private List<String> getAllTokenIds() throws IOException {
-        final var searchRequest = new Request("POST", "/.security-tokens/_search?size=" + TOKEN_SEARCH_SIZE);
+        final long searchSize = 100L;
+        final var searchRequest = new Request("POST", "/.security-tokens/_search?size=" + searchSize);
         searchRequest.setOptions(searchRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         searchRequest.setJsonEntity("""
             {
@@ -455,10 +450,13 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }""");
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
-        // TODO assert there aren't more search results
-        final List<String> tokenIds = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
-            .map(SearchHit::getId)
-            .toList();
+        final SearchHits searchHits = SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits();
+        // Ensure we fetched all tokens
+        assertThat(searchHits.getTotalHits().value, lessThanOrEqualTo(searchSize));
+        final List<String> tokenIds = Arrays.stream(searchHits.getHits()).map(searchHit -> {
+            assert searchHit.getId() != null;
+            return searchHit.getId();
+        }).toList();
         assertThat(tokenIds, not(empty()));
         return tokenIds;
     }

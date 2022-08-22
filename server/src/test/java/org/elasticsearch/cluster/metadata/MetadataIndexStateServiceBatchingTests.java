@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -234,12 +233,6 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         @Override
         public void onFailure(Exception e) {
             throw new AssertionError("should not be called", e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            // see parent method javadoc, we use dedicated listeners rather than calling this method
-            throw new AssertionError("should not be called");
         }
     }
 }

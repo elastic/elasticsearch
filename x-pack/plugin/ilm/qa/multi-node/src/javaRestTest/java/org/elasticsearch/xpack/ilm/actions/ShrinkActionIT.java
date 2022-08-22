@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexNameWithExtraClusterStateChange;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -347,7 +348,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         updatePolicy(client(), index, policy);
 
         // assert corrected policy is picked up and index is shrunken
-        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
+        String shrunkenIndex = waitAndGetShrinkIndexNameWithExtraClusterStateChange(client(), index);
         assertThat(shrunkenIndex, notNullValue());
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));

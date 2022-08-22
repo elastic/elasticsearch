@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.nullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsServiceIT extends ESIntegTestCase {
 
-    private AtomicLong versionCounter = new AtomicLong(1);
+    private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testJSON = """
         {
@@ -158,6 +158,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateSaveOK(savedClusterState);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89464")
     public void testSettingsAppliedOnStart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");

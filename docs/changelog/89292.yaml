@@ -1,0 +1,5 @@
+pr: 89292
+summary: move log-related logic into log block in IndexLifecycleRunner
+area: ILM+SLM
+type: enhancement
+issues: []

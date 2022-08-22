@@ -188,30 +188,26 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (searchExecutionContext.isSourceSynthetic()) {
                 String name = originalFieldName();
                 return context -> docID -> {
-                    try {
-                        List<Object> values = new ArrayList<>();
-                        context.reader().document(docID, new StoredFieldVisitor() {
-                            private Status found = Status.NO;
+                    List<Object> values = new ArrayList<>();
+                    context.reader().document(docID, new StoredFieldVisitor() {
+                        private Status found = Status.NO;
 
-                            @Override
-                            public Status needsField(FieldInfo fieldInfo) {
-                                if (fieldInfo.name.equals(name)) {
-                                    found = Status.STOP;
-                                    return Status.YES;
-                                }
-                                return found;
+                        @Override
+                        public Status needsField(FieldInfo fieldInfo) {
+                            if (fieldInfo.name.equals(name)) {
+                                found = Status.STOP;
+                                return Status.YES;
                             }
+                            return found;
+                        }
 
-                            @Override
-                            public void stringField(FieldInfo fieldInfo, String value) {
-                                assert fieldInfo.name.equals(name);
-                                values.add(value);
-                            }
-                        });
-                        return values;
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                        @Override
+                        public void stringField(FieldInfo fieldInfo, String value) {
+                            assert fieldInfo.name.equals(name);
+                            values.add(value);
+                        }
+                    });
+                    return values;
                 };
             }
             SourceLookup sourceLookup = searchExecutionContext.lookup().source();

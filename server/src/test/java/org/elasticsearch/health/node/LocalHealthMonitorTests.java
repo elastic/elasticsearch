@@ -137,7 +137,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
         localHealthMonitor.maybeScheduleNow();
         assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
-        assertThat(localHealthMonitor.isInProgress(), equalTo(false));
+        // Ensure the run has been completed
+        assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
         // Wait until the next run
         waitUntil(localHealthMonitor::isInProgress);
         // Ensure that the next run finished

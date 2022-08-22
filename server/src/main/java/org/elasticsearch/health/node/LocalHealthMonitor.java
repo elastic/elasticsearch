@@ -76,6 +76,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     // Keeps the latest health state that was successfully reported to the current health node.
     private final AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo = new AtomicReference<>();
+    // Keeps the last seen health node. We use this variable to ensure that there wasn't a health node
+    // change between the time we send an update until the time we update the lastReportedDiskHealthInfo.
+    private final AtomicReference<String> lastSeenHealthNode = new AtomicReference<>();
 
     private LocalHealthMonitor(
         Settings settings,
@@ -139,13 +142,14 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        DiscoveryNode current = HealthNode.findHealthNode(event.state());
         prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
             && HealthMetadata.getFromClusterState(event.state()) != null
-            && HealthNode.findHealthNode(event.state()) != null;
+            && current != null;
         if (prerequisitesFulfilled) {
             DiscoveryNode previous = HealthNode.findHealthNode(event.previousState());
-            DiscoveryNode current = HealthNode.findHealthNode(event.state());
             if (Objects.equals(previous, current) == false) {
+                lastSeenHealthNode.set(current.getId());
                 // The new health node (probably) does not have any information yet, so the last
                 // reported health info gets reset to null.
                 lastReportedDiskHealthInfo.set(null);
@@ -167,15 +171,17 @@ public class LocalHealthMonitor implements ClusterStateListener {
             DiskHealthInfo currentHealth = diskCheck.getHealth(healthMetadata, clusterState);
             if (currentHealth.equals(previousHealth) == false) {
                 String nodeId = clusterService.localNode().getId();
+                String healthNodeId = lastSeenHealthNode.get();
                 ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
-                    // Update the last reported value if there was no change, that would mean that there
-                    // is a new health node that might have not received the value, so we should retry.
-                    lastReportedDiskHealthInfo.compareAndSet(previousHealth, currentHealth);
-                    logger.debug(
-                        "Health info [{}] successfully send, last reported value: {}.",
-                        currentHealth,
-                        lastReportedDiskHealthInfo.get()
-                    );
+                    // Update the last reported value only if the health node hasn't changed.
+                    if (Objects.equals(healthNodeId, lastSeenHealthNode.get())) {
+                        lastReportedDiskHealthInfo.set(currentHealth);
+                        logger.debug(
+                            "Health info [{}] successfully send, last reported value: {}.",
+                            currentHealth,
+                            lastReportedDiskHealthInfo.get()
+                        );
+                    }
                 }, e -> logger.error(() -> format("Failed to send health info [%s] to health node, will try again.", currentHealth), e));
                 client.execute(
                     UpdateHealthInfoCacheAction.INSTANCE,

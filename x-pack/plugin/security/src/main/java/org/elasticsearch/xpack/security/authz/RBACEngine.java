@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -185,7 +186,9 @@ public class RBACEngine implements AuthorizationEngine {
     static boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
-            if (request instanceof UserRequest userRequest) {
+            if (request instanceof AuthenticateRequest) {
+                return true;
+            } else if (request instanceof UserRequest userRequest) {
                 String[] usernames = userRequest.usernames();
                 if (usernames == null || usernames.length != 1 || usernames[0] == null) {
                     assert false : "this role should only be used for actions to apply to a single user";
@@ -207,7 +210,8 @@ public class RBACEngine implements AuthorizationEngine {
                     // if the authentication is an API key then the request must also contain same API key id
                     String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
-                        return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);
+                        // An API key requires manage_api_key privilege or higher to view any limited-by role descriptors
+                        return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId) && false == getApiKeyRequest.withLimitedBy();
                     } else {
                         return false;
                     }
@@ -654,7 +658,20 @@ public class RBACEngine implements AuthorizationEngine {
             );
         } else {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(buildUserPrivilegesResponseObject(role));
+            final GetUserPrivilegesResponse getUserPrivilegesResponse;
+            try {
+                getUserPrivilegesResponse = buildUserPrivilegesResponseObject(role);
+            } catch (UnsupportedOperationException e) {
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "Cannot retrieve privileges for API keys with assigned role descriptors. "
+                            + "Please use the Get API key information API https://ela.st/es-api-get-api-key",
+                        e
+                    )
+                );
+                return;
+            }
+            listener.onResponse(getUserPrivilegesResponse);
         }
     }
 

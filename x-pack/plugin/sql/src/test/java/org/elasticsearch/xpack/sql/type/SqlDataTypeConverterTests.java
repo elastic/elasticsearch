@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
 import java.time.OffsetTime;
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -772,6 +774,27 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         assertEquals("10.0.0.1", ipToString.convert(new Literal(s, "10.0.0.1", IP)));
         Converter stringToIp = converterFor(KEYWORD, IP);
         assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, "10.0.0.1", KEYWORD))));
+    }
+
+    public void testStringToVersion() {
+        Converter conversion = converterFor(randomFrom(KEYWORD, TEXT), VERSION);
+        assertNull(conversion.convert(null));
+        assertEquals(new Version("2.1.4").toString(), conversion.convert("2.1.4").toString());
+        assertEquals(new Version("2.1.4").toBytesRef(), ((Version) conversion.convert("2.1.4")).toBytesRef());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toString(), conversion.convert("2.1.4-SNAPSHOT").toString());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toBytesRef(), ((Version) conversion.convert("2.1.4-SNAPSHOT")).toBytesRef());
+    }
+
+    public void testVersionToString() {
+        Source s = new Source(Location.EMPTY, "2.1.4");
+        Source s2 = new Source(Location.EMPTY, "2.1.4-SNAPSHOT");
+        final DataType stringType = randomFrom(KEYWORD, TEXT);
+        Converter versionToString = converterFor(VERSION, stringType);
+        assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
+        Converter stringToVersion = converterFor(stringType, VERSION);
+        assertEquals("2.1.4", versionToString.convert(stringToVersion.convert(new Literal(s, "2.1.4", stringType))));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(stringToVersion.convert(new Literal(s2, "2.1.4-SNAPSHOT", stringType))));
     }
 
     private DataType randomInterval() {

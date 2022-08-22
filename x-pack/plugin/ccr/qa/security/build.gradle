@@ -25,7 +25,7 @@ testClusters.register('follow-cluster') {
     }
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
-    setting 'xpack.monitoring.collection.enabled', 'true'
+    setting 'xpack.monitoring.collection.enabled', 'false' // will be enabled by tests
     extraConfigFile 'roles.yml', file('follower-roles.yml')
     user username: "test_admin", role: "superuser"
     user username: "test_ccr", role: "ccruser"

@@ -109,14 +109,12 @@ final class EmbeddedModulePath {
 
     static Set<String> explodedPackages(Path dir) {
         String separator = dir.getFileSystem().getSeparator();
-        try {
-            var fs = Files.find(dir, Integer.MAX_VALUE, ((path, attrs) -> attrs.isRegularFile()))
-                .map(path -> dir.relativize(path))
+        try (var stream = Files.find(dir, Integer.MAX_VALUE, ((path, attrs) -> attrs.isRegularFile()))) {
+            return stream.map(path -> dir.relativize(path))
                 .map(EmbeddedModulePath::maybeRemoveMRJARPrefix)
                 .map(path -> toPackageName(path, separator))
                 .flatMap(Optional::stream)
                 .collect(Collectors.toSet());
-            return fs;
         } catch (IOException x) {
             throw new UncheckedIOException(x);
         }
@@ -143,12 +141,13 @@ final class EmbeddedModulePath {
 
     // Scans a given path for class files and services.
     static ScanResult scan(Path path) throws IOException {
-        Map<Boolean, Set<String>> map = Files.walk(path)
-            .filter(p -> Files.isDirectory(p) == false)
-            .map(p -> path.relativize(p).toString())
-            .filter(p -> (p.endsWith(".class") ^ p.startsWith(SERVICES_PREFIX)))
-            .collect(Collectors.partitioningBy(e -> e.startsWith(SERVICES_PREFIX), Collectors.toSet()));
-        return new ScanResult(map.get(Boolean.FALSE), map.get(Boolean.TRUE));
+        try (var stream = Files.walk(path)) {
+            Map<Boolean, Set<String>> map = stream.filter(p -> Files.isDirectory(p) == false)
+                .map(p -> path.relativize(p).toString())
+                .filter(p -> (p.endsWith(".class") ^ p.startsWith(SERVICES_PREFIX)))
+                .collect(Collectors.partitioningBy(e -> e.startsWith(SERVICES_PREFIX), Collectors.toSet()));
+            return new ScanResult(map.get(Boolean.FALSE), map.get(Boolean.TRUE));
+        }
     }
 
     private static final Pattern DASH_VERSION = Pattern.compile("-(\\d+(\\.|$))");

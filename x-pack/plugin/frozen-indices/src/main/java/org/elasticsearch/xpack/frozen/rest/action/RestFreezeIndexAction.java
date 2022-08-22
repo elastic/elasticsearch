@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -57,7 +56,7 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
                 public RestResponse buildResponse(GetIndexResponse getIndexResponse, XContentBuilder builder) throws Exception {
                     builder.close();
                     // but if the index *does* exist, we still just respond with 410 -- there's no such thing as _freeze anymore
-                    return new BytesRestResponse(channel, GONE, new UnsupportedOperationException(FREEZE_REMOVED));
+                    return new RestResponse(channel, GONE, new UnsupportedOperationException(FREEZE_REMOVED));
                 }
             });
         }

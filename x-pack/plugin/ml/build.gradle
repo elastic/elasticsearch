@@ -110,4 +110,4 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

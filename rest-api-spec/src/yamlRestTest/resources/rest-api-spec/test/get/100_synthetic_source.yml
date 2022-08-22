@@ -1,7 +1,7 @@
 keyword:
   - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
 
   - do:
       indices.create:
@@ -9,7 +9,7 @@ keyword:
         body:
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -35,6 +35,49 @@ keyword:
         kwd: foo
 
 ---
+fetch without refresh also produces synthetic source:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              refresh_interval: -1
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              obj:
+                properties:
+                  kwd:
+                    type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: false # no refreshing!
+        body:
+          obj.kwd: foo
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source: # synthetic source will convert the dotted field names into an object, even when loading from the translog
+        obj:
+          kwd: foo
+
+---
 force_synthetic_source_ok:
   - skip:
       version: " - 8.3.99"
@@ -46,7 +89,7 @@ force_synthetic_source_ok:
         body:
           mappings:
             _source:
-              synthetic: false
+              mode: stored
             properties:
               obj:
                 properties:
@@ -95,7 +138,7 @@ force_synthetic_source_bad_mapping:
             number_of_shards: 1 # Use a single shard to get consistent error messages
           mappings:
             _source:
-              synthetic: false
+              mode: stored
             properties:
               text:
                 type: text
@@ -124,3 +167,79 @@ force_synthetic_source_bad_mapping:
         index: test
         id: 1
         force_synthetic_source: true
+
+---
+stored text:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              text:
+                type: text
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: the quick brown fox
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        text: the quick brown fox
+
+---
+stored keyword:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: the quick brown fox
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: the quick brown fox

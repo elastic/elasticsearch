@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -71,17 +70,16 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         }
         long startTime = randomLong();
         long repositoryStateId = randomLong();
-        ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
+        Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = new HashMap<>();
         final List<Index> esIndices = indices.keySet().stream().map(i -> new Index(i, randomAlphaOfLength(10))).toList();
         List<String> dataStreams = Arrays.asList(generateRandomStringArray(10, 10, false));
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
             for (int j = 0; j < shardsCount; j++) {
-                builder.put(new ShardId(idx, j), randomShardSnapshotStatus(randomAlphaOfLength(10)));
+                shards.put(new ShardId(idx, j), randomShardSnapshotStatus(randomAlphaOfLength(10)));
             }
         }
         List<SnapshotFeatureInfo> featureStates = randomList(5, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
-        ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
         return new Entry(
             snapshot,
             includeGlobalState,
@@ -300,16 +298,14 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
             case 6 -> {
                 Map<String, IndexId> indices = new HashMap<>(entry.indices());
-                Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = entry.shards();
                 IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
                 indices.put(indexId.getName(), indexId);
-                ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder(shards);
+                Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = new HashMap<>(entry.shards());
                 Index index = new Index(indexId.getName(), randomAlphaOfLength(10));
                 int shardsCount = randomIntBetween(1, 10);
                 for (int j = 0; j < shardsCount; j++) {
-                    builder.put(new ShardId(index, j), randomShardSnapshotStatus(randomAlphaOfLength(10)));
+                    shards.put(new ShardId(index, j), randomShardSnapshotStatus(randomAlphaOfLength(10)));
                 }
-                shards = builder.build();
                 return new Entry(
                     entry.snapshot(),
                     entry.includeGlobalState(),
@@ -389,24 +385,20 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 Collections.emptyList(),
                 1234567,
                 0,
-                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder()
-                    .fPut(
-                        new ShardId("index", "uuid", 0),
-                        SnapshotsInProgress.ShardSnapshotStatus.success(
-                            "nodeId",
-                            new ShardSnapshotResult(new ShardGeneration("shardgen"), new ByteSizeValue(1L), 1)
-                        )
+                Map.of(
+                    new ShardId("index", "uuid", 0),
+                    SnapshotsInProgress.ShardSnapshotStatus.success(
+                        "nodeId",
+                        new ShardSnapshotResult(new ShardGeneration("shardgen"), new ByteSizeValue(1L), 1)
+                    ),
+                    new ShardId("index", "uuid", 1),
+                    new SnapshotsInProgress.ShardSnapshotStatus(
+                        "nodeId",
+                        ShardState.FAILED,
+                        "failure-reason",
+                        new ShardGeneration("fail-gen")
                     )
-                    .fPut(
-                        new ShardId("index", "uuid", 1),
-                        new SnapshotsInProgress.ShardSnapshotStatus(
-                            "nodeId",
-                            ShardState.FAILED,
-                            "failure-reason",
-                            new ShardGeneration("fail-gen")
-                        )
-                    )
-                    .build(),
+                ),
                 null,
                 null,
                 Version.CURRENT

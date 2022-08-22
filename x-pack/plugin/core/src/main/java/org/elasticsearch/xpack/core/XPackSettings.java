@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -53,6 +54,9 @@ public class XPackSettings {
      * Setting for controlling whether or not CCR is enabled.
      */
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
+
+    public static final boolean CROSS_CLUSTER_2_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
+        || "true".equals(System.getProperty("es.cross_cluster_2_feature_flag_enabled"));
 
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);

@@ -32,13 +32,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
@@ -95,7 +93,12 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 }
 
                 @Override
-                public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                public Decision canRemain(
+                    IndexMetadata indexMetadata,
+                    ShardRouting shardRouting,
+                    RoutingNode node,
+                    RoutingAllocation allocation
+                ) {
                     return canRemain.get().test(shardRouting, node, allocation);
                 }
 
@@ -112,9 +115,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 }
             })
         );
-        snapshotsInfoService = () -> new SnapshotShardSizeInfo(
-            new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build()
-        );
+        snapshotsInfoService = () -> new SnapshotShardSizeInfo(Map.of());
         allocationService = new AllocationService(
             allocationDeciders,
             new BalancedShardsAllocator(Settings.EMPTY),
@@ -569,12 +570,5 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             )
             .routingTable(indexRoutingTable)
             .build();
-    }
-
-    private static class TestSnapshotInfoService implements SnapshotsInfoService {
-        @Override
-        public SnapshotShardSizeInfo snapshotShardSizes() {
-            return new SnapshotShardSizeInfo(new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build());
-        }
     }
 }

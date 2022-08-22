@@ -272,18 +272,11 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
         checkUniqueOrders(orderToRealmName);
         Collections.sort(realms);
+        ensureUniqueExplicitlyConfiguredRealmNames(nameToRealmIdentifier);
 
         maybeAddBasicRealms(realms, realmConfigs);
         // always add built in first!
-        realms.add(0, reservedRealm);
-        String duplicateRealms = nameToRealmIdentifier.entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().size() > 1)
-            .map(entry -> entry.getKey() + ": " + entry.getValue())
-            .collect(Collectors.joining("; "));
-        if (Strings.hasText(duplicateRealms)) {
-            throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateRealms + "");
-        }
+        addReservedRealm(realms);
         logDeprecationForReservedPrefixedRealmNames(reservedPrefixedRealmIdentifiers);
         return Collections.unmodifiableList(realms);
     }
@@ -372,8 +365,9 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     private void maybeAddBasicRealms(List<Realm> realms, List<RealmConfig> realmConfigs) throws Exception {
         final Set<String> disabledBasicRealmTypes = findDisabledBasicRealmTypes(realmConfigs);
         final Set<String> realmTypes = realms.stream().map(Realm::type).collect(Collectors.toUnmodifiableSet());
-        // Add native realm first so that file realm will be in the beginning
+        // Add native realm first so that file realm will be added before it
         if (false == disabledBasicRealmTypes.contains(NativeRealmSettings.TYPE) && false == realmTypes.contains(NativeRealmSettings.TYPE)) {
+            ensureRealmNameIsAvailable(realms, NativeRealmSettings.DEFAULT_NAME);
             var nativeRealmId = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
             var realmConfig = new RealmConfig(
                 nativeRealmId,
@@ -385,6 +379,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
             realms.add(0, factories.get(NativeRealmSettings.TYPE).create(realmConfig));
         }
         if (false == disabledBasicRealmTypes.contains(FileRealmSettings.TYPE) && false == realmTypes.contains(FileRealmSettings.TYPE)) {
+            ensureRealmNameIsAvailable(realms, FileRealmSettings.DEFAULT_NAME);
             var fileRealmId = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME);
             var realmConfig = new RealmConfig(
                 fileRealmId,
@@ -394,6 +389,29 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
             );
             realmConfigs.add(realmConfig);
             realms.add(0, factories.get(FileRealmSettings.TYPE).create(realmConfig));
+        }
+    }
+
+    private void addReservedRealm(List<Realm> realms) {
+        ensureRealmNameIsAvailable(realms, ReservedRealm.NAME);
+        realms.add(0, reservedRealm);
+    }
+
+    /**
+     * Check that the given realmName is not yet used by the given list of realms.
+     */
+    private void ensureRealmNameIsAvailable(List<Realm> realms, String realmName) {
+        assert realms.size() == realms.stream().map(Realm::name).collect(Collectors.toUnmodifiableSet()).size()
+            : "existing realm names must be unique";
+        final Realm misNamedRealm = realms.stream().filter(realm -> realmName.equals(realm.name())).findFirst().orElse(null);
+        if (misNamedRealm != null) {
+            throw new IllegalArgumentException(
+                "Found realm configured with name clashing with the ["
+                    + realmName
+                    + "] realm: ["
+                    + (RealmSettings.realmSettingPrefix(misNamedRealm.type()) + misNamedRealm.name())
+                    + "]"
+            );
         }
     }
 
@@ -410,6 +428,17 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
             .collect(Collectors.joining("; "));
         if (Strings.hasText(duplicateOrders)) {
             throw new IllegalArgumentException("Found multiple realms configured with the same order: " + duplicateOrders);
+        }
+    }
+
+    private void ensureUniqueExplicitlyConfiguredRealmNames(Map<String, Set<String>> nameToRealmIdentifier) {
+        String duplicateRealms = nameToRealmIdentifier.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().size() > 1)
+            .map(entry -> entry.getKey() + ": " + entry.getValue())
+            .collect(Collectors.joining("; "));
+        if (Strings.hasText(duplicateRealms)) {
+            throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateRealms + "");
         }
     }
 

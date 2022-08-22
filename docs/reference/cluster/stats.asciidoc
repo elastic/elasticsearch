@@ -485,6 +485,22 @@ Contains statistics about <<mapping,field mappings>> in selected nodes.
 .Properties of `mappings`
 [%collapsible%open]
 =====
+`total_field_count`::
+(integer)
+Total number of fields in all non-system indices.
+
+`total_deduplicated_field_count`::
+(integer)
+Total number of fields in all non-system indices, accounting for mapping deduplication.
+
+`total_deduplicated_mapping_size`::
+(<<byte-units, byte units>>)
+Total size of all mappings after deduplication and compression.
+
+`total_deduplicated_mapping_size_in_bytes`::
+(integer)
+Total size of all mappings, in bytes, after deduplication and compression.
+
 `field_types`::
 (array of objects)
 Contains statistics about <<mapping-types,field data types>> used in selected
@@ -1363,6 +1379,10 @@ The API returns the following response:
          "file_sizes": {}
       },
       "mappings": {
+        "total_field_count": 0,
+        "total_deduplicated_field_count": 0,
+        "total_deduplicated_mapping_size": "0b",
+        "total_deduplicated_mapping_size_in_bytes": 0,
         "field_types": [],
         "runtime_field_types": []
       },

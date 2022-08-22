@@ -202,28 +202,22 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder()
             .indices(
-                ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .putAllFromMap(
-                        Map.of(
-                            WITH_DEFAULT_PIPELINE,
-                            IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
-                                .settings(
-                                    settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
-                                )
-                                .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
-                                .numberOfShards(1)
-                                .numberOfReplicas(1)
-                                .build(),
-                            ".system",
-                            IndexMetadata.builder(".system")
-                                .settings(settings(Version.CURRENT))
-                                .system(true)
-                                .numberOfShards(1)
-                                .numberOfReplicas(0)
-                                .build()
-                        )
-                    )
-                    .build()
+                Map.of(
+                    WITH_DEFAULT_PIPELINE,
+                    IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
+                        .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build())
+                        .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
+                        .numberOfShards(1)
+                        .numberOfReplicas(1)
+                        .build(),
+                    ".system",
+                    IndexMetadata.builder(".system")
+                        .settings(settings(Version.CURRENT))
+                        .system(true)
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .build()
+                )
             )
             .build();
         when(state.getMetadata()).thenReturn(metadata);
@@ -667,7 +661,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getMetadata()).thenReturn(metadata);
         when(metadata.templates()).thenReturn(templateMetadata);
         when(metadata.getTemplates()).thenReturn(templateMetadata);
-        when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
+        when(metadata.indices()).thenReturn(Map.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(Collections.emptyMap());

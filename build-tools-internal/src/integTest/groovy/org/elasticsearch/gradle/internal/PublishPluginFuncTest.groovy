@@ -250,6 +250,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def "generates artifacts for shadowed elasticsearch plugin"() {
         given:
+        // we use the esplugin plugin in this test that is not configuration cache compatible yet
+        configurationCacheCompatible = false
         file('license.txt') << "License file"
         file('notice.txt') << "Notice file"
         buildFile << """
@@ -334,6 +336,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def "generates pom for elasticsearch plugin"() {
         given:
+        // we use the esplugin plugin in this test that is not configuration cache compatible yet
+        configurationCacheCompatible = false
         file('license.txt') << "License file"
         file('notice.txt') << "Notice file"
         buildFile << """

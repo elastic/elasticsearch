@@ -212,6 +212,7 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
@@ -533,6 +534,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                     RetentionPolicyConfig.class,
                     TransformField.TIME.getPreferredName(),
                     TimeRetentionPolicyConfig::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    RetentionPolicyConfig.class,
+                    NullRetentionPolicyConfig.NAME.getPreferredName(),
+                    i -> NullRetentionPolicyConfig.INSTANCE
                 ),
                 // Voting Only Node
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),

@@ -408,6 +408,49 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testFieldBackground() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
+        textFieldType.setFielddata(true);
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
+
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            addMixedTextDocs(w);
+
+            SignificantTermsAggregationBuilder agg = significantTerms("sig_text").field("text");
+            SignificantTermsAggregationBuilder backgroundAgg = significantTerms("sig_text").field("text");
+
+            String executionHint = randomExecutionHint();
+            agg.executionHint(executionHint);
+            backgroundAgg.executionHint(executionHint);
+
+            QueryBuilder backgroundFilter = QueryBuilders.termsQuery("text", "odd");
+            backgroundAgg.backgroundFilter(backgroundFilter);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                SignificantTerms evenTerms = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), agg, textFieldType);
+                SignificantTerms backgroundEvenTerms = searchAndReduce(
+                    searcher,
+                    new TermQuery(new Term("text", "even")),
+                    backgroundAgg,
+                    textFieldType
+                );
+
+                assertFalse(evenTerms.getBuckets().isEmpty());
+                assertFalse(backgroundEvenTerms.getBuckets().isEmpty());
+                assertEquals(((InternalMappedSignificantTerms) evenTerms).getSubsetSize(), 5);
+                assertEquals(((InternalMappedSignificantTerms) evenTerms).getSupersetSize(), 10);
+                assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSubsetSize(), 5);
+                assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSupersetSize(), 5);
+            }
+        }
+    }
+
     public void testAllDocsWithoutStringFieldviaGlobalOrds() throws IOException {
         testAllDocsWithoutStringField("global_ordinals");
     }

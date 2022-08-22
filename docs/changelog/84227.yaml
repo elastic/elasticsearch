@@ -1,5 +1,0 @@
-pr: 84227
-summary: Enforce external id uniqueness during `DesiredNode` construction
-area: Distributed
-type: bug
-issues: []

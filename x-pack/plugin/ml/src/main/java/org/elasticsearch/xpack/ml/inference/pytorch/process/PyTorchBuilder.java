@@ -23,17 +23,26 @@ public class PyTorchBuilder {
     private static final String LICENSE_KEY_VALIDATED_ARG = "--validElasticLicenseKeyConfirmed=";
     private static final String NUM_THREADS_PER_ALLOCATION_ARG = "--numThreadsPerAllocation=";
     private static final String NUM_ALLOCATIONS_ARG = "--numAllocations=";
+    private static final String CACHE_MEMORY_LIMIT_BYTES_ARG = "--cacheMemorylimitBytes=";
 
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
     private final int threadsPerAllocation;
     private final int numberOfAllocations;
+    private final long cacheMemoryLimitBytes;
 
-    public PyTorchBuilder(NativeController nativeController, ProcessPipes processPipes, int threadPerAllocation, int numberOfAllocations) {
+    public PyTorchBuilder(
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        int threadPerAllocation,
+        int numberOfAllocations,
+        long cacheMemoryLimitBytes
+    ) {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
         this.threadsPerAllocation = threadPerAllocation;
         this.numberOfAllocations = numberOfAllocations;
+        this.cacheMemoryLimitBytes = cacheMemoryLimitBytes;
     }
 
     public void build() throws IOException, InterruptedException {
@@ -51,6 +60,9 @@ public class PyTorchBuilder {
 
         command.add(NUM_THREADS_PER_ALLOCATION_ARG + threadsPerAllocation);
         command.add(NUM_ALLOCATIONS_ARG + numberOfAllocations);
+        if (cacheMemoryLimitBytes > 0) {
+            command.add(CACHE_MEMORY_LIMIT_BYTES_ARG + cacheMemoryLimitBytes);
+        }
 
         return command;
     }

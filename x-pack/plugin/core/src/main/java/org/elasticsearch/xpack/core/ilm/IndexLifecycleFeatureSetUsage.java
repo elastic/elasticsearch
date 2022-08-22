@@ -231,6 +231,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         private final Long rolloverMaxPrimaryShardDocs;
         private final ByteSizeValue rolloverMaxPrimaryShardSize;
         private final ByteSizeValue rolloverMaxSize;
+        private final TimeValue rolloverMinAge;
+        private final Long rolloverMinDocs;
+        private final Long rolloverMinPrimaryShardDocs;
+        private final ByteSizeValue rolloverMinPrimaryShardSize;
+        private final ByteSizeValue rolloverMinSize;
         private final Integer setPriorityPriority;
         private final ByteSizeValue shrinkMaxPrimaryShardSize;
         private final Integer shrinkNumberOfShards;
@@ -251,6 +256,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             private Long rolloverMaxPrimaryShardDocs;
             private ByteSizeValue rolloverMaxPrimaryShardSize;
             private ByteSizeValue rolloverMaxSize;
+            private TimeValue rolloverMinAge;
+            private Long rolloverMinDocs;
+            private Long rolloverMinPrimaryShardDocs;
+            private ByteSizeValue rolloverMinPrimaryShardSize;
+            private ByteSizeValue rolloverMinSize;
             private Integer setPriorityPriority;
             private ByteSizeValue shrinkMaxPrimaryShardSize;
             private Integer shrinkNumberOfShards;
@@ -265,6 +275,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 this.rolloverMaxPrimaryShardDocs = existing.rolloverMaxPrimaryShardDocs;
                 this.rolloverMaxPrimaryShardSize = existing.rolloverMaxPrimaryShardSize;
                 this.rolloverMaxSize = existing.rolloverMaxSize;
+                this.rolloverMinAge = existing.rolloverMinAge;
+                this.rolloverMinDocs = existing.rolloverMinDocs;
+                this.rolloverMinPrimaryShardDocs = existing.rolloverMinPrimaryShardDocs;
+                this.rolloverMinPrimaryShardSize = existing.rolloverMinPrimaryShardSize;
+                this.rolloverMinSize = existing.rolloverMinSize;
                 this.setPriorityPriority = existing.setPriorityPriority;
                 this.shrinkMaxPrimaryShardSize = existing.shrinkMaxPrimaryShardSize;
                 this.shrinkNumberOfShards = existing.shrinkNumberOfShards;
@@ -290,8 +305,9 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 return this;
             }
 
-            public void setRolloverMaxPrimaryShardDocs(Long rolloverMaxPrimaryShardDocs) {
+            public Builder setRolloverMaxPrimaryShardDocs(Long rolloverMaxPrimaryShardDocs) {
                 this.rolloverMaxPrimaryShardDocs = rolloverMaxPrimaryShardDocs;
+                return this;
             }
 
             public Builder setRolloverMaxPrimaryShardSize(ByteSizeValue rolloverMaxPrimaryShardSize) {
@@ -301,6 +317,31 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
             public Builder setRolloverMaxSize(ByteSizeValue rolloverMaxSize) {
                 this.rolloverMaxSize = rolloverMaxSize;
+                return this;
+            }
+
+            public Builder setRolloverMinAge(TimeValue rolloverMinAge) {
+                this.rolloverMinAge = rolloverMinAge;
+                return this;
+            }
+
+            public Builder setRolloverMinDocs(Long rolloverMinDocs) {
+                this.rolloverMinDocs = rolloverMinDocs;
+                return this;
+            }
+
+            public Builder setRolloverMinPrimaryShardDocs(Long rolloverMinPrimaryShardDocs) {
+                this.rolloverMinPrimaryShardDocs = rolloverMinPrimaryShardDocs;
+                return this;
+            }
+
+            public Builder setRolloverMinPrimaryShardSize(ByteSizeValue rolloverMinPrimaryShardSize) {
+                this.rolloverMinPrimaryShardSize = rolloverMinPrimaryShardSize;
+                return this;
+            }
+
+            public Builder setRolloverMinSize(ByteSizeValue rolloverMinSize) {
+                this.rolloverMinSize = rolloverMinSize;
                 return this;
             }
 
@@ -328,6 +369,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                     rolloverMaxPrimaryShardDocs,
                     rolloverMaxPrimaryShardSize,
                     rolloverMaxSize,
+                    rolloverMinAge,
+                    rolloverMinDocs,
+                    rolloverMinPrimaryShardDocs,
+                    rolloverMinPrimaryShardSize,
+                    rolloverMinSize,
                     setPriorityPriority,
                     shrinkMaxPrimaryShardSize,
                     shrinkNumberOfShards
@@ -343,6 +389,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             Long rolloverMaxPrimaryShardDocs,
             ByteSizeValue rolloverMaxPrimaryShardSize,
             ByteSizeValue rolloverMaxSize,
+            TimeValue rolloverMinAge,
+            Long rolloverMinDocs,
+            Long rolloverMinPrimaryShardDocs,
+            ByteSizeValue rolloverMinPrimaryShardSize,
+            ByteSizeValue rolloverMinSize,
             Integer setPriorityPriority,
             ByteSizeValue shrinkMaxPrimaryShardSize,
             Integer shrinkNumberOfShards
@@ -354,6 +405,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             this.rolloverMaxPrimaryShardDocs = rolloverMaxPrimaryShardDocs;
             this.rolloverMaxPrimaryShardSize = rolloverMaxPrimaryShardSize;
             this.rolloverMaxSize = rolloverMaxSize;
+            this.rolloverMinAge = rolloverMinAge;
+            this.rolloverMinDocs = rolloverMinDocs;
+            this.rolloverMinPrimaryShardDocs = rolloverMinPrimaryShardDocs;
+            this.rolloverMinPrimaryShardSize = rolloverMinPrimaryShardSize;
+            this.rolloverMinSize = rolloverMinSize;
             this.setPriorityPriority = setPriorityPriority;
             this.shrinkMaxPrimaryShardSize = shrinkMaxPrimaryShardSize;
             this.shrinkNumberOfShards = shrinkNumberOfShards;
@@ -374,6 +430,19 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             } else {
                 this.rolloverMaxPrimaryShardDocs = null;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+                this.rolloverMinAge = in.readOptionalTimeValue();
+                this.rolloverMinDocs = in.readOptionalVLong();
+                this.rolloverMinPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+                this.rolloverMinSize = in.readOptionalWriteable(ByteSizeValue::new);
+                this.rolloverMinPrimaryShardDocs = in.readOptionalVLong();
+            } else {
+                this.rolloverMinAge = null;
+                this.rolloverMinDocs = null;
+                this.rolloverMinPrimaryShardSize = null;
+                this.rolloverMinSize = null;
+                this.rolloverMinPrimaryShardDocs = null;
+            }
         }
 
         @Override
@@ -389,6 +458,13 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeOptionalVInt(shrinkNumberOfShards);
             if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
                 out.writeOptionalVLong(rolloverMaxPrimaryShardDocs);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+                out.writeOptionalTimeValue(rolloverMinAge);
+                out.writeOptionalVLong(rolloverMinDocs);
+                out.writeOptionalWriteable(rolloverMinPrimaryShardSize);
+                out.writeOptionalWriteable(rolloverMinSize);
+                out.writeOptionalVLong(rolloverMinPrimaryShardDocs);
             }
         }
 
@@ -409,7 +485,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 || rolloverMaxDocs != null
                 || rolloverMaxPrimaryShardDocs != null
                 || rolloverMaxSize != null
-                || rolloverMaxPrimaryShardSize != null) {
+                || rolloverMaxPrimaryShardSize != null
+                || rolloverMinAge != null
+                || rolloverMinDocs != null
+                || rolloverMinPrimaryShardDocs != null
+                || rolloverMinSize != null
+                || rolloverMinPrimaryShardSize != null) {
                 builder.startObject(RolloverAction.NAME);
                 if (rolloverMaxAge != null) {
                     builder.field(RolloverAction.MAX_AGE_FIELD.getPreferredName(), rolloverMaxAge.getStringRep());
@@ -433,6 +514,30 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                     builder.field(
                         RolloverAction.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
                         rolloverMaxPrimaryShardSize.getBytes()
+                    );
+                }
+                if (rolloverMinAge != null) {
+                    builder.field(RolloverAction.MIN_AGE_FIELD.getPreferredName(), rolloverMinAge.getStringRep());
+                    builder.field(RolloverAction.MIN_AGE_FIELD.getPreferredName() + "_millis", rolloverMinAge.getMillis());
+                }
+                if (rolloverMinDocs != null) {
+                    builder.field(RolloverAction.MIN_DOCS_FIELD.getPreferredName(), rolloverMinDocs);
+                }
+                if (rolloverMinPrimaryShardDocs != null) {
+                    builder.field(RolloverAction.MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMinPrimaryShardDocs);
+                }
+                if (rolloverMinSize != null) {
+                    builder.field(RolloverAction.MIN_SIZE_FIELD.getPreferredName(), rolloverMinSize.getStringRep());
+                    builder.field(RolloverAction.MIN_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMinSize.getBytes());
+                }
+                if (rolloverMinPrimaryShardSize != null) {
+                    builder.field(
+                        RolloverAction.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+                        rolloverMinPrimaryShardSize.getStringRep()
+                    );
+                    builder.field(
+                        RolloverAction.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
+                        rolloverMinPrimaryShardSize.getBytes()
                     );
                 }
                 builder.endObject();
@@ -485,6 +590,26 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             return rolloverMaxSize;
         }
 
+        public TimeValue getRolloverMinAge() {
+            return rolloverMinAge;
+        }
+
+        public Long getRolloverMinDocs() {
+            return rolloverMinDocs;
+        }
+
+        public Long getRolloverMinPrimaryShardDocs() {
+            return rolloverMinPrimaryShardDocs;
+        }
+
+        public ByteSizeValue getRolloverMinPrimaryShardSize() {
+            return rolloverMinPrimaryShardSize;
+        }
+
+        public ByteSizeValue getRolloverMinSize() {
+            return rolloverMinSize;
+        }
+
         public Integer getSetPriorityPriority() {
             return setPriorityPriority;
         }
@@ -506,8 +631,14 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 && Objects.equals(forceMergeMaxNumberOfSegments, that.forceMergeMaxNumberOfSegments)
                 && Objects.equals(rolloverMaxAge, that.rolloverMaxAge)
                 && Objects.equals(rolloverMaxDocs, that.rolloverMaxDocs)
-                && Objects.equals(rolloverMaxPrimaryShardSize, that.rolloverMaxPrimaryShardSize)
+                && Objects.equals(rolloverMaxPrimaryShardDocs, that.rolloverMaxPrimaryShardDocs)
                 && Objects.equals(rolloverMaxSize, that.rolloverMaxSize)
+                && Objects.equals(rolloverMaxPrimaryShardSize, that.rolloverMaxPrimaryShardSize)
+                && Objects.equals(rolloverMinAge, that.rolloverMinAge)
+                && Objects.equals(rolloverMinDocs, that.rolloverMinDocs)
+                && Objects.equals(rolloverMinPrimaryShardDocs, that.rolloverMinPrimaryShardDocs)
+                && Objects.equals(rolloverMinSize, that.rolloverMinSize)
+                && Objects.equals(rolloverMinPrimaryShardSize, that.rolloverMinPrimaryShardSize)
                 && Objects.equals(setPriorityPriority, that.setPriorityPriority)
                 && Objects.equals(shrinkMaxPrimaryShardSize, that.shrinkMaxPrimaryShardSize)
                 && Objects.equals(shrinkNumberOfShards, that.shrinkNumberOfShards);
@@ -520,8 +651,14 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 forceMergeMaxNumberOfSegments,
                 rolloverMaxAge,
                 rolloverMaxDocs,
-                rolloverMaxPrimaryShardSize,
+                rolloverMaxPrimaryShardDocs,
                 rolloverMaxSize,
+                rolloverMaxPrimaryShardSize,
+                rolloverMinAge,
+                rolloverMinDocs,
+                rolloverMinPrimaryShardDocs,
+                rolloverMinSize,
+                rolloverMinPrimaryShardSize,
                 setPriorityPriority,
                 shrinkMaxPrimaryShardSize,
                 shrinkNumberOfShards

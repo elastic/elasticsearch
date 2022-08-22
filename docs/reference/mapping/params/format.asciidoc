@@ -38,7 +38,7 @@ https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.htm
 ==== Built In Formats
 
 Most of the below formats have a `strict` companion format, which means that
-year, month and day parts of the week must use respectively 4, 2 and 2 digits
+year, month and day parts of the month must use respectively 4, 2 and 2 digits
 exactly, potentially prepending zeros. For instance a date like `5/11/1` would
 be considered invalid and would need to be rewritten to `2005/11/01` to be
 accepted by the date parser.

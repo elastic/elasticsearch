@@ -18,6 +18,11 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.repositories.blobstore.testkit.AbstractSnapshotRepoTestKitRestTestCase'
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+}
+
 restResources {
   restApi {
     include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'

@@ -19,7 +19,7 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean onlyOnSamePosition;
 
     UniqueTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.onlyOnSamePosition = settings.getAsBoolean("only_on_same_position", false);
     }
 

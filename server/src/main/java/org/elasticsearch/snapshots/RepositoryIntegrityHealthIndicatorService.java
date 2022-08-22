@@ -11,6 +11,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -28,7 +29,6 @@ import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLi
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 
 /**
  * This indicator reports health for snapshot repositories.
@@ -43,6 +43,13 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     public static final String NAME = "repository_integrity";
 
     public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
+    public static final Diagnosis.Definition CORRUPTED_REPOSITORY = new Diagnosis.Definition(
+        "corrupt-repo-integrity",
+        "Multiple clusters are writing to the same repository.",
+        "Remove the repository from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository"
+            + " to this cluster.",
+        HELP_URL
+    );
 
     public static final String NO_REPOS_CONFIGURED = "No snapshot repositories configured.";
     public static final String NO_CORRUPT_REPOS = "No corrupted snapshot repositories.";
@@ -56,16 +63,6 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public String component() {
-        return SNAPSHOT;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
     }
 
     @Override
@@ -128,7 +125,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 )
                 : HealthIndicatorDetails.EMPTY,
             impacts,
-            Collections.emptyList()
+            List.of(new Diagnosis(CORRUPTED_REPOSITORY, corrupted))
         );
     }
 

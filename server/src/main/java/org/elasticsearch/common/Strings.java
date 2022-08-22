@@ -280,17 +280,6 @@ public class Strings {
     }
 
     /**
-     * Delete all occurrences of the given substring.
-     *
-     * @param inString the original String
-     * @param pattern  the pattern to delete all occurrences of
-     * @return the resulting String
-     */
-    public static String delete(String inString, String pattern) {
-        return replace(inString, pattern, "");
-    }
-
-    /**
      * Delete any character in a given String.
      *
      * @param inString      the original String
@@ -315,17 +304,6 @@ public class Strings {
     // ---------------------------------------------------------------------
     // Convenience methods for working with formatted Strings
     // ---------------------------------------------------------------------
-
-    /**
-     * Quote the given String with single quotes.
-     *
-     * @param str the input String (e.g. "myString")
-     * @return the quoted String (e.g. "'myString'"),
-     *         or <code>null</code> if the input was <code>null</code>
-     */
-    public static String quote(String str) {
-        return (str != null ? "'" + str + "'" : null);
-    }
 
     /**
      * Capitalize a <code>String</code>, changing the first letter to

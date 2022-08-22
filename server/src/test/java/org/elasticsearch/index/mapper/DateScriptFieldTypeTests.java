@@ -150,7 +150,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 DateScriptFieldType ft = build("add_days", Map.of("days", 1));
-                DateScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DateScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -188,7 +188,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DateScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DateScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181351]}"));
@@ -429,6 +429,21 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 );
             }
         }
+    }
+
+    public void testLegacyDateFormatName() throws IOException {
+        CheckedSupplier<XContentBuilder, IOException> mapping = () -> runtimeFieldMapping(b -> {
+            minimalMapping(b);
+            b.field("format", "strictDateOptionalTime");
+        });
+        // Check that we can correctly use the camel case date format for 7.x indices
+        createMapperService(Version.fromId(7_99_99_99), mapping.get()); // no exception thrown
+
+        // Check that we don't allow the use of camel case date formats on 8.x indices
+        assertEquals(
+            "Failed to parse mapping: Invalid format: [strictDateOptionalTime]: Unknown pattern letter: t",
+            expectThrows(MapperParsingException.class, () -> { createMapperService(mapping.get()); }).getMessage()
+        );
     }
 
     @Override

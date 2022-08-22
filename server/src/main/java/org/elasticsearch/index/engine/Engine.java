@@ -28,7 +28,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -66,6 +65,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -843,9 +843,9 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    private ImmutableOpenMap<String, SegmentsStats.FileStats> getSegmentFileSizes(SegmentReader segmentReader) {
+    private Map<String, SegmentsStats.FileStats> getSegmentFileSizes(SegmentReader segmentReader) {
         try {
-            final ImmutableOpenMap.Builder<String, SegmentsStats.FileStats> files = ImmutableOpenMap.builder();
+            Map<String, SegmentsStats.FileStats> files = new HashMap<>();
             final SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
             for (String fileName : segmentCommitInfo.files()) {
                 String fileExtension = IndexFileNames.getExtension(fileName);
@@ -857,11 +857,11 @@ public abstract class Engine implements Closeable {
                         logger.warn(() -> "Error when retrieving file length for [" + fileName + "]", ioe);
                     } catch (AlreadyClosedException ace) {
                         logger.warn(() -> "Error when retrieving file length for [" + fileName + "], directory is closed", ace);
-                        return ImmutableOpenMap.of();
+                        return Map.of();
                     }
                 }
             }
-            return files.build();
+            return Collections.unmodifiableMap(files);
         } catch (IOException e) {
             logger.warn(
                 () -> format(
@@ -871,7 +871,7 @@ public abstract class Engine implements Closeable {
                 ),
                 e
             );
-            return ImmutableOpenMap.of();
+            return Map.of();
         }
     }
 

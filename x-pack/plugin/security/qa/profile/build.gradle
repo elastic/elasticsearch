@@ -41,5 +41,5 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authz.store.roles.has_privileges.cache.max_size', '100'
 
   user username: "test_admin", password: 'x-pack-test-password'
-  user username: "rac_user", password: 'x-pack-test-password', role: "rac_user_role"
+  user username: "rac-user", password: 'x-pack-test-password', role: "rac_user_role"
 }

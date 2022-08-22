@@ -31,6 +31,7 @@ public class DfsSearchResult extends SearchPhaseResult {
     private Term[] terms;
     private TermStatistics[] termStatistics;
     private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
+    private DfsKnnResults knnResults;
     private int maxDoc;
 
     public DfsSearchResult(StreamInput in) throws IOException {
@@ -51,6 +52,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         maxDoc = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            knnResults = in.readOptionalWriteable(DfsKnnResults::new);
         }
     }
 
@@ -80,6 +84,11 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public DfsSearchResult knnResults(DfsKnnResults knnResults) {
+        this.knnResults = knnResults;
+        return this;
+    }
+
     public Term[] terms() {
         return terms;
     }
@@ -90,6 +99,10 @@ public class DfsSearchResult extends SearchPhaseResult {
 
     public Map<String, CollectionStatistics> fieldStatistics() {
         return fieldStatistics;
+    }
+
+    public DfsKnnResults knnResults() {
+        return knnResults;
     }
 
     @Override
@@ -104,6 +117,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         out.writeVInt(maxDoc);
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeOptionalWriteable(knnResults);
         }
     }
 

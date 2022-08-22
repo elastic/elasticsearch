@@ -21,6 +21,8 @@ class TransformContext {
     public interface Listener {
         void shutdown();
 
+        void failureCountChanged();
+
         void fail(String failureMessage, ActionListener<Void> listener);
     }
 
@@ -29,15 +31,19 @@ class TransformContext {
     private final Listener taskListener;
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
     private final AtomicInteger failureCount;
+    // Keeps track of the last failure that occured, used for throttling logs and audit
+    private final AtomicReference<String> lastFailure = new AtomicReference<>();
+    private final AtomicInteger statePersistenceFailureCount = new AtomicInteger();
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
+    private volatile int pageSize = 0;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
 
-    TransformContext(final TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
+    TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
@@ -47,10 +53,6 @@ class TransformContext {
 
     TransformTaskState getTaskState() {
         return taskState.get();
-    }
-
-    void setTaskState(TransformTaskState newState) {
-        taskState.set(newState);
     }
 
     boolean setTaskState(TransformTaskState oldState, TransformTaskState newState) {
@@ -70,6 +72,8 @@ class TransformContext {
     void resetReasonAndFailureCounter() {
         stateReason.set(null);
         failureCount.set(0);
+        lastFailure.set(null);
+        taskListener.failureCountChanged();
     }
 
     String getStateReason() {
@@ -100,8 +104,15 @@ class TransformContext {
         return failureCount.get();
     }
 
-    int getAndIncrementFailureCount() {
-        return failureCount.getAndIncrement();
+    int incrementAndGetFailureCount(String failure) {
+        int newFailureCount = failureCount.incrementAndGet();
+        lastFailure.set(failure);
+        taskListener.failureCountChanged();
+        return newFailureCount;
+    }
+
+    String getLastFailure() {
+        return lastFailure.get();
     }
 
     void setChangesLastDetectedAt(Instant time) {
@@ -128,6 +139,26 @@ class TransformContext {
         this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
     }
 
+    int getPageSize() {
+        return pageSize;
+    }
+
+    void setPageSize(int pageSize) {
+        this.pageSize = pageSize;
+    }
+
+    void resetStatePersistenceFailureCount() {
+        statePersistenceFailureCount.set(0);
+    }
+
+    int getStatePersistenceFailureCount() {
+        return statePersistenceFailureCount.get();
+    }
+
+    int incrementAndGetStatePersistenceFailureCount() {
+        return statePersistenceFailureCount.incrementAndGet();
+    }
+
     void shutdown() {
         taskListener.shutdown();
     }
@@ -138,5 +169,4 @@ class TransformContext {
             failureCount.set(0);
         }, e -> {}));
     }
-
 }

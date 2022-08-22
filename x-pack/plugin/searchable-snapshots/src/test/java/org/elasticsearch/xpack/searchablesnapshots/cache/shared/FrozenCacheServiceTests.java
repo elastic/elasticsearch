@@ -210,7 +210,9 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testCacheSizeRejectedOnNonFrozenNodes() {
-        String cacheSize = randomBoolean() ? new ByteSizeValue(size(500)).getStringRep() : new RatioValue(between(1, 100)).toString();
+        String cacheSize = randomBoolean()
+            ? new ByteSizeValue(size(500)).getStringRep()
+            : (new RatioValue(between(1, 100))).formatNoTrailingZerosPercent();
         final Settings settings = Settings.builder()
             .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())

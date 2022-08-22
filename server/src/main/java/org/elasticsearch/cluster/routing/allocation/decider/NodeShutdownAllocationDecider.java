@@ -9,14 +9,11 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.core.Nullable;
 
 /**
  * An allocation decider that prevents shards from being allocated to a
@@ -35,7 +32,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = getNodeShutdownMetadata(allocation.metadata(), node.nodeId());
+        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = allocation.nodeShutdowns().get(node.nodeId());
 
         if (thisNodeShutdownMetadata == null) {
             // There's no shutdown metadata for this node, return yes.
@@ -63,7 +60,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      * determine if shards can remain on their current node.
      */
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return this.canAllocate(shardRouting, node, allocation);
     }
 
@@ -73,7 +70,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        SingleNodeShutdownMetadata thisNodeShutdownMetadata = getNodeShutdownMetadata(allocation.metadata(), node.getId());
+        SingleNodeShutdownMetadata thisNodeShutdownMetadata = allocation.nodeShutdowns().get(node.getId());
 
         if (thisNodeShutdownMetadata == null) {
             return allocation.decision(Decision.YES, NAME, "node [%s] is not preparing for removal from the cluster", node.getId());
@@ -95,14 +92,4 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         };
     }
 
-    @Nullable
-    private static SingleNodeShutdownMetadata getNodeShutdownMetadata(Metadata metadata, String nodeId) {
-        NodesShutdownMetadata nodesShutdownMetadata = metadata.custom(NodesShutdownMetadata.TYPE);
-        if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap() == null) {
-            // There are no nodes in the process of shutting down, return null.
-            return null;
-        }
-
-        return nodesShutdownMetadata.getAllNodeMetadataMap().get(nodeId);
-    }
 }

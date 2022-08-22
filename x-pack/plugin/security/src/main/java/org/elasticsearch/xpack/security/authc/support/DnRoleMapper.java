@@ -11,11 +11,11 @@ import com.unboundid.ldap.sdk.LDAPException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -109,15 +109,15 @@ public class DnRoleMapper implements UserRoleMapper {
         logger.trace("reading realm [{}/{}] role mappings file [{}]...", realmType, realmName, path.toAbsolutePath());
 
         if (Files.exists(path) == false) {
-            final ParameterizedMessage message = new ParameterizedMessage(
-                "Role mapping file [{}] for realm [{}] does not exist.",
+            final String message = org.elasticsearch.core.Strings.format(
+                "Role mapping file [%s] for realm [%s] does not exist.",
                 path.toAbsolutePath(),
                 realmName
             );
             if (strict) {
-                throw new ElasticsearchException(message.getFormattedMessage());
+                throw new ElasticsearchException(message);
             } else {
-                logger.warn(message.getFormattedMessage() + " Role mapping will be skipped.");
+                logger.warn(message + " Role mapping will be skipped.");
                 return emptyMap();
             }
         }
@@ -138,8 +138,8 @@ public class DnRoleMapper implements UserRoleMapper {
                         }
                         dnRoles.add(role);
                     } catch (LDAPException e) {
-                        ParameterizedMessage message = new ParameterizedMessage(
-                            "invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}].",
+                        String message = Strings.format(
+                            "invalid DN [%s] found in [%s] role mappings [%s] for realm [%s/%s].",
                             providedDn,
                             realmType,
                             path.toAbsolutePath(),
@@ -147,9 +147,9 @@ public class DnRoleMapper implements UserRoleMapper {
                             realmName
                         );
                         if (strict) {
-                            throw new ElasticsearchException(message.getFormattedMessage(), e);
+                            throw new ElasticsearchException(message, e);
                         } else {
-                            logger.error(message.getFormattedMessage() + " skipping...", e);
+                            logger.error(message + " skipping...", e);
                         }
                     }
                 }

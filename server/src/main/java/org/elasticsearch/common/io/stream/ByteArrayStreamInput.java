@@ -40,6 +40,10 @@ public class ByteArrayStreamInput extends StreamInput {
         reset(bytes, 0, bytes.length);
     }
 
+    public int length() {
+        return limit;
+    }
+
     public int getPosition() {
         return pos;
     }
@@ -52,10 +56,6 @@ public class ByteArrayStreamInput extends StreamInput {
         this.bytes = bytes;
         pos = offset;
         limit = offset + len;
-    }
-
-    public int length() {
-        return limit;
     }
 
     public void skipBytes(long count) {

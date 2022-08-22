@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 

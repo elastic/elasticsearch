@@ -1,6 +1,0 @@
-pr: 86984
-summary: Improve error message for search API url parameters
-area: Search
-type: enhancement
-issues:
- - 79719

@@ -114,6 +114,6 @@ public class TransportPutTrainedModelDefinitionPartAction extends HandledTranspo
             );
         }, listener::onFailure);
 
-        trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), configActionListener);
+        trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), null, configActionListener);
     }
 }

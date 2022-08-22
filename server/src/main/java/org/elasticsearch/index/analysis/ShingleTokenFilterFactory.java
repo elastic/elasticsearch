@@ -24,8 +24,11 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Factory factory;
 
+    private final IndexSettings indexSettings;
+
     public ShingleTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
+        this.indexSettings = indexSettings;
         int maxAllowedShingleDiff = indexSettings.getMaxShingleDiff();
         Integer maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
         Integer minShingleSize = settings.getAsInt("min_shingle_size", ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE);

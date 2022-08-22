@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -20,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
@@ -87,12 +87,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
             .build();
 
         ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).metadata(
-            new Metadata.Builder().indices(
-                ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .fPut(".test-index-1", indexMetadata1)
-                    .fPut(".test-index-2", indexMetadata2)
-                    .build()
-            ).build()
+            new Metadata.Builder().indices(Map.of(".test-index-1", indexMetadata1, ".test-index-2", indexMetadata2)).build()
         ).build();
         return clusterState;
     }

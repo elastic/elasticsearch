@@ -908,6 +908,22 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return true;
     }
 
+    public static boolean assertCurrentThreadPool(String... permittedThreadPoolNames) {
+        final var threadName = Thread.currentThread().getName();
+        assert threadName.startsWith("TEST-")
+            || threadName.startsWith("LuceneTestCase")
+            || Arrays.stream(permittedThreadPoolNames).anyMatch(n -> threadName.contains('[' + n + ']'))
+            : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";
+        return true;
+    }
+
+    public static boolean assertInSystemContext(ThreadPool threadPool) {
+        final var threadName = Thread.currentThread().getName();
+        assert threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase") || threadPool.getThreadContext().isSystemContext()
+            : threadName + " is not running in the system context nor a test thread";
+        return true;
+    }
+
     public static boolean assertCurrentMethodIsNotCalledRecursively() {
         final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
         assert stackTraceElements.length >= 3 : stackTraceElements.length;

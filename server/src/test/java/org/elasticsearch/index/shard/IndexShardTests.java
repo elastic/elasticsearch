@@ -3916,8 +3916,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             });
 
-            final int manyDocs = randomIntBetween(1, 5);
-            for (int i = 0; i < manyDocs; i++) {
+            for (int i = 0; i < 3; i++) {
                 indexDoc(shard, "_doc", Integer.toString(i));
             }
 
@@ -3938,7 +3937,10 @@ public class IndexShardTests extends IndexShardTestCase {
             );
             assertBusy(mockLogAppender::assertAllExpectationsMatched);
 
-            // While the previous flushOnIdle request is happening, issue a second flush request with waitIfOngoing=false
+            // While the first flush is happening, index one more doc (to turn the shard's active flag to true),
+            // and issue a second flushOnIdle request which should not wait for the ongoing flush
+            indexDoc(shard, "_doc", Integer.toString(3));
+            assertTrue(shard.isActive());
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "should see second flush returning since it will not wait for the ongoing flush",
@@ -3947,8 +3949,11 @@ public class IndexShardTests extends IndexShardTestCase {
                     "detected an in-flight flush, not blocking to wait for it's completion"
                 )
             );
+            shard.flushOnIdle(0);
+            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+
+            // A direct call to flush (with waitIfOngoing=false) should not wait and return false immediately
             assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
-            mockLogAppender.assertAllExpectationsMatched();
 
             // Allow first flush to complete
             readyToCompleteFlushLatch.countDown();
@@ -3963,6 +3968,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 )
             );
             assertBusy(mockLogAppender::assertAllExpectationsMatched);
+
+            // The second flush (that did not happen) should have returned false and turned the active flag to true
+            assertTrue(shard.isActive());
+
+            // After all the previous flushes, issue a final flush (for any remaining documents) that should return true
+            assertTrue(shard.flush(new FlushRequest()));
 
             closeShards(shard);
         } finally {

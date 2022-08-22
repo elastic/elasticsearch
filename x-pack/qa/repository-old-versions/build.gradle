@@ -103,7 +103,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       getExecutable().set("${BuildParams.runtimeJavaHome}/bin/java")
       getEnvironment().put('CLASSPATH', "${-> project.configurations.oldesFixture.asPath}")
       // old versions of Elasticsearch need JAVA_HOME
-      getEnvironment().put('JAVA_HOME', jdks.legacy.javaHomePath)
+      getEnvironment().put('JAVA_HOME', jdks.legacy.javaHomePath.toString())
       // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug
       if (Architecture.current() == Architecture.AARCH64) {
         getEnvironment().put('ES_JAVA_OPTS', '-Xss512k')

@@ -68,3 +68,6 @@ testfixtures_shared/
 
 # Generated
 checkstyle_ide.xml
+
+# MegaLinter
+megalinter-reports/

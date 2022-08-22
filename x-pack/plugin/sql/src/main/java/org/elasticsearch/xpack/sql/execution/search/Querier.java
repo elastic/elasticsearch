@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.TotalHitsExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggPathInput;
@@ -537,7 +538,7 @@ public class Querier {
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             TotalHits totalHits = response.getHits().getTotalHits();
-            ConstantExtractor totalCount = new ConstantExtractor(totalHits == null ? -1 : totalHits.value);
+            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value);
             for (QueryContainer.FieldInfo ref : refs) {
                 exts.add(createExtractor(ref.extraction(), totalCount));
             }

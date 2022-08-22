@@ -120,7 +120,8 @@
       "required": [
         "type",
         "summary"
-      ]
+      ],
+      "additionalProperties": false
     },
     "Highlight": {
       "properties": {

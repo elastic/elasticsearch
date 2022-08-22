@@ -63,6 +63,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         final TaskProvider<ValidateChangelogEntryTask> validateChangelogsTask = project.getTasks()
             .register("validateChangelogs", ValidateChangelogEntryTask.class, task -> {
+                task.dependsOn(validateChangelogsAgainstYamlTask);
                 task.setGroup("Documentation");
                 task.setDescription("Validate that all changelog YAML files are well-formed");
                 task.setChangelogs(yamlFiles);

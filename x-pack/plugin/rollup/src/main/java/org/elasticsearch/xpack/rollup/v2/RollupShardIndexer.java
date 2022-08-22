@@ -277,16 +277,18 @@ class RollupShardIndexer {
                      * - @timestamp must be sorted in descending order within the same _tsid
                      */
                     BytesRef lastTsid = rollupBucketBuilder.tsid();
-                    assert lastTsid == null || lastTsid.compareTo(tsid) <= 0 : "_tsid is not sorted in ascending order: ["
-                        + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
-                        + "] -> ["
-                        + DocValueFormat.TIME_SERIES_ID.format(tsid)
-                        + "]";
-                    assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp : "@timestamp is not sorted in descending order: ["
-                        + timestampFormat.format(lastTimestamp)
-                        + "] -> ["
-                        + timestampFormat.format(timestamp)
-                        + "]";
+                    assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
+                        : "_tsid is not sorted in ascending order: ["
+                            + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
+                            + "] -> ["
+                            + DocValueFormat.TIME_SERIES_ID.format(tsid)
+                            + "]";
+                    assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp
+                        : "@timestamp is not sorted in descending order: ["
+                            + timestampFormat.format(lastTimestamp)
+                            + "] -> ["
+                            + timestampFormat.format(timestamp)
+                            + "]";
                     lastTimestamp = timestamp;
 
                     if (tsidChanged || rollupBucketBuilder.timestamp() != lastHistoTimestamp) {

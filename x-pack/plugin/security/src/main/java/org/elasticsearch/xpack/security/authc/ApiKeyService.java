@@ -321,7 +321,7 @@ public class ApiKeyService {
                     request.getMetadata()
                 )
             ) {
-                final BulkRequest bulkRequest = TransportBulkAction.wrapSingleRequest(
+                final BulkRequest bulkRequest = BulkRequest.wrapSingleRequest(
                     client.prepareIndex(SECURITY_MAIN_ALIAS)
                         .setSource(builder)
                         .setId(request.getId())

@@ -60,7 +60,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.bulk.TransportBulkAction.wrapSingleRequest;
+import static org.elasticsearch.action.bulk.BulkRequest.wrapSingleRequest;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;

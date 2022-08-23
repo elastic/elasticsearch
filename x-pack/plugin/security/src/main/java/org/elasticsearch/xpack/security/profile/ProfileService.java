@@ -531,7 +531,7 @@ public class ProfileService {
         // attempt to create a doc with the same ID and cause version conflict which is handled.
         final ProfileDocument profileDocument = ProfileDocument.fromSubjectWithUid(subject, uid);
         final String docId = uidToDocId(profileDocument.uid());
-        final BulkRequest bulkRequest = BulkRequest.wrap(
+        final BulkRequest bulkRequest = TransportBulkAction.wrapSingleRequest(
             client.prepareIndex(SECURITY_PROFILE_ALIAS)
                 .setId(docId)
                 .setSource(wrapProfileDocument(profileDocument))

@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -172,9 +173,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return indexRequest;
     }
 
-    /**
-     * See {@link BulkRequest#wrap(ReplicatedWriteRequest)} for wrapping single operations in bulk request.
-     */
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> toSingleResponse(
         final ActionListener<Response> listener
     ) {
@@ -189,6 +187,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 listener.onFailure(bulkItemResponse.getFailure().getCause());
             }
         }, listener::onFailure);
+    }
+
+    public static BulkRequest wrapSingleRequest(final ReplicatedWriteRequest<?> request) {
+        final var bulkRequest = new BulkRequest();
+        bulkRequest.add(((DocWriteRequest<?>) request));
+        bulkRequest.setRefreshPolicy(request.getRefreshPolicy());
+        bulkRequest.timeout(request.timeout());
+        bulkRequest.waitForActiveShards(request.waitForActiveShards());
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        return bulkRequest;
     }
 
     @Override

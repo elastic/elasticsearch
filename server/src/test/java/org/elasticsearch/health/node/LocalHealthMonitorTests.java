@@ -111,7 +111,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
     public void testUpdateNodeHealthStatus() {
         simulateHealthDiskSpace();
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool);
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool);
         assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
         localHealthMonitor.monitorHealth();
         assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(new DiskHealthInfo(HealthStatus.GREEN, null)));
@@ -121,7 +121,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         simulateHealthDiskSpace();
         DiskHealthInfo healthyNode = new DiskHealthInfo(HealthStatus.GREEN, null);
         when(clusterService.state()).thenReturn(null);
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(Settings.EMPTY, clusterService, nodeService, threadPool);
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool);
 
         // Ensure that there are no issues if the cluster state hasn't been initialized yet
         localHealthMonitor.setEnabled(true);

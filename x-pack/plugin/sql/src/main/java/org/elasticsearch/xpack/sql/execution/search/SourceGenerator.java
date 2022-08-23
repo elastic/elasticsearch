@@ -161,6 +161,8 @@ public abstract class SourceGenerator {
         }
         if (query.shouldTrackHits()) {
             builder.trackTotalHits(true);
+        } else {
+            builder.trackTotalHits(false);
         }
         builder.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
     }

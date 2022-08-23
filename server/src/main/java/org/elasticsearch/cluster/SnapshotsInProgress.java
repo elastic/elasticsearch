@@ -56,13 +56,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     public static final String ABORTED_FAILURE_TEXT = "Snapshot was aborted by deletion";
 
     // keyed by repository name
-    private final Map<String, List<Entry>> entries;
+    private final Map<String, ByRepo> entries;
 
     public SnapshotsInProgress(StreamInput in) throws IOException {
         this(collectByRepo(in));
     }
 
-    private static Map<String, List<Entry>> collectByRepo(StreamInput in) throws IOException {
+    private static Map<String, ByRepo> collectByRepo(StreamInput in) throws IOException {
         final int count = in.readVInt();
         if (count == 0) {
             return Map.of();
@@ -72,13 +72,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Entry entry = Entry.readFrom(in);
             entriesByRepo.computeIfAbsent(entry.repository(), repo -> new ArrayList<>()).add(entry);
         }
+        final Map<String, ByRepo> res = Maps.newMapWithExpectedSize(entriesByRepo.size());
         for (Map.Entry<String, List<Entry>> entryForRepo : entriesByRepo.entrySet()) {
-            entryForRepo.setValue(List.copyOf(entryForRepo.getValue()));
+            res.put(entryForRepo.getKey(), new ByRepo(entryForRepo.getValue()));
         }
-        return entriesByRepo;
+        return res;
     }
 
-    private SnapshotsInProgress(Map<String, List<Entry>> entries) {
+    private SnapshotsInProgress(Map<String, ByRepo> entries) {
         this.entries = Map.copyOf(entries);
         assert assertConsistentEntries(this.entries);
     }
@@ -87,26 +88,26 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         if (updatedEntries.equals(forRepo(repository))) {
             return this;
         }
-        final Map<String, List<Entry>> copy = new HashMap<>(this.entries);
+        final Map<String, ByRepo> copy = new HashMap<>(this.entries);
         if (updatedEntries.isEmpty()) {
             copy.remove(repository);
             if (copy.isEmpty()) {
                 return EMPTY;
             }
         } else {
-            copy.put(repository, List.copyOf(updatedEntries));
+            copy.put(repository, new ByRepo(updatedEntries));
         }
         return new SnapshotsInProgress(copy);
     }
 
     public SnapshotsInProgress withAddedEntry(Entry entry) {
-        final List<Entry> forRepo = new ArrayList<>(entries.getOrDefault(entry.repository(), List.of()));
+        final List<Entry> forRepo = new ArrayList<>(entries.getOrDefault(entry.repository(), ByRepo.EMPTY).entries);
         forRepo.add(entry);
         return withUpdatedEntriesForRepo(entry.repository(), forRepo);
     }
 
     public List<Entry> forRepo(String repository) {
-        return entries.getOrDefault(repository, List.of());
+        return entries.getOrDefault(repository, ByRepo.EMPTY).entries;
     }
 
     public boolean isEmpty() {
@@ -115,18 +116,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public int count() {
         int count = 0;
-        for (List<Entry> list : entries.values()) {
-            count += list.size();
+        for (ByRepo byRepo : entries.values()) {
+            count += byRepo.entries.size();
         }
         return count;
     }
 
-    public Collection<List<Entry>> entriesByRepo() {
-        return entries.values();
+    public Iterable<List<Entry>> entriesByRepo() {
+        return () -> entries.values().stream().map(byRepo -> byRepo.entries).iterator();
     }
 
     public Stream<Entry> asStream() {
-        return entries.values().stream().flatMap(Collection::stream);
+        return entries.values().stream().flatMap(t -> t.entries.stream());
     }
 
     @Nullable
@@ -187,8 +188,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return Version.CURRENT.minimumCompatibilityVersion();
     }
 
+    private static final Version DIFFABLE_VERSION = Version.V_8_5_0;
+
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(DIFFABLE_VERSION)) {
+            return new SnapshotInProgressDiff(in);
+        }
         return readDiffFrom(Custom.class, TYPE, in);
+    }
+
+    @Override
+    public Diff<Custom> diff(Custom previousState) {
+        return new SnapshotInProgressDiff((SnapshotsInProgress) previousState, this);
     }
 
     @Override
@@ -334,11 +345,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return false;
     }
 
-    private static boolean assertConsistentEntries(Map<String, List<Entry>> entries) {
-        for (Map.Entry<String, List<Entry>> repoEntries : entries.entrySet()) {
+    private static boolean assertConsistentEntries(Map<String, ByRepo> entries) {
+        for (Map.Entry<String, ByRepo> repoEntries : entries.entrySet()) {
             final Set<Tuple<String, Integer>> assignedShards = new HashSet<>();
             final Set<Tuple<String, Integer>> queuedShards = new HashSet<>();
-            final List<Entry> entriesForRepository = repoEntries.getValue();
+            final List<Entry> entriesForRepository = repoEntries.getValue().entries;
             final String repository = repoEntries.getKey();
             assert entriesForRepository.isEmpty() == false : "found empty list of snapshots for " + repository + " in " + entries;
             for (Entry entry : entriesForRepository) {
@@ -653,7 +664,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
     }
 
-    public static class Entry implements Writeable, ToXContent, RepositoryOperation {
+    public static class Entry implements Writeable, ToXContent, RepositoryOperation, Diffable<Entry> {
         private final State state;
         private final Snapshot snapshot;
         private final boolean includeGlobalState;
@@ -1309,6 +1320,111 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public boolean isFragment() {
             return false;
+        }
+
+        @Override
+        public Diff<Entry> diff(Entry previousState) {
+            return new SimpleDiffable.CompleteDiff<>(this);
+        }
+    }
+
+    private static final class SnapshotInProgressDiff implements NamedDiff<Custom> {
+
+        private final DiffableUtils.MapDiff<String, ByRepo, Map<String, ByRepo>> mapDiff;
+
+        SnapshotInProgressDiff(SnapshotsInProgress before, SnapshotsInProgress after) {
+            this.mapDiff = DiffableUtils.diff(before.entries, after.entries, DiffableUtils.getStringKeySerializer());
+        }
+
+        SnapshotInProgressDiff(DiffableUtils.MapDiff<String, ByRepo, Map<String, ByRepo>> mapDiff) {
+            this.mapDiff = mapDiff;
+        }
+
+        SnapshotInProgressDiff(StreamInput in) throws IOException {
+            this(
+                DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    i -> new ByRepo(i.readList(Entry::readFrom)),
+                    i -> new ByRepo.ByRepoDiff(
+                        DiffableUtils.readJdkMapDiff(
+                            i,
+                            DiffableUtils.getVIntKeySerializer(),
+                            Entry::readFrom,
+                            ii -> SimpleDiffable.readDiffFrom(Entry::readFrom, ii)
+                        )
+                    )
+                )
+            );
+        }
+
+        @Override
+        public SnapshotsInProgress apply(Custom part) {
+            return new SnapshotsInProgress(mapDiff.apply(((SnapshotsInProgress) part).entries));
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            mapDiff.writeTo(out);
+        }
+    }
+
+    private record ByRepo(List<Entry> entries) implements Diffable<ByRepo> {
+
+        static final ByRepo EMPTY = new ByRepo(List.of());
+
+        private ByRepo(List<Entry> entries) {
+            this.entries = List.copyOf(entries);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeList(entries);
+        }
+
+        @Override
+        public Diff<ByRepo> diff(ByRepo previousState) {
+            final DiffableUtils.MapDiff<Integer, Entry, Map<Integer, Entry>> diff = DiffableUtils.diff(
+                toMapByPosition(previousState),
+                toMapByPosition(this),
+                DiffableUtils.getVIntKeySerializer()
+            );
+            return new ByRepoDiff(diff);
+        }
+
+        public static Map<Integer, Entry> toMapByPosition(ByRepo part) {
+            final Map<Integer, Entry> before = new HashMap<>(part.entries.size());
+            for (int i = 0; i < part.entries.size(); i++) {
+                Entry entry = part.entries.get(i);
+                before.put(i, entry);
+            }
+            return before;
+        }
+
+        private record ByRepoDiff(DiffableUtils.MapDiff<Integer, Entry, Map<Integer, Entry>> diff) implements Diff<ByRepo> {
+
+            @Override
+            public ByRepo apply(ByRepo part) {
+                final var updated = diff.apply(toMapByPosition(part));
+                final Entry[] arr = new Entry[updated.size()];
+                updated.forEach((k, v) -> arr[k] = v);
+                return new ByRepo(List.of(arr));
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                diff.writeTo(out);
+            }
         }
     }
 }

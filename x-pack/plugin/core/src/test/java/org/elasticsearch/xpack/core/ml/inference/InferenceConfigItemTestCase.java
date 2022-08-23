@@ -15,6 +15,24 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigTests;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,6 +43,29 @@ import static org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCa
 
 public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWriteable & ToXContent> extends AbstractBWCSerializationTestCase<
     T> {
+
+    static InferenceConfig mutateForVersion(NlpConfig inferenceConfig, Version version) {
+        if (inferenceConfig instanceof TextClassificationConfig textClassificationConfig) {
+            return TextClassificationConfigTests.mutateForVersion(textClassificationConfig, version);
+        } else if (inferenceConfig instanceof FillMaskConfig fillMaskConfig) {
+            return FillMaskConfigTests.mutateForVersion(fillMaskConfig, version);
+        } else if (inferenceConfig instanceof QuestionAnsweringConfig questionAnsweringConfig) {
+            return QuestionAnsweringConfigTests.mutateForVersion(questionAnsweringConfig, version);
+        } else if (inferenceConfig instanceof NerConfig nerConfig) {
+            return NerConfigTests.mutateForVersion(nerConfig, version);
+        } else if (inferenceConfig instanceof PassThroughConfig passThroughConfig) {
+            return PassThroughConfigTests.mutateForVersion(passThroughConfig, version);
+        } else if (inferenceConfig instanceof TextEmbeddingConfig textEmbeddingConfig) {
+            return TextEmbeddingConfigTests.mutateForVersion(textEmbeddingConfig, version);
+        } else if (inferenceConfig instanceof TextSimilarityConfig textSimilarityConfig) {
+            return TextSimilarityConfigTests.mutateForVersion(textSimilarityConfig, version);
+        } else if (inferenceConfig instanceof ZeroShotClassificationConfig zeroShotClassificationConfig) {
+            return ZeroShotClassificationConfigTests.mutateForVersion(zeroShotClassificationConfig, version);
+        } else {
+            throw new IllegalArgumentException("unknown inference config [" + inferenceConfig.getName() + "]");
+        }
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();

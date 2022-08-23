@@ -12,7 +12,7 @@ import org.apache.lucene.sandbox.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -74,8 +74,8 @@ class FieldExtractor {
             fields.add(pointRangeQuery.getField());
         } else if (query instanceof PointInSetQuery pointInSetQuery) {
             fields.add(pointInSetQuery.getField());
-        } else if (query instanceof DocValuesFieldExistsQuery docValuesFieldExistsQuery) {
-            fields.add(docValuesFieldExistsQuery.getField());
+        } else if (query instanceof FieldExistsQuery fieldExistsQuery) {
+            fields.add(fieldExistsQuery.getField());
         } else if (query instanceof DocValuesNumbersQuery docValuesNumbersQuery) {
             fields.add(docValuesNumbersQuery.getField());
         } else if (query instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {

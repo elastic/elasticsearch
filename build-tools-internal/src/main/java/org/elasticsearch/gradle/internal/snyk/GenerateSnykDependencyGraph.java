@@ -22,11 +22,11 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.initialization.layout.BuildLayout;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -51,22 +51,22 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
         true
     );
     private final Property<Configuration> configuration;
-    private final Property<String> projectName;
-    private final Property<String> projectPath;
-    private final Property<String> version;
     private final Property<String> gradleVersion;
     private final RegularFileProperty outputFile;
-    private final BuildLayout buildLayout;
+    private final Property<String> projectName;
+    private final Property<String> projectPath;
+    private final Property<String> targetReference;
+    private final Property<String> version;
 
     @Inject
-    public GenerateSnykDependencyGraph(ObjectFactory objectFactory, BuildLayout buildLayout) {
+    public GenerateSnykDependencyGraph(ObjectFactory objectFactory) {
         configuration = objectFactory.property(Configuration.class);
+        gradleVersion = objectFactory.property(String.class);
+        outputFile = objectFactory.fileProperty();
         projectName = objectFactory.property(String.class);
         projectPath = objectFactory.property(String.class);
         version = objectFactory.property(String.class);
-        gradleVersion = objectFactory.property(String.class);
-        outputFile = objectFactory.fileProperty();
-        this.buildLayout = buildLayout;
+        targetReference = objectFactory.property(String.class);
     }
 
     @TaskAction
@@ -96,7 +96,22 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
             version.get(),
             firstLevelModuleDependencies
         );
-        return Map.of("meta", FIXED_META_DATA, "depGraphJSON", builder.build(), "target", buildTargetData());
+        return Map.of(
+            "meta",
+            FIXED_META_DATA,
+            "depGraphJSON",
+            builder.build(),
+            "target",
+            buildTargetData(),
+            "targetReference",
+            targetReference.get(),
+            "projectAttributes",
+            projectAttributesData()
+        );
+    }
+
+    private Map<String, List<String>> projectAttributesData() {
+        return Map.of("lifecycle", List.of(version.map(v -> v.endsWith("SNAPSHOT") ? "development" : "production").get()));
     }
 
     private Object buildTargetData() {
@@ -133,4 +148,8 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
         return gradleVersion;
     }
 
+    @Input
+    public Property<String> getTargetReference() {
+        return targetReference;
+    }
 }

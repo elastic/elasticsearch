@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -43,8 +44,11 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -121,6 +125,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         private final Map<String, String> filteredHeaders;
         private final NamedXContentRegistry xContentRegistry;
         private final Client client;
+        private final boolean verboseLogging;
 
         public UpdateLifecyclePolicyTask(
             Request request,
@@ -136,6 +141,23 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             this.filteredHeaders = filteredHeaders;
             this.xContentRegistry = xContentRegistry;
             this.client = client;
+            this.verboseLogging = true;
+        }
+
+        /**
+         * Used by the {@link ReservedClusterStateHandler} for ILM
+         * {@link ReservedLifecycleAction}
+         * <p>
+         * It disables verbose logging and has no filtered headers.
+         */
+        UpdateLifecyclePolicyTask(Request request, XPackLicenseState licenseState, NamedXContentRegistry xContentRegistry, Client client) {
+            super(request, null);
+            this.request = request;
+            this.licenseState = licenseState;
+            this.filteredHeaders = Collections.emptyMap();
+            this.xContentRegistry = xContentRegistry;
+            this.client = client;
+            this.verboseLogging = false;
         }
 
         @Override
@@ -161,10 +183,12 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                 Instant.now().toEpochMilli()
             );
             LifecyclePolicyMetadata oldPolicy = newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
-            if (oldPolicy == null) {
-                logger.info("adding index lifecycle policy [{}]", request.getPolicy().getName());
-            } else {
-                logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
+            if (verboseLogging) {
+                if (oldPolicy == null) {
+                    logger.info("adding index lifecycle policy [{}]", request.getPolicy().getName());
+                } else {
+                    logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
+                }
             }
             IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
             stateBuilder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
@@ -284,5 +308,15 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedLifecycleAction.NAME);
+    }
+
+    @Override
+    protected Set<String> modifiedKeys(Request request) {
+        return Set.of(request.getPolicy().getName());
     }
 }

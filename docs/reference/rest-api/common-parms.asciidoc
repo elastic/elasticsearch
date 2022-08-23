@@ -313,9 +313,8 @@ end::http-format[]
 
 tag::frequency[]
 The interval between checks for changes in the source indices when the
-{transform} is running continuously. Also determines the retry interval in the
-event of transient failures while the {transform} is searching or indexing. The
-minimum value is `1s` and the maximum is `1h`. The default value is `1m`.
+{transform} is running continuously. The minimum value is `1s` and the maximum 
+is `1h`. The default value is `1m`.
 end::frequency[]
 
 tag::from[]
@@ -521,9 +520,6 @@ of each Lucene index file.
 
 `store`::
 Size of the index in <<byte-units, byte units>>.
-
-`suggest`::
-<<search-suggesters,Suggester>> statistics.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.

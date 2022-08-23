@@ -13,6 +13,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -140,11 +141,14 @@ public class RenameProcessorTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(metadata, Map.of("new_field", (k, v) -> {
-            if (v != null) {
-                throw new UnsupportedOperationException();
-            }
-        }, "list", (k, v) -> {}));
+        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(
+            metadata,
+            Map.of("new_field", new Metadata.FieldProperty<>(Object.class, true, true, (k, v) -> {
+                if (v != null) {
+                    throw new UnsupportedOperationException();
+                }
+            }), "list", new Metadata.FieldProperty<>(Object.class, true, true, null))
+        );
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
@@ -160,16 +164,15 @@ public class RenameProcessorTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(metadata, Map.of("list", (k, v) -> {
-            if (v == null) {
-                throw new UnsupportedOperationException();
-            }
-        }));
+        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(
+            metadata,
+            Map.of("list", new Metadata.FieldProperty<>(Object.class, false, true, null))
+        );
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch (UnsupportedOperationException e) {
+        } catch (IllegalArgumentException e) {
             // the set failed, the old field has not been removed
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));

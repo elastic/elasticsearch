@@ -9,8 +9,10 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -33,6 +35,7 @@ import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -44,11 +47,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class PluginIntrospectorTests extends ESTestCase {
 
@@ -264,7 +269,8 @@ public class PluginIntrospectorTests extends ESTestCase {
                 NodeEnvironment nodeEnvironment,
                 NamedWriteableRegistry namedWriteableRegistry,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<RepositoriesService> repositoriesServiceSupplier
+                Supplier<RepositoriesService> repositoriesServiceSupplier,
+                Tracer tracer
             ) {
                 return null;
             }
@@ -372,5 +378,20 @@ public class PluginIntrospectorTests extends ESTestCase {
 
         assertThat(pluginIntrospector.overriddenMethods(AbstractShutdownAwarePlugin.class), empty());
         assertThat(pluginIntrospector.interfaces(AbstractShutdownAwarePlugin.class), contains("ShutdownAwarePlugin"));
+    }
+
+    public void testDeprecatedInterface() {
+        class DeprecatedPlugin extends Plugin implements NetworkPlugin {}
+        assertThat(pluginIntrospector.deprecatedInterfaces(DeprecatedPlugin.class), contains("NetworkPlugin"));
+    }
+
+    public void testDeprecatedMethod() {
+        class JoinValidatorPlugin extends Plugin implements DiscoveryPlugin {
+            @Override
+            public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
+                return null;
+            }
+        }
+        assertThat(pluginIntrospector.deprecatedMethods(JoinValidatorPlugin.class), hasEntry("getJoinValidator", "DiscoveryPlugin"));
     }
 }

@@ -94,7 +94,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         // Read datafeed config
         AtomicReference<DatafeedConfig.Builder> configBuilderHolder = new AtomicReference<>();
         blockingCall(
-            actionListener -> datafeedConfigProvider.getDatafeedConfig(datafeedId, actionListener),
+            actionListener -> datafeedConfigProvider.getDatafeedConfig(datafeedId, null, actionListener),
             configBuilderHolder,
             exceptionHolder
         );
@@ -130,7 +130,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         // Read the updated config
         configBuilderHolder.set(null);
         blockingCall(
-            actionListener -> datafeedConfigProvider.getDatafeedConfig(datafeedId, actionListener),
+            actionListener -> datafeedConfigProvider.getDatafeedConfig(datafeedId, null, actionListener),
             configBuilderHolder,
             exceptionHolder
         );
@@ -153,7 +153,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<DatafeedConfig.Builder> configBuilderHolder = new AtomicReference<>();
         blockingCall(
-            actionListener -> datafeedConfigProvider.getDatafeedConfig("missing", actionListener),
+            actionListener -> datafeedConfigProvider.getDatafeedConfig("missing", null, actionListener),
             configBuilderHolder,
             exceptionHolder
         );
@@ -487,14 +487,14 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(
-            actionListener -> datafeedConfigProvider.findDatafeedsByJobIds(Collections.singletonList("new-job"), actionListener),
+            actionListener -> datafeedConfigProvider.findDatafeedsByJobIds(Collections.singletonList("new-job"), null, actionListener),
             datafeedMapHolder,
             exceptionHolder
         );
         assertThat(datafeedMapHolder.get(), anEmptyMap());
 
         blockingCall(
-            actionListener -> datafeedConfigProvider.findDatafeedsByJobIds(Collections.singletonList("j2"), actionListener),
+            actionListener -> datafeedConfigProvider.findDatafeedsByJobIds(Collections.singletonList("j2"), null, actionListener),
             datafeedMapHolder,
             exceptionHolder
         );
@@ -502,7 +502,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(datafeedMapHolder.get().get("j2").getId(), equalTo("foo-2"));
 
         blockingCall(
-            actionListener -> datafeedConfigProvider.findDatafeedsByJobIds(Arrays.asList("j3", "j1"), actionListener),
+            actionListener -> datafeedConfigProvider.findDatafeedsByJobIds(Arrays.asList("j3", "j1"), null, actionListener),
             datafeedMapHolder,
             exceptionHolder
         );
@@ -527,7 +527,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(
-            actionListener -> datafeedConfigProvider.findDatafeedsByJobIds(jobIds, actionListener),
+            actionListener -> datafeedConfigProvider.findDatafeedsByJobIds(jobIds, null, actionListener),
             datafeedMapHolder,
             exceptionHolder
         );
@@ -546,7 +546,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<DatafeedConfig.Builder> configBuilderHolder = new AtomicReference<>();
         blockingCall(
-            actionListener -> datafeedConfigProvider.getDatafeedConfig(dfId, actionListener),
+            actionListener -> datafeedConfigProvider.getDatafeedConfig(dfId, null, actionListener),
             configBuilderHolder,
             exceptionHolder
         );

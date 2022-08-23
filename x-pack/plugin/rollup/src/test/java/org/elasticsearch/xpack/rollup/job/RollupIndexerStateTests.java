@@ -435,7 +435,6 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         // Don't use the indexer's latch because we completely change doNextSearch()
         final CountDownLatch doNextSearchLatch = new CountDownLatch(1);
-
         try {
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
@@ -840,7 +839,6 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
                 threadPool,
                 job,
@@ -897,7 +895,6 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
                 threadPool,
                 job,

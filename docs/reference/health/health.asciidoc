@@ -15,9 +15,7 @@ NOTE: {cloud-only}
 
 `GET /_internal/_health` +
 
-`GET /_internal/_health/<component>` +
-
-`GET /_internal/_health/<component>/<indicator>` +
+`GET /_internal/_health/<indicator>` +
 
 [[health-api-prereqs]]
 ==== {api-prereq-title}
@@ -29,15 +27,12 @@ NOTE: {cloud-only}
 ==== {api-description-title}
 
 The health API returns the health status of an Elasticsearch cluster. It
-returns a list of components that compose Elasticsearch functionality. Each
-component's health is determined by health indicators associated with the
-component.
+returns a list of indicators that compose Elasticsearch functionality.
 
 Each indicator has a health status of: `green`, `unknown`, `yellow` or `red`. The indicator will
 provide an explanation and metadata describing the reason for its current health status.
 
-A component's status is controlled by the worst indicator status. The cluster's status
-is controlled by the worst component status.
+The cluster's status is controlled by the worst indicator status.
 
 In the event that an indicator's status is non-green, a list of impacts may be present in the
 indicator result which detail the functionalities that are negatively affected by the health issue.
@@ -45,62 +40,40 @@ Each impact carries with it a severity level, an area of the system that is affe
 description of the impact on the system.
 
 Some health indicators can determine the root cause of a health problem and prescribe a set of
-user actions that can be performed in order to improve the health of the system. User
-actions contain a message detailing a root cause analysis, the list of affected resources (if
-applicable) and steps to take that will improve the health of your cluster. User actions can
-also optionally provide URLs to troubleshooting documentation.
+steps that can be performed in order to improve the health of the system. The root cause and remediation
+steps are encapsulated in a `diagnosis`.
+A diagnosis contains a cause detailing a root cause analysis, an action containing a brief description
+of the steps to take to fix the problem, the list of affected resources (if applicable), and a detailed
+step by step troubleshooting guide to fix the diagnosed problem.
 
 [[health-api-path-params]]
 ==== {api-path-parms-title}
 
-
-`<component>`::
-    (Optional, string) Limits the information returned to the specific component.
-    A comma-separated list of the following options:
-+
---
-  `cluster_coordination`::
-    All health reporting that pertains to a single, stable elected master which
-    coordinates other nodes to ensure they all have a consistent view of the
-    <<cluster-state, cluster state>>.  If your cluster doesn't have a stable
-    master, many of its features won't work correctly. You must fix the master
-    node's instability before addressing these other issues. It will not be
-    possible to solve any other issues while the master node is unstable.
-
-  `data`::
-      All health reporting that pertains to data availability, lifecycle, and responsiveness.
-
-  `snapshot`::
-      All health reporting that pertains to data archival, backups, and searchable snapshots.
---
-
 `<indicator>`::
-    (Optional, string) Limit the information returned for a `component` to
-    a specific indicator. An indicator can be used only if its corresponding
-    `component` is specified. Supported indicators and their corresponding
-    components are:
+    (Optional, string) Limit the information returned to
+    a specific indicator. Supported indicators are:
 +
 --
   `master_is_stable`::
-      (Component `cluster_coordination`) Reports health issues regarding
+      Reports health issues regarding
       the stability of the node that is seen as the master by the node handling
       the health request. In case of enough observed master changes in a short period of time
       this indicator will aim to diagnose and report back useful information
       regarding the cluster formation issues it detects.
 
   `shards_availability`::
-      (Component `data`) Reports health issues regarding shard assignments.
+      Reports health issues regarding shard assignments.
 
   `ilm`::
-      (Component `data`) Reports health issues related to
+      Reports health issues related to
       Indexing Lifecycle Management.
 
   `repository_integrity`::
-      (Component `snapshot`) Tracks repository integrity and reports health issues
+      Tracks repository integrity and reports health issues
       that arise if repositories become corrupted.
 
   `slm`::
-      (Component `snapshot`) Reports health issues related to
+      Reports health issues related to
       Snapshot Lifecycle Management.
 --
 
@@ -124,8 +97,8 @@ for health status set `explain` to `false` to disable the more expensive analysi
     (string) The name of the cluster.
 
 `status`::
-    (Optional, string) Health status of the cluster, based on the aggregated status of all components
-    in the cluster. If the health of a specific component or indicator is being requested, this top
+    (Optional, string) Health status of the cluster, based on the aggregated status of all indicators
+    in the cluster. If the health of a specific indicator is being requested, this top
     level status will be omitted. Statuses are:
 
     `green`:::
@@ -141,42 +114,12 @@ for health status set `explain` to `false` to disable the more expensive analysi
     `red`:::
     The cluster is experiencing an outage or certain features are unavailable for use.
 
-`components`::
-    (object) Information about the health of the cluster components.
-+
-.Properties of `components`
-[%collapsible%open]
-====
-`<component>`::
-    (object) Contains health results for a component.
-+
-.Properties of `<component>`
-[%collapsible%open]
-=====
-`status`::
-    (Optional, string) Health status of the component, based on the aggregated status of all indicators
-    in the component. If only the health of a specific indicator is being requested, this component level status
-    will be omitted. The component status is not displayed in this case in order to avoid reporting a false component status given that not all indicators are evaluated. Statuses are:
-
-    `green`:::
-    The component is healthy.
-
-    `unknown`:::
-    The health of the component could not be determined.
-
-    `yellow`:::
-    The functionality of a component is in a degraded state and may need remediation
-    to avoid the health becoming `red`.
-
-    `red`:::
-    The component is experiencing an outage or certain features are unavailable for use.
-
 `indicators`::
-    (object) Information about the health of the indicators under a component
+    (object) Information about the health of the cluster indicators.
 +
 .Properties of `indicators`
 [%collapsible%open]
-======
+====
 `<indicator>`::
     (object) Contains health results for an indicator.
 +
@@ -199,11 +142,8 @@ for health status set `explain` to `false` to disable the more expensive analysi
     `red`:::
     The indicator is experiencing an outage or certain features are unavailable for use.
 
-`summary`::
+`symptom`::
     (string) A message providing information about the current health status.
-
-`help_url`::
-    (Optional, string) A link to additional troubleshooting guides for this indicator.
 
 `details`::
     (Optional, object) An object that contains additional information about the cluster that
@@ -238,29 +178,31 @@ for health status set `explain` to `false` to disable the more expensive analysi
 
 ========
 
-`user_actions`::
+`diagnosis`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
-    user actions to take in order to remediate the health issue. User actions and root cause
-    analysis will not be calculated if the `explain` property is false.
+    diagnosis that encapsulate the cause of the health issue and an action to take in order to remediate the problem.
+    The diagnosis will not be calculated if the `explain` property is false.
 +
-.Properties of `user_actions`
+.Properties of `diagnosis`
 [%collapsible%open]
 ========
-`message`::
-    (string) A description of a root cause of this health status and the steps that should
-    be taken to remediate the problem.
+`cause`::
+    (string) A description of a root cause of this health problem.
+
+`action`::
+    (string) A brief description the steps that should be taken to remediate the problem.
+    A more detailed step by step guide to remediate the problem is provided by the
+    `help_url` field.
 
 `affected_resources`::
     (Optional, array of strings) If the root cause pertains to multiple resources in the
     cluster (like indices, shards, nodes, etc...) this will hold all resources that this
-    user action is applicable for.
+    diagnosis is applicable for.
 
 `help_url`::
-    (string) A link to additional troubleshooting information for this user action.
+    (string) A link to the troubleshooting guide that'll fix the healh problem.
 ========
 =======
-======
-=====
 ====
 
 [role="child_attributes"]
@@ -404,30 +346,22 @@ details have contents and a structure that is unique to each indicator.
 GET _internal/_health
 --------------------------------------------------
 
-The API returns a response with all the components and indicators regardless
+The API returns a response with all the indicators regardless
 of current status.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health/data
+GET _internal/_health/shards_availability
 --------------------------------------------------
 
-The API returns a response with just the data component.
-
-[source,console]
---------------------------------------------------
-GET _internal/_health/data/shards_availability
---------------------------------------------------
-
-The API returns a response for just the shard availability indicator
-within the data component.
+The API returns a response for just the shard availability indicator.
 
 [source,console]
 --------------------------------------------------
 GET _internal/_health?explain=false
 --------------------------------------------------
 
-The API returns a response with all components and indicators health but will
+The API returns a response with all health indicators but will
 not calculate details or root cause analysis for the response. This is helpful
 if you would like to monitor the health API and do not want the overhead of
 calculating additional troubleshooting details each call.

@@ -111,6 +111,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final Map<String, String> attributes;
     private final Version version;
     private final SortedSet<DiscoveryNodeRole> roles;
+
+    private final Set<String> roleNames;
     private final String externalId;
 
     /**
@@ -314,7 +316,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.attributes = Map.copyOf(attributes);
         assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
             : "Node roles must not be provided as attributes but saw attributes " + attributes;
-        this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
+        final TreeSet<DiscoveryNodeRole> sortedRoles = new TreeSet<>();
+        final String[] roleNames = new String[roles.size()];
+        int i = 0;
+        for (DiscoveryNodeRole role : roles) {
+            sortedRoles.add(role);
+            roleNames[i++] = role.roleName();
+        }
+        this.roles = Collections.unmodifiableSortedSet(sortedRoles);
+        this.roleNames = Set.of(roleNames);
         this.externalId = Objects.requireNonNullElse(externalId, this.nodeName);
     }
 
@@ -355,6 +365,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.attributes = Collections.unmodifiableMap(in.readMap(readStringLiteral, readStringLiteral));
         int rolesSize = in.readVInt();
         final SortedSet<DiscoveryNodeRole> roles = new TreeSet<>();
+        final String[] roleNames = new String[rolesSize];
         for (int i = 0; i < rolesSize; i++) {
             final String roleName = in.readString();
             final String roleNameAbbreviation = in.readString();
@@ -369,6 +380,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                     : "role name abbreviation [" + roleName + "] does not match role [" + role.roleNameAbbreviation() + "]";
                 roles.add(role);
             }
+            roleNames[i] = roleName;
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
         this.version = Version.readVersion(in);
@@ -377,6 +389,17 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         } else {
             this.externalId = nodeName;
         }
+        this.roleNames = Set.of(roleNames);
+    }
+
+    /**
+     * Check if node has the role with the given {@code roleName}.
+     *
+     * @param roleName role name to check
+     * @return true if node has the role of the given name
+     */
+    public boolean hasRole(String roleName) {
+        return this.roleNames.contains(roleName);
     }
 
     @Override

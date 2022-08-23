@@ -1,6 +1,0 @@
-pr: 87719
-summary: Don't ignore pipeline for upserts in bulk api
-area: Ingest
-type: bug
-issues:
- - 87131

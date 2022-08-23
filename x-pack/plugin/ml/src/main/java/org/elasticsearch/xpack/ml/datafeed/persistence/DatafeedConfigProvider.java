@@ -164,10 +164,18 @@ public class DatafeedConfigProvider {
      * error.
      *
      * @param datafeedId The datafeed ID
+     * @param parentTaskId the parent task ID if available
      * @param datafeedConfigListener The config listener
      */
-    public void getDatafeedConfig(String datafeedId, ActionListener<DatafeedConfig.Builder> datafeedConfigListener) {
+    public void getDatafeedConfig(
+        String datafeedId,
+        @Nullable TaskId parentTaskId,
+        ActionListener<DatafeedConfig.Builder> datafeedConfigListener
+    ) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
+        if (parentTaskId != null) {
+            getRequest.setParentTask(parentTaskId);
+        }
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
@@ -231,11 +239,18 @@ public class DatafeedConfigProvider {
         );
     }
 
-    public void findDatafeedsByJobIds(Collection<String> jobIds, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
+    public void findDatafeedsByJobIds(
+        Collection<String> jobIds,
+        @Nullable TaskId parentTaskId,
+        ActionListener<Map<String, DatafeedConfig.Builder>> listener
+    ) {
         SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setSource(new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds)).size(jobIds.size()))
             .request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
 
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),

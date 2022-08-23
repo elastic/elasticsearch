@@ -13,7 +13,7 @@ import net.bytebuddy.dynamic.DynamicType
 import org.junit.rules.ExternalResource
 import org.junit.rules.TemporaryFolder
 
-class LocalRepositoryFixture extends ExternalResource{
+class LocalRepositoryFixture extends ExternalResource {
 
     private TemporaryFolder temporaryFolder
 
@@ -56,7 +56,7 @@ class LocalRepositoryFixture extends ExternalResource{
         repositories {
           maven {
             name = "local-test"
-            url = "${getRepoDir()}"
+            url = "${getRepoDir().toURI()}"
             metadataSources {
               artifact()
             }

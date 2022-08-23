@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xcontent.ParseField;
@@ -269,8 +270,19 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
+            /**
+             * This sets the overall stats map and adds the models to the overall inference stats map
+             * @param assignmentStatsMap map of model_id to assignment stats
+             * @return the builder with inference stats map updated and assignment stats map set
+             */
             public Builder setDeploymentStatsByModelId(Map<String, AssignmentStats> assignmentStatsMap) {
                 this.assignmentStatsMap = assignmentStatsMap;
+                if (inferenceStatsMap == null) {
+                    inferenceStatsMap = Maps.newHashMapWithExpectedSize(assignmentStatsMap.size());
+                }
+                assignmentStatsMap.forEach(
+                    (modelId, assignmentStats) -> inferenceStatsMap.put(modelId, assignmentStats.getOverallInferenceStats())
+                );
                 return this;
             }
 

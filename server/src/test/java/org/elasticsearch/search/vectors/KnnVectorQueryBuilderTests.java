@@ -24,18 +24,14 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -45,11 +41,6 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
     private static final String VECTOR_FIELD = "vector";
     private static final String VECTOR_ALIAS_FIELD = "vector_alias";
     private static final int VECTOR_DIMENSION = 3;
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(TestGeoShapeFieldMapperPlugin.class);
-    }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {

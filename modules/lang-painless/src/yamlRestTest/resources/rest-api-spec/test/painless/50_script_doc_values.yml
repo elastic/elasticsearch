@@ -9,33 +9,80 @@ setup:
                     properties:
                         boolean:
                             type: boolean
+                        boolean_no_doc_values:
+                            type: boolean
+                            doc_values: false
                         date:
                             type: date
+                        date_no_doc_values:
+                            type: date
+                            doc_values: false
                         nanos:
                             type: date_nanos
+                        nanos_no_doc_values:
+                            type: date_nanos
+                            doc_values: false
                         geo_point:
                             type: geo_point
+                        geo_point_no_doc_values:
+                            type: geo_point
+                            doc_values: false
                         ip:
                             type: ip
                         keyword:
                             type: keyword
+                        keyword_no_doc_values:
+                            type: keyword
+                            doc_values: false
                         long:
                             type: long
+                        long_no_doc_values:
+                            type: long
+                            doc_values: false
                         integer:
                             type: integer
+                        integer_no_doc_values:
+                            type: integer
+                            doc_values: false
                         short:
                             type: short
+                        short_no_doc_values:
+                            type: short
+                            doc_values: false
                         byte:
                             type: byte
+                        byte_no_doc_values:
+                            type: byte
+                            doc_values: false
                         double:
                             type: double
+                        double_no_doc_values:
+                            type: double
+                            doc_values: false
                         float:
                             type: float
+                        float_no_doc_values:
+                            type: float
+                            doc_values: false
                         half_float:
                             type: half_float
+                        half_float_no_doc_values:
+                            type: half_float
+                            doc_values: false
                         scaled_float:
                             type: scaled_float
                             scaling_factor: 100
+                        scaled_float_no_doc_values:
+                            type: scaled_float
+                            scaling_factor: 100
+                            doc_values: false
+                        text:
+                            type: text
+                            fielddata: true
+                        text_no_field_data:
+                            type: text
+                        match_only_text:
+                          type: match_only_text
                         token_count:
                             type: token_count
                             analyzer: standard
@@ -52,19 +99,35 @@ setup:
             body:
                 rank: 1
                 boolean: true
+                boolean_no_doc_values: true
                 date: 2017-01-01T12:11:12
+                date_no_doc_values: 2017-01-01T12:11:12
                 nanos: 2015-01-01T12:10:30.123456789Z
+                nanos_no_doc_values: 2015-01-01T12:10:30.123456789Z
                 geo_point: 41.12,-71.34
+                geo_point_no_doc_values: 41.12,-71.34
                 ip: 192.168.0.19
                 keyword: not split at all
+                keyword_no_doc_values: no doc values
                 long: 12348732141234
+                long_no_doc_values: 12348732141234
                 integer: 134134566
+                integer_no_doc_values: 134134566
                 short: 1324
+                short_no_doc_values: 1324
                 byte: 12
+                byte_no_doc_values: 12
                 double: 3.14159265358979
+                double_no_doc_values: 3.14159265358979
                 float: 3.141592654
+                float_no_doc_values: 3.141592654
                 half_float: 3.140625
+                half_float_no_doc_values: 3.140625
                 scaled_float: 3.14
+                scaled_float_no_doc_values: 3.14
+                text: "Lots of text."
+                text_no_field_data: "Lots of text."
+                match_only_text: "Lots of text."
                 token_count: count all these words please
 
     - do:
@@ -81,20 +144,35 @@ setup:
           body:
               rank: 3
               boolean: [true, false, true]
+              boolean_no_doc_values: [true, false, true]
               ip: ["10.1.2.3", "2001:db8::2:1"]
               date: [2017-01-01T12:11:12, 2018-01-01T12:11:12]
+              date_no_doc_values: [2017-01-01T12:11:12, 2018-01-01T12:11:12]
               nanos: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
+              nanos_no_doc_values: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
               geo_point: [[-71.34,41.12],[60.32,21.25]]
+              geo_point_no_doc_values: [[60.32,21.25],[-71.34,41.12]]
               keyword: ["one string", "another string"]
+              keyword_no_doc_values: ["no doc values 1", "no doc values 0", "no doc values 2"]
               long: [1152921504606846976, 576460752303423488]
+              long_no_doc_values: [576460752303423488, 1152921504606846976, -1152921504606846976]
               integer: [5, 17, 29]
+              integer_no_doc_values: [17, 29, 5]
               short: [6, 18, 30, 45]
+              short_no_doc_values: [30, 45, 18, 6]
               byte: [16, 32, 64, 8, 4]
+              byte_no_doc_values: [16, 8, 32, 4, 64]
               double: [3.141592653588, 2.141592653587]
+              double_no_doc_values: [3.141592653588, 2.141592653587]
               float: [1.123, 2.234]
+              float_no_doc_values: [2.234, 1.123]
               half_float: [1.123, 2.234]
+              half_float_no_doc_values: [2.234, 1.123]
               scaled_float: [-3.5, 2.5]
-
+              scaled_float_no_doc_values: [2.5, -3.5]
+              text: ["Lots of text.", "even more text", "SOOOOO much text"]
+              text_no_field_data: ["Lots of text.", "even more text", "SOOOOO much text"]
+              match_only_text: ["Lots of text.", "even more text", "SOOOOO much text"]
 
     - do:
         indices.refresh: {}
@@ -211,6 +289,119 @@ setup:
                             source: "field('boolean').size()"
     - match: { hits.hits.0.fields.field.0: 0 }
 
+---
+"boolean_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['boolean_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['boolean_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').get(false)"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash for '$' */ $('boolean_no_doc_values', false)"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').get(false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash for '$' */ $('boolean_no_doc_values', false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').get(1, false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (boolean b : field('boolean_no_doc_values')) { total += b ? 1 : 0; } total;"
+  - match: { hits.hits.0.fields.field.0: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (boolean b : field('boolean_no_doc_values')) { total += b ? 1 : 0; } total + field('boolean').size();"
+  - match: { hits.hits.0.fields.field.0: 5 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').size()"
+  - match: { hits.hits.0.fields.field.0: 0 }
 
 ---
 "date":
@@ -515,6 +706,244 @@ setup:
     - match: { hits.hits.0.fields.field: ["2015-01-01T12:10:30.123456789Z", "2015-01-01T12:10:30.987654321Z"] }
 
 ---
+"date_no_doc_values":
+  - skip:
+      features: "warnings"
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date_no_doc_values.get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date_no_doc_values.value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(null)"
+  - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date_no_doc_values', null)"
+  - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(null).getMillis()"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date_no_doc_values', null).getMillis()"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(null).millis"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date_no_doc_values', null).millis"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+  - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date_no_doc_values', ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+  - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(null)"
+  - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('nanos_no_doc_values', null)"
+  - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+  - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('nanos_no_doc_values', ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+  - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(null).getNano()"
+  - match: { hits.hits.0.fields.field.0: 123456789 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('nanos_no_doc_values', null).getNano()"
+  - match: { hits.hits.0.fields.field.0: 123456789 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z')).getNano()"
+  - match: { hits.hits.0.fields.field.0: 123000000 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('date_no_doc_values').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: "2018-01-01T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos_no_doc_values').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: "2015-01-01T12:10:30.987654321Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('date_no_doc_values')) times.add(zdt); times"
+  - match: { hits.hits.0.fields.field: ["2017-01-01T12:11:12.000Z", "2018-01-01T12:11:12.000Z"] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('nanos_no_doc_values')) times.add(zdt); times"
+  - match: { hits.hits.0.fields.field: ["2015-01-01T12:10:30.123456789Z", "2015-01-01T12:10:30.987654321Z"] }
+
+---
 "geo_point":
     - do:
         search:
@@ -694,6 +1123,104 @@ setup:
     - match: { hits.hits.0.fields.height.0: 0.0 }
 
 ---
+"geo_point_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['geo_point_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['geo_point_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('geo_point_no_doc_values').get(new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('geo_point_no_doc_values', new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('geo_point_no_doc_values').get(new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 21.249999990686774 }
+  - match: { hits.hits.0.fields.field.0.lon: 60.319999968633056 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('geo_point_no_doc_values', new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 21.249999990686774 }
+  - match: { hits.hits.0.fields.field.0.lon: 60.319999968633056 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('geo_point_no_doc_values').get(1, new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('geo_point_no_doc_values', new GeoPoint(1.0, 2.0))"
+  - match: { hits.hits.0.fields.field.0.lat: 1.0 }
+  - match: { hits.hits.0.fields.field.0.lon: 2.0 }
+
+---
 "ip":
     - do:
         search:
@@ -864,6 +1391,85 @@ setup:
     - match: { hits.hits.2.fields.field.0: "another string, one string" }
 
 ---
+"keyword_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['keyword_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['keyword_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('keyword_no_doc_values').get('missing')"
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { hits.hits.1.fields.field.0: "missing" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 0" } # doc values are sorted
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('keyword_no_doc_values', 'missing')"
+  # same as `field('keyword').get('missing')`
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { hits.hits.1.fields.field.0: "missing" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 0" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('keyword_no_doc_values').get(1, 'dne')"
+  - match: { hits.hits.0.fields.field.0: "dne" }
+  - match: { hits.hits.1.fields.field.0: "dne" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 1" } # doc values are sorted
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String.join(', ', field('keyword_no_doc_values'))"
+  - match: { hits.hits.0.fields.field.0: "no doc values" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "no doc values 0, no doc values 1, no doc values 2" }
+
+---
 "long":
     - skip:
         features: "warnings"
@@ -889,6 +1495,84 @@ setup:
                         script:
                             source: "doc['long'].value"
     - match: { hits.hits.0.fields.field.0: 12348732141234 }
+
+---
+"long_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['long_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['long_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('long_no_doc_values').get(-1)"
+  - match: { hits.hits.0.fields.field.0: 12348732141234 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: -1152921504606846976 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('long_no_doc_values', -1)"
+  - match: { hits.hits.0.fields.field.0: 12348732141234 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: -1152921504606846976 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('long_no_doc_values').get(2, -3)"
+  - match: { hits.hits.0.fields.field.0: -3 }
+  - match: { hits.hits.1.fields.field.0: -3 }
+  - match: { hits.hits.2.fields.field.0: 1152921504606846976 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "long total = 0; for (long i : field('long_no_doc_values')) { total += i; } total + field('long_no_doc_values').size();"
+  - match: { hits.hits.0.fields.field.0: 12348732141235 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 576460752303423491 }
 
 ---
 "integer":
@@ -963,6 +1647,82 @@ setup:
     - match: { hits.hits.0.fields.field.0: 134134567 }
     - match: { hits.hits.1.fields.field.0: 0 }
     - match: { hits.hits.2.fields.field.0: 54 }
+
+---
+"integer_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['integer_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['integer_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('integer_no_doc_values').get(-1)"
+  - match: { hits.hits.0.fields.field.0: 134134566 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('integer_no_doc_values', -1)"
+  - match: { hits.hits.0.fields.field.0: 134134566 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('integer_no_doc_values').get(1, -3)"
+  - match: { hits.hits.0.fields.field.0: -3 }
+  - match: { hits.hits.1.fields.field.0: -3 }
+  - match: { hits.hits.2.fields.field.0: 17 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (int i : field('integer_no_doc_values')) { total += i; } total + field('integer_no_doc_values').size();"
+  - match: { hits.hits.0.fields.field.0: 134134567 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 54 }
 
 ---
 "short":
@@ -1074,6 +1834,123 @@ setup:
     - match: { hits.hits.0.fields.field.0: 1325 }
     - match: { hits.hits.1.fields.field.0: 0 }
     - match: { hits.hits.2.fields.field.0: 103 }
+
+---
+"short_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['short_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['short_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('short_no_doc_values').get(-1)"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('short_no_doc_values', -1)"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "short defaultShort = -1; field('short_no_doc_values').get(defaultShort)"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "short defaultShort = -1; $('short_no_doc_values', defaultShort)"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('short_no_doc_values').get(1, -3)"
+  - match: { hits.hits.0.fields.field.0: -3 }
+  - match: { hits.hits.1.fields.field.0: -3 }
+  - match: { hits.hits.2.fields.field.0: 18 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "short defaultShort = -3; field('short_no_doc_values').get(1, defaultShort)"
+  - match: { hits.hits.0.fields.field.0: -3 }
+  - match: { hits.hits.1.fields.field.0: -3 }
+  - match: { hits.hits.2.fields.field.0: 18 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (short s : field('short_no_doc_values')) { total += s; } total + field('short_no_doc_values').size();"
+  - match: { hits.hits.0.fields.field.0: 1325 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 103 }
 
 ---
 "byte":
@@ -1230,6 +2107,162 @@ setup:
     - match: { hits.hits.2.fields.field.0: 129 }
 
 ---
+"byte_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['byte_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['byte_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('byte_no_doc_values').get((byte) 5)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('byte_no_doc_values', (byte) 5)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "byte defaultByte = 5; field('byte_no_doc_values').get(defaultByte)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "byte defaultByte = 5; $('byte_no_doc_values', defaultByte)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('byte_no_doc_values').get(5)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('byte_no_doc_values', 5)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('byte_no_doc_values').get(1, (byte) 7)"
+  - match: { hits.hits.0.fields.field.0: 7 }
+  - match: { hits.hits.1.fields.field.0: 7 }
+  - match: { hits.hits.2.fields.field.0: 8 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "byte defaultByte = 7; field('byte_no_doc_values').get(1, defaultByte)"
+  - match: { hits.hits.0.fields.field.0: 7 }
+  - match: { hits.hits.1.fields.field.0: 7 }
+  - match: { hits.hits.2.fields.field.0: 8 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('byte_no_doc_values').get(1, 7)"
+  - match: { hits.hits.0.fields.field.0: 7 }
+  - match: { hits.hits.1.fields.field.0: 7 }
+  - match: { hits.hits.2.fields.field.0: 8 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (byte s : field('byte_no_doc_values')) { total += s; } total + field('byte_no_doc_values').size();"
+  - match: { hits.hits.0.fields.field.0: 13 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 129 }
+
+---
 "double":
     - do:
         search:
@@ -1319,6 +2352,97 @@ setup:
     - match: { hits.hits.2.fields.field.0: 7.283185307175 }
 
 ---
+"double_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['double_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['double_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('double_no_doc_values').get(-1)"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 2.141592653587 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('double_no_doc_values', -1)"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 2.141592653587 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "double defaultDouble = 7.8; field('double_no_doc_values').get(1, defaultDouble)"
+  - match: { hits.hits.0.fields.field.0: 7.8 }
+  - match: { hits.hits.1.fields.field.0: 7.8 }
+  - match: { hits.hits.2.fields.field.0: 3.141592653588 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('double_no_doc_values').get(1, 9.2)"
+  - match: { hits.hits.0.fields.field.0: 9.2 }
+  - match: { hits.hits.1.fields.field.0: 9.2 }
+  - match: { hits.hits.2.fields.field.0: 3.141592653588 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "double total = 0; for (double d : field('double_no_doc_values')) { total += d; } total + field('double_no_doc_values').size();"
+  - match: { hits.hits.0.fields.field.0: 4.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 7.283185307175 }
+
+---
 "float":
     - do:
         search:
@@ -1406,6 +2530,97 @@ setup:
     - match: { hits.hits.0.fields.field.0: "4.141593" }
     - match: { hits.hits.1.fields.field.0: "0.0" }
     - match: { hits.hits.2.fields.field.0: "5.357" }
+
+---
+"float_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['float_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['float_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('float_no_doc_values').get(-1).toString()" # toString to avoid making this a double
+  - match: { hits.hits.0.fields.field.0: "3.1415927" }
+  - match: { hits.hits.1.fields.field.0: "-1.0" }
+  - match: { hits.hits.2.fields.field.0: "1.123" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "return $('float_no_doc_values', -1).toString()" # toString to avoid making this a double
+  - match: { hits.hits.0.fields.field.0: "3.1415927" }
+  - match: { hits.hits.1.fields.field.0: "-1.0" }
+  - match: { hits.hits.2.fields.field.0: "1.123" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "float defaultFloat = 7.8f; field('float_no_doc_values').get(1, defaultFloat).toString()"
+  - match: { hits.hits.0.fields.field.0: "7.8" }
+  - match: { hits.hits.1.fields.field.0: "7.8" }
+  - match: { hits.hits.2.fields.field.0: "2.234" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('float_no_doc_values').get(1, 9.2f).toString()"
+  - match: { hits.hits.0.fields.field.0: "9.2" }
+  - match: { hits.hits.1.fields.field.0: "9.2" }
+  - match: { hits.hits.2.fields.field.0: "2.234" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "float total = 0; for (float f : field('float_no_doc_values')) { total += f; } Float.toString(total + field('float_no_doc_values').size());"
+  - match: { hits.hits.0.fields.field.0: "4.141593" }
+  - match: { hits.hits.1.fields.field.0: "0.0" }
+  - match: { hits.hits.2.fields.field.0: "5.357" }
 
 ---
 "half_float":
@@ -1500,6 +2715,100 @@ setup:
     - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
 
 ---
+"half_float_no_doc_values":
+  - skip:
+      features: close_to
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['half_float_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['float_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float_no_doc_values').get(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('half_float_no_doc_values', 0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float_no_doc_values').get(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float_no_doc_values').asDouble(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.0001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float_no_doc_values').asDouble(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
+
+---
 "scaled_float":
     - do:
         search:
@@ -1563,6 +2872,58 @@ setup:
     - match: { hits.hits.0.fields.field.0: 3.14 }
 
 ---
+"scaled_float_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['scaled_float_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['scaled_float_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('scaled_float_no_doc_values', 0.0)"
+  - match: { hits.hits.0.fields.field.0: 3.14 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - match: { hits.hits.2.fields.field.0: -3.5 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('scaled_float_no_doc_values').get(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - match: { hits.hits.2.fields.field.0: 2.5 }
+
+---
 "token_count":
     - do:
         search:
@@ -1617,6 +2978,394 @@ setup:
               script:
                 source: "int value = field('dne').get(1, 1); value"
   - match: { hits.hits.0.fields.field.0: 1 }
+
+---
+"text":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text'].get(0)"
+  - match: { hits.hits.0.fields.field.0: lots }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text'].value"
+  - match: { hits.hits.0.fields.field.0: lots }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text').get('')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('text', '')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text').get(defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('text', defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text').get(1, defaultText)"
+  - match: { hits.hits.0.fields.field.0: "default text" }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('text')) { cat += s; } cat + field('text').size();"
+  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+  - match: { hits.hits.1.fields.field.0: "0" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
+
+---
+"text_no_field_data":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text_no_field_data'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text_no_field_data'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_no_field_data').get('')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('text_no_field_data', '')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text_no_field_data').get(defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('text_no_field_data', defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_no_field_data').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text_no_field_data').get(1, defaultText)"
+  - match: { hits.hits.0.fields.field.0: "default text" }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_no_field_data').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('text_no_field_data')) { cat += s; } cat + field('text_no_field_data').size();"
+  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+  - match: { hits.hits.1.fields.field.0: "0" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
+
+---
+"match_only_text":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['match_only_text'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['match_only_text'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('match_only_text').get('')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('match_only_text', '')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('match_only_text').get(defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('match_only_text', defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('match_only_text').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('match_only_text').get(1, defaultText)"
+  - match: { hits.hits.0.fields.field.0: "default text" }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('match_only_text').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('match_only_text')) { cat += s; } cat + field('match_only_text').size();"
+  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+  - match: { hits.hits.1.fields.field.0: "0" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
 
 ---
 "version and sequence number":

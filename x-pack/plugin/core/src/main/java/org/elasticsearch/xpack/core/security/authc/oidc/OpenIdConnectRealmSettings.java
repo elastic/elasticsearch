@@ -214,6 +214,12 @@ public class OpenIdConnectRealmSettings {
         key -> Setting.intSetting(key, 200, Setting.Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<Boolean> HTTP_TCP_KEEP_ALIVE = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "http.tcp.keep_alive",
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
+    );
+
     public static final Setting.AffixSetting<TimeValue> HTTP_CONNECTION_POOL_TTL = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "http.connection_pool_ttl",
@@ -314,6 +320,7 @@ public class OpenIdConnectRealmSettings {
             HTTP_SOCKET_TIMEOUT,
             HTTP_MAX_CONNECTIONS,
             HTTP_MAX_ENDPOINT_CONNECTIONS,
+            HTTP_TCP_KEEP_ALIVE,
             HTTP_CONNECTION_POOL_TTL,
             HTTP_PROXY_HOST,
             HTTP_PROXY_PORT,

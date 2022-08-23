@@ -1,7 +1,7 @@
 keyword:
   - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
 
   - do:
       indices.create:
@@ -9,7 +9,7 @@ keyword:
         body:
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -34,6 +34,123 @@ keyword:
         kwd: foo
 
 ---
+stored text:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              text:
+                type: text
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: the quick brown fox
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        text: the quick brown fox
+
+---
+stored keyword:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: the quick brown fox
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        kwd: the quick brown fox
+
+---
+stored keyword without sibling fields:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                store: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"kwd": "the quick brown fox", "s": 1, "n": 1}'
+          - '{"index": {}}'
+          - '{"kwd": "jumped over the lazy dog", "s": 2}'
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: s
+  - match:
+      hits.hits.0._source:
+        kwd: the quick brown fox
+        s: 1
+        n: 1
+  - match:
+      hits.hits.1._source:
+        kwd: jumped over the lazy dog
+        s: 2
+
+---
 force_synthetic_source_ok:
   - skip:
       version: " - 8.3.99"
@@ -45,7 +162,7 @@ force_synthetic_source_ok:
         body:
           mappings:
             _source:
-              synthetic: false
+              mode: stored
             properties:
               obj:
                 properties:
@@ -100,7 +217,7 @@ force_synthetic_source_bad_mapping:
             number_of_shards: 1 # Use a single shard to get consistent error messages
           mappings:
             _source:
-              synthetic: false
+              mode: stored
             properties:
               text:
                 type: text

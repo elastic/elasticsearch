@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,7 +73,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         InferTrainedModelDeploymentAction.Request request,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
-        TaskId taskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final String deploymentId = request.getDeploymentId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
@@ -143,11 +144,13 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         TrainedModelDeploymentTask task,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
+        assert actionTask instanceof CancellableTask : "task [" + actionTask + "] not cancellable";
         task.infer(
             request.getDocs().get(0),
             request.getUpdate(),
             request.isSkipQueue(),
             request.getInferenceTimeout(),
+            actionTask,
             ActionListener.wrap(
                 pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult)),
                 listener::onFailure

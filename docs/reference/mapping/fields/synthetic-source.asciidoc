@@ -1,10 +1,10 @@
 [[synthetic-source]]
-==== Synthetic `_source`
+==== Synthetic `_source` preview:[]
 
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
 send them, Elasticsearch can reconstruct source content on the fly upon retrieval.
-Enable this by setting `synthetic: true` in `_source`:
+Enable this by setting `mode: synthetic` in `_source`:
 
 [source,console,id=enable-synthetic-source-example]
 ----
@@ -12,7 +12,7 @@ PUT idx
 {
   "mappings": {
     "_source": {
-      "synthetic": true
+      "mode": "synthetic"
     }
   }
 }
@@ -28,6 +28,7 @@ space. There are a couple of restrictions to be aware of:
 * Synthetic `_source` can be used with indices that contain only these field
 types:
 
+** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
 ** <<boolean-synthetic-source,`boolean`>>
 ** <<numeric-synthetic-source,`byte`>>
 ** <<numeric-synthetic-source,`double`>>
@@ -41,6 +42,8 @@ types:
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>> (with a `keyword` sub-field)
+
+Runtime fields cannot, at this stage, use synthetic `_source`.
 
 [[synthetic-source-modifications]]
 ===== Synthetic source modifications

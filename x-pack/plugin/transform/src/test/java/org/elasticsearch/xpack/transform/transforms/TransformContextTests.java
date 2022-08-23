@@ -36,12 +36,13 @@ public class TransformContextTests extends ESTestCase {
 
     public void testFailureCount() {
         TransformContext context = new TransformContext(null, null, 0, listener);
-        assertThat(context.incrementAndGetFailureCount(), is(equalTo(1)));
+        assertThat(context.incrementAndGetFailureCount("some_exception"), is(equalTo(1)));
         assertThat(context.getFailureCount(), is(equalTo(1)));
-        assertThat(context.incrementAndGetFailureCount(), is(equalTo(2)));
+        assertThat(context.incrementAndGetFailureCount("some_other_exception"), is(equalTo(2)));
         assertThat(context.getFailureCount(), is(equalTo(2)));
         context.resetReasonAndFailureCounter();
         assertThat(context.getFailureCount(), is(equalTo(0)));
+        assertThat(context.getLastFailure(), is(nullValue()));
 
         // Verify that the listener is notified every time the failure count is incremented or reset
         verify(listener, times(3)).failureCountChanged();

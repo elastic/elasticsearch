@@ -108,14 +108,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Cluster state task executor for ingest pipeline operations
      */
-    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (currentState, taskContexts) -> {
-        final var allIndexMetadata = currentState.metadata().indices().values();
-        final IngestMetadata initialIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = batchExecutionContext -> {
+        final var allIndexMetadata = batchExecutionContext.initialState().metadata().indices().values();
+        final IngestMetadata initialIngestMetadata = batchExecutionContext.initialState().metadata().custom(IngestMetadata.TYPE);
         var currentIngestMetadata = initialIngestMetadata;
-        for (final var taskContext : taskContexts) {
+        for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
                 final var task = taskContext.getTask();
-                currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                }
                 taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
@@ -123,8 +125,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
         final var finalIngestMetadata = currentIngestMetadata;
         return finalIngestMetadata == initialIngestMetadata
-            ? currentState
-            : currentState.copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
+            ? batchExecutionContext.initialState()
+            : batchExecutionContext.initialState().copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
     };
 
     /**
@@ -143,11 +145,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
         }
     }
 
@@ -897,27 +894,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                IngestSourceAndMetadata sourceAndMetadata = ingestDocument.getIngestSourceAndMetadata();
+                org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
 
                 // it's fine to set all metadata fields all the time, as ingest document holds their starting values
                 // before ingestion, which might also get modified during ingestion.
-                indexRequest.index(sourceAndMetadata.getIndex());
-                indexRequest.id(sourceAndMetadata.getId());
-                indexRequest.routing(sourceAndMetadata.getRouting());
-                indexRequest.version(sourceAndMetadata.getVersion());
-                if (sourceAndMetadata.getVersionType() != null) {
-                    indexRequest.versionType(VersionType.fromString(sourceAndMetadata.getVersionType()));
+                indexRequest.index(metadata.getIndex());
+                indexRequest.id(metadata.getId());
+                indexRequest.routing(metadata.getRouting());
+                indexRequest.version(metadata.getVersion());
+                if (metadata.getVersionType() != null) {
+                    indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
                 }
                 Number number;
-                if ((number = sourceAndMetadata.getIfSeqNo()) != null) {
+                if ((number = metadata.getIfSeqNo()) != null) {
                     indexRequest.setIfSeqNo(number.longValue());
                 }
-                if ((number = sourceAndMetadata.getIfPrimaryTerm()) != null) {
+                if ((number = metadata.getIfPrimaryTerm()) != null) {
                     indexRequest.setIfPrimaryTerm(number.longValue());
                 }
                 try {
                     boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
-                    indexRequest.source(sourceAndMetadata.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
+                    indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest
                     // processor creates a source map that is self-referencing.
@@ -933,7 +930,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     return;
                 }
                 Map<String, String> map;
-                if ((map = sourceAndMetadata.getDynamicTemplates()) != null) {
+                if ((map = metadata.getDynamicTemplates()) != null) {
                     Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);

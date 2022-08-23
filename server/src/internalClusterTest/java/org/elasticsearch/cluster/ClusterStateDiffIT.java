@@ -727,6 +727,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                             UUIDs.randomBase64UUID(),
                             new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                             RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
+                            randomBoolean(),
                             emptyList(),
                             ImmutableOpenMap.of()
                         )

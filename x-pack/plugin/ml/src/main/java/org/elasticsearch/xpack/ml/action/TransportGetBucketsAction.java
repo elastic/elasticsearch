@@ -40,7 +40,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
 
     @Override
     protected void doExecute(Task task, GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(ok -> {
+        jobManager.jobExists(request.getJobId(), null, ActionListener.wrap(ok -> {
             BucketsQueryBuilder query = new BucketsQueryBuilder().expand(request.isExpand())
                 .includeInterim(request.isExcludeInterim() == false)
                 .start(request.getStart())

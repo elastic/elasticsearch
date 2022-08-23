@@ -412,7 +412,19 @@ public class JobResultsProviderTests extends ESTestCase {
 
         JobResultsProvider provider = createProvider(client);
         SetOnce<QueryPage<CategoryDefinition>> holder = new SetOnce<>();
-        provider.categoryDefinitions(jobId, null, null, false, from, size, holder::set, e -> { throw new RuntimeException(e); }, client);
+        provider.categoryDefinitions(
+            jobId,
+            null,
+            null,
+            false,
+            from,
+            size,
+            holder::set,
+            e -> { throw new RuntimeException(e); },
+            null,
+            null,
+            client
+        );
         QueryPage<CategoryDefinition> categoryDefinitions = holder.get();
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
@@ -441,6 +453,8 @@ public class JobResultsProviderTests extends ESTestCase {
             null,
             holder::set,
             e -> { throw new RuntimeException(e); },
+            null,
+            null,
             client
         );
         QueryPage<CategoryDefinition> categoryDefinitions = holder.get();

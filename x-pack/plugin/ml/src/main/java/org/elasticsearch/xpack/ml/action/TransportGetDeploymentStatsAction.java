@@ -143,6 +143,16 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 TrainedModelAssignment trainedModelAssignment = assignment.getModelAssignment(stats.getModelId());
                 if (trainedModelAssignment != null) {
                     stats.setState(trainedModelAssignment.getAssignmentState()).setReason(trainedModelAssignment.getReason().orElse(null));
+                    if (trainedModelAssignment.getNodeRoutingTable().isEmpty() == false
+                        && trainedModelAssignment.getNodeRoutingTable()
+                            .values()
+                            .stream()
+                            .allMatch(ri -> ri.getState().equals(RoutingState.FAILED))) {
+                        stats.setState(AssignmentState.FAILED);
+                        if (stats.getReason() == null) {
+                            stats.setReason("All node routes are failed; see node route reason for details");
+                        }
+                    }
                     if (trainedModelAssignment.getAssignmentState().isAnyOf(AssignmentState.STARTED, AssignmentState.STARTING)) {
                         stats.setAllocationStatus(trainedModelAssignment.calculateAllocationStatus().orElse(null));
                     }
@@ -228,6 +238,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                         stat.getThreadsPerAllocation(),
                         stat.getNumberOfAllocations(),
                         stat.getQueueCapacity(),
+                        stat.getCacheSize(),
                         stat.getStartTime(),
                         updatedNodeStats
                     )
@@ -258,7 +269,17 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
 
-                updatedAssignmentStats.add(new AssignmentStats(modelId, null, null, null, assignment.getStartTime(), nodeStats));
+                updatedAssignmentStats.add(
+                    new AssignmentStats(
+                        modelId,
+                        assignment.getTaskParams().getThreadsPerAllocation(),
+                        assignment.getTaskParams().getNumberOfAllocations(),
+                        assignment.getTaskParams().getQueueCapacity(),
+                        assignment.getTaskParams().getCacheSize().orElse(null),
+                        assignment.getStartTime(),
+                        nodeStats
+                    )
+                );
             }
         }
 
@@ -292,6 +313,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     presentValue.timingStats().getAverage(),
                     presentValue.pendingCount(),
                     presentValue.errorCount(),
+                    presentValue.cacheHitCount(),
                     presentValue.rejectedExecutionCount(),
                     presentValue.timeoutCount(),
                     presentValue.lastUsed(),
@@ -300,7 +322,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     presentValue.numberOfAllocations(),
                     presentValue.peakThroughput(),
                     presentValue.throughputLastPeriod(),
-                    presentValue.avgInferenceTimeLastPeriod()
+                    presentValue.avgInferenceTimeLastPeriod(),
+                    presentValue.cacheHitCountLastPeriod()
                 )
             );
         } else {
@@ -318,6 +341,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 task.getParams().getThreadsPerAllocation(),
                 assignment == null ? task.getParams().getNumberOfAllocations() : assignment.getTaskParams().getNumberOfAllocations(),
                 task.getParams().getQueueCapacity(),
+                task.getParams().getCacheSize().orElse(null),
                 TrainedModelAssignmentMetadata.fromState(clusterService.state()).getModelAssignment(task.getModelId()).getStartTime(),
                 nodeStats
             )

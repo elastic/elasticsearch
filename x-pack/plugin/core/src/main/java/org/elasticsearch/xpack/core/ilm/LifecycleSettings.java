@@ -29,6 +29,7 @@ public class LifecycleSettings {
     public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";
     public static final String SLM_RETENTION_DURATION = "slm.retention_duration";
     public static final String SLM_MINIMUM_INTERVAL = "slm.minimum_interval";
+    public static final String SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD = "slm.health.failed_snapshot_warn_threshold";
 
     // This is not a setting configuring ILM per se, but certain ILM actions need to validate the managed index is not
     // already mounted as a searchable snapshot. Those ILM actions will check if the index has this setting name configured.
@@ -125,6 +126,17 @@ public class LifecycleSettings {
     public static final Setting<TimeValue> SLM_MINIMUM_INTERVAL_SETTING = Setting.positiveTimeSetting(
         SLM_MINIMUM_INTERVAL,
         TimeValue.timeValueMinutes(15),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    /**
+     * The number of repeated failures allowed since the last successful SLM snapshot before a health warning is surfaced in the
+     * health API.
+     */
+    public static final Setting<Long> SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING = Setting.longSetting(
+        SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD,
+        5L,
+        1L,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

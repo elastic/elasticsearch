@@ -12,11 +12,13 @@ import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.internal.test.ConfigurationCacheCompatibleAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
+import org.elasticsearch.gradle.internal.test.TestResultExtension
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import spock.lang.Specification
+import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
 import java.util.jar.JarEntry
@@ -28,6 +30,9 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     @Rule
     TemporaryFolder testProjectDir = new TemporaryFolder()
+
+    @TempDir
+    File gradleUserHome
 
     File settingsFile
     File buildFile
@@ -47,7 +52,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     def cleanup() {
-        if (Boolean.getBoolean('test.keep.samplebuild')) {
+        if (featureFailed()) {
             FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
         }
     }
@@ -68,24 +73,23 @@ abstract class AbstractGradleFuncTest extends Specification {
         subProjectBuild
     }
 
-    GradleRunner gradleRunner(String... arguments) {
+    GradleRunner gradleRunner(Object... arguments) {
         return gradleRunner(testProjectDir.root, arguments)
     }
 
-    GradleRunner gradleRunner(File projectDir, String... arguments) {
+    GradleRunner gradleRunner(File projectDir, Object... arguments) {
         return new NormalizeOutputGradleRunner(
-                new ConfigurationCacheCompatibleAwareGradleRunner(
-                        new InternalAwareGradleRunner(
-                                GradleRunner.create()
-                                        .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                                .toString().indexOf("-agentlib:jdwp") > 0
-                                        )
-                                        .withProjectDir(projectDir)
-                                        .withPluginClasspath()
-                                        .forwardOutput()
-                        ), configurationCacheCompatible),
-                projectDir
-        ).withArguments(arguments)
+            new ConfigurationCacheCompatibleAwareGradleRunner(
+                    new InternalAwareGradleRunner(
+                            GradleRunner.create()
+                                    .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                                            .toString().indexOf("-agentlib:jdwp") > 0
+                                    )
+                                    .withProjectDir(projectDir)
+                                    .withPluginClasspath()
+                                    .forwardOutput()
+                    ), configurationCacheCompatible),
+        ).withArguments(arguments.collect { it.toString() })
     }
 
     def assertOutputContains(String givenOutput, String expected) {
@@ -186,6 +190,30 @@ abstract class AbstractGradleFuncTest extends Specification {
         def dir = file(projectDir, path)
         dir.mkdirs()
         dir
+    }
+
+    void withVersionCatalogue() {
+        file('build.versions.toml') << '''\
+[libraries]
+checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
+'''
+        settingsFile << '''
+            dependencyResolutionManagement {
+              versionCatalogs {
+                buildLibs {
+                  from(files("build.versions.toml"))
+                }
+              }
+            }
+            '''
+
+    }
+
+    boolean featureFailed() {
+        specificationContext.currentSpec.listeners
+            .findAll { it instanceof TestResultExtension.ErrorListener }
+            .any {
+                (it as TestResultExtension.ErrorListener).errorInfo != null }
     }
 
     static class ProjectConfigurer {

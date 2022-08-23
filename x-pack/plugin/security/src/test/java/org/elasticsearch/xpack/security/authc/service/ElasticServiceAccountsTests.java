@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
@@ -32,7 +31,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -158,10 +156,13 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                 .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
             is(true)
         );
-        assertThat(role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
+        assertThat(
+            role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), authentication),
+            is(true)
+        );
         assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
 
-        assertThat(role.cluster().check(GetApiKeyAction.NAME, randomFrom(GetApiKeyRequest.forAllApiKeys()), authentication), is(false));
+        assertThat(role.cluster().check(GetApiKeyAction.NAME, randomFrom(GetApiKeyRequest.builder().build()), authentication), is(false));
         assertThat(
             role.cluster()
                 .check(
@@ -322,7 +323,10 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                 .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
             is(true)
         );
-        assertThat(role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
+        assertThat(
+            role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), authentication),
+            is(true)
+        );
         assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
 
         assertThat(role.cluster().check(PutUserAction.NAME, request, authentication), is(true));
@@ -342,6 +346,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.cluster().check(PutLifecycleAction.NAME, request, authentication), is(true));
 
         List.of(
+            "search-" + randomAlphaOfLengthBetween(1, 20),
             ".ent-search-" + randomAlphaOfLengthBetween(1, 20),
             ".monitoring-ent-search-" + randomAlphaOfLengthBetween(1, 20),
             "metricbeat-ent-search-" + randomAlphaOfLengthBetween(1, 20),
@@ -370,19 +375,6 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(enterpriseSearchIndex), is(false));
         });
-
-        final IndexAbstraction elasticsearchIndex = mockIndexAbstraction("search-" + randomAlphaOfLengthBetween(1, 20));
-        // read
-        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(elasticsearchIndex), is(true));
-        // view_index_metadata
-        assertThat(role.indices().allowedIndicesMatcher(GetDataStreamAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(ExplainLifecycleAction.NAME).test(elasticsearchIndex), is(true));
-        // ingestion and delete are forbidden
-        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(elasticsearchIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(elasticsearchIndex), is(false));
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

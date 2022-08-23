@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -59,9 +58,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
 
     @Override
     protected GetMappingsResponse createTestInstance() {
-        ImmutableOpenMap.Builder<String, MappingMetadata> indexBuilder = ImmutableOpenMap.builder();
-        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex());
-        GetMappingsResponse resp = new GetMappingsResponse(indexBuilder.build());
+        GetMappingsResponse resp = new GetMappingsResponse(Map.of("index-" + randomAlphaOfLength(5), createMappingsForIndex()));
         logger.debug("--> created: {}", resp);
         return resp;
     }

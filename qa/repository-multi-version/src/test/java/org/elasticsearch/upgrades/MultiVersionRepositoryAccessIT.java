@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -243,11 +242,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     private List<Map<String, Object>> listSnapshots(String repoName) throws IOException {
         try (
             InputStream entity = client().performRequest(new Request("GET", "/_snapshot/" + repoName + "/_all")).getEntity().getContent();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                entity
-            )
+            XContentParser parser = createParser(JsonXContent.jsonXContent, entity)
         ) {
             return (List<Map<String, Object>>) parser.map().get("snapshots");
         }

@@ -93,7 +93,12 @@ public class TransformTaskTests extends ESTestCase {
         TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
             clock,
             Settings.EMPTY,
-            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
+            new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                null,
+                (TaskManager) null
+            ),
             transformsConfigManager,
             auditor
         );

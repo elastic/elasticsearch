@@ -12,6 +12,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
@@ -189,7 +190,14 @@ public class FollowingEngine extends InternalEngine {
             final Query query = new BooleanQuery.Builder().add(
                 SeqNoFieldMapper.INSTANCE.fieldType().exactQuery(config().getIndexSettings().getIndexVersionCreated(), seqNo),
                 BooleanClause.Occur.FILTER
+<<<<<<< HEAD
             ).add(Queries.newNonNestedFilter(), BooleanClause.Occur.FILTER).build();
+=======
+            )
+                // excludes the non-root nested documents which don't have primary_term.
+                .add(new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
+                .build();
+>>>>>>> main
             final TopDocs topDocs = searcher.search(query, 1);
             if (topDocs.scoreDocs.length == 1) {
                 final int docId = topDocs.scoreDocs[0].doc;

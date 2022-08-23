@@ -521,6 +521,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final String secondSnapshot = "snapshot-two";
         final ActionFuture<CreateSnapshotResponse> secondSnapshotResponse = startFullSnapshotFromMasterClient(repoName, secondSnapshot);
+        awaitNumberOfSnapshotsInProgress(2);
 
         internalCluster().restartNode(dataNode);
 
@@ -2001,6 +2002,30 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
         assertThat(snapshot1.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
         assertThat(snapshot2.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+    }
+
+    public void testQueuedSnapshotAfterPartialWithIndexRecreate() throws Exception {
+        internalCluster().startNodes(3);
+        // create an index with a large number of shards so that the nodes will not be able to start all shard snapshots before the index
+        // is deleted
+        final Settings highShardCountSettings = indexSettingsNoReplicas(randomIntBetween(12, 24)).build();
+        final String index1 = "index-1";
+        createIndexWithContent(index1, highShardCountSettings);
+        final String index2 = "index-2";
+        createIndexWithContent(index2);
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final ActionFuture<CreateSnapshotResponse> partialFuture = startFullSnapshot(repoName, "partial-snapshot", true);
+        blockAllDataNodes(repoName);
+        waitForBlockOnAnyDataNode(repoName);
+        // recreate index and start full snapshot to test that shard state updates from the first partial snapshot are correctly are
+        // correctly applied to the second snapshot that will contain a different index by the same name
+        assertAcked(client().admin().indices().prepareDelete(index1).get());
+        createIndexWithContent(index1, highShardCountSettings);
+        final ActionFuture<CreateSnapshotResponse> nonPartialFuture = startFullSnapshot(repoName, "full-snapshot");
+        unblockAllDataNodes(repoName);
+        assertSuccessful(nonPartialFuture);
+        assertSuccessful(partialFuture);
     }
 
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {

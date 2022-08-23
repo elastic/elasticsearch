@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -33,7 +34,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     private final String name;
     private final String simpleName;
-    private DocValues docValues = NO_VALUES;
+    private DocValuesFieldValues docValues = NO_VALUES;
 
     /**
      * Optionally loads stored fields values.
@@ -61,7 +62,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-        SortedSetDocValues dv = org.apache.lucene.index.DocValues.getSortedSet(reader, name);
+        SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
         if (dv.getValueCount() == 0) {
             docValues = NO_VALUES;
             return null;
@@ -72,7 +73,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
              * in sorted order and doesn't buy anything if there is only a single
              * document.
              */
-            SortedDocValues singleton = org.apache.lucene.index.DocValues.unwrapSingleton(dv);
+            SortedDocValues singleton = DocValues.unwrapSingleton(dv);
             if (singleton != null) {
                 SingletonDocValuesLoader loader = buildSingletonDocValuesLoader(singleton, docIdsInLeaf);
                 docValues = loader == null ? NO_VALUES : loader;
@@ -115,13 +116,13 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
         }
     }
 
-    private interface DocValues {
+    private interface DocValuesFieldValues {
         int count();
 
         void write(XContentBuilder b) throws IOException;
     }
 
-    private static final DocValues NO_VALUES = new DocValues() {
+    private static final DocValuesFieldValues NO_VALUES = new DocValuesFieldValues() {
         @Override
         public int count() {
             return 0;
@@ -135,7 +136,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
      * Load ordinals in line with populating the doc and immediately
      * convert from ordinals into {@link BytesRef}s.
      */
-    private class ImmediateDocValuesLoader implements DocValuesLoader, DocValues {
+    private class ImmediateDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
         private final SortedSetDocValues dv;
         private boolean hasValue;
 
@@ -211,7 +212,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
         return new SingletonDocValuesLoader(docIdsInLeaf, ords, uniqueOrds, converted);
     }
 
-    private static class SingletonDocValuesLoader implements DocValuesLoader, DocValues {
+    private static class SingletonDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
         private final int[] docIdsInLeaf;
         private final int[] ords;
         private final int[] uniqueOrds;

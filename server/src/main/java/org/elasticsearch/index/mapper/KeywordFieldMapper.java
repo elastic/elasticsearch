@@ -15,6 +15,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -105,20 +106,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
 
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
-    }
-
-    /**
-     * The {@link FieldType} used to store "original" that have been ignored
-     * by {@link KeywordFieldType#ignoreAbove()} so that they can be rebuilt
-     * for synthetic source.
-     */
-    private static final FieldType ORIGINAL_FIELD_TYPE = new FieldType();
-    static {
-        ORIGINAL_FIELD_TYPE.setTokenized(false);
-        ORIGINAL_FIELD_TYPE.setOmitNorms(true);
-        ORIGINAL_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-        ORIGINAL_FIELD_TYPE.setStored(true);
-        ORIGINAL_FIELD_TYPE.freeze();
     }
 
     public static class KeywordField extends Field {
@@ -961,7 +948,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.addIgnoredField(name());
             if (context.isSyntheticSource()) {
                 // Save a copy of the field so synthetic source can load it
-                context.doc().add(new Field(originalName(), value, ORIGINAL_FIELD_TYPE));
+                context.doc().add(new StoredField(originalName(), value));
             }
             return;
         }

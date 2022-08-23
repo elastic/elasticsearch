@@ -60,7 +60,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.bulk.BulkRequest.fromSingleRequest;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -146,7 +145,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 .setOpType(OpType.CREATE)
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .request();
-            final BulkRequest bulkRequest = fromSingleRequest(indexRequest);
+            final BulkRequest bulkRequest = BulkRequest.fromSingleRequest(indexRequest);
 
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(

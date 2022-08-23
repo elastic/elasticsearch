@@ -173,7 +173,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     /**
-     * See {@link BulkRequest#wrap(ReplicatedWriteRequest)} for wrapping a single action request in a bulk request.
+     * See {@link BulkRequest#fromSingleRequest(ReplicatedWriteRequest)} for wrapping a single action request in a bulk request.
      */
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> wrapBulkAsSingleItemResponse(
         final ActionListener<Response> listener

@@ -98,7 +98,7 @@ public class BulkRequest extends ActionRequest
      * See {@link TransportBulkAction#wrapBulkAsSingleItemResponse(ActionListener)} for wrapping translation of a bulk response
      * to a single item response.
      */
-    public static BulkRequest wrap(final ReplicatedWriteRequest<?> request) {
+    public static BulkRequest fromSingleRequest(final ReplicatedWriteRequest<?> request) {
         final var bulkRequest = new BulkRequest();
         bulkRequest.add(((DocWriteRequest<?>) request));
         bulkRequest.setRefreshPolicy(request.getRefreshPolicy());

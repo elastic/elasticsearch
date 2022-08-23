@@ -62,7 +62,7 @@ teardown:
         name: test_policy
 
 ---
-run:
+enrich documents over _bulk:
   - do:
       bulk:
         refresh: true

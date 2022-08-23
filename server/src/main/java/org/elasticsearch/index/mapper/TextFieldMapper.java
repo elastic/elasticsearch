@@ -60,10 +60,12 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -894,29 +896,42 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            if (fielddata == false) {
-                throw new IllegalArgumentException(
-                    "Text fields are not optimised for operations that require per-document "
-                        + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
-                        + "keyword field instead. Alternatively, set fielddata=true on ["
-                        + name()
-                        + "] in order to load "
-                        + "field data by uninverting the inverted index. Note that this can use significant memory."
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (operation == FielddataOperation.SCRIPT) {
+                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                    fieldDataContext.lookupSupplier().get().source(),
+                    TextDocValuesField::new
+                );
+            } else if (operation == FielddataOperation.SEARCH) {
+                if (fielddata == false) {
+                    throw new IllegalArgumentException(
+                        "Text fields are not optimised for operations that require per-document "
+                            + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
+                            + "keyword field instead. Alternatively, set fielddata=true on ["
+                            + name()
+                            + "] in order to load "
+                            + "field data by uninverting the inverted index. Note that this can use significant memory."
+                    );
+                }
+                return new PagedBytesIndexFieldData.Builder(
+                    name(),
+                    filter.minFreq,
+                    filter.maxFreq,
+                    filter.minSegmentSize,
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new DelegateDocValuesField(
+                        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                        n
+                    )
                 );
             }
-            return new PagedBytesIndexFieldData.Builder(
-                name(),
-                filter.minFreq,
-                filter.maxFreq,
-                filter.minSegmentSize,
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
-            );
-        }
 
+            throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
+        }
     }
 
     public static class ConstantScoreTextFieldType extends TextFieldType {

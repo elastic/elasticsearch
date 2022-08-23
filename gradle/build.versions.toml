@@ -20,7 +20,7 @@ hamcrest = "org.hamcrest:hamcrest:2.1"
 httpcore = "org.apache.httpcomponents:httpcore:4.4.12"
 httpclient = "org.apache.httpcomponents:httpclient:4.5.10"
 idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.4"
-json-schema-validator = "com.networknt:json-schema-validator:1.0.49"
+json-schema-validator = "com.networknt:json-schema-validator:1.0.72"
 json-assert = "org.skyscreamer:jsonassert:1.5.0"
 jackson-dataformat-yaml = { group = "com.fasterxml.jackson.dataformat", name="jackson-dataformat-yaml", version.ref="jackson" }
 jackson-platform = { group = "com.fasterxml.jackson", name="jackson-bom", version.ref="jackson" }

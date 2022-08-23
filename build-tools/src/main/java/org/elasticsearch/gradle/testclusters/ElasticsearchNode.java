@@ -113,7 +113,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
         "discovery.seed_providers",
-        "cluster.deprecation_indexing.enabled"
+        "cluster.deprecation_indexing.enabled",
+        "cluster.initial_master_nodes"
 
     );
 
@@ -1368,7 +1369,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private void createConfiguration() {
+    public void createConfiguration() {
         String nodeName = nameCustomization.apply(safeName(name));
         Map<String, String> baseConfig = new HashMap<>(defaultConfig);
         if (nodeName != null) {

@@ -32,6 +32,8 @@ testClusters.register("runTask") {
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
       numberOfNodes = 2
     }
+
+
 }
 
 tasks.register("run", RunTask) {
@@ -39,5 +41,15 @@ tasks.register("run", RunTask) {
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
 
+  doFirst {
+    def cluster = testClusters.named("runTask").get()
+    cluster.getNodes().each { node ->
+      node.setting('cluster.initial_master_nodes', cluster.getLastNode().getName())
+      node.setting('node.roles', '[master,data_hot,data_content]')
+    }
+    cluster.getFirstNode().setting('node.roles', '[]')
+    cluster.restart()
+
+  }
   impliesSubProjects = true
 }

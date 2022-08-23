@@ -31,6 +31,7 @@ import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -171,6 +172,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return indexRequest;
     }
 
+    /**
+     * See {@link BulkRequest#wrap(ReplicatedWriteRequest)} for wrapping single operations in bulk request.
+     */
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> toSingleResponse(
         final ActionListener<Response> listener
     ) {

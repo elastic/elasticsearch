@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -83,19 +84,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             FIELD_TYPE.freeze();
         }
 
-    }
-
-    /**
-     * The {@link FieldType} used to store "original" so that they can be
-     * rebuilt for synthetic source.
-     */
-    private static final FieldType ORIGINAL_FIELD_TYPE = new FieldType();
-    static {
-        ORIGINAL_FIELD_TYPE.setTokenized(false);
-        ORIGINAL_FIELD_TYPE.setOmitNorms(true);
-        ORIGINAL_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-        ORIGINAL_FIELD_TYPE.setStored(true);
-        ORIGINAL_FIELD_TYPE.freeze();
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -189,7 +177,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 );
             }
             if (searchExecutionContext.isSourceSynthetic()) {
-                String name = originalFieldName();
+                String name = storedFieldNameForSyntheticSource();
                 return context -> docID -> {
                     List<Object> values = new ArrayList<>();
                     context.reader().document(docID, new StoredFieldVisitor() {
@@ -334,7 +322,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
         }
 
-        private String originalFieldName() {
+        private String storedFieldNameForSyntheticSource() {
             return name() + "._original";
         }
     }
@@ -386,7 +374,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         context.addToFieldNames(fieldType().name());
 
         if (context.isSyntheticSource()) {
-            context.doc().add(new Field(fieldType().originalFieldName(), value, ORIGINAL_FIELD_TYPE));
+            context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), value));
         }
     }
 
@@ -407,6 +395,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new StringStoredFieldFieldLoader(fieldType().originalFieldName(), simpleName());
+        return new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), simpleName());
     }
 }

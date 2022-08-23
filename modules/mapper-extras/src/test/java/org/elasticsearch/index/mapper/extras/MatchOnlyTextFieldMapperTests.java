@@ -60,13 +60,23 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         return "value";
     }
 
-    public final void testExists() throws IOException {
-        MapperService mapperService = createMapperService(testMapping());
-        assertExistsQuery(mapperService);
+    public void testExistsStandardSource() throws IOException {
+        assertExistsQuery(createMapperService(testMapping(false)));
     }
 
-    public final void testPhraseQuery() throws IOException {
-        MapperService mapperService = createMapperService(testMapping());
+    public void testExistsSyntheticSource() throws IOException {
+        assertExistsQuery(createMapperService(testMapping(true)));
+    }
+
+    public void testPhraseQueryStandardSource() throws IOException {
+        assertPhraseQuery(createMapperService(testMapping(false)));
+    }
+
+    public void testPhraseQuerySyntheticSource() throws IOException {
+        assertPhraseQuery(createMapperService(testMapping(true)));
+    }
+
+    private void assertPhraseQuery(MapperService mapperService) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
             LuceneDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "the quick brown fox"))).rootDoc();
@@ -91,8 +101,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         );
     }
 
-    private XContentBuilder testMapping() throws IOException {
-        if (randomBoolean()) {
+    private XContentBuilder testMapping(boolean syntheticSource) throws IOException {
+        if (syntheticSource) {
             return syntheticSourceMapping(b -> b.startObject("field").field("type", "match_only_text").endObject());
         }
         return fieldMapping(b -> b.field("type", "match_only_text"));

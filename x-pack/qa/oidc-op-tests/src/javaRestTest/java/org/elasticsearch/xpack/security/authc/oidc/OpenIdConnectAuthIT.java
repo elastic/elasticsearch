@@ -214,18 +214,17 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             assertThat(initResponse.getAsString("type"), equalTo("auth"));
             final String sid = initResponse.getAsString("sid");
             // Actually authenticate the user with ldapAuth
-            HttpPost loginHttpPost = new HttpPost(LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8)
-						+ "&authSessionId=" + sid);
+            HttpPost loginHttpPost = new HttpPost(
+                LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8) + "&authSessionId=" + sid
+            );
             String loginJson = "{" + "\"username\":\"alice\"," + "\"password\":\"secret\"" + "}";
             configureJsonRequest(loginHttpPost, loginJson);
             execute(httpClient, loginHttpPost, context, response -> {
                 assertHttpOk(response.getStatusLine());
                 return parseJsonResponse(response);
             });
-    
-            HttpPut consentHttpPut = new HttpPut(
-                LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
-            );
+
+            HttpPut consentHttpPut = new HttpPut(LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8));
             String consentJson = "{" + "\"claims\":[\"name\", \"email\"]," + "\"scope\":[\"openid\"]" + "}";
             configureJsonRequest(consentHttpPut, consentJson);
             JSONObject jsonConsentResponse = execute(httpClient, consentHttpPut, context, response -> {
@@ -235,7 +234,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             assertThat(jsonConsentResponse.getAsString("type"), equalTo("response"));
             JSONObject parameters = (JSONObject) jsonConsentResponse.get("parameters");
             return parameters.getAsString("uri");
-      
+
         }
     }
 

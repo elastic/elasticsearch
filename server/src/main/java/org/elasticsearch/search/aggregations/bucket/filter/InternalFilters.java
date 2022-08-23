@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
@@ -144,7 +145,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     public InternalFilters(StreamInput in) throws IOException {
         super(in);
         keyed = in.readBoolean();
-        keyedBucketInArray = in.readBoolean();
+        keyedBucketInArray = in.getVersion().onOrAfter(Version.V_8_5_0) ? in.readBoolean() : false;
         int size = in.readVInt();
         List<InternalBucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -157,7 +158,9 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        out.writeBoolean(keyedBucketInArray);
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeBoolean(keyedBucketInArray);
+        }
         out.writeList(buckets);
     }
 

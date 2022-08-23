@@ -9,8 +9,10 @@ nodes in the cluster while in the case of
 time, so the service remains uninterrupted.
 
 [WARNING]
-Nodes exceed low watermark will be slow to restart. You may want to reduce disk
-usage below low watermark before proceeding to restart nodes.
+====
+Nodes exceeding the low watermark threshold will be slow to restart. Reduce the disk
+usage below the <<cluster-routing-watermark-low,low watermark>> before to restarting nodes.
+====
 
 [discrete]
 [[restart-cluster-full]]

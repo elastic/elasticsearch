@@ -118,6 +118,7 @@ public class RunTask extends DefaultTestClustersTask {
 
     @Override
     public void beforeStart() {
+
         int httpPort = 9200 + offset;
         int transportPort = 9300 + offset;
         Map<String, String> additionalSettings = System.getProperties()
@@ -139,12 +140,12 @@ public class RunTask extends DefaultTestClustersTask {
         }
 
         for (ElasticsearchCluster cluster : getClusters()) {
-            cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
-            httpPort++;
-            cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
-            transportPort++;
             cluster.setPreserveDataDir(preserveData);
             for (ElasticsearchNode node : cluster.getNodes()) {
+                node.setHttpPort(String.valueOf(httpPort));
+                httpPort++;
+                node.setTransportPort(String.valueOf(transportPort));
+                transportPort++;
                 additionalSettings.forEach(node::setting);
                 if (dataDir != null) {
                     node.setDataPath(getDataPath.apply(node));
@@ -154,7 +155,6 @@ public class RunTask extends DefaultTestClustersTask {
                 }
             }
         }
-
         if (debug) {
             enableDebug(getPortOffset());
         }
@@ -165,6 +165,7 @@ public class RunTask extends DefaultTestClustersTask {
         if (initOnly) {
             return;
         }
+        getClusters().forEach(ElasticsearchCluster::waitForAllConditions);
         List<BufferedReader> toRead = new ArrayList<>();
         List<BooleanSupplier> aliveChecks = new ArrayList<>();
 

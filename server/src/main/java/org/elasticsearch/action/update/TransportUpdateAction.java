@@ -52,8 +52,8 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
-import static org.elasticsearch.action.bulk.TransportBulkAction.wrapSingleRequest;
 import static org.elasticsearch.action.bulk.TransportBulkAction.toSingleResponse;
+import static org.elasticsearch.action.bulk.TransportBulkAction.wrapSingleRequest;
 
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 

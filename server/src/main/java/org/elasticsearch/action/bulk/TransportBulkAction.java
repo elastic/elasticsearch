@@ -173,11 +173,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return indexRequest;
     }
 
+    public static BulkRequest wrapSingleRequest(final ReplicatedWriteRequest<?> request) {
+        final var bulkRequest = new BulkRequest();
+        bulkRequest.add(((DocWriteRequest<?>) request));
+        bulkRequest.setRefreshPolicy(request.getRefreshPolicy());
+        bulkRequest.timeout(request.timeout());
+        bulkRequest.waitForActiveShards(request.waitForActiveShards());
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        return bulkRequest;
+    }
+
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> toSingleResponse(
         final ActionListener<Response> listener
     ) {
         return ActionListener.wrap(bulkItemResponses -> {
-            assert bulkItemResponses.getItems().length == 1 : "expected only one item in bulk request";
+            assert bulkItemResponses.getItems().length == 1 : "expected only one item in bulk response";
             final BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
             if (bulkItemResponse.isFailed() == false) {
                 @SuppressWarnings("unchecked")
@@ -187,16 +197,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 listener.onFailure(bulkItemResponse.getFailure().getCause());
             }
         }, listener::onFailure);
-    }
-
-    public static BulkRequest wrapSingleRequest(final ReplicatedWriteRequest<?> request) {
-        final var bulkRequest = new BulkRequest();
-        bulkRequest.add(((DocWriteRequest<?>) request));
-        bulkRequest.setRefreshPolicy(request.getRefreshPolicy());
-        bulkRequest.timeout(request.timeout());
-        bulkRequest.waitForActiveShards(request.waitForActiveShards());
-        request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-        return bulkRequest;
     }
 
     @Override

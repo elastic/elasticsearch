@@ -144,30 +144,30 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
                 assertHttpOk(response.getStatusLine());
                 return parseJsonResponse(response);
             });
-            // Get the consent screen
-            HttpPut consentFetchHttpPut = new HttpPut(
-                C2ID_LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
-            );
-            String consentFetchJson = """
-                {
-                  "sub": "%s",
-                  "acr": "http://loa.c2id.com/basic",
-                  "amr": [ "pwd" ],
-                  "data": {
-                    "email": "%s",
-                    "name": "%s"
-                  }
-                }""".formatted(
-                loginJsonResponse.getAsString("id"),
-                loginJsonResponse.getAsString("email"),
-                loginJsonResponse.getAsString("name")
-            );
-            configureJsonRequest(consentFetchHttpPut, consentFetchJson);
-            JSONObject consentFetchResponse = execute(httpClient, consentFetchHttpPut, context, response -> {
-                assertHttpOk(response.getStatusLine());
-                return parseJsonResponse(response);
-            });
-            if (consentFetchResponse.getAsString("type").equals("consent")) {
+//            // Get the consent screen
+//            HttpPut consentFetchHttpPut = new HttpPut(
+//                C2ID_LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
+//            );
+//            String consentFetchJson = """
+//                {
+//                  "sub": "%s",
+//                  "acr": "http://loa.c2id.com/basic",
+//                  "amr": [ "pwd" ],
+//                  "data": {
+//                    "email": "%s",
+//                    "name": "%s"
+//                  }
+//                }""".formatted(
+//                loginJsonResponse.getAsString("id"),
+//                loginJsonResponse.getAsString("email"),
+//                loginJsonResponse.getAsString("name")
+//            );
+//            configureJsonRequest(consentFetchHttpPut, consentFetchJson);
+//            JSONObject consentFetchResponse = execute(httpClient, consentFetchHttpPut, context, response -> {
+//                assertHttpOk(response.getStatusLine());
+//                return parseJsonResponse(response);
+//            });
+         //   if (consentFetchResponse.getAsString("type").equals("consent")) {
                 // If needed, submit the consent
                 HttpPut consentHttpPut = new HttpPut(
                     C2ID_LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
@@ -182,13 +182,13 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
                 assertThat(jsonConsentResponse.getAsString("type"), equalTo("response"));
                 JSONObject parameters = (JSONObject) jsonConsentResponse.get("parameters");
                 return parameters.getAsString("uri");
-            } else if (consentFetchResponse.getAsString("type").equals("response")) {
-                JSONObject parameters = (JSONObject) consentFetchResponse.get("parameters");
-                return parameters.getAsString("uri");
-            } else {
-                fail("Received an invalid response from the OP");
-                return null;
-            }
+//            } else if (consentFetchResponse.getAsString("type").equals("response")) {
+//                JSONObject parameters = (JSONObject) consentFetchResponse.get("parameters");
+//                return parameters.getAsString("uri");
+//            } else {
+//                fail("Received an invalid response from the OP");
+//                return null;
+//            }
         }
     }
 

@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -21,7 +23,7 @@ import java.util.Map;
 /**
  * Response containing a User retrieved from the security index
  */
-public class GetUsersResponse extends ActionResponse {
+public class GetUsersResponse extends ActionResponse implements ToXContentObject {
 
     private final User[] users;
     @Nullable
@@ -90,4 +92,24 @@ public class GetUsersResponse extends ActionResponse {
         }
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        for (User user : users) {
+            builder.field(user.principal());
+            builder.startObject();
+            {
+                user.innerToXContent(builder);
+                if (profileUidLookup != null) {
+                    final String profileUid = profileUidLookup.get(user.principal());
+                    if (profileUid != null) {
+                        builder.field("profile_uid", profileUid);
+                    }
+                }
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
+    }
 }

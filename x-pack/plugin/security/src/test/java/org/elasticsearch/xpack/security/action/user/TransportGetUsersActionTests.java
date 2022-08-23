@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -52,8 +54,13 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -72,6 +79,9 @@ public class TransportGetUsersActionTests extends ESTestCase {
     private boolean anonymousEnabled;
     private Settings settings;
     private ThreadPool threadPool;
+    private boolean hasAnonymousProfile;
+    private boolean hasReservedProfile;
+    private boolean hasNativeProfile;
 
     @Before
     public void maybeEnableAnonymous() {
@@ -82,6 +92,9 @@ public class TransportGetUsersActionTests extends ESTestCase {
             settings = Settings.EMPTY;
         }
         threadPool = new TestThreadPool("TransportGetUsersActionTests");
+        hasAnonymousProfile = randomBoolean();
+        hasReservedProfile = randomBoolean();
+        hasNativeProfile = randomBoolean();
     }
 
     @After
@@ -97,6 +110,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         when(securityIndex.isAvailable()).thenReturn(true);
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
+        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -118,6 +132,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(anonymousUser.principal());
+        final boolean withProfileUid = randomBoolean();
+        request.setWithProfileUid(withProfileUid);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
@@ -141,6 +157,18 @@ public class TransportGetUsersActionTests extends ESTestCase {
         } else {
             assertThat("expected an empty array but got: " + Arrays.toString(users), users, emptyArray());
         }
+        if (withProfileUid) {
+            assertThat(
+                responseRef.get().getProfileUidLookup(),
+                equalTo(
+                    Arrays.stream(users)
+                        .filter(user -> hasAnonymousProfile)
+                        .collect(Collectors.toUnmodifiableMap(User::principal, user -> "u_profile_" + user.principal()))
+                )
+            );
+        } else {
+            assertThat(responseRef.get().getProfileUidLookup(), nullValue());
+        }
         verifyNoMoreInteractions(usersStore);
     }
 
@@ -157,6 +185,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
             new AnonymousUser(settings),
             threadPool
         );
+        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         final Collection<User> allReservedUsers = userFuture.actionGet();
@@ -185,6 +214,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
         logger.error("names {}", names);
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(names.toArray(new String[names.size()]));
+        final boolean withProfileUid = randomBoolean();
+        request.setWithProfileUid(withProfileUid);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
@@ -206,6 +237,17 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(users, arrayContaining(reservedUsers.toArray(new User[reservedUsers.size()])));
+        if (withProfileUid) {
+            assertThat(responseRef.get().getProfileUidLookup(), equalTo(reservedUsers.stream().filter(user -> {
+                if (user instanceof AnonymousUser) {
+                    return hasAnonymousProfile;
+                } else {
+                    return hasReservedProfile;
+                }
+            }).collect(Collectors.toUnmodifiableMap(User::principal, user -> "u_profile_" + user.principal()))));
+        } else {
+            assertThat(responseRef.get().getProfileUidLookup(), nullValue());
+        }
     }
 
     public void testGetAllUsers() {
@@ -226,6 +268,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
             new AnonymousUser(settings),
             threadPool
         );
+        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -246,6 +289,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
         );
 
         GetUsersRequest request = new GetUsersRequest();
+        final boolean withProfileUid = randomBoolean();
+        request.setWithProfileUid(withProfileUid);
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
@@ -272,12 +317,26 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final List<User> expectedList = new ArrayList<>();
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
-        expectedList.addAll(userFuture.actionGet());
+        final Collection<User> reservedUsers = userFuture.actionGet();
+        expectedList.addAll(reservedUsers);
         expectedList.addAll(storeUsers);
 
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
+        if (withProfileUid) {
+            assertThat(responseRef.get().getProfileUidLookup(), equalTo(expectedList.stream().filter(user -> {
+                if (user instanceof AnonymousUser) {
+                    return hasAnonymousProfile;
+                } else if (reservedUsers.contains(user)) {
+                    return hasReservedProfile;
+                } else {
+                    return hasNativeProfile;
+                }
+            }).collect(Collectors.toUnmodifiableMap(User::principal, user -> "u_profile_" + user.principal()))));
+        } else {
+            assertThat(responseRef.get().getProfileUidLookup(), nullValue());
+        }
         verify(usersStore, times(1)).getUsers(aryEq(Strings.EMPTY_ARRAY), anyActionListener());
     }
 
@@ -291,9 +350,25 @@ public class TransportGetUsersActionTests extends ESTestCase {
         testGetStoreOnlyUsers(randomUsersWithInternalUsernames());
     }
 
-    private void testGetStoreOnlyUsers(List<User> storeUsers) {
-        final String[] storeUsernames = storeUsers.stream().map(User::principal).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY);
+    public void testGetUsersWithProfileUidException() {
+        final List<User> storeUsers = randomFrom(
+            Collections.<User>emptyList(),
+            Collections.singletonList(new User("joe")),
+            Arrays.asList(new User("jane"), new User("fred")),
+            randomUsers()
+        );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(securityIndex.isAvailable()).thenReturn(true);
+        ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
+        ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(settings),
+            threadPool
+        );
+        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -308,13 +383,63 @@ public class TransportGetUsersActionTests extends ESTestCase {
             mock(ActionFilters.class),
             usersStore,
             transportService,
-            mock(ReservedRealm.class),
+            reservedRealm,
+            mockRealms(),
+            mockProfileService(true)
+        );
+
+        GetUsersRequest request = new GetUsersRequest();
+        request.setWithProfileUid(true);
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<List<User>> listener = (ActionListener<List<User>>) args[1];
+            listener.onResponse(storeUsers);
+            return null;
+        }).when(usersStore).getUsers(eq(Strings.EMPTY_ARRAY), anyActionListener());
+
+        final PlainActionFuture<GetUsersResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, future);
+
+        final ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, future::actionGet);
+
+        assertThat(e.getSuppressed().length, greaterThan(0));
+        Arrays.stream(e.getSuppressed()).forEach(suppressed -> {
+            assertThat(suppressed, instanceOf(ElasticsearchException.class));
+            assertThat(suppressed.getMessage(), equalTo("something is not right"));
+        });
+    }
+
+    private void testGetStoreOnlyUsers(List<User> storeUsers) {
+        final String[] storeUsernames = storeUsers.stream().map(User::principal).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY);
+        NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        AnonymousUser anonymousUser = new AnonymousUser(settings);
+        ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
+        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportGetUsersAction action = new TransportGetUsersAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            transportService,
+            reservedRealm,
             mockRealms(),
             mockProfileService()
         );
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(storeUsernames);
+        final boolean withProfileUid = randomBoolean();
+        request.setWithProfileUid(withProfileUid);
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
@@ -344,6 +469,18 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
+        if (withProfileUid) {
+            assertThat(
+                responseRef.get().getProfileUidLookup(),
+                equalTo(
+                    expectedList.stream()
+                        .filter(user -> hasNativeProfile)
+                        .collect(Collectors.toUnmodifiableMap(User::principal, user -> "u_profile_" + user.principal()))
+                )
+            );
+        } else {
+            assertThat(responseRef.get().getProfileUidLookup(), nullValue());
+        }
         if (storeUsers.size() > 1) {
             verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), anyActionListener());
         } else {
@@ -439,20 +576,75 @@ public class TransportGetUsersActionTests extends ESTestCase {
         return realms;
     }
 
-    @SuppressWarnings("unchecked")
     private ProfileService mockProfileService() {
+        return mockProfileService(false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ProfileService mockProfileService(boolean randomException) {
         final ProfileService profileService = mock(ProfileService.class);
         doAnswer(invocation -> {
             final List<Subject> subjects = (List<Subject>) invocation.getArguments()[0];
             final var listener = (ActionListener<SubjectSearchResultsAndErrors<Profile>>) invocation.getArguments()[1];
-            listener.onResponse(
-                new SubjectSearchResultsAndErrors<>(
-                    subjects.stream().map(subject -> new Tuple<>(subject, (Profile) null)).toList(),
-                    Map.of()
-                )
-            );
+            List<Tuple<Subject, Profile>> results = subjects.stream().map(subject -> {
+                final User user = subject.getUser();
+                if (user instanceof AnonymousUser) {
+                    if (hasAnonymousProfile) {
+                        return new Tuple<>(subject, profileFromSubject(subject));
+                    } else {
+                        return new Tuple<>(subject, (Profile) null);
+                    }
+                } else if ("reserved".equals(subject.getRealm().getType())) {
+                    if (hasReservedProfile) {
+                        return new Tuple<>(subject, profileFromSubject(subject));
+                    } else {
+                        return new Tuple<>(subject, (Profile) null);
+                    }
+                } else {
+                    if (hasNativeProfile) {
+                        return new Tuple<>(subject, profileFromSubject(subject));
+                    } else {
+                        return new Tuple<>(subject, (Profile) null);
+                    }
+                }
+            }).toList();
+            if (randomException) {
+                assertThat("random exception requires non-empty results", results, not(empty()));
+            }
+            final Map<Subject, Exception> errors;
+            if (randomException) {
+                final int exceptionSize = randomIntBetween(1, results.size());
+                errors = results.subList(0, exceptionSize)
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(Tuple::v1, t -> new ElasticsearchException("something is not right")));
+                results = results.subList(exceptionSize - 1, results.size());
+            } else {
+                errors = Map.of();
+            }
+            listener.onResponse(new SubjectSearchResultsAndErrors<>(results, errors));
             return null;
         }).when(profileService).searchProfilesForSubjects(anyList(), anyActionListener());
         return profileService;
+    }
+
+    private Profile profileFromSubject(Subject subject) {
+        final User user = subject.getUser();
+        final Authentication.RealmRef realmRef = subject.getRealm();
+        return new Profile(
+            "u_profile_" + user.principal(),
+            randomBoolean(),
+            randomNonNegativeLong(),
+            new Profile.ProfileUser(
+                user.principal(),
+                Arrays.asList(user.roles()),
+                realmRef.getName(),
+                realmRef.getDomain() == null ? null : realmRef.getDomain().name(),
+                user.email(),
+                user.fullName()
+            ),
+            Map.of(),
+            Map.of(),
+            new Profile.VersionControl(randomNonNegativeLong(), randomNonNegativeLong())
+        );
     }
 }

@@ -15,10 +15,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -58,22 +58,7 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetUsersResponse response, XContentBuilder builder) throws Exception {
-                    builder.startObject();
-                    for (User user : response.users()) {
-                        builder.field(user.principal());
-                        builder.startObject();
-                        {
-                            user.innerToXContent(builder);
-                            if (response.getProfileUidLookup() != null) {
-                                final String profileUid = response.getProfileUidLookup().get(user.principal());
-                                if (profileUid != null) {
-                                    builder.field("profile_uid", profileUid);
-                                }
-                            }
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
+                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
                     // if the user asked for specific users, but none of them were found
                     // we'll return an empty result and 404 status code

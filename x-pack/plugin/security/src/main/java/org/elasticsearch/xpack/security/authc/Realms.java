@@ -74,6 +74,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     private final List<Realm> allConfiguredRealms;
 
     private final Map<String, DomainConfig> domainNameToConfig;
+    // The realmRefs include all realms explicitly or implicitly configured regardless whether they are disabled or not
     private final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs;
 
     // the realms in current use. This list will change dynamically as the license changes

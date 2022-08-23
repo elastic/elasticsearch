@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -132,7 +134,9 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
 
     private void resolveProfileUids(List<User> users, ActionListener<Map<String, String>> listener) {
         final List<Subject> subjects = users.stream().map(user -> {
-            if (ClientReservedRealm.isReserved(user.principal(), settings)) {
+            if (user instanceof AnonymousUser) {
+                return new Subject(user, Authentication.RealmRef.newAnonymousRealmRef(Node.NODE_NAME_SETTING.get(settings)));
+            } else if (ClientReservedRealm.isReserved(user.principal(), settings)) {
                 return new Subject(user, reservedRealm.realmRef());
             } else {
                 return new Subject(user, nativeRealmRef);
@@ -157,6 +161,5 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
                 listener.onFailure(exception);
             }
         }, listener::onFailure));
-
     }
 }

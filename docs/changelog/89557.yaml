@@ -4,3 +4,11 @@ area: ILM+SLM
 type: enhancement
 issues:
  - 86203
+highlight:
+  title: ILM don't rollover empty indices
+  body: |-
+    Closes #86203, related to #89283
+
+    TODO: - [ ] Add a test to `RolloverActionIT` - [ ] docs changes - [ ]
+    release highlight notes
+  notable: true

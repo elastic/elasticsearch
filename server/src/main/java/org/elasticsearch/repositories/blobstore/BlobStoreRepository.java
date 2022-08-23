@@ -1484,10 +1484,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 toDelete.add(containerPath + shardGeneration);
             }
         }
-        try {
-            deleteFromContainer(blobContainer(), toDelete.iterator());
-        } catch (Exception e) {
-            logger.warn("Failed to clean up old shard generation blobs", e);
+        if (toDelete.isEmpty() == false) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                try {
+                    deleteFromContainer(blobContainer(), toDelete.iterator());
+                } catch (Exception e) {
+                    logger.warn("Failed to clean up old shard generation blobs", e);
+                }
+            });
         }
     }
 

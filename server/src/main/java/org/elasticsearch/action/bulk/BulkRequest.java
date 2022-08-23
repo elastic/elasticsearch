@@ -95,7 +95,7 @@ public class BulkRequest extends ActionRequest
     }
 
     /**
-     * See {@link TransportBulkAction#toSingleResponse(ActionListener)} for translating single action responses wrapped in bulk responses.
+     * See {@link TransportBulkAction#toSingleResponse(ActionListener)} for translating a bulk action response to a single action response.
      */
     public static BulkRequest wrapSingleRequest(final ReplicatedWriteRequest<?> request) {
         final var bulkRequest = new BulkRequest();

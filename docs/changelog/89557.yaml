@@ -1,0 +1,6 @@
+pr: 89557
+summary: ILM don't rollover empty indices
+area: ILM+SLM
+type: enhancement
+issues:
+ - 86203

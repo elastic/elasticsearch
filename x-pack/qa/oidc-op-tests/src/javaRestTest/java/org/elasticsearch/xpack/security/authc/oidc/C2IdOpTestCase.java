@@ -136,7 +136,9 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             assertThat(initResponse.getAsString("type"), equalTo("auth"));
             final String sid = initResponse.getAsString("sid");
             // Actually authenticate the user with ldapAuth
-            HttpPost loginHttpPost = new HttpPost(C2ID_LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8) + "&authSessionId=" + sid);
+            HttpPost loginHttpPost = new HttpPost(
+                C2ID_LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8) + "&authSessionId=" + sid
+            );
             String loginJson = """
                 {"username":"alice","password":"secret"}""";
             configureJsonRequest(loginHttpPost, loginJson);

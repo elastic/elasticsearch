@@ -102,6 +102,30 @@ work with {es} 7.17.
 A more permanent solution is to 
 {java-api-client}/migrate-hlrc.html[migrate from the (HLRC)] entirely.
 ====
+
+[[breaking_716_indices_options]]
+.The `ignore_throttled` parameter is deprecated and changes indices options sent to Elasticsearch
+[%collapsible]
+====
+*Details* +
+In https://github.com/elastic/elasticsearch/pull/77864[#77864] the High Level Rest Client was changed to only send indices options if the request differed from the default request options. However, in some cases the default options for the HLRC request object inadvertently differ from the effective options of the {es} APIs, meaning that it is possible for the API response to differ.
+
+*Impact* +
+If you use the HLRC and have a differing response due to indices options, you can update the options using the `indicesOptions(...)` method, as shown below:
+
+[source,java]
+----
+// Previously:
+highLevelClient.indices().exists(request, RequestOptions.DEFAULT);
+
+// With indices options (change boolean options as needed):
+final var requestWithOptions = request.indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
+highLevelClient.indices().exists(requestWithOptions, RequestOptions.DEFAULT);
+----
+
+A more permanent solution is to
+{java-api-client}/migrate-hlrc.html[migrate from the (HLRC)] entirely.
+====
 // end::notable-breaking-changes[]
 
 [discrete]

@@ -185,8 +185,6 @@ class MlMemoryAutoscalingDecider {
 
         final List<String> partiallyAllocatedModels = mlContext.findPartiallyAllocatedModels();
 
-        // TODO for autoscaling by memory, we only care about if the model is allocated to at least one node (see above)
-        // We should do this check in our autoscaling by processor count service, which will be a separate decider for readability's sake
         if (mlContext.waitingAnalyticsJobs.isEmpty() == false
             || mlContext.waitingSnapshotUpgrades.isEmpty() == false
             || mlContext.waitingAnomalyJobs.isEmpty() == false
@@ -257,7 +255,6 @@ class MlMemoryAutoscalingDecider {
                 if (capacity == null) {
                     return null;
                 }
-                // TODO we should remove this when we can auto-scale (down and up) via a new CPU auto-scaling decider
                 if (modelAssignmentsRequireMoreThanHalfCpu(mlContext.modelAssignments.values(), mlContext.mlNodes)) {
                     logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
                     return null;

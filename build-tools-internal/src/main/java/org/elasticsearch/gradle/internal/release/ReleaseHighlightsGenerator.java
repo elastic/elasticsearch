@@ -17,7 +17,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,14 +43,21 @@ public class ReleaseHighlightsGenerator {
             final int major = version.major();
             for (int minor = version.minor() - 1; minor >= 0; minor--) {
                 String majorMinor = major + "." + minor;
-                priorVersions.add("{ref-bare}/" + majorMinor + "/release-highlights.html[" + majorMinor + "]");
+                priorVersions.add(
+                    "{ref-bare}/"
+                        + majorMinor
+                        + "/release-highlights"
+                        + (minor <= 6 ? "-" + majorMinor + ".0" : "")
+                        + ".html["
+                        + majorMinor
+                        + "]"
+                );
             }
         }
 
         final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = entries.stream()
             .map(ChangelogEntry::getHighlight)
             .filter(Objects::nonNull)
-            .sorted(Comparator.comparingInt(ChangelogEntry.Highlight::getPr))
             .collect(Collectors.groupingBy(ChangelogEntry.Highlight::isNotable, Collectors.toList()));
 
         final List<ChangelogEntry.Highlight> notableHighlights = groupedHighlights.getOrDefault(true, List.of());

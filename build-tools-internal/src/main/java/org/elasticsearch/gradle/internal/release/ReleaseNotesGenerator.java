@@ -68,6 +68,9 @@ public class ReleaseNotesGenerator {
 
     private static Map<String, Map<String, List<ChangelogEntry>>> buildChangelogBreakdown(Set<ChangelogEntry> changelogs) {
         Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea = changelogs.stream()
+            // Special case - we have a changelog file that isn't in the 'known-issue' or 'security' areas, but
+            // doesn't have an ES PR for it.
+            .filter(each -> each.getPr() == null || each.getPr() != -1)
             .collect(
                 groupingBy(
                     // Entries with breaking info are always put in the breaking section

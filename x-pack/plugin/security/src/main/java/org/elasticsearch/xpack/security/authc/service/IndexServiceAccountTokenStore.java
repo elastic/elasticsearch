@@ -60,7 +60,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.bulk.BulkRequest.wrapSingleRequest;
+import static org.elasticsearch.action.bulk.BulkRequest.wrap;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -146,7 +146,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 .setOpType(OpType.CREATE)
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .request();
-            final BulkRequest bulkRequest = wrapSingleRequest(indexRequest);
+            final BulkRequest bulkRequest = wrap(indexRequest);
 
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(
@@ -154,7 +154,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     SECURITY_ORIGIN,
                     BulkAction.INSTANCE,
                     bulkRequest,
-                    TransportBulkAction.<IndexResponse>toSingleResponse(ActionListener.wrap(response -> {
+                    TransportBulkAction.<IndexResponse>wrapBulkAsSingleItemResponse(ActionListener.wrap(response -> {
                         assert DocWriteResponse.Result.CREATED == response.getResult()
                             : "an successful response of an OpType.CREATE request must have result of CREATED";
                         listener.onResponse(CreateServiceAccountTokenResponse.created(token.getTokenName(), token.asBearerString()));

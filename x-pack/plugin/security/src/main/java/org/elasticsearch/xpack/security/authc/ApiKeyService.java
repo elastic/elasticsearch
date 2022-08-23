@@ -321,7 +321,7 @@ public class ApiKeyService {
                     request.getMetadata()
                 )
             ) {
-                final BulkRequest bulkRequest = BulkRequest.wrapSingleRequest(
+                final BulkRequest bulkRequest = BulkRequest.wrap(
                     client.prepareIndex(SECURITY_MAIN_ALIAS)
                         .setSource(builder)
                         .setId(request.getId())
@@ -336,7 +336,7 @@ public class ApiKeyService {
                         SECURITY_ORIGIN,
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        TransportBulkAction.<IndexResponse>toSingleResponse(ActionListener.wrap(indexResponse -> {
+                        TransportBulkAction.<IndexResponse>wrapBulkAsSingleItemResponse(ActionListener.wrap(indexResponse -> {
                             assert request.getId().equals(indexResponse.getId());
                             assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                             final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();

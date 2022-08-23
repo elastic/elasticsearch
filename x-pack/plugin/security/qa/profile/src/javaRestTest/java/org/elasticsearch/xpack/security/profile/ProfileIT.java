@@ -371,9 +371,11 @@ public class ProfileIT extends ESRestTestCase {
         final List<Node> originalNodes = client.getNodes();
         assertThat(originalNodes.size(), greaterThan(1));
         final Node node0 = originalNodes.get(0);
-        // Find a different node which should listen to the same hostname, but is not node0.
-        // It should listen to the same hostname because it can the same host (node0)
-        // when it listens to a different hostname (ipv4 vs ipv6)
+        // Find a different node other than node0.
+        // Because all nodes of a testcluster runs on the same physical host, the different node
+        // should have the same hostname but listens on a different port.
+        // A single node can have both ipv4 and ipv6 addresses. If we do not filter for the
+        // same hostname, we might find the same node again (e.g. node0 but has an ipv6 address).
         final Node node1 = originalNodes.subList(1, originalNodes.size() - 1)
             .stream()
             .filter(node -> node.getHost().getHostName().equals(node0.getHost().getHostName()))

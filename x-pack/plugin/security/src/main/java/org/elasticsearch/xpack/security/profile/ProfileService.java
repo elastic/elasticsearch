@@ -700,6 +700,10 @@ public class ProfileService {
         if (newProfileDocument.user().equals(currentVersionedDocument.doc.user())
             && currentVersionedDocument.doc.enabled()
             && newProfileDocument.lastSynchronized() - currentVersionedDocument.doc.lastSynchronized() < ACTIVATE_INTERVAL_IN_MS) {
+            logger.debug(
+                "skip user profile activate update because last_synchronized [{}] is within grace period",
+                currentVersionedDocument.doc.lastSynchronized()
+            );
             listener.onResponse(currentVersionedDocument.toProfile(Set.of()));
             return;
         }

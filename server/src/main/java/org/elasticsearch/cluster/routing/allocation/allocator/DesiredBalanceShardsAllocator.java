@@ -43,24 +43,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
-    public static final ActionListener<Void> REMOVE_ME = new ActionListener<>() {
-
-        @Override
-        public void onResponse(Void unused) {
-            // TODO this is a noop listener stub that need so be replaced with a real implementation eventually
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-
-        }
-
-        @Override
-        public String toString() {
-            return "REMOVE_ME";
-        }
-    };
-
     private final ShardsAllocator delegateAllocator;
     private final DesiredBalanceComputer desiredBalanceComputer;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;

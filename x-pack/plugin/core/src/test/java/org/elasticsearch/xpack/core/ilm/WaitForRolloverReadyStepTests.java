@@ -191,7 +191,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(expectedConditionValues, actualConditionValues);
     }
 
-    private static Set<Condition<?>> getExpectedConditions(WaitForRolloverReadyStep step) {
+    private static Set<Condition<?>> getExpectedConditions(WaitForRolloverReadyStep step, boolean maybeAddMinDocs) {
         Set<Condition<?>> expectedConditions = new HashSet<>();
         if (step.getMaxSize() != null) {
             expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
@@ -224,8 +224,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
         }
 
-        // if no minimum document condition was specified, then a default min_docs: 1 condition will be injected
-        if (step.getMinDocs() == null && step.getMinPrimaryShardDocs() == null) {
+        // if no minimum document condition was specified, then a default min_docs: 1 condition will be injected (if desired)
+        if (maybeAddMinDocs && step.getMinDocs() == null && step.getMinPrimaryShardDocs() == null) {
             expectedConditions.add(new MinDocsCondition(1L));
         }
 
@@ -349,7 +349,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = getExpectedConditions(step);
+            Set<Condition<?>> expectedConditions = getExpectedConditions(step, true);
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
                 .collect(Collectors.toMap(Condition::toString, condition -> conditionResult));
@@ -573,7 +573,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = getExpectedConditions(step);
+            Set<Condition<?>> expectedConditions = getExpectedConditions(step, true);
             assertRolloverIndexRequest(request, alias, expectedConditions);
             listener.onFailure(exception);
             return null;
@@ -670,5 +670,25 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 )
             )
         );
+    }
+
+    public void testCreateRolloverRequestRolloverOnlyIfHasDocuments() {
+        boolean rolloverOnlyIfHasDocuments = randomBoolean();
+
+        WaitForRolloverReadyStep step = createRandomInstance();
+        String rolloverTarget = randomAlphaOfLength(5);
+        TimeValue masterTimeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+
+        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
+
+        assertThat(request.getRolloverTarget(), is(rolloverTarget));
+        assertThat(request.masterNodeTimeout(), is(masterTimeout));
+        assertThat(request.isDryRun(), is(true)); // it's always a dry_run
+
+        Set<Condition<?>> expectedConditions = getExpectedConditions(step, rolloverOnlyIfHasDocuments);
+        assertEquals(expectedConditions.size(), request.getConditions().size());
+        Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
+        Set<Object> actualConditionValues = request.getConditions().values().stream().map(Condition::value).collect(Collectors.toSet());
+        assertEquals(expectedConditionValues, actualConditionValues);
     }
 }

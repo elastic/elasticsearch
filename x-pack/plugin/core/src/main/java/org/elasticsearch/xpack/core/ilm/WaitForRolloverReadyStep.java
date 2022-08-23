@@ -196,6 +196,24 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             rolloverTarget = rolloverAlias;
         }
 
+        // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
+        // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
+        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
+        RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
+
+        getClient().admin()
+            .indices()
+            .rolloverIndex(
+                rolloverRequest,
+                ActionListener.wrap(
+                    response -> listener.onResponse(rolloverRequest.areConditionsMet(response.getConditionStatus()), EmptyInfo.INSTANCE),
+                    listener::onFailure
+                )
+            );
+    }
+
+    // visible for testing
+    RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
         if (maxSize != null) {
@@ -229,22 +247,10 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             rolloverRequest.addMinPrimaryShardDocsCondition(minPrimaryShardDocs);
         }
 
-        // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
-        // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
-        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
         if (rolloverOnlyIfHasDocuments && (minDocs == null && minPrimaryShardDocs == null)) {
             rolloverRequest.addMinIndexDocsCondition(1L);
         }
-
-        getClient().admin()
-            .indices()
-            .rolloverIndex(
-                rolloverRequest,
-                ActionListener.wrap(
-                    response -> listener.onResponse(rolloverRequest.areConditionsMet(response.getConditionStatus()), EmptyInfo.INSTANCE),
-                    listener::onFailure
-                )
-            );
+        return rolloverRequest;
     }
 
     ByteSizeValue getMaxSize() {

@@ -9,7 +9,7 @@ your application to {es} 8.4.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.4.0-SNAPSHOT]
+coming::[8.4.0]
 
 
 [discrete]
@@ -87,13 +87,11 @@ Breaking change impact description 3
 === Deprecations
 
 The following functionality has been deprecated in {es} 8.4
-and will be removed in 9.0.
+and will be removed in a future version.
 While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
 after upgrading to 8.4.
 
-NOTE: Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 

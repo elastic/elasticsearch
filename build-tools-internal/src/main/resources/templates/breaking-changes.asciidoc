@@ -9,13 +9,17 @@ your application to {es} ${majorDotMinor}.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 <% if (isElasticsearchSnapshot) { %>
-coming::[${version}]
+coming::[${majorDotMinorDotRevision}]
 <% } %>
-<% if (breakingByNotabilityByArea.isEmpty() == false) { %>
+
 [discrete]
 [[breaking-changes-${majorDotMinor}]]
 === Breaking changes
-
+<% if (breakingByNotabilityByArea.isEmpty()) { %>
+// tag::notable-breaking-changes[]
+There are no breaking changes in {es} ${majorDotMinor}.
+// end::notable-breaking-changes[]
+<% } else { %>
 The following changes in {es} ${majorDotMinor} might affect your applications
 and prevent them from operating normally.
 Before upgrading to ${majorDotMinor}, review these changes and take the described steps
@@ -66,13 +70,11 @@ if (deprecationsByNotabilityByArea.isEmpty() == false) { %>
 === Deprecations
 
 The following functionality has been deprecated in {es} ${majorDotMinor}
-and will be removed in ${nextMajor}.
+and will be removed in a future version.
 While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
 after upgrading to ${majorDotMinor}.
 
-NOTE: Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 

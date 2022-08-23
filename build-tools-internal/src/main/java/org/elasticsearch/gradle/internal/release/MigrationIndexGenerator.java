@@ -24,25 +24,22 @@ import java.util.stream.Collectors;
 import static java.util.Comparator.reverseOrder;
 
 /**
- * This class ensures that the release notes index page has the appropriate anchors and include directives
+ * This class ensures that the migrate/index page has the appropriate anchors and include directives
  * for the current repository version.
  */
-public class ReleaseNotesIndexGenerator {
+public class MigrationIndexGenerator {
 
-    static void update(Set<QualifiedVersion> versions, File indexTemplate, File indexFile) throws IOException {
+    static void update(Set<MinorVersion> versions, File indexTemplate, File indexFile) throws IOException {
         try (FileWriter indexFileWriter = new FileWriter(indexFile)) {
             indexFileWriter.write(generateFile(versions, Files.readString(indexTemplate.toPath())));
         }
     }
 
     @VisibleForTesting
-    static String generateFile(Set<QualifiedVersion> versionsSet, String template) throws IOException {
-        final Set<QualifiedVersion> versions = new TreeSet<>(reverseOrder());
-
-        // For the purpose of generating the index, snapshot versions are the same as released versions. Prerelease versions are not.
-        versionsSet.stream().map(v -> v.isSnapshot() ? v.withoutQualifier() : v).forEach(versions::add);
-
-        final List<String> includeVersions = versions.stream().map(QualifiedVersion::toString).collect(Collectors.toList());
+    static String generateFile(Set<MinorVersion> versionsSet, String template) throws IOException {
+        final Set<MinorVersion> versions = new TreeSet<>(reverseOrder());
+        versions.addAll(versionsSet);
+        final List<String> includeVersions = versions.stream().map(MinorVersion::underscore).collect(Collectors.toList());
 
         final Map<String, Object> bindings = new HashMap<>();
         bindings.put("versions", versions);

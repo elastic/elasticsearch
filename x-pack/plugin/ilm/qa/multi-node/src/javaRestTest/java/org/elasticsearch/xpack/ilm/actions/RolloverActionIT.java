@@ -200,7 +200,7 @@ public class RolloverActionIT extends ESRestTestCase {
             client(),
             policy,
             "hot",
-            new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null, null, null, null)
+            new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null, null, 0L, null)
         );
 
         // create the index as readonly and associate the ILM policy to it

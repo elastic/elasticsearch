@@ -64,7 +64,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @Input
     @Optional
-    abstract public MapProperty<String, String> getEnvironment();
+    abstract public MapProperty<String, Object> getEnvironment();
 
     @Input
     abstract public Property<String> getExecutable();

@@ -39,6 +39,7 @@ import static java.lang.String.format;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
+    private static final double MAX_DELTA_PROCESSORS = 7E-5;
 
     private final DesiredNodesSettingsValidator settingsValidator;
     private final ClusterStateTaskExecutor<UpdateDesiredNodesTask> taskExecutor;
@@ -100,7 +101,9 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         if (request.isCompatibleWithVersion(minNodeVersion) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
-                    "Unable to use processor ranges or floating-point processors in mixed-clusters with nodes in version: " + minNodeVersion
+                    "Unable to use processor ranges, floating-point (with greater precision) processors "
+                        + "in mixed-clusters with nodes in version: "
+                        + minNodeVersion
                 )
             );
             return;
@@ -124,7 +127,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         );
 
         if (latestDesiredNodes != null) {
-            if (latestDesiredNodes.equals(proposedDesiredNodes)) {
+            if (latestDesiredNodes.equalsWithProcessorsCloseTo(proposedDesiredNodes, MAX_DELTA_PROCESSORS)) {
                 return latestDesiredNodes;
             }
 

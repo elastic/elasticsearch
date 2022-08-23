@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE;
@@ -22,9 +23,11 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DesiredNodeTests extends ESTestCase {
+    public static final double MAX_ERROR = 7E-5;
 
     public void testExternalIdIsRequired() {
         final Settings.Builder settings = Settings.builder();
@@ -58,7 +61,7 @@ public class DesiredNodeTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new DesiredNode(settings, randomInvalidFloatProcessor(), ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
+            () -> new DesiredNode(settings, randomInvalidProcessor(), ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
         );
 
         // Processor ranges
@@ -66,7 +69,7 @@ public class DesiredNodeTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new DesiredNode(
                 settings,
-                new DesiredNode.ProcessorsRange(randomInvalidFloatProcessor(), randomFrom(random(), null, 1.0f)),
+                new DesiredNode.ProcessorsRange(randomInvalidProcessor(), randomFrom(random(), null, 1.0)),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
@@ -76,7 +79,7 @@ public class DesiredNodeTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new DesiredNode(
                 settings,
-                new DesiredNode.ProcessorsRange(randomFloat() + 0.1f, randomInvalidFloatProcessor()),
+                new DesiredNode.ProcessorsRange(randomDouble() + 0.1, randomInvalidProcessor()),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
@@ -86,15 +89,15 @@ public class DesiredNodeTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new DesiredNode(
                 settings,
-                new DesiredNode.ProcessorsRange(randomInvalidFloatProcessor(), randomInvalidFloatProcessor()),
+                new DesiredNode.ProcessorsRange(randomInvalidProcessor(), randomInvalidProcessor()),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
             )
         );
 
-        final var lowerBound = randomFloatBetween(0.1f, 10);
-        final var upperBound = randomFloatBetween(0.01f, lowerBound - Math.ulp(lowerBound));
+        final var lowerBound = randomDoubleBetween(0.1, 10, true);
+        final var upperBound = randomDoubleBetween(0.01, lowerBound - Math.ulp(lowerBound), true);
         expectThrows(
             IllegalArgumentException.class,
             () -> new DesiredNode(
@@ -160,33 +163,33 @@ public class DesiredNodeTests extends ESTestCase {
         {
             final var desiredNode = new DesiredNode(
                 settings,
-                new DesiredNode.ProcessorsRange((float) 0.4, (float) 1.2),
+                new DesiredNode.ProcessorsRange(0.4, 1.2),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
             );
 
-            assertThat(desiredNode.minProcessors(), is(equalTo((float) 0.4)));
+            assertThat(desiredNode.minProcessors().count(), is(equalTo(0.4)));
             assertThat(desiredNode.roundedDownMinProcessors(), is(equalTo(1)));
-            assertThat(desiredNode.maxProcessors(), is(equalTo((float) 1.2)));
+            assertThat(desiredNode.maxProcessors().count(), is(equalTo(1.2)));
             assertThat(desiredNode.roundedUpMaxProcessors(), is(equalTo(2)));
         }
 
         {
-            final var desiredNode = new DesiredNode(settings, 1.2f, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            final var desiredNode = new DesiredNode(settings, 1.2, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
 
-            assertThat(desiredNode.minProcessors(), is(equalTo((float) 1.2)));
+            assertThat(desiredNode.minProcessors().count(), is(equalTo(1.2)));
             assertThat(desiredNode.roundedDownMinProcessors(), is(equalTo(1)));
-            assertThat(desiredNode.maxProcessors(), is(equalTo((float) 1.2)));
+            assertThat(desiredNode.maxProcessors().count(), is(equalTo(1.2)));
             assertThat(desiredNode.roundedUpMaxProcessors(), is(equalTo(2)));
         }
 
         {
             final var desiredNode = new DesiredNode(settings, 1024, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
 
-            assertThat(desiredNode.minProcessors(), is(equalTo((float) 1024)));
+            assertThat(desiredNode.minProcessors().count(), is(equalTo(1024.0)));
             assertThat(desiredNode.roundedDownMinProcessors(), is(equalTo(1024)));
-            assertThat(desiredNode.maxProcessors(), is(equalTo((float) 1024)));
+            assertThat(desiredNode.maxProcessors().count(), is(equalTo(1024.0)));
             assertThat(desiredNode.roundedUpMaxProcessors(), is(equalTo(1024)));
         }
     }
@@ -197,7 +200,7 @@ public class DesiredNodeTests extends ESTestCase {
         {
             final var desiredNode = new DesiredNode(
                 settings,
-                new DesiredNode.ProcessorsRange((float) 0.4, (float) 1.2),
+                new DesiredNode.ProcessorsRange(0.4, 1.2),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
@@ -209,7 +212,7 @@ public class DesiredNodeTests extends ESTestCase {
         {
             final var desiredNode = new DesiredNode(
                 settings,
-                randomIntBetween(0, 10) + randomFloat(),
+                randomIntBetween(0, 10) + randomDouble(),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
@@ -225,16 +228,81 @@ public class DesiredNodeTests extends ESTestCase {
         }
     }
 
-    private Float randomInvalidFloatProcessor() {
-        return randomFrom(0.0f, -1.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY);
+    public void testFloatProcessorsConvertedToDoubleAreCloseToEqual() {
+        final double processorCount = randomNumberOfProcessors();
+        final float processorCountAsFloat = (float) processorCount;
+        final Processors bwcProcessors = new Processors(processorCountAsFloat);
+        final Processors doubleProcessor = new Processors(processorCount);
+        assertThat(DesiredNode.processorsEqualsOrCloseTo(bwcProcessors, doubleProcessor, MAX_ERROR), is(true));
     }
 
-    private float randomFloatBetween(float start, float end) {
-        float result = 0.0f;
-        while (result < start || result > end || Float.isNaN(result)) {
-            result = start + randomFloat() * (end - start);
+    public void testProcessorsAreConsideredDifferentIfTheDifferenceIsGreaterThanMaxError() {
+        // Ensure that (processorCount - MAX_ERROR) is at least the smallest representable processor
+        final double processorCount = Math.max(Math.ulp(0.0) + MAX_ERROR, randomNumberOfProcessors());
+        final Processors processorsA = new Processors(processorCount + MAX_ERROR);
+        final Processors processorsB = new Processors(processorCount - MAX_ERROR);
+        assertThat(DesiredNode.processorsEqualsOrCloseTo(processorsA, processorsB, MAX_ERROR), is(false));
+        assertThat(processorsA.equals(processorsB), is(false));
+    }
+
+    public void testRoundedProcessorsToFloatAreCloseToEqual() {
+        double processorCount = randomNumberOfProcessors();
+        final Processors doubleProcessor = new Processors(processorCount);
+        final Processors floatProcessor = new Processors((float) doubleProcessor.count());
+        assertThat(DesiredNode.processorsEqualsOrCloseTo(doubleProcessor, floatProcessor, MAX_ERROR), is(true));
+    }
+
+    public void testEqualsOrProcessorsCloseTo() {
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
+
+        final double processorCount = randomNumberOfProcessors();
+        final boolean shouldBeConsideredEqual = randomBoolean();
+        final double maxDifferenceBetweenProcessorCounts = shouldBeConsideredEqual ? MAX_ERROR / 2 : MAX_ERROR * 2;
+        final ByteSizeValue memory = ByteSizeValue.ofGb(randomIntBetween(1, 32));
+        final ByteSizeValue storage = ByteSizeValue.ofGb(randomIntBetween(128, 256));
+
+        final DesiredNode desiredNode1;
+        final DesiredNode desiredNode2;
+        if (randomBoolean()) {
+            desiredNode1 = new DesiredNode(
+                settings,
+                processorCount + maxDifferenceBetweenProcessorCounts,
+                memory,
+                storage,
+                Version.CURRENT
+            );
+            desiredNode2 = new DesiredNode(settings, processorCount, memory, storage, Version.CURRENT);
+        } else {
+            final Double maxProcessors = randomBoolean() ? processorCount + randomIntBetween(1, 10) : null;
+
+            final Double maxProcessorsDesiredNode1;
+            if (maxProcessors != null && randomBoolean()) {
+                maxProcessorsDesiredNode1 = maxProcessors + maxDifferenceBetweenProcessorCounts;
+            } else {
+                maxProcessorsDesiredNode1 = maxProcessors;
+            }
+
+            final DesiredNode.ProcessorsRange processorsRange1 = new DesiredNode.ProcessorsRange(
+                processorCount + maxDifferenceBetweenProcessorCounts,
+                maxProcessorsDesiredNode1
+            );
+
+            final DesiredNode.ProcessorsRange processorsRange2 = new DesiredNode.ProcessorsRange(processorCount, maxProcessors);
+
+            desiredNode1 = new DesiredNode(settings, processorsRange1, memory, storage, Version.CURRENT);
+            desiredNode2 = new DesiredNode(settings, processorsRange2, memory, storage, Version.CURRENT);
         }
 
-        return result;
+        assertThat(desiredNode1.equalsWithProcessorsCloseTo(desiredNode2, MAX_ERROR), is(shouldBeConsideredEqual));
+        assertThat(desiredNode1, is(not(equalTo(desiredNode2))));
+    }
+
+    private double randomNumberOfProcessors() {
+        return randomDoubleBetween(Math.ulp(0.0), 512.99999999, true);
+    }
+
+    private Double randomInvalidProcessor() {
+        // 1E-7 is rounded to 0 since we only consider up to 5 decimal places
+        return randomFrom(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
     }
 }

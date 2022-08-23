@@ -52,8 +52,8 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
-import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
-import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.wrapBulkResponse;
+import static org.elasticsearch.action.bulk.BulkRequest.wrap;
+import static org.elasticsearch.action.bulk.TransportBulkAction.toSingleResponse;
 
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
@@ -191,7 +191,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
-                client.bulk(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                client.bulk(wrap(upsertRequest), toSingleResponse(ActionListener.<IndexResponse>wrap(response -> {
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
@@ -230,7 +230,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
-                client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                client.bulk(wrap(indexRequest), toSingleResponse(ActionListener.<IndexResponse>wrap(response -> {
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),
@@ -258,7 +258,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             }
             case DELETED -> {
                 DeleteRequest deleteRequest = result.action();
-                client.bulk(toSingleItemBulkRequest(deleteRequest), wrapBulkResponse(ActionListener.<DeleteResponse>wrap(response -> {
+                client.bulk(wrap(deleteRequest), toSingleResponse(ActionListener.<DeleteResponse>wrap(response -> {
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
                         response.getShardId(),

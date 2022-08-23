@@ -18,6 +18,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
@@ -90,6 +91,16 @@ public class BulkRequest extends ActionRequest
 
     public BulkRequest(@Nullable String globalIndex) {
         this.globalIndex = globalIndex;
+    }
+
+    public static BulkRequest wrap(final ReplicatedWriteRequest<?> request) {
+        final var bulkRequest = new BulkRequest();
+        bulkRequest.add(((DocWriteRequest<?>) request));
+        bulkRequest.setRefreshPolicy(request.getRefreshPolicy());
+        bulkRequest.timeout(request.timeout());
+        bulkRequest.waitForActiveShards(request.waitForActiveShards());
+        request.setRefreshPolicy(RefreshPolicy.NONE);
+        return bulkRequest;
     }
 
     /**

@@ -1369,7 +1369,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    public void createConfiguration() {
+    private void createConfiguration() {
         String nodeName = nameCustomization.apply(safeName(name));
         Map<String, String> baseConfig = new HashMap<>(defaultConfig);
         if (nodeName != null) {

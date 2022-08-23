@@ -157,8 +157,8 @@ testClusters.register("runTask") {
 
 Then customize the run task itself to create different configurations per node. For example, the following will
 instruct the first node (:9200) to be a coordinating only node, and all other nodes to be master, data_hot, data_content
-nodes. Since we are changing the default master node configuration we must also update the initial_master_nodes.
-Finally, we need to "restart" the cluster to pick up the changes. However, note it does not actually start/stop/start
+nodes. Since we are changing the default master node configuration we must also update the default initial_master_nodes.
+Finally, we need to "restart" the cluster to pick up the changes. However, it does not actually start/stop/start
 the cluster since we have not started the cluster yet and this instructs the plugin to update the configuration.
 
 -------------------------------------

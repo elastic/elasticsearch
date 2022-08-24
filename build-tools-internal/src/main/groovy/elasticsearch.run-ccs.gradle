@@ -6,10 +6,9 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
 import org.elasticsearch.gradle.testclusters.RunTask
 
-boolean proxyMode = true;
+boolean proxyMode = Boolean.valueOf(providers.systemProperty('proxyMode').getOrElse('true'))
 
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   setting 'xpack.watcher.enabled', 'false'
@@ -39,12 +38,11 @@ tasks.register("run-ccs", RunTask) {
       if (proxyMode) {
         node.setting('cluster.remote.my_remote_cluster.mode', 'proxy')
         node.setting('cluster.remote.my_remote_cluster.proxy_address', "\"${fc.getAllTransportPortURI().get(0)}\"")
-
       } else {
         node.setting('cluster.remote.my_remote_cluster.seeds', fc.getAllTransportPortURI().collect { "\"$it\"" }.toString())
       }
     }
-    qc.restart()
+    qc.restart() //updates the on-disk config
 
     println "** Querying cluster HTTP endpoints are: ${-> queryingCluster.get().allHttpSocketURI.join(",")}"
     println "** Querying cluster transport endpoints are: ${-> queryingCluster.get().getAllTransportPortURI().join(",")}"

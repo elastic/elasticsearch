@@ -17,6 +17,7 @@ import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -58,10 +59,10 @@ public class FetchProfiler implements FetchPhase.Profiler {
     }
 
     @Override
-    public void visitor(FieldsVisitor fieldsVisitor) {
+    public void logFields(Collection<String> fields) {
         current.debug.put(
             "stored_fields",
-            fieldsVisitor == null ? List.of() : fieldsVisitor.getFieldNames().stream().sorted().collect(toList())
+            fields.stream().sorted().collect(toList())
         );
     }
 

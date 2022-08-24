@@ -303,7 +303,7 @@ public class ProfileService {
             listener.onFailure(e);
             return;
         }
-        doUpdate(buildUpdateRequest(uid, builder, refreshPolicy, -1, -1), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
+        doUpdate(buildUpdateRequest(uid, builder, refreshPolicy), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
     }
 
     // package private for testing
@@ -712,15 +712,17 @@ public class ProfileService {
             buildUpdateRequest(
                 newProfileDocument.uid(),
                 wrapProfileDocumentWithoutApplicationData(newProfileDocument),
-                RefreshPolicy.WAIT_UNTIL,
-                currentVersionedDocument.primaryTerm,
-                currentVersionedDocument.seqNo
+                RefreshPolicy.WAIT_UNTIL
             ),
             listener.map(
                 updateResponse -> new VersionedDocument(newProfileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
                     .toProfile(Set.of())
             )
         );
+    }
+
+    private UpdateRequest buildUpdateRequest(String uid, XContentBuilder builder, RefreshPolicy refreshPolicy) {
+        return buildUpdateRequest(uid, builder, refreshPolicy, -1, -1);
     }
 
     private UpdateRequest buildUpdateRequest(

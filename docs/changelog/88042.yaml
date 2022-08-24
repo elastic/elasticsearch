@@ -1,5 +1,0 @@
-pr: 88042
-summary: Reduce memory usage in field-caps responses
-area: Search
-type: bug
-issues: []

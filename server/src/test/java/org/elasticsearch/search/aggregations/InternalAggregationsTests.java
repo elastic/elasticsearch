@@ -86,13 +86,7 @@ public class InternalAggregationsTests extends ESTestCase {
 
     InternalAggregations toReduce(AtomicLong f1Reduced, AtomicLong f2Reduced, int k1, int k2, int k1k1, int k1k2, int k2k1, int k2k2) {
         class InternalFiltersForF2 extends InternalFilters {
-            InternalFiltersForF2(
-                String name,
-                List<InternalBucket> buckets,
-                boolean keyed,
-                boolean sortable,
-                Map<String, Object> metadata
-            ) {
+            InternalFiltersForF2(String name, List<InternalBucket> buckets, boolean keyed, boolean sortable, Map<String, Object> metadata) {
                 super(name, buckets, keyed, sortable, metadata);
             }
 
@@ -104,13 +98,7 @@ public class InternalAggregationsTests extends ESTestCase {
             }
         }
         class InternalFiltersForF1 extends InternalFilters {
-            InternalFiltersForF1(
-                String name,
-                List<InternalBucket> buckets,
-                boolean keyed,
-                boolean sortable,
-                Map<String, Object> metadata
-            ) {
+            InternalFiltersForF1(String name, List<InternalBucket> buckets, boolean keyed, boolean sortable, Map<String, Object> metadata) {
                 super(name, buckets, keyed, sortable, metadata);
             }
 

@@ -78,7 +78,6 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
         for (int i = from; i < limit; ++i) {
             newBuckets.add(ordered.get(i).internalBucket);
         }
-
         return originalAgg.create(newBuckets);
     }
 

@@ -126,13 +126,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     // bucketMap gets lazily initialized from buckets in getBucketByKey()
     private transient Map<String, InternalBucket> bucketMap;
 
-    public InternalFilters(
-        String name,
-        List<InternalBucket> buckets,
-        boolean keyed,
-        boolean sortable,
-        Map<String, Object> metadata
-    ) {
+    public InternalFilters(String name, List<InternalBucket> buckets, boolean keyed, boolean sortable, Map<String, Object> metadata) {
         super(name, metadata);
         this.buckets = buckets;
         this.keyed = keyed;
@@ -288,9 +282,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         if (super.equals(obj) == false) return false;
 
         InternalFilters that = (InternalFilters) obj;
-        return Objects.equals(buckets, that.buckets)
-            && Objects.equals(keyed, that.keyed)
-            && Objects.equals(sortable, that.sortable);
+        return Objects.equals(buckets, that.buckets) && Objects.equals(keyed, that.keyed) && Objects.equals(sortable, that.sortable);
     }
 
 }

@@ -1,6 +1,0 @@
-pr: 86982
-summary: Implement support for partial search results in SQL CLI
-area: SQL
-type: enhancement
-issues:
- - 86082

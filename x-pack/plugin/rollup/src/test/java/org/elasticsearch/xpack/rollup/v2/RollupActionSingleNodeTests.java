@@ -143,7 +143,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        sourceIndex = getTestName().toLowerCase(Locale.ROOT) + "-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);
         rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
         docCount = randomIntBetween(10, 9000);

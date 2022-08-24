@@ -28,6 +28,7 @@ space. There are a couple of restrictions to be aware of:
 * Synthetic `_source` can be used with indices that contain only these field
 types:
 
+** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
 ** <<boolean-synthetic-source,`boolean`>>
 ** <<numeric-synthetic-source,`byte`>>
 ** <<numeric-synthetic-source,`double`>>

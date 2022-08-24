@@ -77,7 +77,7 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
         BertTokenization tokenization = new BertTokenization(false, true, 384, Tokenization.Truncate.NONE, 128);
         BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, tokenization).build();
         QuestionAnsweringConfig config = new QuestionAnsweringConfig(question, 1, 10, new VocabularyConfig(""), tokenization, "prediction");
-        QuestionAnsweringProcessor processor = new QuestionAnsweringProcessor(tokenizer, config);
+        QuestionAnsweringProcessor processor = new QuestionAnsweringProcessor(tokenizer);
         TokenizationResult tokenizationResult = processor.getRequestBuilder(config)
             .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128)
             .tokenization();

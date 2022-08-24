@@ -12,8 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizationResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
@@ -105,8 +103,7 @@ public class FillMaskProcessorTests extends ESTestCase {
 
         BertTokenizer tokenizer = mock(BertTokenizer.class);
         when(tokenizer.getMaskToken()).thenReturn("[MASK]");
-        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
-        FillMaskProcessor processor = new FillMaskProcessor(tokenizer, config);
+        FillMaskProcessor processor = new FillMaskProcessor(tokenizer);
 
         ValidationException e = expectThrows(ValidationException.class, () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("no [MASK] token could be found"));
@@ -118,8 +115,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         BertTokenizer tokenizer = mock(BertTokenizer.class);
         when(tokenizer.getMaskToken()).thenReturn("[MASK]");
 
-        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
-        FillMaskProcessor processor = new FillMaskProcessor(tokenizer, config);
+        FillMaskProcessor processor = new FillMaskProcessor(tokenizer);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("only one [MASK] token should exist in the input"));

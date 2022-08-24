@@ -25,9 +25,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -146,20 +144,13 @@ public class DiskUsageTests extends ESTestCase {
         assertEquals(test1Path.getParent().getParent().getParent().toAbsolutePath().toString(), routingToPath.get(test_1));
     }
 
-    public void testFillDiskUsage() {
-        Map<String, DiskUsage> newLeastAvaiableUsages = new HashMap<>();
-        Map<String, DiskUsage> newMostAvaiableUsages = new HashMap<>();
-        FsInfo.Path[] node1FSInfo = new FsInfo.Path[] {
-            new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
-            new FsInfo.Path("/least", "/dev/sdb", 200, 190, 70),
-            new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
-        FsInfo.Path[] node2FSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", 100, 90, 80), };
-
-        FsInfo.Path[] node3FSInfo = new FsInfo.Path[] {
-            new FsInfo.Path("/least", "/dev/sda", 100, 90, 70),
-            new FsInfo.Path("/most", "/dev/sda", 100, 90, 80), };
-        List<NodeStats> nodeStats = Arrays.asList(
-            new NodeStats(
+    public void testLeastAndMostAvailableDiskSpace() {
+        {
+            FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] {
+                new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
+                new FsInfo.Path("/least", "/dev/sdb", 200, 190, 70),
+                new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
+            NodeStats nodeStats = new NodeStats(
                 new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 0,
                 null,
@@ -167,7 +158,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new FsInfo(0, null, node1FSInfo),
+                new FsInfo(0, null, nodeFSInfo),
                 null,
                 null,
                 null,
@@ -177,8 +168,16 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null
-            ),
-            new NodeStats(
+            );
+            DiskUsage leastNode = DiskUsage.findLeastAvailablePath(nodeStats);
+            DiskUsage mostNode = DiskUsage.findMostAvailable(nodeStats);
+            assertDiskUsage(mostNode, nodeFSInfo[2]);
+            assertDiskUsage(leastNode, nodeFSInfo[1]);
+        }
+
+        {
+            FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", 100, 90, 80), };
+            NodeStats nodeStats = new NodeStats(
                 new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 0,
                 null,
@@ -186,7 +185,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new FsInfo(0, null, node2FSInfo),
+                new FsInfo(0, null, nodeFSInfo),
                 null,
                 null,
                 null,
@@ -196,8 +195,18 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null
-            ),
-            new NodeStats(
+            );
+            DiskUsage leastNode = DiskUsage.findLeastAvailablePath(nodeStats);
+            DiskUsage mostNode = DiskUsage.findMostAvailable(nodeStats);
+            assertDiskUsage(leastNode, nodeFSInfo[0]);
+            assertDiskUsage(mostNode, nodeFSInfo[0]);
+        }
+
+        {
+            FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] {
+                new FsInfo.Path("/least", "/dev/sda", 100, 90, 70),
+                new FsInfo.Path("/most", "/dev/sda", 100, 90, 80), };
+            NodeStats nodeStats = new NodeStats(
                 new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 0,
                 null,
@@ -205,7 +214,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new FsInfo(0, null, node3FSInfo),
+                new FsInfo(0, null, nodeFSInfo),
                 null,
                 null,
                 null,
@@ -215,39 +224,22 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null
-            )
-        );
-        InternalClusterInfoService.fillDiskUsagePerNode(nodeStats, newLeastAvaiableUsages, newMostAvaiableUsages);
-        DiskUsage leastNode_1 = newLeastAvaiableUsages.get("node_1");
-        DiskUsage mostNode_1 = newMostAvaiableUsages.get("node_1");
-        assertDiskUsage(mostNode_1, node1FSInfo[2]);
-        assertDiskUsage(leastNode_1, node1FSInfo[1]);
-
-        DiskUsage leastNode_2 = newLeastAvaiableUsages.get("node_2");
-        DiskUsage mostNode_2 = newMostAvaiableUsages.get("node_2");
-        assertDiskUsage(leastNode_2, node2FSInfo[0]);
-        assertDiskUsage(mostNode_2, node2FSInfo[0]);
-
-        DiskUsage leastNode_3 = newLeastAvaiableUsages.get("node_3");
-        DiskUsage mostNode_3 = newMostAvaiableUsages.get("node_3");
-        assertDiskUsage(leastNode_3, node3FSInfo[0]);
-        assertDiskUsage(mostNode_3, node3FSInfo[1]);
+            );
+            DiskUsage leastNode = DiskUsage.findLeastAvailablePath(nodeStats);
+            DiskUsage mostNode = DiskUsage.findMostAvailable(nodeStats);
+            assertDiskUsage(leastNode, nodeFSInfo[0]);
+            assertDiskUsage(mostNode, nodeFSInfo[1]);
+        }
     }
 
-    public void testFillDiskUsageSomeInvalidValues() {
-        Map<String, DiskUsage> newLeastAvailableUsages = new HashMap<>();
-        Map<String, DiskUsage> newMostAvailableUsages = new HashMap<>();
-        FsInfo.Path[] node1FSInfo = new FsInfo.Path[] {
-            new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
-            new FsInfo.Path("/least", "/dev/sdb", -1, -1, -1),
-            new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
-        FsInfo.Path[] node2FSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", -1, -1, -1), };
+    public void testLeastAndMostAvailableDiskSpaceSomeInvalidValues() {
+        {
+            FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] {
+                new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
+                new FsInfo.Path("/least", "/dev/sdb", -1, -1, -1),
+                new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
 
-        FsInfo.Path[] node3FSInfo = new FsInfo.Path[] {
-            new FsInfo.Path("/most", "/dev/sda", 100, 90, 70),
-            new FsInfo.Path("/least", "/dev/sda", 10, -1, 0), };
-        List<NodeStats> nodeStats = Arrays.asList(
-            new NodeStats(
+            NodeStats nodeStats = new NodeStats(
                 new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 0,
                 null,
@@ -255,7 +247,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new FsInfo(0, null, node1FSInfo),
+                new FsInfo(0, null, nodeFSInfo),
                 null,
                 null,
                 null,
@@ -265,8 +257,17 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null
-            ),
-            new NodeStats(
+            );
+            DiskUsage leastNode = DiskUsage.findLeastAvailablePath(nodeStats);
+            DiskUsage mostNode = DiskUsage.findMostAvailable(nodeStats);
+            assertNull("node_1 should have been skipped", leastNode);
+            assertDiskUsage(mostNode, nodeFSInfo[2]);
+
+        }
+
+        {
+            FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", -1, -1, -1), };
+            NodeStats nodeStats = new NodeStats(
                 new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 0,
                 null,
@@ -274,7 +275,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new FsInfo(0, null, node2FSInfo),
+                new FsInfo(0, null, nodeFSInfo),
                 null,
                 null,
                 null,
@@ -284,8 +285,18 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null
-            ),
-            new NodeStats(
+            );
+            DiskUsage leastNode = DiskUsage.findLeastAvailablePath(nodeStats);
+            DiskUsage mostNode = DiskUsage.findMostAvailable(nodeStats);
+            assertNull("node_2 should have been skipped", leastNode);
+            assertNull("node_2 should have been skipped", mostNode);
+        }
+
+        {
+            FsInfo.Path[] node3FSInfo = new FsInfo.Path[] {
+                new FsInfo.Path("/most", "/dev/sda", 100, 90, 70),
+                new FsInfo.Path("/least", "/dev/sda", 10, -1, 0), };
+            NodeStats nodeStats = new NodeStats(
                 new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 0,
                 null,
@@ -303,23 +314,13 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 null
-            )
-        );
-        InternalClusterInfoService.fillDiskUsagePerNode(nodeStats, newLeastAvailableUsages, newMostAvailableUsages);
-        DiskUsage leastNode_1 = newLeastAvailableUsages.get("node_1");
-        DiskUsage mostNode_1 = newMostAvailableUsages.get("node_1");
-        assertNull("node1 should have been skipped", leastNode_1);
-        assertDiskUsage(mostNode_1, node1FSInfo[2]);
+            );
 
-        DiskUsage leastNode_2 = newLeastAvailableUsages.get("node_2");
-        DiskUsage mostNode_2 = newMostAvailableUsages.get("node_2");
-        assertNull("node2 should have been skipped", leastNode_2);
-        assertNull("node2 should have been skipped", mostNode_2);
-
-        DiskUsage leastNode_3 = newLeastAvailableUsages.get("node_3");
-        DiskUsage mostNode_3 = newMostAvailableUsages.get("node_3");
-        assertDiskUsage(leastNode_3, node3FSInfo[1]);
-        assertDiskUsage(mostNode_3, node3FSInfo[0]);
+            DiskUsage leastNode = DiskUsage.findLeastAvailablePath(nodeStats);
+            DiskUsage mostNode = DiskUsage.findMostAvailable(nodeStats);
+            assertDiskUsage(leastNode, node3FSInfo[1]);
+            assertDiskUsage(mostNode, node3FSInfo[0]);
+        }
     }
 
     private void assertDiskUsage(DiskUsage usage, FsInfo.Path path) {

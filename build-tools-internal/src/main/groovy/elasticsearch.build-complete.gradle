@@ -23,7 +23,7 @@ if (buildNumber && performanceTest == null) {
         fileset(dir: projectDir) {
           Set<File> fileSet = fileTree(projectDir) {
             include("**/*.hprof")
-            include("**/reaper.log")
+            include(".gradle/reaper/**")
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
             exclude("**/build/testclusters/**/data/**")

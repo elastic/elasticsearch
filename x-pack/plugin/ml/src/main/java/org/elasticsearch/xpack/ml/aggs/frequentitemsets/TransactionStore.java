@@ -86,6 +86,10 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
             return new IdIterator(startIndex);
         }
 
+        public long getItemIdAt(long index) {
+            return sortedItems.get(index);
+        }
+
         public long size() {
             return sortedItems.size();
         }
@@ -344,15 +348,6 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
      */
     public TopItemIds getTopItemIds() {
         return getTopItemIds(getItems().size());
-    }
-
-    /**
-     * Get a traverser object to traverse top items
-     *
-     * @return a top item traverser
-     */
-    public ItemSetTraverser getTopItemIdTraverser() {
-        return new ItemSetTraverser(getTopItemIds());
     }
 
     /**

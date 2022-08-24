@@ -44,10 +44,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
 
     ZeroShotClassificationProcessor(NlpTokenizer tokenizer, ZeroShotClassificationConfig config) {
         super(tokenizer);
-        List<String> lowerCased = config.getClassificationLabels()
-            .stream()
-            .map(s -> s.toLowerCase(Locale.ROOT))
-            .collect(Collectors.toList());
+        List<String> lowerCased = config.getClassificationLabels().stream().map(s -> s.toLowerCase(Locale.ROOT)).toList();
         this.entailmentPos = lowerCased.indexOf("entailment");
         this.contraPos = lowerCased.indexOf("contradiction");
         if (entailmentPos == -1 || contraPos == -1) {

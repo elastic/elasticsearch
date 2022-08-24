@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Query;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -574,7 +576,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-
         context.path().add(simpleName());
         XContentParser.Token token;
         XContentSubParser subParser = null;
@@ -674,5 +675,96 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).metric(metricType).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (ignoreMalformed) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
+            );
+        }
+        return new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics);
+    }
+
+    public static class AggregateMetricSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String name;
+        private final String simpleName;
+        private final EnumSet<Metric> metrics;
+
+        protected AggregateMetricSyntheticFieldLoader(String name, String simpleName, EnumSet<Metric> metrics) {
+            this.name = name;
+            this.simpleName = simpleName;
+            this.metrics = metrics;
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
+            for (Metric m : metrics) {
+                String fieldName = subfieldName(name, m);
+                SortedNumericDocValues dv = NumberFieldMapper.NumericSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
+                if (dv != null) {
+                    metricDocValues.put(m, dv);
+                }
+            }
+
+            if (metricDocValues.isEmpty()) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+
+            return new AggregateMetricSyntheticFieldLoader.ImmediateLeaf(metricDocValues);
+        }
+
+        private class ImmediateLeaf implements Leaf {
+            private final Map<Metric, SortedNumericDocValues> metricDocValues;
+            private final Set<Metric> metricHasValue = EnumSet.noneOf(Metric.class);
+
+            ImmediateLeaf(Map<Metric, SortedNumericDocValues> metricDocValues) {
+                assert metricDocValues.isEmpty() == false : "doc_values for metrics cannot be empty";
+                this.metricDocValues = metricDocValues;
+            }
+
+            @Override
+            public boolean empty() {
+                return false;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                // It is required that all defined metrics must exist. In this case
+                // it is enough to check for the first docValue. However, in the future
+                // we may relax the requirement of all metrics existing. In this case
+                // we should check the doc value for each metric separately
+                metricHasValue.clear();
+                for (Map.Entry<Metric, SortedNumericDocValues> e : metricDocValues.entrySet()) {
+                    if (e.getValue().advanceExact(docId)) {
+                        metricHasValue.add(e.getKey());
+                    }
+                }
+
+                return metricHasValue.isEmpty() == false;
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (metricHasValue.isEmpty()) {
+                    return;
+                }
+                b.startObject(simpleName);
+                for (Map.Entry<Metric, SortedNumericDocValues> entry : metricDocValues.entrySet()) {
+                    if (metricHasValue.contains(entry.getKey())) {
+                        String metricName = entry.getKey().name();
+                        long value = entry.getValue().nextValue();
+                        if (entry.getKey() == Metric.value_count) {
+                            b.field(metricName, value);
+                        } else {
+                            b.field(metricName, NumericUtils.sortableLongToDouble(value));
+                        }
+                    }
+                }
+                b.endObject();
+            }
+        }
     }
 }

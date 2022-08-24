@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,6 +24,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetCollector.FrequentItemSet;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopItemIds;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.AbstractItemSetMapReducer;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 
@@ -338,8 +338,6 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
         final long totalTransactionCount = transactionStore.getTotalTransactionCount();
         Map<String, Object> profilingInfo = null;
         long minCount = (long) Math.ceil(totalTransactionCount * minimumSupport);
-        FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, size, minCount);
-        long numberOfSetsChecked = 0;
 
         if (profilingInfoReduce != null) {
             profilingInfo = new LinkedHashMap<>(profilingInfoReduce);
@@ -347,8 +345,10 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
         }
 
         try (
+            TopItemIds topItemIds = transactionStore.getTopItemIds();
             CountingItemSetTraverser setTraverser = new CountingItemSetTraverser(
                 transactionStore,
+                topItemIds,
                 BITSET_CACHE_TRAVERSAL_DEPTH,
                 (int) Math.min(MAX_BITSET_CACHE_NUMBER_OF_TRANSACTIONS, totalTransactionCount),
                 minCount
@@ -360,7 +360,8 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                 minCount,
                 transactionStore.getTotalItemCount()
             );
-
+            FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, topItemIds, size, minCount);
+            long numberOfSetsChecked = 0;
             long previousMinCount = 0;
 
             while (setTraverser.next(minCount)) {
@@ -402,8 +403,11 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                     if (setTraverser.atLeaf()
                         && setTraverser.hasBeenVisited() == false
                         && setTraverser.getCount() >= minCount
-                        && setTraverser.getItemSet().length >= minimumSetSize) {
-                        minCount = collector.add(setTraverser.getItemSet(), setTraverser.getCount());
+                        && setTraverser.getItemSetBitSet().cardinality() >= minimumSetSize) {
+
+                        logger.trace("add after prune");
+
+                        minCount = collector.add(setTraverser.getItemSetBitSet(), setTraverser.getCount());
                         // no need to set visited, as we are on a leaf
                     }
 
@@ -418,19 +422,17 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                  *
                  * iff the count of the subset is higher, collect
                  */
-                if (setTraverser.hasPredecessorBeenVisited() == false
-                    && setTraverser.getItemSet().length > minimumSetSize
-                    && setTraverser.getCount() < setTraverser.getPreviousCount()) {
+                if (setTraverser.hasParentBeenVisited() == false
+                    && setTraverser.getItemSetBitSet().cardinality() > minimumSetSize
+                    && setTraverser.getCount() < setTraverser.getParentCount()) {
                     // add the set without the last item
 
-                    LongsRef subItemSet = setTraverser.getItemSet().clone();
-                    subItemSet.length--;
-                    minCount = collector.add(subItemSet, setTraverser.getPreviousCount());
+                    minCount = collector.add(setTraverser.getParentItemSetBitSet(), setTraverser.getParentCount());
                 }
 
                 // closed set criteria: the predecessor is no longer of interest: either we reported in the previous step or we found a
                 // super set
-                setTraverser.setPredecessorVisited();
+                setTraverser.setParentVisited();
 
                 /**
                  * Iff the traverser reached a leaf, the item set can not be further expanded, e.g. we reached [f]:
@@ -445,8 +447,8 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                  *
                  * Note: this also covers the last item, e.g. [a, x, y]
                  */
-                if (setTraverser.atLeaf() && setTraverser.getItemSet().length >= minimumSetSize) {
-                    minCount = collector.add(setTraverser.getItemSet(), setTraverser.getCount());
+                if (setTraverser.atLeaf() && setTraverser.getItemSetBitSet().cardinality() >= minimumSetSize) {
+                    minCount = collector.add(setTraverser.getItemSetBitSet(), setTraverser.getCount());
                     // no need to set visited, as we are on a leaf
                 }
 

@@ -251,3 +251,55 @@ The search returns the following hit. The value of the `default_metric` field,
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+
+ifeval::["{release-state}"=="unreleased"]
+[[aggregate-metric-double-synthetic-source]]
+==== Synthetic source
+`aggregate_metric-double` fields support <<synthetic-source,synthetic `_source`>> in their default
+configuration. Synthetic `_source` cannot be used together with <<ignore-malformed,`ignore_malformed`>>.
+
+For example:
+[source,console,id=synthetic-source-aggregate-metric-double-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "agg_metric": {
+        "type": "aggregate_metric_double",
+        "metrics": [ "min", "max", "sum", "value_count" ],
+        "default_metric": "max"
+      }
+    }
+  }
+}
+
+PUT idx/_doc/1
+{
+  "agg_metric": {
+    "min": -302.50,
+    "max": 702.30,
+    "sum": 200.0,
+    "value_count": 25
+  }
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "agg_metric": {
+    "min": -302.50,
+    "max": 702.30,
+    "sum": 200.0,
+    "value_count": 25
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+endif::[]

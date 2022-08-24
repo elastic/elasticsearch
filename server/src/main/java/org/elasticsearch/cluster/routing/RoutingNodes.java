@@ -146,7 +146,12 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                 }
             }
         }
+        assert invariant();
+    }
+
+    private boolean invariant() {
         nodesToShards.values().forEach(RoutingNode::invariant);
+        return true;
     }
 
     private RoutingNodes(RoutingNodes routingNodes) {

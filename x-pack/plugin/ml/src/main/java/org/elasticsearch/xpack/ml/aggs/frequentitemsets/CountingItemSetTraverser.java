@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopItemIds;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,6 +32,7 @@ import java.util.Arrays;
  *          if [a, b] is not in T, [a, b, c] can not be in T either
  */
 class CountingItemSetTraverser implements Releasable {
+    private static final Logger logger = LogManager.getLogger(CountingItemSetTraverser.class);
 
     // start size and size increment for the occurences stack
     private static final int OCCURENCES_SIZE_INCREMENT = 10;
@@ -48,13 +51,19 @@ class CountingItemSetTraverser implements Releasable {
     // growable bit set from java util
     private java.util.BitSet visited;
 
-    CountingItemSetTraverser(TransactionStore transactionStore, int cacheTraversalDepth, int cacheNumberOfTransactions, long minCount) {
+    CountingItemSetTraverser(
+        TransactionStore transactionStore,
+        TopItemIds topItemIds,
+        int cacheTraversalDepth,
+        int cacheNumberOfTransactions,
+        long minCount
+    ) {
         this.transactionStore = transactionStore;
 
         boolean success = false;
         try {
             // we allocate 2 big arrays, if the 2nd allocation fails, ensure we clean up
-            this.topItemSetTraverser = transactionStore.getTopItemIdTraverser();
+            this.topItemSetTraverser = new ItemSetTraverser(topItemIds);
             this.topTransactionIds = transactionStore.getTopTransactionIds();
             success = true;
         } finally {
@@ -80,11 +89,15 @@ class CountingItemSetTraverser implements Releasable {
         final long totalTransactionCount = transactionStore.getTotalTransactionCount();
 
         int depth = topItemSetTraverser.getNumberOfItems();
+        long occurencesOfSingleItem = transactionStore.getItemCount(topItemSetTraverser.getItemId());
+
         if (depth == 1) {
             // at the 1st level, we can take the count directly from the transaction store
-            occurencesStack[0] = transactionStore.getItemCount(topItemSetTraverser.getItemId());
+            occurencesStack[0] = occurencesOfSingleItem;
             return true;
-
+        } else if (occurencesOfSingleItem < earlyStopMinCount) {
+            rememberCountInStack(depth, occurencesOfSingleItem);
+            return true;
             // till a certain depth store results in a cache matrix
         } else if (depth < cacheTraversalDepth) {
             // get the cached skip count
@@ -187,7 +200,7 @@ class CountingItemSetTraverser implements Releasable {
     /**
      * Get the count of the item set without the last item
      */
-    public long getPreviousCount() {
+    public long getParentCount() {
         if (topItemSetTraverser.getNumberOfItems() > 1) {
             return occurencesStack[topItemSetTraverser.getNumberOfItems() - 2];
         }
@@ -201,7 +214,7 @@ class CountingItemSetTraverser implements Releasable {
         return true;
     }
 
-    public boolean hasPredecessorBeenVisited() {
+    public boolean hasParentBeenVisited() {
         if (topItemSetTraverser.getNumberOfItems() > 1) {
             return visited.get(topItemSetTraverser.getNumberOfItems() - 2);
         }
@@ -214,7 +227,7 @@ class CountingItemSetTraverser implements Releasable {
         }
     }
 
-    public void setPredecessorVisited() {
+    public void setParentVisited() {
         if (topItemSetTraverser.getNumberOfItems() > 1) {
             visited.set(topItemSetTraverser.getNumberOfItems() - 2);
         }
@@ -228,10 +241,15 @@ class CountingItemSetTraverser implements Releasable {
     }
 
     /**
-     * Get the current item set
+     *
+     * Get a bitset representation of the current item set
      */
-    public LongsRef getItemSet() {
-        return topItemSetTraverser.getItemSet();
+    public ItemSetBitSet getItemSetBitSet() {
+        return topItemSetTraverser.getItemSetBitSet();
+    }
+
+    public ItemSetBitSet getParentItemSetBitSet() {
+        return topItemSetTraverser.getParentItemSetBitSet();
     }
 
     /**
@@ -250,7 +268,7 @@ class CountingItemSetTraverser implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(topItemSetTraverser, topTransactionIds);
+        Releasables.close(topTransactionIds);
     }
 
     // remember the count in the stack without tracking push and pop

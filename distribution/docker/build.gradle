@@ -487,3 +487,8 @@ subprojects { Project subProject ->
     }
   }
 }
+
+tasks.named('resolveAllDependencies') {
+  // Don't try and resolve filebeat or metricbeat snapshots as they may not always be available
+  configs = configurations.matching { it.name.endsWith('beat') == false }
+}

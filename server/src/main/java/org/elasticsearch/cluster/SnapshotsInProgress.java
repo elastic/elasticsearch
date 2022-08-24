@@ -732,7 +732,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 failure,
                 userMetadata,
                 version,
-                null,
+                (SnapshotId) null,
                 Map.of()
             );
         }
@@ -781,13 +781,49 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     assert existing == null || existing.equals(index) : "Conflicting indices [" + existing + "] and [" + index + "]";
                     byRepoShardIdBuilder.put(new RepositoryShardId(indexId, shardId.id()), entry.getValue());
                 }
-                this.shardStatusByRepoShardId = Collections.unmodifiableMap(byRepoShardIdBuilder);
-                this.snapshotIndices = Collections.unmodifiableMap(res);
+                this.shardStatusByRepoShardId = Map.copyOf(byRepoShardIdBuilder);
+                this.snapshotIndices = Map.copyOf(res);
             } else {
                 assert shards.isEmpty();
                 this.shardStatusByRepoShardId = shardStatusByRepoShardId;
                 this.snapshotIndices = Map.of();
             }
+            assert assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.shardStatusByRepoShardId);
+        }
+
+        private Entry(
+            Snapshot snapshot,
+            boolean includeGlobalState,
+            boolean partial,
+            State state,
+            Map<String, IndexId> indices,
+            List<String> dataStreams,
+            List<SnapshotFeatureInfo> featureStates,
+            long startTime,
+            long repositoryStateId,
+            Map<ShardId, ShardSnapshotStatus> shards,
+            String failure,
+            Map<String, Object> userMetadata,
+            Version version,
+            Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId,
+            Map<String, Index> snapshotIndices
+        ) {
+            this.state = state;
+            this.snapshot = snapshot;
+            this.includeGlobalState = includeGlobalState;
+            this.partial = partial;
+            this.indices = Map.copyOf(indices);
+            this.dataStreams = List.copyOf(dataStreams);
+            this.featureStates = List.copyOf(featureStates);
+            this.startTime = startTime;
+            this.shards = shards;
+            this.repositoryStateId = repositoryStateId;
+            this.failure = failure;
+            this.userMetadata = userMetadata == null ? null : Map.copyOf(userMetadata);
+            this.version = version;
+            this.source = null;
+            this.shardStatusByRepoShardId = Map.copyOf(shardStatusByRepoShardId);
+            this.snapshotIndices = snapshotIndices;
             assert assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.shardStatusByRepoShardId);
         }
 
@@ -1456,17 +1492,38 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public Entry apply(Entry part) {
+            final var updatedIndices = indexByIndexNameDiff.apply(part.indices);
+            final var updatedStateByShard = shardsByShardIdDiff.apply(part.shards);
+            if (part.source == null && updatedIndices == part.indices && updatedStateByShard == part.shards) {
+                return new Entry(
+                    part.snapshot,
+                    part.includeGlobalState,
+                    part.partial,
+                    updatedState,
+                    updatedIndices,
+                    updatedDataStreams == null ? part.dataStreams : updatedDataStreams,
+                    part.featureStates,
+                    part.startTime,
+                    updatedRepositoryStateId,
+                    updatedStateByShard,
+                    updatedFailure,
+                    part.userMetadata,
+                    part.version,
+                    part.shardStatusByRepoShardId,
+                    part.snapshotIndices
+                );
+            }
             return new Entry(
                 part.snapshot,
                 part.includeGlobalState,
                 part.partial,
                 updatedState,
-                indexByIndexNameDiff.apply(part.indices),
+                updatedIndices,
                 updatedDataStreams == null ? part.dataStreams : updatedDataStreams,
                 part.featureStates,
                 part.startTime,
                 updatedRepositoryStateId,
-                shardsByShardIdDiff.apply(part.shards),
+                updatedStateByShard,
                 updatedFailure,
                 part.userMetadata,
                 part.version,

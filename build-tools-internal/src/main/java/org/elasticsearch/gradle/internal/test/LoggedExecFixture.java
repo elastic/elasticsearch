@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.test;
 import groovy.lang.Closure;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.tools.ant.taskdefs.condition.Os;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileSystemOperations;
@@ -37,6 +36,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -46,7 +46,6 @@ public abstract class LoggedExecFixture extends DefaultTask {
 
     private final TaskProvider<LoggedExecFixtureStop> stopTask;
     private final ProjectLayout projectLayout;
-    private final FileSystemOperations fileSystemOperations;
     private WorkerExecutor workerExecutor;
 
     @Input
@@ -60,9 +59,6 @@ public abstract class LoggedExecFixture extends DefaultTask {
     @Input
     abstract public Property<String> getExecutable();
 
-    @Input
-    abstract public Property<File> getWorkingDir();
-
     @Internal
     abstract public Property<Integer> getMaxWaitInSeconds();
 
@@ -70,12 +66,10 @@ public abstract class LoggedExecFixture extends DefaultTask {
     abstract public Property<Boolean> getSpawn();
 
     @Inject
-    public LoggedExecFixture(ProjectLayout projectLayout, FileSystemOperations fileSystemOperations, WorkerExecutor workerExecutor) {
+    public LoggedExecFixture(ProjectLayout projectLayout, WorkerExecutor workerExecutor) {
         this.projectLayout = projectLayout;
-        this.fileSystemOperations = fileSystemOperations;
         this.workerExecutor = workerExecutor;
         getMaxWaitInSeconds().convention(30);
-        getWorkingDir().set(getCwd());
         // getCleanSpec().convention(spec -> {
         // spec.delete(getPidFile());
         // spec.delete(getWorkingDir().get());
@@ -98,7 +92,7 @@ public abstract class LoggedExecFixture extends DefaultTask {
     public void exec() {
         WorkQueue workQueue = workerExecutor.noIsolation();
         workQueue.submit(RunExecFixture.class, parameters -> {
-            parameters.getWorkingDir().set(getWorkingDir().get());
+            parameters.getWorkingDir().set(getCwd());
             parameters.getArgs().set(getArgs().get().stream().map(arg -> arg.toString()).collect(Collectors.toList()));
             parameters.getExecutable().set(getExecutable().get().toString());
             Map<String, String> effectiveEnv = new HashMap<>();
@@ -191,22 +185,12 @@ public abstract class LoggedExecFixture extends DefaultTask {
         }
     }
 
-    /** Returns a file that wraps around the actual command when {@code spawn == true}. */
-    @Internal
-    protected File getWrapperScript() {
-        return new File(getCwd(), Os.isFamily(Os.FAMILY_WINDOWS) ? "run.bat" : "run");
+    public void args(Object... args) {
+        args(List.of(args));
     }
 
-    /** Returns a file that the wrapper script writes when the command failed. */
-    @Internal
-    protected File getFailureMarker() {
-        return new File(getCwd(), "run.failed");
-    }
-
-    /** Returns a file that the wrapper script writes when the command failed. */
-    @Internal
-    protected File getRunLog() {
-        return new File(getCwd(), "run.log");
+    public void args(List<Object> args) {
+        getArgs().addAll(args);
     }
 
     @FunctionalInterface

@@ -90,6 +90,9 @@ public class DfsPhase {
             if (source != null && source.knnSearch() != null) {
                 SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
                 KnnSearchBuilder knnSearch = source.knnSearch();
+                if (context.request().getAliasFilter().getQueryBuilder() != null) {
+                    knnSearch.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
+                }
 
                 QueryBuilder queryBuilder = knnSearch.toQueryBuilder();
                 ParsedQuery query = searchExecutionContext.toQuery(queryBuilder);

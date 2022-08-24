@@ -12,44 +12,74 @@ import groovy.lang.Closure;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.tools.ant.taskdefs.condition.Os;
-import org.elasticsearch.gradle.LoggedExec;
-import org.gradle.api.Action;
+import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
-import org.gradle.api.Task;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.process.ExecOperations;
+import org.gradle.workers.WorkAction;
+import org.gradle.workers.WorkParameters;
+import org.gradle.workers.WorkQueue;
+import org.gradle.workers.WorkerExecutor;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-public abstract class LoggedExecFixture extends LoggedExec {
+public abstract class LoggedExecFixture extends DefaultTask {
 
     private final TaskProvider<LoggedExecFixtureStop> stopTask;
+    private final ProjectLayout projectLayout;
+    private final FileSystemOperations fileSystemOperations;
+    private WorkerExecutor workerExecutor;
+
+    @Input
+    @Optional
+    abstract public ListProperty<Object> getArgs();
+
+    @Input
+    @Optional
+    abstract public MapProperty<String, Object> getEnvironment();
+
+    @Input
+    abstract public Property<String> getExecutable();
+
+    @Input
+    abstract public Property<File> getWorkingDir();
 
     @Internal
     abstract public Property<Integer> getMaxWaitInSeconds();
 
+    @Internal
+    abstract public Property<Boolean> getSpawn();
+
     @Inject
-    public LoggedExecFixture(ProjectLayout projectLayout, ExecOperations execOperations, FileSystemOperations fileSystemOperations) {
-        super(projectLayout, execOperations, fileSystemOperations);
+    public LoggedExecFixture(ProjectLayout projectLayout, FileSystemOperations fileSystemOperations, WorkerExecutor workerExecutor) {
+        this.projectLayout = projectLayout;
+        this.fileSystemOperations = fileSystemOperations;
+        this.workerExecutor = workerExecutor;
         getMaxWaitInSeconds().convention(30);
         getWorkingDir().set(getCwd());
-        getCleanSpec().convention(spec -> {
-            System.out.println("getWorkingDir().get() = " + getWorkingDir().get());
-            spec.delete(getPidFile());
-            spec.delete(getWorkingDir().get());
-        });
-        getIndentingConsoleOutput().set(getName());
+        // getCleanSpec().convention(spec -> {
+        // spec.delete(getPidFile());
+        // spec.delete(getWorkingDir().get());
+        // });
         getWaitingCondition().convention((fixture) -> {
             try {
                 URL url = new URL("http://" + fixture.getAddressAndPort());
@@ -61,24 +91,38 @@ public abstract class LoggedExecFixture extends LoggedExec {
             }
             return true;
         });
-        doLast(new Action<Task>() {
-            @Override
-            public void execute(Task task) {
-                long end = System.currentTimeMillis() + getMaxWaitInSeconds().get() * 1000;
-                while (System.currentTimeMillis() < end && callWaitingCondition() == false) {
-                    try {
-                        Thread.sleep(300);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                if (callWaitingCondition() == false) {
-                    throw new GradleException("Timeout waiting for " + getPath() + " waiting condition fullfilled.");
-                }
-            }
-        });
-
         stopTask = createStopTask();
+    }
+
+    @TaskAction
+    public void exec() {
+        WorkQueue workQueue = workerExecutor.noIsolation();
+        workQueue.submit(RunExecFixture.class, parameters -> {
+            parameters.getWorkingDir().set(getWorkingDir().get());
+            parameters.getArgs().set(getArgs().get().stream().map(arg -> arg.toString()).collect(Collectors.toList()));
+            parameters.getExecutable().set(getExecutable().get().toString());
+            Map<String, String> effectiveEnv = new HashMap<>();
+            getEnvironment().get().entrySet().forEach(entry -> effectiveEnv.put(entry.getKey().toString(), entry.getValue().toString()));
+            effectiveEnv.replaceAll((s, o) -> o.toString());
+            parameters.getEnvironment().set(effectiveEnv);
+        });
+        if (getSpawn().convention(true).get()) {
+            doWaitForFixture();
+        }
+    }
+
+    private void doWaitForFixture() {
+        long end = System.currentTimeMillis() + getMaxWaitInSeconds().get() * 1000;
+        while (System.currentTimeMillis() < end && callWaitingCondition() == false) {
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        if (callWaitingCondition() == false) {
+            throw new GradleException("Timeout waiting for " + getPath() + " waiting condition fullfilled.");
+        }
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */
@@ -172,5 +216,43 @@ public abstract class LoggedExecFixture extends LoggedExec {
 
     public void waitingCondition(Closure<Boolean> waitingConditionClosure) {
         getWaitingCondition().set(fixture -> waitingConditionClosure.call(fixture));
+    }
+
+    public abstract static class RunExecFixture implements WorkAction<RunExecFixtureParameters> {
+
+        private ExecOperations execOperations;
+        private FileSystemOperations fileSystemOperations;
+
+        @Inject
+        public RunExecFixture(ExecOperations execOperations, FileSystemOperations fileSystemOperations) {
+            this.execOperations = execOperations;
+            this.fileSystemOperations = fileSystemOperations;
+        }
+
+        @Override
+        public void execute() {
+            execOperations.exec(execSpec -> {
+                execSpec.setExecutable(getParameters().getExecutable().get());
+                execSpec.setEnvironment(getParameters().getEnvironment().get());
+                if (getParameters().getArgs().isPresent()) {
+                    execSpec.setArgs(getParameters().getArgs().get());
+                }
+                if (getParameters().getWorkingDir().isPresent()) {
+                    File workingDir = getParameters().getWorkingDir().get().getAsFile();
+                    workingDir.mkdirs();
+                    execSpec.setWorkingDir(workingDir);
+                }
+            });
+        }
+    }
+
+    public interface RunExecFixtureParameters extends WorkParameters {
+        RegularFileProperty getWorkingDir();
+
+        ListProperty<String> getArgs();
+
+        MapProperty<String, Object> getEnvironment();
+
+        Property<String> getExecutable();
     }
 }

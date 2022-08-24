@@ -30,11 +30,22 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.client.internal.Requests.putRepositoryRequest;
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
 
+/**
+ * This Action is the reserved state save version of RestPutRepositoryAction/RestDeleteRepositoryAction
+ * <p>
+ * It is used by the ReservedClusterStateService to add/update or remove snapshot repositories. Typical usage
+ * for this action is in the context of file based settings.
+ */
 public class ReservedRepositoryAction implements ReservedClusterStateHandler<List<PutRepositoryRequest>> {
     public static final String NAME = "snapshot_repositories";
 
     private final RepositoriesService repositoriesService;
 
+    /**
+     * Creates a ReservedRepositoryAction
+     *
+     * @param repositoriesService requires RepositoriesService for the cluster state operations
+     */
     public ReservedRepositoryAction(RepositoriesService repositoriesService) {
         this.repositoriesService = repositoriesService;
     }
@@ -50,7 +61,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
 
         for (var repositoryRequest : repositories) {
             validate(repositoryRequest);
-            repositoriesService.validateRepository(repositoryRequest, new ActionListener<AcknowledgedResponse>() {
+            repositoriesService.validateRepository(repositoryRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
 

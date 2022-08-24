@@ -185,7 +185,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
 
         submitUnbatchedTask("put_repository [" + request.name() + "]", new RegisterRepositoryTask(this, request, acknowledgementStep) {
-
             @Override
             public void onFailure(Exception e) {
                 logger.warn(() -> "failed to create repository [" + request.name() + "]", e);
@@ -213,6 +212,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
     }
 
+    /**
+     * Task class that extracts the 'execute' part of the functionality for registering
+     * repositories.
+     */
     public static class RegisterRepositoryTask extends AckedClusterStateUpdateTask {
         protected boolean found = false;
         protected boolean changed = false;
@@ -230,6 +233,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             this.request = request;
         }
 
+        /**
+         * Constructor used by {@link org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction}
+         * @param repositoriesService
+         * @param request
+         */
         public RegisterRepositoryTask(final RepositoriesService repositoriesService, final PutRepositoryRequest request) {
             this(repositoriesService, request, null);
         }
@@ -277,6 +285,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
+    /**
+     * Ensures that we can create the repository and that it's creation actually works
+     * <p>
+     * This verification method will create and then close the repository we want to create.
+     *
+     * @param request
+     * @param listener
+     */
     public void validateRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
         final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
         validate(request.name());
@@ -390,6 +406,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
     }
 
+    /**
+     * Task class that extracts the 'execute' part of the functionality for unregistering
+     * repositories.
+     */
     public static class UnregisterRepositoryTask extends AckedClusterStateUpdateTask {
         protected final List<String> deletedRepositories = new ArrayList<>();
         private final DeleteRepositoryRequest request;
@@ -399,6 +419,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             this.request = request;
         }
 
+        /**
+         * Constructor used by {@link org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction}
+         * @param name the repository name
+         */
         public UnregisterRepositoryTask(String name) {
             this(new DeleteRepositoryRequest(name), null);
         }

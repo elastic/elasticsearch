@@ -604,7 +604,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     loaders.add(loader);
                 }
             }
-            return docId -> {
+            if (loaders.isEmpty()) {
+                return null;
+            }
+            return new ObjectDocValuesLoader(loaders);
+        }
+
+        private class ObjectDocValuesLoader implements DocValuesLoader {
+            private final List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> loaders;
+
+            private ObjectDocValuesLoader(List<DocValuesLoader> loaders) {
+                this.loaders = loaders;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
                 for (SourceLoader.SyntheticFieldLoader.DocValuesLoader docValueLoader : loaders) {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);
                     hasValue |= leafHasValue;
@@ -616,7 +630,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                  * stored field.
                  */
                 return hasValue;
-            };
+            }
         }
 
         @Override

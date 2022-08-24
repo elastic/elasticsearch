@@ -108,7 +108,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";
             }
         } else if (jdk.getVendor().equals(VENDOR_OPENJDK)) {
-            repoUrl = "https://download.java.net";
+            repoUrl = "https://download.oracle.com";
             if (jdk.getHash() != null) {
                 // current pattern since 12.0.1
                 artifactPattern = "java/GA/jdk"

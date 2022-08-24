@@ -13,6 +13,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -91,7 +94,11 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
-        ClusterState state = ClusterState.builder(clusterName).build();
+        List<RepositoryMetadata> repositoriesMetadata = List.of(new RepositoryMetadata("repo", "fs", Settings.EMPTY));
+
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata));
+        ClusterState state = ClusterState.builder(clusterName).metadata(mdBuilder).build();
 
         ReservedSnapshotAction action = new ReservedSnapshotAction();
 

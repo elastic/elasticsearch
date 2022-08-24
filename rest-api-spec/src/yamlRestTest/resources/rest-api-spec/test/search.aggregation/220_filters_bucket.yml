@@ -150,7 +150,7 @@ setup:
           aggs:
             the_filter:
               filters:
-                keyed_bucket_in_array: true
+                sortable: true
                 filters:
                   first_filter:
                     match:

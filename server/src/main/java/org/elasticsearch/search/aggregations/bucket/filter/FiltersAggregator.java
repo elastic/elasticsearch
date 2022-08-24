@@ -53,7 +53,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
-    public static final ParseField KEYED_BUCKET_IN_ARRAY = new ParseField("keyed_bucket_in_array");
+    public static final ParseField SORTABLE = new ParseField("sortable");
 
     public static class KeyedFilter implements Writeable, ToXContentFragment {
         private final String key;
@@ -129,7 +129,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         List<QueryToFilterAdapter> filters,
         boolean keyed,
         String otherBucketKey,
-        boolean keyedBucketInArray,
+        boolean sortable,
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
@@ -139,7 +139,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             new FilterByFilterAggregator.AdapterBuilder<FilterByFilterAggregator>(
                 name,
                 keyed,
-                keyedBucketInArray,
+                sortable,
                 otherBucketKey,
                 context,
                 parent,
@@ -165,7 +165,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             factories,
             filters,
             keyed,
-            keyedBucketInArray,
+            sortable,
             otherBucketKey,
             context,
             parent,
@@ -176,7 +176,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
     private final List<QueryToFilterAdapter> filters;
     private final boolean keyed;
-    private final boolean keyedBucketInArray;
+    private final boolean sortable;
     protected final String otherBucketKey;
 
     FiltersAggregator(
@@ -184,7 +184,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         AggregatorFactories factories,
         List<QueryToFilterAdapter> filters,
         boolean keyed,
-        boolean keyedBucketInArray,
+        boolean sortable,
         String otherBucketKey,
         AggregationContext aggCtx,
         Aggregator parent,
@@ -194,7 +194,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         super(name, factories, aggCtx, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
         this.filters = List.copyOf(filters);
         this.keyed = keyed;
-        this.keyedBucketInArray = keyedBucketInArray;
+        this.sortable = sortable;
         this.otherBucketKey = otherBucketKey;
     }
 
@@ -218,7 +218,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                 }
                 return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed);
             },
-            buckets -> new InternalFilters(name, buckets, keyed, keyedBucketInArray, metadata())
+            buckets -> new InternalFilters(name, buckets, keyed, sortable, metadata())
         );
     }
 
@@ -236,7 +236,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
 
-        return new InternalFilters(name, buckets, keyed, keyedBucketInArray, metadata());
+        return new InternalFilters(name, buckets, keyed, sortable, metadata());
     }
 
     @Override
@@ -265,14 +265,14 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             AggregatorFactories factories,
             List<QueryToFilterAdapter> filters,
             boolean keyed,
-            boolean keyedBucketInArray,
+            boolean sortable,
             String otherBucketKey,
             AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, factories, filters, keyed, keyedBucketInArray, otherBucketKey, context, parent, cardinality, metadata);
+            super(name, factories, filters, keyed, sortable, otherBucketKey, context, parent, cardinality, metadata);
             if (otherBucketKey == null) {
                 this.totalNumKeys = filters.size();
             } else {

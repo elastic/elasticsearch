@@ -90,10 +90,10 @@ public class InternalAggregationsTests extends ESTestCase {
                 String name,
                 List<InternalBucket> buckets,
                 boolean keyed,
-                boolean keyedBucketInArray,
+                boolean sortable,
                 Map<String, Object> metadata
             ) {
-                super(name, buckets, keyed, keyedBucketInArray, metadata);
+                super(name, buckets, keyed, sortable, metadata);
             }
 
             public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
@@ -108,10 +108,10 @@ public class InternalAggregationsTests extends ESTestCase {
                 String name,
                 List<InternalBucket> buckets,
                 boolean keyed,
-                boolean keyedBucketInArray,
+                boolean sortable,
                 Map<String, Object> metadata
             ) {
-                super(name, buckets, keyed, keyedBucketInArray, metadata);
+                super(name, buckets, keyed, sortable, metadata);
             }
 
             public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {

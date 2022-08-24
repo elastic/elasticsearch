@@ -62,7 +62,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
             factory.otherBucketKey(randomAlphaOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {
-            factory.keyedBucketInArray(randomBoolean());
+            factory.sortable(randomBoolean());
         }
         return factory;
     }

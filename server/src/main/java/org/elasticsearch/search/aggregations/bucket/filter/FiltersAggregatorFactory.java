@@ -26,7 +26,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
     private final boolean keyed;
     private final boolean otherBucket;
     private final String otherBucketKey;
-    private final boolean keyedBucketInArray;
+    private final boolean sortable;
 
     public FiltersAggregatorFactory(
         String name,
@@ -34,7 +34,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         boolean keyed,
         boolean otherBucket,
         String otherBucketKey,
-        boolean keyedBucketInArray,
+        boolean sortable,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactories,
@@ -44,7 +44,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         this.keyed = keyed;
         this.otherBucket = otherBucket;
         this.otherBucketKey = otherBucketKey;
-        this.keyedBucketInArray = keyedBucketInArray;
+        this.sortable = sortable;
         this.filters = new ArrayList<>(filters.size());
         for (KeyedFilter f : filters) {
             this.filters.add(QueryToFilterAdapter.build(context.searcher(), f.key(), context.buildQuery(f.filter())));
@@ -60,7 +60,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
             filters,
             keyed,
             otherBucket ? otherBucketKey : null,
-            keyedBucketInArray,
+            sortable,
             context,
             parent,
             cardinality,

@@ -47,7 +47,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         private final String name;
         private final List<QueryToFilterAdapter> filters = new ArrayList<>();
         private final boolean keyed;
-        private final boolean keyedBucketInArray;
+        private final boolean sortable;
         private final AggregationContext aggCtx;
         private final Aggregator parent;
         private final CardinalityUpperBound cardinality;
@@ -58,7 +58,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         public AdapterBuilder(
             String name,
             boolean keyed,
-            boolean keyedBucketInArray,
+            boolean sortable,
             String otherBucketKey,
             AggregationContext aggCtx,
             Aggregator parent,
@@ -67,7 +67,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         ) throws IOException {
             this.name = name;
             this.keyed = keyed;
-            this.keyedBucketInArray = keyedBucketInArray;
+            this.sortable = sortable;
             this.aggCtx = aggCtx;
             this.parent = parent;
             this.cardinality = cardinality;
@@ -148,7 +148,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
                         subAggregators,
                         filters,
                         keyed,
-                        keyedBucketInArray,
+                        sortable,
                         aggCtx,
                         parent,
                         cardinality,
@@ -215,13 +215,13 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         AggregatorFactories factories,
         List<QueryToFilterAdapter> filters,
         boolean keyed,
-        boolean keyedBucketInArray,
+        boolean sortable,
         AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, filters, keyed, keyedBucketInArray, null, aggCtx, parent, cardinality, metadata);
+        super(name, factories, filters, keyed, sortable, null, aggCtx, parent, cardinality, metadata);
     }
 
     /**

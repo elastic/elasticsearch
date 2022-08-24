@@ -1,5 +1,5 @@
 pr: 89256
-summary: Add keyed_bucket_in_array parameter to allow user change return type when named filters aggs with bucket sort
+summary: Add sortable parameter to filters agg, allowing the user to modify the return type of named filters agg
 area: Aggregations
 type: enhancement
 issues:

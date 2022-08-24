@@ -122,7 +122,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     private final List<InternalBucket> buckets;
     private final boolean keyed;
-    private final boolean keyedBucketInArray;
+    private final boolean sortable;
     // bucketMap gets lazily initialized from buckets in getBucketByKey()
     private transient Map<String, InternalBucket> bucketMap;
 
@@ -130,13 +130,13 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         String name,
         List<InternalBucket> buckets,
         boolean keyed,
-        boolean keyedBucketInArray,
+        boolean sortable,
         Map<String, Object> metadata
     ) {
         super(name, metadata);
         this.buckets = buckets;
         this.keyed = keyed;
-        this.keyedBucketInArray = keyedBucketInArray;
+        this.sortable = sortable;
     }
 
     /**
@@ -145,7 +145,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     public InternalFilters(StreamInput in) throws IOException {
         super(in);
         keyed = in.readBoolean();
-        keyedBucketInArray = in.getVersion().onOrAfter(Version.V_8_5_0) ? in.readBoolean() : false;
+        sortable = in.getVersion().onOrAfter(Version.V_8_5_0) ? in.readBoolean() : false;
         int size = in.readVInt();
         List<InternalBucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -159,7 +159,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
         if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
-            out.writeBoolean(keyedBucketInArray);
+            out.writeBoolean(sortable);
         }
         out.writeList(buckets);
     }
@@ -171,7 +171,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     @Override
     public InternalFilters create(List<InternalBucket> buckets) {
-        return new InternalFilters(name, buckets, keyed, keyedBucketInArray, metadata);
+        return new InternalFilters(name, buckets, keyed, sortable, metadata);
     }
 
     @Override
@@ -216,7 +216,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         }
 
         reduceContext.consumeBucketsAndMaybeBreak(bucketsList.size());
-        InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, keyedBucketInArray, getMetadata());
+        InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, sortable, getMetadata());
         for (List<InternalBucket> sameRangeList : bucketsList) {
             reduced.buckets.add(reduceBucket(sameRangeList, reduceContext));
         }
@@ -229,7 +229,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             name,
             buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
             keyed,
-            keyedBucketInArray,
+            sortable,
             getMetadata()
         );
     }
@@ -253,14 +253,14 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (keyed && keyedBucketInArray == false) {
+        if (keyed && sortable == false) {
             builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
             builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
 
         for (InternalBucket bucket : buckets) {
-            if (keyedBucketInArray) {
+            if (sortable) {
                 builder.startObject();
                 bucket.toXContent(builder, params);
                 builder.endObject();
@@ -268,7 +268,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
                 bucket.toXContent(builder, params);
             }
         }
-        if (keyed && keyedBucketInArray == false) {
+        if (keyed && sortable == false) {
             builder.endObject();
         } else {
             builder.endArray();
@@ -278,7 +278,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), buckets, keyed, keyedBucketInArray);
+        return Objects.hash(super.hashCode(), buckets, keyed, sortable);
     }
 
     @Override
@@ -290,7 +290,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         InternalFilters that = (InternalFilters) obj;
         return Objects.equals(buckets, that.buckets)
             && Objects.equals(keyed, that.keyed)
-            && Objects.equals(keyedBucketInArray, that.keyedBucketInArray);
+            && Objects.equals(sortable, that.sortable);
     }
 
 }

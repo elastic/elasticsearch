@@ -1,0 +1,6 @@
+pr: 89573
+summary: Validate trained model deployment `queue_capacity` limit
+area: Machine Learning
+type: bug
+issues:
+ - 89555

@@ -45,7 +45,7 @@ public class SqlPluginTests extends ESTestCase {
             ),
             hasSize(3)
         );
-        assertThat(plugin.getActions(), hasSize(8));
+        assertThat(plugin.getActions(), hasSize(9));
         assertThat(
             plugin.getRestHandlers(
                 Settings.EMPTY,

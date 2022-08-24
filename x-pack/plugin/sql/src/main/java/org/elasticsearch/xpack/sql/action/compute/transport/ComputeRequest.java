@@ -7,32 +7,35 @@
 
 package org.elasticsearch.xpack.sql.action.compute.transport;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
-import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
+import org.elasticsearch.xpack.sql.action.compute.planner.PlanNode;
 
 import java.util.function.Consumer;
 
-public class ComputeRequest extends SingleShardRequest<ComputeRequest> {
+public class ComputeRequest extends ActionRequest implements IndicesRequest {
 
-    public QueryBuilder query; // FROM clause (+ additional pushed down filters)
-    public Aggs aggs;
-    public long nowInMillis;
-
+    private final PlanNode plan;
     private final Consumer<Page> pageConsumer; // quick hack to stream responses back
 
     public ComputeRequest(StreamInput in) {
         throw new UnsupportedOperationException();
     }
 
-    public ComputeRequest(String index, QueryBuilder query, Aggs aggs, Consumer<Page> pageConsumer) {
-        super(index);
-        this.query = query;
-        this.aggs = aggs;
+    public ComputeRequest(PlanNode plan, Consumer<Page> pageConsumer) {
+        super();
+        this.plan = plan;
         this.pageConsumer = pageConsumer;
+    }
+
+    public static ComputeRequest fromXContent(XContentParser parser) {
+
+        return new ComputeRequest(null);
     }
 
     @Override
@@ -40,15 +43,21 @@ public class ComputeRequest extends SingleShardRequest<ComputeRequest> {
         return null;
     }
 
-    public QueryBuilder query() {
-        return query;
-    }
-
-    public void query(QueryBuilder query) {
-        this.query = query;
+    public PlanNode plan() {
+        return plan;
     }
 
     public Consumer<Page> getPageConsumer() {
         return pageConsumer;
+    }
+
+    @Override
+    public String[] indices() {
+        return plan.getIndices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.LENIENT_EXPAND_OPEN;
     }
 }

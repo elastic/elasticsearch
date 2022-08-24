@@ -14,33 +14,55 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 /**
  * A plan is represented as a tree / digraph of nodes. There are different node types, each representing a different type of computation
  */
 public abstract class PlanNode implements ToXContentObject {
 
+    public abstract List<PlanNode> getSourceNodes();
+
+    public String[] getIndices() {
+        final Set<String> indices = new LinkedHashSet<>();
+        getPlanNodesMatching(planNode -> planNode instanceof LuceneSourceNode).forEach(
+            planNode -> indices.addAll(Arrays.asList(((LuceneSourceNode) planNode).indices))
+        );
+        return indices.toArray(String[]::new);
+    }
+
     public static class LuceneSourceNode extends PlanNode {
         final Query query;
         final Parallelism parallelism;
+        final String[] indices;
 
-        public LuceneSourceNode(Query query, Parallelism parallelism) {
+        public LuceneSourceNode(Query query, Parallelism parallelism, String... indices) {
             this.query = query;
             this.parallelism = parallelism;
+            this.indices = indices;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("kind", "lucene-source");
+            builder.field("indices", Arrays.toString(indices));
             builder.field("query", query.toString());
             builder.field("parallelism", parallelism);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public List<PlanNode> getSourceNodes() {
+            return List.of();
         }
 
         public enum Parallelism {
@@ -67,6 +89,11 @@ public abstract class PlanNode implements ToXContentObject {
             builder.field("source", source);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public List<PlanNode> getSourceNodes() {
+            return Arrays.asList(source);
         }
     }
 
@@ -97,6 +124,11 @@ public abstract class PlanNode implements ToXContentObject {
             builder.field("source", source);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public List<PlanNode> getSourceNodes() {
+            return Arrays.asList(source);
         }
 
         public interface AggType extends ToXContent {
@@ -149,6 +181,11 @@ public abstract class PlanNode implements ToXContentObject {
             return builder;
         }
 
+        @Override
+        public List<PlanNode> getSourceNodes() {
+            return sources;
+        }
+
         public enum Type {
             GATHER, // gathering results from various sources (1:n)
             REPARTITION, // repartitioning results from various sources (n:m)
@@ -181,13 +218,18 @@ public abstract class PlanNode implements ToXContentObject {
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public List<PlanNode> getSourceNodes() {
+            return Arrays.asList(source);
+        }
     }
 
     /**
      * returns a fluent builder which allows creating a simple chain of plan nodes (bottom-up).
      */
-    public static Builder builder(Query query, LuceneSourceNode.Parallelism parallelism) {
-        return new Builder(new LuceneSourceNode(query, parallelism));
+    public static Builder builder(Query query, LuceneSourceNode.Parallelism parallelism, String... indices) {
+        return new Builder(new LuceneSourceNode(query, parallelism, indices));
     }
 
     public static class Builder {
@@ -252,5 +294,20 @@ public abstract class PlanNode implements ToXContentObject {
             return new OutputNode(current, pageConsumer);
         }
 
+        public PlanNode buildWithoutOutputNode() {
+            return current;
+        }
+
+    }
+
+    public List<PlanNode> getPlanNodesMatching(Predicate<PlanNode> planNodePredicate) {
+        List<PlanNode> matchingNodes = new ArrayList<>();
+        if (planNodePredicate.test(this)) {
+            matchingNodes.add(this);
+        }
+        for (PlanNode planNode : getSourceNodes()) {
+            matchingNodes.addAll(planNode.getPlanNodesMatching(planNodePredicate));
+        }
+        return matchingNodes;
     }
 }

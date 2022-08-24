@@ -142,13 +142,17 @@ public class Driver implements Runnable {
     }
 
     public static void runToCompletion(Executor executor, List<Driver> drivers) {
+        start(executor, drivers).actionGet();
+    }
+
+    public static ListenableActionFuture<Void> start(Executor executor, List<Driver> drivers) {
         TimeValue maxTime = TimeValue.timeValueMillis(200);
         int maxIterations = 10000;
         List<ListenableActionFuture<Void>> futures = new ArrayList<>();
         for (Driver driver : drivers) {
             futures.add(schedule(maxTime, maxIterations, executor, driver));
         }
-        Driver.allOf(futures).actionGet();
+        return Driver.allOf(futures);
     }
 
     private static ListenableActionFuture<Void> schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver) {

@@ -1309,7 +1309,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 } else {
                     converted = true;
                     Object foldedValue = exp.fold();
-                    if (DataTypes.isDateTime(inType) && DataTypes.isString(exp.dataType())) {
+                    if (couldBeTimestampRange(inType, exp.dataType())) {
                         try {
                             // try date math first
                             Tuple<Long, Long> range = DateFieldMapper.DateFieldType.toTimestampRange(
@@ -1393,11 +1393,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return predicate;
             }
             Object rightValue = predicate.right().fold();
-            if (rightValue == null && predicate instanceof NullEquals) {
-                return new IsNull(predicate.source(), predicate.left());
-            } else if (rightValue != null) {
+            if (rightValue != null) {
                 try {
-                    if (DataTypes.isDateTime(predicate.left().dataType()) && DataTypes.isString(predicate.right().dataType())) {
+                    if (couldBeTimestampRange(predicate.left().dataType(), predicate.right().dataType())) {
                         Tuple<Long, Long> range = DateFieldMapper.DateFieldType.toTimestampRange(
                             rightValue,
                             rightValue,
@@ -1453,7 +1451,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 try {
                     Object lowerValue = range.lower().fold();
 
-                    if (range.value().dataType() == DataTypes.DATETIME && DataTypes.isString(range.lower().dataType())) {
+                    if (couldBeTimestampRange(range.value().dataType(), range.lower().dataType())) {
                         // handle date math
                         Tuple<Long, Long> lowerRange = DateFieldMapper.DateFieldType.toTimestampRange(
                             lowerValue,
@@ -1481,7 +1479,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (DataTypes.areCompatible(range.value().dataType(), range.upper().dataType()) == false && range.upper().foldable()) {
                 try {
                     Object upperValue = range.upper().fold();
-                    if (range.value().dataType() == DataTypes.DATETIME && DataTypes.isString(range.upper().dataType())) {
+                    if (couldBeTimestampRange(range.value().dataType(), range.upper().dataType())) {
                         // handle date math
                         Tuple<Long, Long> upperRange = DateFieldMapper.DateFieldType.toTimestampRange(
                             upperValue,
@@ -1507,7 +1505,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return range;
         }
 
-        private Expression tryCast(Expression original, Object foldedValue, DataType targetType) {
+        private static Expression tryCast(Expression original, Object foldedValue, DataType targetType) {
             if (SqlDataTypeConverter.canConvert(original.dataType(), targetType) == false) {
                 return original;
             }
@@ -1518,6 +1516,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
         }
 
+        private boolean couldBeTimestampRange(DataType left, DataType right) {
+            return DataTypes.isDateTime(left) && DataTypes.isString(right);
+        }
     }
 
     abstract static class OptimizerBasicRule extends Rule<LogicalPlan, LogicalPlan> {

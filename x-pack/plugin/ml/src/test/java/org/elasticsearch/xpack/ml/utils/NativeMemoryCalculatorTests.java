@@ -22,10 +22,10 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.autoscaling.MlMemoryAutoscalingCapacity;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 
 import java.net.InetAddress;
@@ -107,15 +107,15 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
 
                     NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(bytesForML, bytesForML, jvmSize);
 
-                    AutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true, Long.MAX_VALUE, 1);
+                    MlMemoryAutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true, Long.MAX_VALUE, 1).build();
                     // We don't allow node sizes below 1GB, so we will always be at least that large
                     // Also, allow 1 byte off for weird rounding issues
                     assertThat(
-                        capacity.node().memory().getBytes(),
+                        capacity.nodeSize().getBytes(),
                         greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
                     );
                     assertThat(
-                        capacity.total().memory().getBytes(),
+                        capacity.tierSize().getBytes(),
                         greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
                     );
                 }

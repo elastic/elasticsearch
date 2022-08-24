@@ -781,8 +781,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     assert existing == null || existing.equals(index) : "Conflicting indices [" + existing + "] and [" + index + "]";
                     byRepoShardIdBuilder.put(new RepositoryShardId(indexId, shardId.id()), entry.getValue());
                 }
-                this.shardStatusByRepoShardId = Map.copyOf(byRepoShardIdBuilder);
-                this.snapshotIndices = Map.copyOf(res);
+                this.shardStatusByRepoShardId = Collections.unmodifiableMap(byRepoShardIdBuilder);
+                this.snapshotIndices = Collections.unmodifiableMap(res);
             } else {
                 assert shards.isEmpty();
                 this.shardStatusByRepoShardId = shardStatusByRepoShardId;
@@ -820,7 +820,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 RepositoryShardId::new,
                 ShardSnapshotStatus::readFrom
             );
-            final List<SnapshotFeatureInfo> featureStates = Collections.unmodifiableList(in.readList(SnapshotFeatureInfo::new));
+            final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
             return new SnapshotsInProgress.Entry(
                 snapshot,
                 includeGlobalState,

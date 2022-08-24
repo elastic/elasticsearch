@@ -1,6 +1,0 @@
-pr: 88875
-summary: Fix renaming data streams with CCR replication
-area: "Data streams"
-type: bug
-issues:
- - 81751

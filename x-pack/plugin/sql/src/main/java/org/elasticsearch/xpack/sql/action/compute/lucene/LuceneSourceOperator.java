@@ -40,6 +40,7 @@ public class LuceneSourceOperator implements Operator {
 
     @Nullable
     private final IndexReader indexReader;
+    private final int shardId;
     @Nullable
     private final Query query;
     private final List<PartialLeafReaderContext> leaves;
@@ -57,12 +58,13 @@ public class LuceneSourceOperator implements Operator {
 
     private int currentScorerPos;
 
-    public LuceneSourceOperator(IndexReader reader, Query query) {
-        this(reader, query, PAGE_SIZE);
+    public LuceneSourceOperator(IndexReader reader, int shardId, Query query) {
+        this(reader, shardId, query, PAGE_SIZE);
     }
 
-    public LuceneSourceOperator(IndexReader reader, Query query, int maxPageSize) {
+    public LuceneSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize) {
         this.indexReader = reader;
+        this.shardId = shardId;
         this.leaves = reader.leaves().stream().map(PartialLeafReaderContext::new).collect(Collectors.toList());
         this.query = query;
         this.maxPageSize = maxPageSize;
@@ -70,8 +72,9 @@ public class LuceneSourceOperator implements Operator {
         currentPage = new int[maxPageSize];
     }
 
-    private LuceneSourceOperator(Weight weight, List<PartialLeafReaderContext> leaves, int maxPageSize) {
+    private LuceneSourceOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize) {
         this.indexReader = null;
+        this.shardId = shardId;
         this.leaves = leaves;
         this.query = null;
         this.weight = weight;
@@ -111,7 +114,7 @@ public class LuceneSourceOperator implements Operator {
 
         List<LuceneSourceOperator> operators = new ArrayList<>();
         for (List<PartialLeafReaderContext> slice : docSlices(indexReader, numSlices)) {
-            operators.add(new LuceneSourceOperator(weight, slice, maxPageSize));
+            operators.add(new LuceneSourceOperator(weight, shardId, slice, maxPageSize));
         }
         return operators;
     }
@@ -122,7 +125,7 @@ public class LuceneSourceOperator implements Operator {
 
     private static List<List<PartialLeafReaderContext>> docSlices(IndexReader indexReader, int numSlices) {
         final int totalDocCount = indexReader.maxDoc();
-        final int maxDocsPerSlice = (totalDocCount / numSlices) + 1;
+        final int maxDocsPerSlice = totalDocCount % numSlices == 0 ? totalDocCount / numSlices : (totalDocCount / numSlices) + 1;
 
         final List<List<PartialLeafReaderContext>> slices = new ArrayList<>();
         int docsAllocatedInCurrentSlice = 0;
@@ -131,7 +134,7 @@ public class LuceneSourceOperator implements Operator {
             int minDoc = 0;
             int numDocsInLeaf = ctx.reader().maxDoc();
             while (minDoc < numDocsInLeaf) {
-                int numDocsToUse = Math.min(maxDocsPerSlice - docsAllocatedInCurrentSlice, numDocsInLeaf);
+                int numDocsToUse = Math.min(maxDocsPerSlice - docsAllocatedInCurrentSlice, numDocsInLeaf - minDoc);
                 if (numDocsToUse <= 0) {
                     break;
                 }
@@ -151,6 +154,9 @@ public class LuceneSourceOperator implements Operator {
         if (currentSlice != null) {
             slices.add(currentSlice);
         }
+        if (slices.size() != numSlices) {
+            throw new IllegalStateException("wrong number of slices, expected " + numSlices + " but got " + slices.size());
+        }
         return slices;
     }
 
@@ -167,6 +173,7 @@ public class LuceneSourceOperator implements Operator {
             operators.add(
                 new LuceneSourceOperator(
                     weight,
+                    shardId,
                     Arrays.asList(leafSlice.leaves).stream().map(PartialLeafReaderContext::new).collect(Collectors.toList()),
                     maxPageSize
                 )
@@ -230,7 +237,8 @@ public class LuceneSourceOperator implements Operator {
                 page = new Page(
                     currentPagePos,
                     new IntBlock(Arrays.copyOf(currentPage, currentPagePos), currentPagePos),
-                    new ConstantIntBlock(currentPagePos, currentLeafReaderContext.leafReaderContext.ord)
+                    new ConstantIntBlock(currentPagePos, currentLeafReaderContext.leafReaderContext.ord),
+                    new ConstantIntBlock(currentPagePos, shardId)
                 );
                 currentPagePos = 0;
             }

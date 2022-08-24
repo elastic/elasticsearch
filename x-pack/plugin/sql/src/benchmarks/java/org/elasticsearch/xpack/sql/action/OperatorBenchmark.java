@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.sql.action.compute.data.Block;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.sql.action.compute.operator.LongTransformerOperat
 import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 import org.elasticsearch.xpack.sql.action.compute.operator.PageConsumerOperator;
 import org.elasticsearch.xpack.sql.action.compute.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.sql.action.compute.planner.LocalExecutionPlanner.IndexReaderReference;
 import org.elasticsearch.xpack.sql.action.compute.planner.PlanNode;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -287,7 +289,7 @@ public class OperatorBenchmark {
     private int runWithDriver(int pageSize, Operator... operators) {
         AtomicInteger rowCount = new AtomicInteger();
         List<Operator> operatorList = new ArrayList<>();
-        operatorList.add(new LuceneSourceOperator(indexReader, new MatchAllDocsQuery(), pageSize));
+        operatorList.add(new LuceneSourceOperator(indexReader, 0, new MatchAllDocsQuery(), pageSize));
         operatorList.addAll(List.of(operators));
         operatorList.add(new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())));
         Driver driver = new Driver(operatorList, () -> {});
@@ -299,8 +301,8 @@ public class OperatorBenchmark {
     public long testVisitAllNumbersBatched4K() {
         return runWithDriver(
             ByteSizeValue.ofKb(4).bytesAsInt(),
-            new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
-            new SimpleXOROperator(2)
+            new NumericDocValuesExtractor(indexReader, 0, 1, 2, "value"),
+            new SimpleXOROperator(3)
         );
     }
 
@@ -308,8 +310,8 @@ public class OperatorBenchmark {
     public long testVisitAllNumbersBatched16K() {
         return runWithDriver(
             ByteSizeValue.ofKb(16).bytesAsInt(),
-            new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
-            new SimpleXOROperator(2)
+            new NumericDocValuesExtractor(indexReader, 0, 1, 2, "value"),
+            new SimpleXOROperator(3)
         );
     }
 
@@ -327,9 +329,9 @@ public class OperatorBenchmark {
     public long testOperatorsWithLucene() {
         return runWithDriver(
             ByteSizeValue.ofKb(16).bytesAsInt(),
-            new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
-            new LongGroupingOperator(2, BigArrays.NON_RECYCLING_INSTANCE),
-            new LongMaxOperator(3), // returns largest group number
+            new NumericDocValuesExtractor(indexReader, 0, 1, 2, "value"),
+            new LongGroupingOperator(3, BigArrays.NON_RECYCLING_INSTANCE),
+            new LongMaxOperator(4), // returns largest group number
             new LongTransformerOperator(0, i -> i + 1) // adds +1 to group number (which start with 0) to get group count
         );
     }
@@ -337,7 +339,9 @@ public class OperatorBenchmark {
     @Benchmark
     public long testLongAvgSingleThreadedAvg() {
         return run(
-            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SINGLE).numericDocValues("value").avg("value")
+            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SINGLE, "test")
+                .numericDocValues("value")
+                .avg("value")
         );
     }
 
@@ -345,7 +349,9 @@ public class OperatorBenchmark {
         AtomicInteger rowCount = new AtomicInteger();
         Driver.runToCompletion(
             threadPool.executor(ThreadPool.Names.SEARCH),
-            new LocalExecutionPlanner(indexReader).plan(builder.build((l, p) -> rowCount.addAndGet(p.getPositionCount()))).createDrivers()
+            new LocalExecutionPlanner(List.of(new IndexReaderReference(indexReader, new ShardId("test", "test", 0)))).plan(
+                builder.build((l, p) -> rowCount.addAndGet(p.getPositionCount()))
+            ).createDrivers()
         );
         return rowCount.get();
     }
@@ -353,7 +359,7 @@ public class OperatorBenchmark {
     @Benchmark
     public long testLongAvgMultiThreadedAvgWithSingleThreadedSearch() {
         return run(
-            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SINGLE)
+            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SINGLE, "test")
                 .exchange(PlanNode.ExchangeNode.Type.REPARTITION, PlanNode.ExchangeNode.Partitioning.FIXED_ARBITRARY_DISTRIBUTION)
                 .numericDocValues("value")
                 .avgPartial("value")
@@ -365,7 +371,7 @@ public class OperatorBenchmark {
     @Benchmark
     public long testLongAvgMultiThreadedAvgWithMultiThreadedSearch() {
         return run(
-            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.DOC)
+            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.DOC, "test")
                 .numericDocValues("value")
                 .avgPartial("value")
                 .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
@@ -376,7 +382,7 @@ public class OperatorBenchmark {
     @Benchmark
     public long testLongAvgMultiThreadedAvgWithMultiThreadedSegmentSearch() {
         return run(
-            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SEGMENT)
+            PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SEGMENT, "test")
                 .numericDocValues("value")
                 .avgPartial("value")
                 .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)

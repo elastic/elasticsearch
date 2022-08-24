@@ -17,8 +17,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -32,53 +31,59 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
-public class PlannerTests extends ESTestCase {
+import static org.elasticsearch.xpack.sql.action.compute.planner.LocalExecutionPlanner.DEFAULT_TASK_CONCURRENCY;
 
+public class MultiShardPlannerTests extends ESTestCase {
     private ThreadPool threadPool;
-    Directory dir;
-    IndexReader indexReader;
+    List<Directory> dirs = new ArrayList<>();
+    List<IndexReaderReference> indexReaders = new ArrayList<>();
 
     int numDocs = 1000000;
 
     int maxNumSegments = randomIntBetween(1, 100);
 
-    private final int defaultTaskConcurrency = ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY));
-
     int segmentLevelConcurrency = 0;
+    int shardCount = 2;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         Path path = createTempDir();
-        dir = new MMapDirectory(path);
-        logger.info("indexing started");
-        try (IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig())) {
-            Document doc = new Document();
-            NumericDocValuesField docValuesField = new NumericDocValuesField("value", 0);
-            for (int i = 0; i < numDocs; i++) {
-                doc.clear();
-                docValuesField.setLongValue(i);
-                doc.add(docValuesField);
-                indexWriter.addDocument(doc);
+        for (int shardId = 0; shardId < shardCount; shardId++) {
+            Directory dir = new MMapDirectory(path);
+            dirs.add(dir);
+            logger.info("indexing started");
+            try (IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig())) {
+                Document doc = new Document();
+                NumericDocValuesField docValuesField = new NumericDocValuesField("value", 0);
+                for (int i = 0; i < numDocs; i++) {
+                    doc.clear();
+                    docValuesField.setLongValue(i);
+                    doc.add(docValuesField);
+                    indexWriter.addDocument(doc);
+                }
+                indexWriter.commit();
+                indexWriter.forceMerge(maxNumSegments);
+                indexWriter.flush();
             }
-            indexWriter.commit();
-            indexWriter.forceMerge(maxNumSegments);
-            indexWriter.flush();
+            logger.info("indexing completed");
+            IndexReader indexReader = DirectoryReader.open(dir);
+            indexReaders.add(new IndexReaderReference(indexReader, new ShardId("test", "test", shardId)));
+            segmentLevelConcurrency += LuceneSourceOperator.numSegmentSlices(indexReader);
         }
-        logger.info("indexing completed");
-        indexReader = DirectoryReader.open(dir);
-        segmentLevelConcurrency = LuceneSourceOperator.numSegmentSlices(indexReader);
         threadPool = new TestThreadPool("PlannerTests");
     }
 
     @After
     public void tearDown() throws Exception {
-        indexReader.close();
-        dir.close();
+        IOUtils.close(indexReaders.stream().map(IndexReaderReference::indexReader).collect(Collectors.toList()));
+        IOUtils.close(dirs);
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         super.tearDown();
     }
@@ -91,9 +96,7 @@ public class PlannerTests extends ESTestCase {
             assertEquals((numDocs - 1) / 2, page.getBlock(0).getLong(0));
         });
         logger.info("Plan: {}", Strings.toString(plan, true, true));
-        LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = new LocalExecutionPlanner(
-            List.of(new IndexReaderReference(indexReader, new ShardId("test", "test", 0)))
-        ).plan(plan);
+        LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = new LocalExecutionPlanner(indexReaders).plan(plan);
         assertArrayEquals(
             expectedDriverCounts,
             localExecutionPlan.getDriverFactories().stream().mapToInt(LocalExecutionPlanner.DriverFactory::driverInstances).toArray()
@@ -106,7 +109,7 @@ public class PlannerTests extends ESTestCase {
             PlanNode.builder(new MatchAllDocsQuery(), PlanNode.LuceneSourceNode.Parallelism.SINGLE, "test")
                 .numericDocValues("value")
                 .avg("value"),
-            1
+            shardCount
         );
     }
 
@@ -129,7 +132,7 @@ public class PlannerTests extends ESTestCase {
                 .avgPartial("value")
                 .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
                 .avgFinal("value"),
-            defaultTaskConcurrency,
+            DEFAULT_TASK_CONCURRENCY * shardCount,
             1
         );
     }
@@ -142,8 +145,8 @@ public class PlannerTests extends ESTestCase {
                 .avgPartial("value")
                 .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
                 .avgFinal("value"),
-            1,
-            defaultTaskConcurrency,
+            shardCount,
+            DEFAULT_TASK_CONCURRENCY,
             1
         );
     }
@@ -157,7 +160,7 @@ public class PlannerTests extends ESTestCase {
                 .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
                 .avgFinal("value"),
             segmentLevelConcurrency,
-            defaultTaskConcurrency,
+            DEFAULT_TASK_CONCURRENCY,
             1
         );
     }
@@ -170,8 +173,8 @@ public class PlannerTests extends ESTestCase {
                 .avgPartial("value")
                 .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
                 .avgFinal("value"),
-            defaultTaskConcurrency,
-            defaultTaskConcurrency,
+            DEFAULT_TASK_CONCURRENCY * shardCount,
+            DEFAULT_TASK_CONCURRENCY,
             1
         );
     }

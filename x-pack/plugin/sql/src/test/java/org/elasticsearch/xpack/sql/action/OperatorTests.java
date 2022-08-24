@@ -142,10 +142,10 @@ public class OperatorTests extends ESTestCase {
                 // implements cardinality on value field
                 Driver driver = new Driver(
                     List.of(
-                        new LuceneSourceOperator(reader, new MatchAllDocsQuery()),
-                        new NumericDocValuesExtractor(reader, 0, 1, "value"),
-                        new LongGroupingOperator(2, BigArrays.NON_RECYCLING_INSTANCE),
-                        new LongMaxOperator(3), // returns highest group number
+                        new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
+                        new NumericDocValuesExtractor(reader, 0, 1, 2, "value"),
+                        new LongGroupingOperator(3, BigArrays.NON_RECYCLING_INSTANCE),
+                        new LongMaxOperator(4), // returns highest group number
                         new LongTransformerOperator(0, i -> i + 1), // adds +1 to group number (which start with 0) to get group count
                         new PageConsumerOperator(page -> {
                             logger.info("New page: {}", page);
@@ -184,14 +184,14 @@ public class OperatorTests extends ESTestCase {
                 AtomicInteger rowCount = new AtomicInteger();
 
                 List<Driver> drivers = new ArrayList<>();
-                for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(reader, new MatchAllDocsQuery()).docSlice(
+                for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()).docSlice(
                     randomIntBetween(1, 10)
                 )) {
                     drivers.add(
                         new Driver(
                             List.of(
                                 luceneSourceOperator,
-                                new NumericDocValuesExtractor(reader, 0, 1, "value"),
+                                new NumericDocValuesExtractor(reader, 0, 1, 2, "value"),
                                 new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount()))
                             ),
                             () -> {}

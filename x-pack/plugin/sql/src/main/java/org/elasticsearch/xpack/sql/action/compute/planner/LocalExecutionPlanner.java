@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.sql.action.compute.planner;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.xpack.sql.action.compute.lucene.NumericDocValuesExtractor;
@@ -26,8 +29,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -38,13 +40,17 @@ import java.util.stream.IntStream;
  */
 public class LocalExecutionPlanner {
 
-    private final IndexReader indexReader;
+    private final List<IndexReaderReference> indexReaders;
     // TODO: allow configuring the following fields
-    private final int defaultTaskConcurrency = ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY));
+    public static final int DEFAULT_TASK_CONCURRENCY = ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY));
     private final int bufferMaxPages = 500;
 
-    public LocalExecutionPlanner(IndexReader indexReader) {
-        this.indexReader = indexReader;
+    public LocalExecutionPlanner(List<IndexReaderReference> indexReaders) {
+        this.indexReaders = indexReaders;
+    }
+
+    public record IndexReaderReference(IndexReader indexReader, ShardId shardId) {
+
     }
 
     /**
@@ -89,37 +95,51 @@ public class LocalExecutionPlanner {
             }
         } else if (node instanceof PlanNode.LuceneSourceNode luceneSourceNode) {
             Supplier<Operator> operatorFactory;
+            Set<String> indices = Sets.newHashSet(luceneSourceNode.indices);
             if (luceneSourceNode.parallelism == PlanNode.LuceneSourceNode.Parallelism.SINGLE) {
-                context.setDriverInstanceCount(1);
-                operatorFactory = () -> new LuceneSourceOperator(indexReader, luceneSourceNode.query);
+                context.setDriverInstanceCount(
+                    Math.toIntExact(indexReaders.stream().filter(iRR -> indices.contains(iRR.shardId().getIndexName())).count())
+                );
+                operatorFactory = IntStream.range(0, indexReaders.size())
+                    .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
+                    .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
+                    .map(tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), luceneSourceNode.query))
+                    .iterator()::next;
             } else if (luceneSourceNode.parallelism == PlanNode.LuceneSourceNode.Parallelism.SEGMENT) {
-                context.setDriverInstanceCount(LuceneSourceOperator.numSegmentSlices(indexReader));
-                AtomicReference<List<LuceneSourceOperator>> luceneSourceOperatorAtomicReference = new AtomicReference<>();
-                AtomicInteger sliceCount = new AtomicInteger();
-                operatorFactory = () -> {
-                    if (luceneSourceOperatorAtomicReference.get() == null) {
-                        luceneSourceOperatorAtomicReference.set(
-                            new LuceneSourceOperator(indexReader, luceneSourceNode.query).segmentSlice()
-                        );
-                    }
-                    return luceneSourceOperatorAtomicReference.get().get(sliceCount.getAndIncrement());
-                };
+                context.setDriverInstanceCount(
+                    indexReaders.stream()
+                        .filter(iRR -> indices.contains(iRR.shardId().getIndexName()))
+                        .mapToInt(indexReader -> LuceneSourceOperator.numSegmentSlices(indexReader.indexReader()))
+                        .sum()
+                );
+                operatorFactory = IntStream.range(0, indexReaders.size())
+                    .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
+                    .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
+                    .flatMap(
+                        tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), luceneSourceNode.query).segmentSlice()
+                            .stream()
+                    )
+                    .iterator()::next;
             } else if (luceneSourceNode.parallelism == PlanNode.LuceneSourceNode.Parallelism.DOC) {
-                context.setDriverInstanceCount(LuceneSourceOperator.numDocSlices(indexReader, defaultTaskConcurrency));
-                AtomicReference<List<LuceneSourceOperator>> luceneSourceOperatorAtomicReference = new AtomicReference<>();
-                AtomicInteger sliceCount = new AtomicInteger();
-                operatorFactory = () -> {
-                    if (luceneSourceOperatorAtomicReference.get() == null) {
-                        luceneSourceOperatorAtomicReference.set(
-                            new LuceneSourceOperator(indexReader, luceneSourceNode.query).docSlice(defaultTaskConcurrency)
-                        );
-                    }
-                    return luceneSourceOperatorAtomicReference.get().get(sliceCount.getAndIncrement());
-                };
+                context.setDriverInstanceCount(
+                    indexReaders.stream()
+                        .filter(iRR -> indices.contains(iRR.shardId().getIndexName()))
+                        .mapToInt(indexReader -> LuceneSourceOperator.numDocSlices(indexReader.indexReader(), DEFAULT_TASK_CONCURRENCY))
+                        .sum()
+                );
+                operatorFactory = IntStream.range(0, indexReaders.size())
+                    .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
+                    .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
+                    .flatMap(
+                        tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), luceneSourceNode.query).docSlice(
+                            DEFAULT_TASK_CONCURRENCY
+                        ).stream()
+                    )
+                    .iterator()::next;
             } else {
                 throw new UnsupportedOperationException();
             }
-            return new PhysicalOperation(operatorFactory, Map.of("_doc_id", 0, "_segment_id", 1));
+            return new PhysicalOperation(operatorFactory, Map.of("_doc_id", 0, "_segment_id", 1, "_shard_id", 2));
         } else if (node instanceof PlanNode.NumericDocValuesSourceNode numericDocValuesSourceNode) {
             PhysicalOperation source = plan(numericDocValuesSourceNode.source, context);
             Map<String, Integer> layout = new HashMap<>();
@@ -127,9 +147,10 @@ public class LocalExecutionPlanner {
             layout.put(numericDocValuesSourceNode.field, layout.size());
             return new PhysicalOperation(
                 () -> new NumericDocValuesExtractor(
-                    indexReader,
+                    indexReaders.stream().map(IndexReaderReference::indexReader).collect(Collectors.toList()),
                     source.layout.get("_doc_id"),
                     source.layout.get("_segment_id"),
+                    source.layout.get("_shard_id"),
                     numericDocValuesSourceNode.field
                 ),
                 layout,
@@ -152,7 +173,7 @@ public class LocalExecutionPlanner {
                 driverInstances = 1;
                 context.setDriverInstanceCount(1);
             } else {
-                driverInstances = defaultTaskConcurrency;
+                driverInstances = DEFAULT_TASK_CONCURRENCY;
                 context.setDriverInstanceCount(driverInstances);
             }
             Exchange exchange = new Exchange(driverInstances, exchangeNode.partitioning, bufferMaxPages);

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 
 /**
  * Operator that extracts numeric doc values from Lucene
@@ -28,14 +29,16 @@ import java.io.UncheckedIOException;
  */
 public class NumericDocValuesExtractor implements Operator {
 
-    private final IndexReader indexReader;
+    private final List<IndexReader> indexReaders;
     private final int docChannel;
     private final int leafOrdChannel;
+    private final int shardChannel;
     private final String field;
 
     private LeafReaderContext lastLeafReaderContext;
     private NumericDocValues lastNumericDocValues;
     private Thread lastThread;
+    private int lastShard = -1;
 
     private Page lastPage;
 
@@ -48,10 +51,15 @@ public class NumericDocValuesExtractor implements Operator {
      * @param leafOrdChannel the channel that contains the segment ordinal
      * @param field the lucene field to use
      */
-    public NumericDocValuesExtractor(IndexReader indexReader, int docChannel, int leafOrdChannel, String field) {
-        this.indexReader = indexReader;
+    public NumericDocValuesExtractor(IndexReader indexReader, int docChannel, int leafOrdChannel, int shardChannel, String field) {
+        this(List.of(indexReader), docChannel, leafOrdChannel, shardChannel, field);
+    }
+
+    public NumericDocValuesExtractor(List<IndexReader> indexReaders, int docChannel, int leafOrdChannel, int shardChannel, String field) {
+        this.indexReaders = indexReaders;
         this.docChannel = docChannel;
         this.leafOrdChannel = leafOrdChannel;
+        this.shardChannel = shardChannel;
         this.field = field;
     }
 
@@ -81,26 +89,30 @@ public class NumericDocValuesExtractor implements Operator {
     public void addInput(Page page) {
         IntBlock docs = (IntBlock) page.getBlock(docChannel);
         ConstantIntBlock leafOrd = (ConstantIntBlock) page.getBlock(leafOrdChannel);
+        ConstantIntBlock shardOrd = (ConstantIntBlock) page.getBlock(shardChannel);
 
         if (leafOrd.getPositionCount() > 0) {
             int ord = leafOrd.getInt(0);
+            int shard = shardOrd.getInt(0);
+            if (lastShard != shard) {
+                lastLeafReaderContext = null;
+                lastShard = shard;
+            }
             if (lastLeafReaderContext == null || lastLeafReaderContext.ord != ord) {
-                lastLeafReaderContext = indexReader.getContext().leaves().get(ord);
+                lastLeafReaderContext = indexReaders.get(shard).getContext().leaves().get(ord);
                 reinitializeDocValues();
-            }
-            // reset iterator when executing thread changes
-            if (Thread.currentThread() != lastThread) {
+            } else if (Thread.currentThread() != lastThread) {
+                // reset iterator when executing thread changes
                 reinitializeDocValues();
-            }
-
-            long[] values = new long[docs.getPositionCount()];
-            if (docs.getPositionCount() > 0) {
+            } else if (docs.getPositionCount() > 0) {
                 int firstDoc = docs.getInt(0);
                 // reset iterator when blocks arrive out-of-order
                 if (firstDoc <= lastNumericDocValues.docID()) {
                     reinitializeDocValues();
                 }
             }
+
+            long[] values = new long[docs.getPositionCount()];
             try {
                 int lastDoc = -1;
                 for (int i = 0; i < docs.getPositionCount(); i++) {

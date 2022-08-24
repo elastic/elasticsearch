@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.junit.After;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -137,11 +136,6 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
                  }
              }
         }""";
-
-    @After
-    public void cleanUp() throws Exception {
-        awaitNoMoreRunningOperations();
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

@@ -10,7 +10,10 @@ package org.elasticsearch.script.field;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -119,5 +122,75 @@ public class WriteFieldTests extends ESTestCase {
         wf = new WriteField("a.b.c", () -> root);
         wf.append("bar");
         assertEquals(List.of("bar"), b.get("c"));
+    }
+
+    public void testSizeIsEmpty() {
+        Map<String, Object> root = new HashMap<>();
+        WriteField wf = new WriteField("a.b.c", () -> root);
+        assertTrue(wf.isEmpty());
+        assertEquals(0, wf.size());
+
+        root.put("a.b.c", List.of(1, 2));
+        wf = new WriteField("a.b.c", () -> root);
+        assertFalse(wf.isEmpty());
+        assertEquals(2, wf.size());
+    }
+
+    public void testIterator() {
+        Map<String, Object> root = new HashMap<>();
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> b = new HashMap<>();
+        a.put("b", b);
+        root.put("a", a);
+
+        WriteField wf = new WriteField("a.b.c", () -> root);
+        assertFalse(wf.iterator().hasNext());
+
+        b.put("c", "value");
+        Iterator<Object> it = wf.iterator();
+        assertTrue(it.hasNext());
+        assertEquals("value", it.next());
+        assertFalse(it.hasNext());
+
+        b.put("c", List.of(1, 2, 3));
+        it = wf.iterator();
+        assertTrue(it.hasNext());
+        assertEquals(1, it.next());
+        assertTrue(it.hasNext());
+        assertEquals(2, it.next());
+        assertTrue(it.hasNext());
+        assertEquals(3, it.next());
+        assertFalse(it.hasNext());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDedupe() {
+        Map<String, Object> root = new HashMap<>();
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> b = new HashMap<>();
+        a.put("b", b);
+        root.put("a", a);
+        b.put("c", List.of(1, 1, 1, 2, 2, 2));
+        WriteField wf = new WriteField("a.b.c", () -> root);
+        assertEquals(6, wf.size());
+        wf.dedupe();
+        assertEquals(2, wf.size());
+        List<Object> list = (List<Object>) wf.get(Collections.emptyList());
+        assertTrue(list.contains(1));
+        assertTrue(list.contains(2));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTransform() {
+        Map<String, Object> root = new HashMap<>();
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> b = new HashMap<>();
+        a.put("b", b);
+        root.put("a", a);
+        b.put("c", new ArrayList<>(List.of(1, 1, 1, 2, 2, 2)));
+        WriteField wf = new WriteField("a.b.c", () -> root);
+        wf.transform(v -> ((Integer) v) + 10);
+        List<Object> list = (List<Object>) wf.get(Collections.emptyList());
+        assertEquals(List.of(11, 11, 11, 12, 12, 12), list);
     }
 }

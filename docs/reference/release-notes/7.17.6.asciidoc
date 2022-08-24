@@ -75,6 +75,6 @@ Security::
 === Upgrades
 
 Packaging::
-* Upgrade to OpenJDK 18.0.2+9 {es-pull}88675[#88675] (issue: {es-issue}88673[#88673])
+* Upgrade to OpenJDK 18.0.2+9. The JDK update pertains to a potential security vulnerability. Please see our link:https://discuss.elastic.co/c/announcements/security-announcements/31[security statement for more details].  {es-pull}88675[#88675] (issue: {es-issue}88673[#88673])
 
 

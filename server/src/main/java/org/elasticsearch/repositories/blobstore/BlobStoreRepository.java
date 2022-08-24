@@ -1133,10 +1133,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotIds
         );
         return Stream.concat(deleteResults.stream().flatMap(shardResult -> {
-            final String shardPath = shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
+            final String shardPath = shardPath(shardResult.indexId, shardResult.shardId).buildAsString();
             return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
         }), indexMetaGenerations.entrySet().stream().flatMap(entry -> {
-            final String indexContainerPath = indexContainer(entry.getKey()).path().buildAsString();
+            final String indexContainerPath = indexPath(entry.getKey()).buildAsString();
             return entry.getValue().stream().map(id -> indexContainerPath + INDEX_METADATA_FORMAT.blobName(id));
         })).map(absolutePath -> {
             assert absolutePath.startsWith(basePath);
@@ -1472,14 +1472,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             .forEach(
                 (indexId, gens) -> gens.forEach(
                     (shardId, oldGen) -> toDelete.add(
-                        shardContainer(indexId, shardId).path().buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
+                        shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
                     )
                 )
             );
         for (Map.Entry<RepositoryShardId, Set<ShardGeneration>> obsoleteEntry : finalizeSnapshotContext.obsoleteShardGenerations()
             .entrySet()) {
-            final String containerPath = shardContainer(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).path()
-                .buildAsString()
+            final String containerPath = shardPath(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).buildAsString()
                 .substring(prefixPathLen) + INDEX_FILE_PREFIX;
             for (ShardGeneration shardGeneration : obsoleteEntry.getValue()) {
                 toDelete.add(containerPath + shardGeneration);
@@ -1598,15 +1597,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private BlobContainer indexContainer(IndexId indexId) {
-        return blobStore().blobContainer(indicesPath().add(indexId.getId()));
+        return blobStore().blobContainer(indexPath(indexId));
     }
 
     private BlobContainer shardContainer(IndexId indexId, ShardId shardId) {
         return shardContainer(indexId, shardId.getId());
     }
 
+    private BlobPath indexPath(IndexId indexId) {
+        return indicesPath().add(indexId.getId());
+    }
+
+    private BlobPath shardPath(IndexId indexId, int shardId) {
+        return indexPath(indexId).add(Integer.toString(shardId));
+    }
+
     public BlobContainer shardContainer(IndexId indexId, int shardId) {
-        return blobStore().blobContainer(indicesPath().add(indexId.getId()).add(Integer.toString(shardId)));
+        return blobStore().blobContainer(shardPath(indexId, shardId));
     }
 
     /**

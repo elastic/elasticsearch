@@ -10,7 +10,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -149,9 +148,6 @@ public class ReservedClusterStateService {
 
         ClusterState state = clusterService.state();
         ReservedStateMetadata existingMetadata = state.metadata().reservedStateMetadata().get(namespace);
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
-            return;
-        }
 
         clusterService.submitStateUpdateTask(
             "reserved cluster state [" + namespace + "]",
@@ -181,39 +177,6 @@ public class ReservedClusterStateService {
             ClusterStateTaskConfig.build(Priority.URGENT),
             updateStateTaskExecutor
         );
-    }
-
-    // package private for testing
-    static boolean checkMetadataVersion(
-        String namespace,
-        ReservedStateMetadata existingMetadata,
-        ReservedStateVersion reservedStateVersion
-    ) {
-        if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
-            logger.warn(
-                () -> format(
-                    "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
-                    reservedStateVersion.minCompatibleVersion(),
-                    namespace
-                )
-            );
-            return false;
-        }
-
-        if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
-            logger.warn(
-                () -> format(
-                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
-                        + " to the current metadata version [%s]",
-                    namespace,
-                    reservedStateVersion.version(),
-                    existingMetadata.version()
-                )
-            );
-            return false;
-        }
-
-        return true;
     }
 
     // package private for testing

@@ -73,6 +73,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
         return List.of(LocalStateAutoscalingAndSearchableSnapshotsAndIndexLifecycle.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89082")
     public void testZeroToOne() throws Exception {
         internalCluster().startMasterOnlyNode();
         setupRepoAndPolicy();

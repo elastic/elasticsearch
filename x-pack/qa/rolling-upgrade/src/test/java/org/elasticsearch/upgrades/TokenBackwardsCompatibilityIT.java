@@ -9,22 +9,32 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.core.IsNot.not;
 
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
@@ -126,6 +136,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testAccessTokensWorkInMixedCluster() throws Exception {
         // Verify that an old token continues to work during all stages of the rolling upgrade
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
+        extendExpirationTimeForAllTokens();
         for (int tokenIdx : Arrays.asList(1, 3, 4)) { // 2 is invalidated in another mixed-cluster test, 5 is invalidated in the old cluster
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
             assertAccessTokenWorks((String) source.get("token"));
@@ -213,6 +224,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testAccessTokensWorkInUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
+        extendExpirationTimeForAllTokens();
         for (int tokenIdx : Arrays.asList(3, 4, 10, 12)) {
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
             assertAccessTokenWorks((String) source.get("token"));
@@ -269,7 +281,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private void assertAccessTokenDoesNotWork(String token) throws IOException {
+    private void assertAccessTokenDoesNotWork(String token) {
         for (RestClient client : twoClients) {
             Request request = new Request("GET", "/_security/_authenticate");
             RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -380,5 +392,65 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         invalidateRequest.addParameter("error_trace", "true");
         Response invalidateResponse = client.performRequest(invalidateRequest);
         assertOK(invalidateResponse);
+    }
+
+    /**
+     * Hack to account for long-running tests. The max lifetime of a token is 1h, but sometimes our tests take longer so tokens created in
+     * the old cluster may be expired by the time we run tests in the mixed/upgraded clusters.
+     *
+     * This method extends the expiration time of all tokens by writing to the `.security-token` index directly.
+     *
+     * We extend the expiration time for all tokens, instead of selected ones because it requires true hackery to get a hold of a docId
+     * given only an access token and refresh token.
+     */
+    private void extendExpirationTimeForAllTokens() throws Exception {
+        final List<String> tokensIds = getAllTokenIds();
+        final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
+        bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        final long newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli();
+        bulkRequest.setJsonEntity(tokensIds.stream().map(tokenId -> """
+            {"update": {"_id": "%s"}}
+            {"doc": {"access_token": {"user_token": {"expiration_time": %s}}}}
+            """.formatted(tokenId, newExpirationTime)).collect(Collectors.joining("\n")));
+        final Response bulkResponse = client().performRequest(bulkRequest);
+        assertOK(bulkResponse);
+        final Map<String, Object> bulkResponseMap = entityAsMap(bulkResponse);
+        assertEquals(false, bulkResponseMap.get("errors"));
+    }
+
+    private void refreshSecurityTokensIndex() throws IOException {
+        // Ensure all tokens are available for search (token creation and other tokens operations have a WAIT_UNTIL refresh policy)
+        final var refreshRequest = new Request("POST", "/.security-tokens/_refresh");
+        refreshRequest.setOptions(refreshRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        assertOK(client().performRequest(refreshRequest));
+    }
+
+    private List<String> getAllTokenIds() throws IOException {
+        refreshSecurityTokensIndex();
+        final long searchSize = 100L;
+        final var searchRequest = new Request("POST", "/.security-tokens/_search?size=" + searchSize);
+        searchRequest.setOptions(searchRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        searchRequest.setJsonEntity("""
+            {
+              "query": {
+                "term": {
+                  "doc_type": "token"
+                }
+              }
+            }""");
+        final Response searchResponse = client().performRequest(searchRequest);
+        assertOK(searchResponse);
+        final SearchHits searchHits = SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits();
+        assertThat(
+            "Search request used with size parameter that was too small to fetch all tokens.",
+            searchHits.getTotalHits().value,
+            lessThanOrEqualTo(searchSize)
+        );
+        final List<String> tokenIds = Arrays.stream(searchHits.getHits()).map(searchHit -> {
+            assertNotNull(searchHit.getId());
+            return searchHit.getId();
+        }).toList();
+        assertThat(tokenIds, not(empty()));
+        return tokenIds;
     }
 }

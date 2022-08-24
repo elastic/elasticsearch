@@ -1,0 +1,6 @@
+pr: 89106
+summary: Set `track_total_hits` to false when not needed
+area: SQL
+type: enhancement
+issues:
+ - 88764

@@ -150,6 +150,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
         assertThat(e.getMessage(), containsString("[queue_capacity] must be a positive integer"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89584")
     public void testValidate_GivenQueueCapacityIsAtLimit() {
         Request request = createRandom();
         request.setQueueCapacity(1_000_000);

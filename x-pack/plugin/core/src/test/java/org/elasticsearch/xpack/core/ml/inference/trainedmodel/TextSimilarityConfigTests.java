@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
@@ -17,8 +16,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89008")
 public class TextSimilarityConfigTests extends InferenceConfigItemTestCase<TextSimilarityConfig> {
+
+    public static TextSimilarityConfig mutateForVersion(TextSimilarityConfig instance, Version version) {
+        return new TextSimilarityConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getResultsField(),
+            instance.getSpanScoreFunction().toString()
+        );
+    }
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -47,7 +54,7 @@ public class TextSimilarityConfigTests extends InferenceConfigItemTestCase<TextS
 
     @Override
     protected TextSimilarityConfig mutateInstanceForVersion(TextSimilarityConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static TextSimilarityConfig createRandom() {

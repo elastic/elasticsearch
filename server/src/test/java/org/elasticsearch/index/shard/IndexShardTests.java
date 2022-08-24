@@ -14,6 +14,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
@@ -116,6 +117,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -3895,6 +3897,90 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         });
         closeShards(shard);
+    }
+
+    @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")
+    public void testFlushOnIdleConcurrentFlushDoesNotWait() throws Exception {
+        final MockLogAppender mockLogAppender = new MockLogAppender();
+        try {
+            CountDownLatch readyToCompleteFlushLatch = new CountDownLatch(1);
+            IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
+                @Override
+                protected void commitIndexWriter(final IndexWriter writer, final Translog translog) throws IOException {
+                    try {
+                        readyToCompleteFlushLatch.await();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                    super.commitIndexWriter(writer, translog);
+                }
+            });
+
+            for (int i = 0; i < 3; i++) {
+                indexDoc(shard, "_doc", Integer.toString(i));
+            }
+
+            mockLogAppender.start();
+            Loggers.addAppender(LogManager.getLogger(Engine.class), mockLogAppender);
+
+            // Issue the first flushOnIdle request. The flush happens in the background using the flush threadpool.
+            shard.flushOnIdle(0);
+            assertFalse(shard.isActive());
+
+            // Wait for log message that flush acquired lock immediately
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see first flush getting lock immediately",
+                    Engine.class.getCanonicalName(),
+                    Level.TRACE,
+                    "acquired flush lock immediately"
+                )
+            );
+            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+
+            // While the first flush is happening, index one more doc (to turn the shard's active flag to true),
+            // and issue a second flushOnIdle request which should not wait for the ongoing flush
+            indexDoc(shard, "_doc", Integer.toString(3));
+            assertTrue(shard.isActive());
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see second flush returning since it will not wait for the ongoing flush",
+                    Engine.class.getCanonicalName(),
+                    Level.TRACE,
+                    "detected an in-flight flush, not blocking to wait for it's completion"
+                )
+            );
+            shard.flushOnIdle(0);
+            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+
+            // A direct call to flush (with waitIfOngoing=false) should not wait and return false immediately
+            assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
+
+            // Allow first flushOnIdle to complete
+            readyToCompleteFlushLatch.countDown();
+
+            // Wait for first flushOnIdle to log a message that it released the flush lock
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "should see first flush releasing lock",
+                    Engine.class.getCanonicalName(),
+                    Level.TRACE,
+                    "released flush lock"
+                )
+            );
+            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+
+            // The second flushOnIdle (that did not happen) should have turned the active flag to true
+            assertTrue(shard.isActive());
+
+            // After all the previous flushes are done, issue a final flush (for any remaining documents) that should return true
+            assertTrue(shard.flush(new FlushRequest()));
+
+            closeShards(shard);
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger(Engine.class), mockLogAppender);
+            mockLogAppender.stop();
+        }
     }
 
     public void testOnCloseStats() throws IOException {

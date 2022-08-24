@@ -1095,11 +1095,21 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        SyntheticSourceSupport supportDelegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport();
+        boolean storeTextField = randomBoolean();
+        boolean storedKeywordField = storeTextField || randomBoolean();
+        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
         return new SyntheticSourceSupport() {
             @Override
-            public SyntheticSourceExample example(int maxValues) throws IOException {
-                SyntheticSourceExample delegate = supportDelegate.example(maxValues);
+            public SyntheticSourceExample example(int maxValues) {
+                SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(storedKeywordField, nullValue)
+                    .example(maxValues);
+                if (storeTextField) {
+                    return new SyntheticSourceExample(
+                        delegate.inputValue(),
+                        delegate.result(),
+                        b -> b.field("type", "text").field("store", true)
+                    );
+                }
                 return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
                     b.field("type", "text");
                     b.startObject("fields");
@@ -1115,8 +1125,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
                 Matcher<String> err = equalTo(
-                    "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                    "field [field] of type [text] doesn't support synthetic source unless it is stored or"
+                        + " has a sub-field of type [keyword] with doc values or stored and without ignore_above or a normalizer"
                 );
                 return List.of(
                     new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),

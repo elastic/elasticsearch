@@ -118,7 +118,6 @@ public class RunTask extends DefaultTestClustersTask {
 
     @Override
     public void beforeStart() {
-
         int httpPort = 9200 + offset;
         int transportPort = 9300 + offset;
         Map<String, String> additionalSettings = System.getProperties()
@@ -142,10 +141,8 @@ public class RunTask extends DefaultTestClustersTask {
         for (ElasticsearchCluster cluster : getClusters()) {
             cluster.setPreserveDataDir(preserveData);
             for (ElasticsearchNode node : cluster.getNodes()) {
-                node.setHttpPort(String.valueOf(httpPort));
-                httpPort++;
-                node.setTransportPort(String.valueOf(transportPort));
-                transportPort++;
+                node.setHttpPort(String.valueOf(httpPort++));
+                node.setTransportPort(String.valueOf(transportPort++));
                 additionalSettings.forEach(node::setting);
                 if (dataDir != null) {
                     node.setDataPath(getDataPath.apply(node));

@@ -163,10 +163,7 @@ the cluster since we have not started the cluster yet and this instructs the plu
 
 -------------------------------------
 tasks.register("run", RunTask) {
-  useCluster testClusters.named("runTask")
-  description = 'Runs elasticsearch in the foreground'
-  group = 'Verification'
-
+  ...
   doFirst {
     def cluster = testClusters.named("runTask").get()
     cluster.getNodes().each { node ->
@@ -176,7 +173,6 @@ tasks.register("run", RunTask) {
     cluster.getFirstNode().setting('node.roles', '[]')
     cluster.restart()
   }
-  impliesSubProjects = true
 }
 -------------------------------------
 

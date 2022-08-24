@@ -1328,9 +1328,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
     }
 
-    /*
-        State state,
-     */
     private static final class EntryDiff implements Diff<Entry> {
 
         private static final DiffableUtils.NonDiffableValueSerializer<String, IndexId> INDEX_ID_VALUE_SERIALIZER =
@@ -1404,6 +1401,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         private final State updatedState;
 
+        @SuppressWarnings("unchecked")
         EntryDiff(StreamInput in) throws IOException {
             this.indexByIndexNameDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_ID_VALUE_SERIALIZER);
             this.updatedState = State.fromValue(in.readByte());
@@ -1426,6 +1424,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
         }
 
+        @SuppressWarnings("unchecked")
         EntryDiff(Entry before, Entry after) {
             this.indexByIndexNameDiff = DiffableUtils.diff(
                 before.indices,
@@ -1507,7 +1506,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     DiffableUtils.getStringKeySerializer(),
                     i -> new ByRepo(i.readList(Entry::readFrom)),
                     i -> new ByRepo.ByRepoDiff(
-                        DiffableUtils.readJdkMapDiff(i, DiffableUtils.getVIntKeySerializer(), Entry::readFrom, EntryDiff::new)
+                        DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), Entry::readFrom, EntryDiff::new),
+                        i.readStringList()
                     )
                 )
             );
@@ -1549,36 +1549,41 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public Diff<ByRepo> diff(ByRepo previousState) {
-            final DiffableUtils.MapDiff<Integer, Entry, Map<Integer, Entry>> diff = DiffableUtils.diff(
-                toMapByPosition(previousState),
-                toMapByPosition(this),
-                DiffableUtils.getVIntKeySerializer()
+            final DiffableUtils.MapDiff<String, Entry, Map<String, Entry>> diff = DiffableUtils.diff(
+                toMapByUUID(previousState),
+                toMapByUUID(this),
+                DiffableUtils.getStringKeySerializer()
             );
-            return new ByRepoDiff(diff);
+            return new ByRepoDiff(diff, entries.stream().map(e -> e.snapshot().getSnapshotId().getUUID()).toList());
         }
 
-        public static Map<Integer, Entry> toMapByPosition(ByRepo part) {
-            final Map<Integer, Entry> before = new HashMap<>(part.entries.size());
-            for (int i = 0; i < part.entries.size(); i++) {
-                Entry entry = part.entries.get(i);
-                before.put(i, entry);
+        public static Map<String, Entry> toMapByUUID(ByRepo part) {
+            final Map<String, Entry> before = new HashMap<>(part.entries.size());
+            for (Entry entry : part.entries) {
+                before.put(entry.snapshot().getSnapshotId().getUUID(), entry);
             }
             return before;
         }
 
-        private record ByRepoDiff(DiffableUtils.MapDiff<Integer, Entry, Map<Integer, Entry>> diff) implements Diff<ByRepo> {
+        private record ByRepoDiff(DiffableUtils.MapDiff<String, Entry, Map<String, Entry>> diff, List<String> snapshotIds)
+            implements
+                Diff<ByRepo> {
 
             @Override
             public ByRepo apply(ByRepo part) {
-                final var updated = diff.apply(toMapByPosition(part));
+                final var updated = diff.apply(toMapByUUID(part));
                 final Entry[] arr = new Entry[updated.size()];
-                updated.forEach((k, v) -> arr[k] = v);
+                for (int i = 0; i < snapshotIds.size(); i++) {
+                    String snapshotId = snapshotIds.get(i);
+                    arr[i] = updated.get(snapshotId);
+                }
                 return new ByRepo(List.of(arr));
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 diff.writeTo(out);
+                out.writeStringCollection(snapshotIds);
             }
         }
     }

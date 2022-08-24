@@ -193,4 +193,34 @@ public class WriteFieldTests extends ESTestCase {
         List<Object> list = (List<Object>) wf.get(Collections.emptyList());
         assertEquals(List.of(11, 11, 11, 12, 12, 12), list);
     }
+
+    public void testRemoveValues() {
+        Map<String, Object> root = new HashMap<>();
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> b = new HashMap<>();
+        a.put("b", b);
+        root.put("a", a);
+        b.put("c", new ArrayList<>(List.of(10, 10, 10, 20, 20, 20)));
+        WriteField wf = new WriteField("a.b.c", () -> root);
+        wf.removeValue(2);
+        assertEquals(20, wf.get(2, 1000));
+
+        wf.removeValuesIf(v -> (Integer) v > 10);
+        assertEquals(2, wf.size());
+        assertEquals(List.of(10, 10), wf.get(null));
+    }
+
+    public void testHasValue() {
+        Map<String, Object> root = new HashMap<>();
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> b = new HashMap<>();
+        a.put("b", b);
+        root.put("a", a);
+        b.put("c", new ArrayList<>(List.of(10, 11, 12)));
+        WriteField wf = new WriteField("a.b.c", () -> root);
+        assertFalse(wf.hasValue(v -> (Integer) v < 10));
+        assertTrue(wf.hasValue(v -> (Integer) v <= 10));
+        wf.append(9);
+        assertTrue(wf.hasValue(v -> (Integer) v < 10));
+    }
 }

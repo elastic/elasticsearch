@@ -1,0 +1,104 @@
+setup:
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            dynamic: false
+            properties:
+              test_vector:
+                type: dense_vector
+                dims: 4
+                index : true
+                similarity : l2_norm
+              name:
+                type: keyword
+                store: true
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: v1
+          test_vector: [230.0, 300.33, -34.8988, 15.555]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: v1
+          test_vector: [0.5, 0.5, 0.5, -1]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: v2
+          test_vector: [0.5, 0.5, 0.5, 0.5]
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          name: v2
+          test_vector: [0.5, 0.5, 0.5, 0]
+
+  - do:
+      indices.put_alias:
+        index: test
+        name: test-alias
+        body:
+          filter:
+            term:
+              name: v1
+
+  - do:
+     indices.refresh: {}
+
+---
+"kNN filter alias":
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 15.555 ]
+            k: 2
+            num_candidates: 100
+            filter:
+              term:
+                name: v1
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }
+
+  - do:
+      search:
+        index: test-alias
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 15.555 ]
+            k: 2
+            num_candidates: 100
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }

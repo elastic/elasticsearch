@@ -1,0 +1,240 @@
+
+[[troubleshooting-searches]]
+== Troubleshooting searches
+
+When you query your data, Elasticsearch may return an error, no search results,
+or results in an unexpected order. This guide describes how to troubleshoot
+searches.
+
+[discrete]
+[[troubleshooting-searches-exists]]
+=== Ensure the data stream, index, or alias exists
+
+Elasticsearch returns an `index_not_found_exception` when the data stream, index
+or alias you try to query does not exist. This can happen when you misspell the
+name or when the data has been indexed to a different data stream or index.
+
+Use the <<indices-exists,exists API>> to check whether a data stream, index, or
+alias exists:
+
+[source,console]
+----
+HEAD my-data-stream
+----
+
+Use the <<data-stream-stats-api,data stream stats API>> to list all data
+streams:
+
+[source,console]
+----
+GET /_data_stream/_stats?human=true
+----
+
+Use the <<cat-indices,cat indices API>> to list all indices:
+
+[source,console]
+----
+GET _cat/indices?v=true&s=index&h=index,docs.count,status,health
+----
+
+Use the <<cat-alias,cat aliases API>> to list all aliases:
+
+[source,console]
+----
+GET _cat/aliases?v=true&s=alias&h=alias,index,is_write_index
+----
+
+[discrete]
+[[troubleshooting-searches-data]]
+=== Ensure the data stream or index contains data
+
+When a search request returns no hits, the data stream or index may contain no
+data. This can happen when there is a data ingestion issue. For example, the
+data may have been indexed to a data stream or index with another name.
+
+Use the <<search-count,count API>> to retrieve the number of documents in a data
+stream or index. Check that `count` in the response is not 0.
+
+////
+[source,console]
+----
+PUT my-index-000001
+----
+////
+
+[source,console]
+----
+GET /my-index-000001/_count
+----
+//TEST[continued]
+
+NOTE: When getting no search results in {kib}, check that you have selected the
+correct data view and a valid time range. Also, ensure the data view has been
+configured with the correct time field.
+
+[discrete]
+[[troubleshooting-searches-field-exists]]
+=== Ensure the field exists and has data
+
+Querying a field that does not exist or has no data will not return any results.
+Use the <<query-dsl-exists-query,`exists` query>> to check whether there are
+documents that contain an indexed value for a field. Check that `count` in the
+response is not 0.
+
+[source,console]
+----
+GET /my-index-000001/_count
+{
+  "query": {
+    "exists": {
+      "field": "my-field"
+    }
+  }
+}
+----
+//TEST[continued]
+
+If the field exists, and is not of type `text`, use a
+<<search-aggregations-bucket-terms-aggregation,terms aggregation>> to retrieve
+the field's most common values:
+
+[source,console]
+----
+GET /my-index-000001/_search?filter_path=aggregations
+{
+  "size": 0,
+  "aggs": {
+    "top_values": {
+      "terms": {
+        "field": "my-field",
+        "size": 10
+      }
+    }
+  }
+}
+----
+//TEST[continued]
+
+If the field does not exist or have any values, check the data ingestion
+process. The field may have a different name.
+
+[discrete]
+[[troubleshooting-searches-fieldcaps-mappings]]
+=== Check field capabilities and mappings
+
+When the field you're querying exists, but you get no or unexpected search
+results, check the capabilities and <<mapping,mapping>> of the field. 
+
+Use the <<search-field-caps,field capabilities API>> to retrieve the
+capabilities of a field. This will return a field's type and tell you if it is
+searchable and aggregatable:
+
+[source,console]
+----
+GET /my-index-000001/_field_caps?fields=my-field
+----
+//TEST[continued]
+
+A field's capabilities are determined by its mapping. To retrieve the mapping,
+use the <<indices-get-mapping,get mapping API>>:
+
+[source,console]
+----
+GET /my-index-000001/_mappings
+----
+//TEST[continued]
+
+For `text` fields, pay attention to the analyzer that may have been configured.
+You can use the <<indices-analyze,analyze API>> to check how a field's analyzer
+processes values and query terms:
+
+[source,console]
+----
+GET /my-index-000001/_analyze
+{
+  "field" : "my-field",
+  "text" : "this is a test"
+}
+----
+//TEST[continued]
+
+<<updating-field-mappings,Changing the mapping of a field>> generally requires
+creating a new index with the correct mappings. Next, reindex the data into that
+index. For data streams, refer to
+<<data-streams-change-mappings-and-settings,Change mappings and settings for a
+data stream>>.
+
+[discrete]
+[[troubleshooting-searches-settings]]
+=== Check index settings
+
+<<index-modules-settings,Index settings>> can influence search results. For
+example, the `index.query.default_field` setting, which determines the field
+that is queried when a query specifies no explicit field. Use the
+<<indices-get-settings,get index settings API>> to retrieve the settings for an
+index:
+
+[source,console]
+----
+GET /my-index-000001/_settings
+----
+//TEST[continued]
+
+You can update dynamic index settings with the <<indices-update-settings,update
+index settings API>>. <<change-dynamic-index-setting-for-a-data-stream,Changing
+dynamic index settings for a data stream>> requires changing the index template
+used by the data stream.
+
+For static settings, you need to create a new index with the correct settings.
+Next, you can reindex the data into that index. For data streams, refer to
+<<change-static-index-setting-for-a-data-stream,Change a static index setting
+for a data stream>>.
+
+[discrete]
+[[troubleshooting-searches-validate-explain-profile]]
+=== Validate, explain, and profile queries
+
+When a query returns unexpected results, Elasticsearch offers several tools to
+investigate why.
+
+The <<search-validate,validate API>> enables you to validate a query. Use the
+`rewrite` parameter to return the Lucene query an Elasticsearch query is
+rewritten into:
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001/_validate/query?rewrite=true
+{
+  "query": {
+    "match": {
+      "user.id": {
+        "query": "kimchy",
+        "fuzziness": "auto"
+      }
+    }
+  }
+}
+--------------------------------------------------
+//TEST[continued]
+
+Use the <<search-explain,explain API>> to find out why a specific document
+matches or doesn’t match a query:
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001/_explain/0
+{
+  "query" : {
+    "match" : { "message" : "elasticsearch" }
+  }
+}
+--------------------------------------------------
+// TEST[setup:messages]
+
+The <<search-profile,profile API>> provides detailed timing information about a
+search request. For a visual representation of the results, use the
+{kibana-ref}/xpack-profiler.html[Search Profiler] in {kib}.
+
+NOTE: To troubleshoot queries in {kib}, select **Inspect** in the toolbar. Next,
+select **Request**. You can now copy the query {kib} sent to {es} for
+further analysis in Console.

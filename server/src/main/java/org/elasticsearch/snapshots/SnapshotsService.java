@@ -3382,11 +3382,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "never called";
-        }
-
-        @Override
         public boolean equals(Object other) {
             if (this == other) {
                 return true;

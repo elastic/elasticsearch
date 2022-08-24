@@ -146,36 +146,24 @@ of accidentally committing your local configurations.
 
 Another desired customization for ./gradlew run might be to run multiple
 nodes with different setting for each node. For example, you may want to debug a coordinating only node that fans out
-to one or more data nodes. To do this, increase the numberOfNodes attribute for the test cluster configuration.
+to one or more data nodes. To do this, increase the numberOfNodes and add specific configuration for each
+of the nodes.  For example, the following will instruct the first node (:9200) to be a coordinating only node,
+and all other nodes to be master, data_hot, data_content nodes.
 -------------------------------------
 testClusters.register("runTask") {
-      ...
-      numberOfNodes = 2
-    }
-}
--------------------------------------
-
-Then customize the run task itself to create different configurations per node. For example, the following will
-instruct the first node (:9200) to be a coordinating only node, and all other nodes to be master, data_hot, data_content
-nodes. Since we are changing the default master node configuration we must also update the default initial_master_nodes.
-Finally, we need to "restart" the cluster to pick up the changes. However, it does not actually start/stop/start
-the cluster since we have not started the cluster yet and this instructs the plugin to update the configuration.
-
--------------------------------------
-tasks.register("run", RunTask) {
-  ...
-  doFirst {
+     ...
+    numberOfNodes = 2
     def cluster = testClusters.named("runTask").get()
     cluster.getNodes().each { node ->
       node.setting('cluster.initial_master_nodes', cluster.getLastNode().getName())
       node.setting('node.roles', '[master,data_hot,data_content]')
     }
     cluster.getFirstNode().setting('node.roles', '[]')
-    cluster.restart()
-  }
+   ...
 }
 -------------------------------------
 
+You can also place this config in custom init script (see above) to avoid accidental commits.
 If you are passing in the --debug-jvm flag with multiple nodes, you will need multiple remote debuggers running. One
 for each node listening at port 5007, 5008, 5009, and so on. Ensure that each remote debugger has auto restart enabled.
 

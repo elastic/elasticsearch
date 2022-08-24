@@ -120,7 +120,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes + " for " + this);
         }
 
-        if ((numberOfNodes != 1 && nodes.size() != 1) && numberOfNodes <= nodes.size()) {
+        if (numberOfNodes < nodes.size()) {
             throw new IllegalArgumentException(
                 "Cannot shrink " + this + " to have " + numberOfNodes + " nodes as it already has " + getNumberOfNodes()
             );

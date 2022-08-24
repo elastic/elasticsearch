@@ -87,7 +87,8 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
         submitUnbatchedTask(
-            "put-snapshot-lifecycle-" + request.getLifecycleId(), new UpdateSnapshotPolicyTask(request, listener, filteredHeaders) {
+            "put-snapshot-lifecycle-" + request.getLifecycleId(),
+            new UpdateSnapshotPolicyTask(request, listener, filteredHeaders) {
                 @Override
                 protected PutSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
                     return new PutSnapshotLifecycleAction.Response(acknowledged);

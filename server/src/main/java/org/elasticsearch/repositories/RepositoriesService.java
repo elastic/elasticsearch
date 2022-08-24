@@ -230,10 +230,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             this.request = request;
         }
 
-        public RegisterRepositoryTask(
-            final RepositoriesService repositoriesService,
-            final PutRepositoryRequest request
-        ) {
+        public RegisterRepositoryTask(final RepositoriesService repositoriesService, final PutRepositoryRequest request) {
             this(repositoriesService, request, null);
         }
 
@@ -396,10 +393,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public static class UnregisterRepositoryTask extends AckedClusterStateUpdateTask {
         protected final List<String> deletedRepositories = new ArrayList<>();
         private final DeleteRepositoryRequest request;
-        UnregisterRepositoryTask(
-            final DeleteRepositoryRequest request,
-            final ActionListener<AcknowledgedResponse> listener
-        ) {
+
+        UnregisterRepositoryTask(final DeleteRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
             super(request, listener);
             this.request = request;
         }

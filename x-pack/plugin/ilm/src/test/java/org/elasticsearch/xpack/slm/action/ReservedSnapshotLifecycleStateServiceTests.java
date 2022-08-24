@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -25,13 +24,10 @@ import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -144,9 +140,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, twoPoliciesJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
-        SnapshotLifecycleMetadata slmMetadata = updatedState.state()
-            .metadata()
-            .custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata slmMetadata = updatedState.state().metadata().custom(SnapshotLifecycleMetadata.TYPE);
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots", "daily-snapshots1"));
 
         String onePolicyRemovedJSON = """

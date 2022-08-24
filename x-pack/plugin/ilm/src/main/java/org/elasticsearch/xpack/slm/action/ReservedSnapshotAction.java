@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,13 +46,15 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
     }
 
     @SuppressWarnings("unchecked")
-    public Collection<PutSnapshotLifecycleAction.Request> prepare(Object input) {
+    public Collection<PutSnapshotLifecycleAction.Request> prepare(Object input, ClusterState state) {
         List<PutSnapshotLifecycleAction.Request> result = new ArrayList<>();
         List<SnapshotLifecyclePolicy> policies = (List<SnapshotLifecyclePolicy>) input;
 
         for (var policy : policies) {
             PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(policy.getId(), policy);
             validate(request);
+            SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
+            SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
             result.add(request);
         }
 
@@ -60,7 +63,7 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
 
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
-        var requests = prepare(source);
+        var requests = prepare(source, prevState.state());
 
         ClusterState state = prevState.state();
 
@@ -77,9 +80,7 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         toDelete.removeAll(entities);
 
         for (var policyToDelete : toDelete) {
-            var task = new TransportDeleteSnapshotLifecycleAction.DeleteSnapshotPolicyTask(
-                policyToDelete
-            );
+            var task = new TransportDeleteSnapshotLifecycleAction.DeleteSnapshotPolicyTask(policyToDelete);
             state = task.execute(state);
         }
 
@@ -104,7 +105,7 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
     }
 
     @Override
-    public Collection<String> dependencies() {
+    public Collection<String> optionalDependencies() {
         return List.of("snapshot_repositories");
     }
 }

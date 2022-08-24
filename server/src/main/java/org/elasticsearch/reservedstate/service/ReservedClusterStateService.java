@@ -266,8 +266,17 @@ public class ReservedClusterStateService {
             }
             addStateHandler(dependency, keys, ordered, visited);
         }
+        for (String dependency : handler.optionalDependencies()) {
+            if (keys.contains(dependency)) {
+                addStateHandler(dependency, keys, ordered, visited);
+            }
+        }
 
         visited.remove(key);
         ordered.add(key);
+    }
+
+    public void installStateHandler(ReservedClusterStateHandler<?> handler) {
+        this.handlers.put(handler.name(), handler);
     }
 }

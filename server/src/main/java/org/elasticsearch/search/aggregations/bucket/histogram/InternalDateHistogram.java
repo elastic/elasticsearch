@@ -408,7 +408,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(List.of(emptyBucketInfo.subAggregations), reduceContext);
         ListIterator<Bucket> iter = list.listIterator();
-        iterateEmptyBuckets(list, iter, key -> iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs)));
+        iterateEmptyBuckets(list, iter, key ->{
+            // check parent circuit breaker every 1024 calls when allocating empty bucket
+            reduceContext.consumeBucketsAndMaybeBreak(0);
+            iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));
+        });
     }
 
     private void iterateEmptyBuckets(List<Bucket> list, ListIterator<Bucket> iter, LongConsumer onBucket) {

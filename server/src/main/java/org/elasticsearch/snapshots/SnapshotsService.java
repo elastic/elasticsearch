@@ -2625,7 +2625,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         /**
          * Computes an updated {@link SnapshotsInProgress} that takes into account an updated version of
          * {@link SnapshotDeletionsInProgress} that has a {@link SnapshotDeletionsInProgress.Entry} removed from it
-         * relative to the {@link SnapshotDeletionsInProgress} found in {@code currentState}.
+         * relative to the {@link SnapshotDeletionsInProgress} found in {@code initialState}.
          * The removal of a delete from the cluster state can trigger two possible actions on in-progress snapshots:
          * <ul>
          *     <li>Snapshots that had unfinished shard snapshots in state {@link ShardSnapshotStatus#UNASSIGNED_QUEUED} that
@@ -3037,9 +3037,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * Package private to allow for tests.
      */
-    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = (
-        currentState,
-        taskContexts) -> new SnapshotShardsUpdateContext(currentState, taskContexts).computeUpdatedState();
+    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR =
+        batchExecutionContext -> new SnapshotShardsUpdateContext(batchExecutionContext).computeUpdatedState();
 
     private static boolean isQueued(@Nullable ShardSnapshotStatus status) {
         return status != null && status.state() == ShardState.QUEUED;
@@ -3057,11 +3056,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // number of started tasks as a result of applying updates to the snapshot entries seen so far
         private int startedCount = 0;
 
-        // current cluster state
-        private final ClusterState currentState;
+        // batch execution context
+        private final ClusterStateTaskExecutor.BatchExecutionContext<ShardSnapshotUpdate> batchExecutionContext;
 
-        // task contexts to be completed on success
-        private final List<ClusterStateTaskExecutor.TaskContext<ShardSnapshotUpdate>> taskContexts;
+        // initial cluster state for update computation
+        private final ClusterState initialState;
 
         // updates outstanding to be applied to existing snapshot entries
         private final Map<String, List<ShardSnapshotUpdate>> updatesByRepo;
@@ -3069,21 +3068,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // updates that were used to update an existing in-progress shard snapshot
         private final Set<ShardSnapshotUpdate> executedUpdates = new HashSet<>();
 
-        SnapshotShardsUpdateContext(
-            ClusterState currentState,
-            List<ClusterStateTaskExecutor.TaskContext<ShardSnapshotUpdate>> taskContexts
-        ) {
-            this.currentState = currentState;
-            this.taskContexts = taskContexts;
-            updatesByRepo = new HashMap<>();
-            for (final var taskContext : taskContexts) {
+        SnapshotShardsUpdateContext(ClusterStateTaskExecutor.BatchExecutionContext<ShardSnapshotUpdate> batchExecutionContext) {
+            this.batchExecutionContext = batchExecutionContext;
+            this.initialState = batchExecutionContext.initialState();
+            this.updatesByRepo = new HashMap<>();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 updatesByRepo.computeIfAbsent(taskContext.getTask().snapshot.getRepository(), r -> new ArrayList<>())
                     .add(taskContext.getTask());
             }
         }
 
         ClusterState computeUpdatedState() {
-            final SnapshotsInProgress existing = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            final SnapshotsInProgress existing = initialState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
             SnapshotsInProgress updated = existing;
             for (Map.Entry<String, List<ShardSnapshotUpdate>> updates : updatesByRepo.entrySet()) {
                 final String repoName = updates.getKey();
@@ -3098,8 +3094,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 updated = updated.withUpdatedEntriesForRepo(repoName, newEntries);
             }
 
-            final var result = new ShardSnapshotUpdateResult(currentState.metadata(), updated);
-            for (final var taskContext : taskContexts) {
+            final var result = new ShardSnapshotUpdateResult(initialState.metadata(), updated);
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(() -> taskContext.getTask().listener.onResponse(result));
             }
 
@@ -3109,10 +3105,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     changedCount,
                     startedCount
                 );
-                return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, updated).build();
+                return ClusterState.builder(initialState).putCustom(SnapshotsInProgress.TYPE, updated).build();
             }
             assert existing == updated;
-            return currentState;
+            return initialState;
         }
 
         private SnapshotsInProgress.Entry applyToEntry(SnapshotsInProgress.Entry entry, List<ShardSnapshotUpdate> updates) {
@@ -3260,7 +3256,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (entry.isClone() == false) {
                     tryStartSnapshotAfterCloneFinish(repoShardId, updatedState.generation());
                 } else if (isQueued(entry.shardsByRepoShardId().get(repoShardId))) {
-                    final String localNodeId = currentState.nodes().getLocalNodeId();
+                    final String localNodeId = initialState.nodes().getLocalNodeId();
                     assert updatedState.nodeId().equals(localNodeId)
                         : "Clone updated with node id [" + updatedState.nodeId() + "] but local node id is [" + localNodeId + "]";
                     startShardOperation(clonesBuilder(), localNodeId, updatedState.generation(), repoShardId);
@@ -3278,7 +3274,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             // shard snapshot was completed, we check if we can start a clone operation for the same repo shard
                             startShardOperation(
                                 clonesBuilder(),
-                                currentState.nodes().getLocalNodeId(),
+                                initialState.nodes().getLocalNodeId(),
                                 updatedState.generation(),
                                 repoShardId
                             );
@@ -3307,7 +3303,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         + "] because it's a normal snapshot but did not";
                 // work out the node to run the snapshot task on as it might have changed from the previous operation if it was a clone
                 // or there was a primary failover
-                final IndexRoutingTable indexRouting = currentState.routingTable().index(index);
+                final IndexRoutingTable indexRouting = initialState.routingTable().index(index);
                 final ShardRouting shardRouting;
                 if (indexRouting == null) {
                     shardRouting = null;
@@ -3383,11 +3379,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "never called";
         }
 
         @Override

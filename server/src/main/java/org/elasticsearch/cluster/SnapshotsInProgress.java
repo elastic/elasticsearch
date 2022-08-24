@@ -1324,7 +1324,167 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public Diff<Entry> diff(Entry previousState) {
-            return new SimpleDiffable.CompleteDiff<>(this);
+            return new EntryDiff(previousState, this);
+        }
+    }
+
+    /*
+        State state,
+     */
+    private static final class EntryDiff implements Diff<Entry> {
+
+        private static final DiffableUtils.NonDiffableValueSerializer<String, IndexId> INDEX_ID_VALUE_SERIALIZER =
+            new DiffableUtils.NonDiffableValueSerializer<>() {
+                @Override
+                public void write(IndexId value, StreamOutput out) throws IOException {
+                    out.writeString(value.getId());
+                }
+
+                @Override
+                public IndexId read(StreamInput in, String key) throws IOException {
+                    return new IndexId(key, in.readString());
+                }
+            };
+
+        private static final DiffableUtils.NonDiffableValueSerializer<?, ShardSnapshotStatus> SHARD_SNAPSHOT_STATUS_VALUE_SERIALIZER =
+            new DiffableUtils.NonDiffableValueSerializer<>() {
+                @Override
+                public void write(ShardSnapshotStatus value, StreamOutput out) throws IOException {
+                    value.writeTo(out);
+                }
+
+                @Override
+                public ShardSnapshotStatus read(StreamInput in, Object key) throws IOException {
+                    return ShardSnapshotStatus.readFrom(in);
+                }
+            };
+
+        private static final DiffableUtils.KeySerializer<ShardId> SHARD_ID_KEY_SERIALIZER = new DiffableUtils.KeySerializer<>() {
+            @Override
+            public void writeKey(ShardId key, StreamOutput out) throws IOException {
+                key.writeTo(out);
+            }
+
+            @Override
+            public ShardId readKey(StreamInput in) throws IOException {
+                return new ShardId(in);
+            }
+        };
+
+        private static final DiffableUtils.KeySerializer<RepositoryShardId> REPO_SHARD_ID_KEY_SERIALIZER =
+            new DiffableUtils.KeySerializer<>() {
+                @Override
+                public void writeKey(RepositoryShardId key, StreamOutput out) throws IOException {
+                    key.writeTo(out);
+                }
+
+                @Override
+                public RepositoryShardId readKey(StreamInput in) throws IOException {
+                    return new RepositoryShardId(in);
+                }
+            };
+
+        private final DiffableUtils.MapDiff<String, IndexId, Map<String, IndexId>> indexByIndexNameDiff;
+
+        private final DiffableUtils.MapDiff<ShardId, ShardSnapshotStatus, Map<ShardId, ShardSnapshotStatus>> shardsByShardIdDiff;
+
+        @Nullable
+        private final DiffableUtils.MapDiff<
+            RepositoryShardId,
+            ShardSnapshotStatus,
+            Map<RepositoryShardId, ShardSnapshotStatus>> shardsByRepoShardIdDiff;
+
+        @Nullable
+        private final List<String> updatedDataStreams;
+
+        @Nullable
+        private final String updatedFailure;
+
+        private final long updatedRepositoryStateId;
+
+        private final State updatedState;
+
+        EntryDiff(StreamInput in) throws IOException {
+            this.indexByIndexNameDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_ID_VALUE_SERIALIZER);
+            this.updatedState = State.fromValue(in.readByte());
+            this.updatedRepositoryStateId = in.readLong();
+            this.updatedDataStreams = in.readOptionalStringList();
+            this.updatedFailure = in.readOptionalString();
+            this.shardsByShardIdDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                SHARD_ID_KEY_SERIALIZER,
+                (DiffableUtils.ValueSerializer<ShardId, ShardSnapshotStatus>) SHARD_SNAPSHOT_STATUS_VALUE_SERIALIZER
+            );
+            if (in.readBoolean()) {
+                shardsByRepoShardIdDiff = DiffableUtils.readJdkMapDiff(
+                    in,
+                    REPO_SHARD_ID_KEY_SERIALIZER,
+                    (DiffableUtils.ValueSerializer<RepositoryShardId, ShardSnapshotStatus>) SHARD_SNAPSHOT_STATUS_VALUE_SERIALIZER
+                );
+            } else {
+                shardsByRepoShardIdDiff = null;
+            }
+        }
+
+        EntryDiff(Entry before, Entry after) {
+            this.indexByIndexNameDiff = DiffableUtils.diff(
+                before.indices,
+                after.indices,
+                DiffableUtils.getStringKeySerializer(),
+                INDEX_ID_VALUE_SERIALIZER
+            );
+            this.updatedDataStreams = before.dataStreams.equals(after.dataStreams) ? null : after.dataStreams;
+            this.updatedState = after.state;
+            this.updatedRepositoryStateId = after.repositoryStateId;
+            this.updatedFailure = after.failure;
+            this.shardsByShardIdDiff = DiffableUtils.diff(
+                before.shards,
+                after.shards,
+                SHARD_ID_KEY_SERIALIZER,
+                (DiffableUtils.ValueSerializer<ShardId, ShardSnapshotStatus>) SHARD_SNAPSHOT_STATUS_VALUE_SERIALIZER
+            );
+            if (before.isClone()) {
+                this.shardsByRepoShardIdDiff = DiffableUtils.diff(
+                    before.shardStatusByRepoShardId,
+                    after.shardStatusByRepoShardId,
+                    REPO_SHARD_ID_KEY_SERIALIZER,
+                    (DiffableUtils.ValueSerializer<RepositoryShardId, ShardSnapshotStatus>) SHARD_SNAPSHOT_STATUS_VALUE_SERIALIZER
+                );
+            } else {
+                this.shardsByRepoShardIdDiff = null;
+            }
+        }
+
+        @Override
+        public Entry apply(Entry part) {
+            return new Entry(
+                part.snapshot,
+                part.includeGlobalState,
+                part.partial,
+                updatedState,
+                indexByIndexNameDiff.apply(part.indices),
+                updatedDataStreams == null ? part.dataStreams : updatedDataStreams,
+                part.featureStates,
+                part.startTime,
+                updatedRepositoryStateId,
+                shardsByShardIdDiff.apply(part.shards),
+                updatedFailure,
+                part.userMetadata,
+                part.version,
+                part.source,
+                part.source == null ? null : shardsByRepoShardIdDiff.apply(part.shardStatusByRepoShardId)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            this.indexByIndexNameDiff.writeTo(out);
+            out.writeByte(this.updatedState.value());
+            out.writeLong(this.updatedRepositoryStateId);
+            out.writeOptionalStringCollection(updatedDataStreams);
+            out.writeOptionalString(updatedFailure);
+            shardsByShardIdDiff.writeTo(out);
+            out.writeOptionalWriteable(shardsByRepoShardIdDiff);
         }
     }
 
@@ -1347,12 +1507,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     DiffableUtils.getStringKeySerializer(),
                     i -> new ByRepo(i.readList(Entry::readFrom)),
                     i -> new ByRepo.ByRepoDiff(
-                        DiffableUtils.readJdkMapDiff(
-                            i,
-                            DiffableUtils.getVIntKeySerializer(),
-                            Entry::readFrom,
-                            ii -> SimpleDiffable.readDiffFrom(Entry::readFrom, ii)
-                        )
+                        DiffableUtils.readJdkMapDiff(i, DiffableUtils.getVIntKeySerializer(), Entry::readFrom, EntryDiff::new)
                     )
                 )
             );

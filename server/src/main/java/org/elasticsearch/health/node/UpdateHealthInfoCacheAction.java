@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * This action allows a node to send their health info to the selected health node.
@@ -66,6 +67,19 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             super.writeTo(out);
             out.writeString(nodeId);
             diskHealthInfo.writeTo(out);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(nodeId, request.nodeId) && Objects.equals(diskHealthInfo, request.diskHealthInfo);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(nodeId, diskHealthInfo);
         }
     }
 

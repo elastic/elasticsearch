@@ -142,7 +142,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
-        validateRepository(request, listener);
+        // Trying to create the new repository on master to make sure it works
+        try {
+            validateRepositoryRequest(request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
         final StepListener<AcknowledgedResponse> acknowledgementStep = new StepListener<>();
         final StepListener<Boolean> publicationStep = new StepListener<>(); // Boolean==changed.
@@ -291,19 +297,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * This verification method will create and then close the repository we want to create.
      *
      * @param request
-     * @param listener
      */
-    public void validateRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    public void validateRepositoryRequest(final PutRepositoryRequest request) {
         final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
         validate(request.name());
 
         // Trying to create the new repository on master to make sure it works
-        try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists));
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
+        closeRepository(createRepository(newRepositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists));
     }
 
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {

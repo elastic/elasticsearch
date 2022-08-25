@@ -8,9 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.reservedstate;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -61,15 +59,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
 
         for (var repositoryRequest : repositories) {
             validate(repositoryRequest);
-            repositoriesService.validateRepository(repositoryRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new IllegalStateException("Validation error", e);
-                }
-            });
+            repositoriesService.validateRepositoryRequest(repositoryRequest);
         }
 
         return repositories;

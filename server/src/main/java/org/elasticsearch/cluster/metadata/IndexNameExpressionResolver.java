@@ -48,10 +48,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class IndexNameExpressionResolver {
@@ -1155,16 +1155,22 @@ public class IndexNameExpressionResolver {
             if (context.includeDataStreams() == false) {
                 return resolvedExpressions;
             } else {
-                final List<IndexAbstraction> dataStreamsAbstractions = context.getState()
+                Stream<IndexAbstraction> dataStreamsAbstractions = context.getState()
                     .metadata()
                     .getIndicesLookup()
                     .values()
                     .stream()
                     .filter(indexAbstraction -> indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM)
-                    .collect(Collectors.toList());
+                    .filter(
+                        indexAbstraction -> indexAbstraction.isSystem() == false
+                            || context.systemIndexAccessPredicate.test(indexAbstraction.getName())
+                    );
+                if (context.getOptions().expandWildcardsHidden() == false) {
+                    dataStreamsAbstractions = dataStreamsAbstractions.filter(indexAbstraction -> indexAbstraction.isHidden() == false);
+                }
                 // dedup backing indices if expand hidden indices option is true
                 Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
-                expandMatches(context, dataStreamsAbstractions, false, resolvedIncludingDataStreams::add);
+                expandMatches(context, dataStreamsAbstractions, resolvedIncludingDataStreams::add);
                 return resolvedIncludingDataStreams;
             }
         }
@@ -1218,18 +1224,18 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 wildcardSeen = true;
-                final Stream<IndexAbstraction> matches = matches(context, expression);
-                if (context.getOptions().allowNoIndices() == false && matches.isEmpty()) {
-                    throw indexNotFoundException(expression);
-                }
+                Stream<IndexAbstraction> matches = matches(context, expression);
                 Collection<String> finalResult = result;
-                expandMatches(context, matches, expression.startsWith("."), expanded -> {
+                boolean expandedMatches = expandMatches(context, matches, expanded -> {
                     if (add) {
                         finalResult.add(expanded);
                     } else {
                         finalResult.remove(expanded);
                     }
                 });
+                if (context.getOptions().allowNoIndices() == false && expandedMatches == false) {
+                    throw indexNotFoundException(expression);
+                }
             }
             if (result == null) {
                 result = expressions;
@@ -1308,6 +1314,7 @@ public class IndexNameExpressionResolver {
             final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
             Stream<IndexAbstraction> matchesStream;
             if (Regex.isSuffixMatchPattern(expression)) {
+                // this is an initial pre-filtering in the case where the expression is a common suffix wildcard, eg "test*"
                 matchesStream = filterIndicesLookupForSuffixWildcard(indicesLookup, expression).values().stream();
             } else {
                 matchesStream = indicesLookup.values().stream();
@@ -1320,6 +1327,18 @@ public class IndexNameExpressionResolver {
             }
             if (context.includeDataStreams() == false) {
                 matchesStream = matchesStream.filter(e -> e.isDataStreamRelated() == false);
+            }
+            matchesStream = matchesStream.filter(
+                e -> e.isSystem() == false
+                    || (e.getType() != Type.DATA_STREAM
+                        && e.getParentDataStream() == null
+                        && context.netNewSystemIndexPredicate.test(e.getName()) == false)
+                    || context.systemIndexAccessPredicate.test(e.getName())
+            );
+            if (context.getOptions().expandWildcardsHidden() == false) {
+                matchesStream = matchesStream.filter(
+                    e -> e.isHidden() == false || (e.getName().startsWith(".") && expression.startsWith("."))
+                );
             }
             return matchesStream;
         }
@@ -1336,26 +1355,11 @@ public class IndexNameExpressionResolver {
             return indicesLookup.subMap(fromPrefix, toPrefix);
         }
 
-        private static void expandMatches(
-            Context context,
-            Collection<IndexAbstraction> matches,
-            final boolean expressionStartsWithDot,
-            Consumer<String> expandConsumer
-        ) {
+        private static boolean expandMatches(Context context, Stream<IndexAbstraction> matches, Consumer<String> expandConsumer) {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
-            for (IndexAbstraction indexAbstraction : matches) {
-                if (indexAbstraction.isSystem()
-                    && (indexAbstraction.getType() == Type.DATA_STREAM
-                        || indexAbstraction.getParentDataStream() != null
-                        || context.netNewSystemIndexPredicate.test(indexAbstraction.getName()))
-                    && context.systemIndexAccessPredicate.test(indexAbstraction.getName()) == false) {
-                    continue;
-                }
-                if (indexAbstraction.isHidden()
-                    && context.getOptions().expandWildcardsHidden() == false
-                    && (indexAbstraction.getName().startsWith(".") && expressionStartsWithDot) == false) {
-                    continue;
-                }
+            AtomicBoolean matchesExpanded = new AtomicBoolean(false);
+            matches.forEach(indexAbstraction -> {
+                matchesExpanded.set(true);
                 if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                     expandConsumer.accept(indexAbstraction.getName());
                 } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
@@ -1368,7 +1372,8 @@ public class IndexNameExpressionResolver {
                         }
                     }
                 }
-            }
+            });
+            return matchesExpanded.get();
         }
 
         private static boolean isEmptyOrTrivialWildcard(List<String> expressions) {

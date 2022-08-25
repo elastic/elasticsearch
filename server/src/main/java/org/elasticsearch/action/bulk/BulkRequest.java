@@ -10,7 +10,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -19,7 +18,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
@@ -92,20 +90,6 @@ public class BulkRequest extends ActionRequest
 
     public BulkRequest(@Nullable String globalIndex) {
         this.globalIndex = globalIndex;
-    }
-
-    /**
-     * See {@link TransportBulkAction#wrapBulkAsSingleItemResponse(ActionListener)} for wrapping translation of a bulk response
-     * to a single item response.
-     */
-    public static BulkRequest fromSingleRequest(final ReplicatedWriteRequest<?> request) {
-        final var bulkRequest = new BulkRequest();
-        bulkRequest.add(((DocWriteRequest<?>) request));
-        bulkRequest.setRefreshPolicy(request.getRefreshPolicy());
-        bulkRequest.timeout(request.timeout());
-        bulkRequest.waitForActiveShards(request.waitForActiveShards());
-        request.setRefreshPolicy(RefreshPolicy.NONE);
-        return bulkRequest;
     }
 
     /**

@@ -14,8 +14,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -54,6 +52,8 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
+import static org.elasticsearch.action.bulk.TransportBulkAction.wrapBulkResponseAsSingle;
+import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
@@ -192,8 +192,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 client.bulk(
-                    BulkRequest.fromSingleRequest(upsertRequest),
-                    TransportBulkAction.wrapBulkAsSingleItemResponse(ActionListener.<IndexResponse>wrap(response -> {
+                    toSingleItemBulkRequest(upsertRequest),
+                    wrapBulkResponseAsSingle(ActionListener.<IndexResponse>wrap(response -> {
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
                             response.getShardId(),
@@ -233,40 +233,37 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
-                client.bulk(
-                    BulkRequest.fromSingleRequest(indexRequest),
-                    TransportBulkAction.wrapBulkAsSingleItemResponse(ActionListener.<IndexResponse>wrap(response -> {
-                        UpdateResponse update = new UpdateResponse(
-                            response.getShardInfo(),
-                            response.getShardId(),
-                            response.getId(),
+                client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponseAsSingle(ActionListener.<IndexResponse>wrap(response -> {
+                    UpdateResponse update = new UpdateResponse(
+                        response.getShardInfo(),
+                        response.getShardId(),
+                        response.getId(),
+                        response.getSeqNo(),
+                        response.getPrimaryTerm(),
+                        response.getVersion(),
+                        response.getResult()
+                    );
+                    update.setGetResult(
+                        UpdateHelper.extractGetResult(
+                            request,
+                            request.concreteIndex(),
                             response.getSeqNo(),
                             response.getPrimaryTerm(),
                             response.getVersion(),
-                            response.getResult()
-                        );
-                        update.setGetResult(
-                            UpdateHelper.extractGetResult(
-                                request,
-                                request.concreteIndex(),
-                                response.getSeqNo(),
-                                response.getPrimaryTerm(),
-                                response.getVersion(),
-                                result.updatedSourceAsMap(),
-                                result.updateSourceContentType(),
-                                indexSourceBytes
-                            )
-                        );
-                        update.setForcedRefresh(response.forcedRefresh());
-                        listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
-                );
+                            result.updatedSourceAsMap(),
+                            result.updateSourceContentType(),
+                            indexSourceBytes
+                        )
+                    );
+                    update.setForcedRefresh(response.forcedRefresh());
+                    listener.onResponse(update);
+                }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))));
             }
             case DELETED -> {
                 DeleteRequest deleteRequest = result.action();
                 client.bulk(
-                    BulkRequest.fromSingleRequest(deleteRequest),
-                    TransportBulkAction.wrapBulkAsSingleItemResponse(ActionListener.<DeleteResponse>wrap(response -> {
+                    toSingleItemBulkRequest(deleteRequest),
+                    wrapBulkResponseAsSingle(ActionListener.<DeleteResponse>wrap(response -> {
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
                             response.getShardId(),

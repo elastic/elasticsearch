@@ -31,7 +31,6 @@ import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -172,14 +171,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return indexRequest;
     }
 
-    /**
-     * See {@link BulkRequest#fromSingleRequest(ReplicatedWriteRequest)} for wrapping a single action request in a bulk request.
-     */
-    public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> wrapBulkAsSingleItemResponse(
+    public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> wrapBulkResponseAsSingle(
         final ActionListener<Response> listener
     ) {
         return ActionListener.wrap(bulkItemResponses -> {
-            assert bulkItemResponses.getItems().length == 1 : "expected only one item in bulk response";
+            assert bulkItemResponses.getItems().length == 1 : "expected exactly one item in bulk response";
             final BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
             if (bulkItemResponse.isFailed() == false) {
                 @SuppressWarnings("unchecked")

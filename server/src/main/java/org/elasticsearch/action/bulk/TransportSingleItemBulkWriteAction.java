@@ -9,8 +9,10 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -19,8 +21,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * Use {@link TransportBulkAction} with {@link BulkRequest#fromSingleRequest(ReplicatedWriteRequest)}
- * and {@link TransportBulkAction#wrapBulkAsSingleItemResponse(ActionListener)} instead.
+ * Use {@link TransportBulkAction} instead with {@link TransportBulkAction#wrapBulkResponseAsSingle(ActionListener)} as response wrapper.
  */
 @Deprecated
 public abstract class TransportSingleItemBulkWriteAction<
@@ -40,8 +41,18 @@ public abstract class TransportSingleItemBulkWriteAction<
         this.bulkAction = bulkAction;
     }
 
+    public static BulkRequest toSingleItemBulkRequest(ReplicatedWriteRequest<?> request) {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(((DocWriteRequest<?>) request));
+        bulkRequest.setRefreshPolicy(request.getRefreshPolicy());
+        bulkRequest.timeout(request.timeout());
+        bulkRequest.waitForActiveShards(request.waitForActiveShards());
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        return bulkRequest;
+    }
+
     @Override
     protected void doExecute(Task task, final Request request, final ActionListener<Response> listener) {
-        bulkAction.execute(task, BulkRequest.fromSingleRequest(request), TransportBulkAction.wrapBulkAsSingleItemResponse(listener));
+        bulkAction.execute(task, toSingleItemBulkRequest(request), TransportBulkAction.wrapBulkResponseAsSingle(listener));
     }
 }

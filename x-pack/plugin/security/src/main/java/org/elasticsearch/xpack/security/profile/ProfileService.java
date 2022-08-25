@@ -15,10 +15,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.bulk.*;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -531,7 +528,7 @@ public class ProfileService {
         // attempt to create a doc with the same ID and cause version conflict which is handled.
         final ProfileDocument profileDocument = ProfileDocument.fromSubjectWithUid(subject, uid);
         final String docId = uidToDocId(profileDocument.uid());
-        final BulkRequest bulkRequest = BulkRequest.fromSingleRequest(
+        final BulkRequest bulkRequest = TransportSingleItemBulkWriteAction.toSingleItemBulkRequest(
             client.prepareIndex(SECURITY_PROFILE_ALIAS)
                 .setId(docId)
                 .setSource(wrapProfileDocument(profileDocument))
@@ -546,7 +543,7 @@ public class ProfileService {
                 getActionOrigin(),
                 BulkAction.INSTANCE,
                 bulkRequest,
-                TransportBulkAction.<IndexResponse>wrapBulkAsSingleItemResponse(ActionListener.wrap(indexResponse -> {
+                TransportBulkAction.<IndexResponse>wrapBulkResponseAsSingle(ActionListener.wrap(indexResponse -> {
                     assert docId.equals(indexResponse.getId());
                     final VersionedDocument versionedDocument = new VersionedDocument(
                         profileDocument,

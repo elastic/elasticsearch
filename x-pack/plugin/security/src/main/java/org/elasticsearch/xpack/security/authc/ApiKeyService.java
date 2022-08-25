@@ -18,12 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.bulk.*;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -321,7 +316,7 @@ public class ApiKeyService {
                     request.getMetadata()
                 )
             ) {
-                final BulkRequest bulkRequest = BulkRequest.fromSingleRequest(
+                final BulkRequest bulkRequest = TransportSingleItemBulkWriteAction.toSingleItemBulkRequest(
                     client.prepareIndex(SECURITY_MAIN_ALIAS)
                         .setSource(builder)
                         .setId(request.getId())
@@ -336,7 +331,7 @@ public class ApiKeyService {
                         SECURITY_ORIGIN,
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        TransportBulkAction.<IndexResponse>wrapBulkAsSingleItemResponse(ActionListener.wrap(indexResponse -> {
+                        TransportBulkAction.<IndexResponse>wrapBulkResponseAsSingle(ActionListener.wrap(indexResponse -> {
                             assert request.getId().equals(indexResponse.getId());
                             assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                             final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();

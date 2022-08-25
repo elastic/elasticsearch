@@ -322,14 +322,17 @@ public class ApiKeyService {
                     request.getMetadata()
                 )
             ) {
-                final BulkRequest bulkRequest = TransportSingleItemBulkWriteAction.toSingleItemBulkRequest(
+                final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+                bulkRequestBuilder.add(
                     client.prepareIndex(SECURITY_MAIN_ALIAS)
                         .setSource(builder)
                         .setId(request.getId())
                         .setOpType(DocWriteRequest.OpType.CREATE)
-                        .setRefreshPolicy(request.getRefreshPolicy())
                         .request()
                 );
+                bulkRequestBuilder.setRefreshPolicy(request.getRefreshPolicy());
+                final BulkRequest bulkRequest = bulkRequestBuilder.request();
+                
                 securityIndex.prepareIndexIfNeededThenExecute(
                     listener::onFailure,
                     () -> executeAsyncWithOrigin(

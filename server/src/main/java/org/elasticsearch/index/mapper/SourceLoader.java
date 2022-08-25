@@ -126,9 +126,12 @@ public interface SourceLoader {
                         }
                     }
                 }
+                if (docValuesLoader != null) {
+                    docValuesLoader.advanceToDoc(docId);
+                }
                 // TODO accept a requested xcontent type
                 try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                    if (docValuesLoader.advanceToDoc(docId)) {
+                    if (loader.hasValue()) {
                         loader.write(b);
                     } else {
                         b.startObject().endObject();
@@ -186,6 +189,11 @@ public interface SourceLoader {
             }
 
             @Override
+            public boolean hasValue() {
+                return false;
+            }
+
+            @Override
             public void write(XContentBuilder b) {}
         };
 
@@ -201,6 +209,8 @@ public interface SourceLoader {
          * load.
          */
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
+
+        boolean hasValue();
 
         /**
          * Write values for this document.

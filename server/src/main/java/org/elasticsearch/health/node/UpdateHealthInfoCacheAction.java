@@ -26,6 +26,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
+/**
+ * This action allows a node to send their health info to the selected health node.
+ * When the health node receives the health info, it will update the internal cache
+ * regarding this node.
+ */
 public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends ActionRequest {

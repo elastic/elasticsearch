@@ -699,7 +699,7 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
-                return null;
+                throw new AssertionError("should not be called");
             }
 
             @Override

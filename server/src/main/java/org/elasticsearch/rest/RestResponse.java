@@ -49,7 +49,7 @@ public class RestResponse {
     private final BytesReference content;
 
     @Nullable
-    private final ChunkedRestResponseBody responseBody;
+    private final ChunkedRestResponseBody chunkedResponseBody;
     private final String responseMediaType;
     private Map<String, List<String>> customHeaders;
 
@@ -89,12 +89,13 @@ public class RestResponse {
         RestStatus status,
         String responseMediaType,
         @Nullable BytesReference content,
-        @Nullable ChunkedRestResponseBody responseBody
+        @Nullable ChunkedRestResponseBody chunkedResponseBody
     ) {
         this.status = status;
         this.content = content;
         this.responseMediaType = responseMediaType;
-        this.responseBody = responseBody;
+        this.chunkedResponseBody = chunkedResponseBody;
+        assert (content == null) != (chunkedResponseBody == null);
     }
 
     public RestResponse(RestChannel channel, Exception e) throws IOException {
@@ -126,7 +127,7 @@ public class RestResponse {
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));
         }
-        this.responseBody = null;
+        this.chunkedResponseBody = null;
     }
 
     public String contentType() {
@@ -140,11 +141,11 @@ public class RestResponse {
 
     @Nullable
     public ChunkedRestResponseBody chunkedContent() {
-        return responseBody;
+        return chunkedResponseBody;
     }
 
     public boolean isChunked() {
-        return responseBody != null;
+        return chunkedResponseBody != null;
     }
 
     public RestStatus status() {

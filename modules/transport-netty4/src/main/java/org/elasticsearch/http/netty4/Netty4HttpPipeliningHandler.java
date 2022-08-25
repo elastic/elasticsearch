@@ -212,9 +212,9 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private void doWrite(ChannelHandlerContext ctx, Netty4ChunkedHttpResponse readyResponse, ChannelPromise promise) throws IOException {
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
-        currentChunkedWrite = new ChunkedWrite(combiner, promise, readyResponse);
         final ChannelPromise first = ctx.newPromise();
         combiner.add((Future<Void>) first);
+        currentChunkedWrite = new ChunkedWrite(combiner, promise, readyResponse);
         if (enqueueWrite(ctx, readyResponse, first)) {
             // we were able to write out the first chunk directly, try writing out subsequent chunks until the channel becomes unwritable
             while (ctx.channel().isWritable()) {

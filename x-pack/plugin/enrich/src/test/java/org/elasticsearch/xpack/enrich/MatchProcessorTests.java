@@ -251,7 +251,7 @@ public class MatchProcessorTests extends ESTestCase {
             1
         );
 
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")));
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")));
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
         processor.execute(ingestDocument, (result, e) -> {
@@ -281,7 +281,7 @@ public class MatchProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("domain", "elastic.co");
         source.put("tld", null);
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(source);
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
         processor.execute(ingestDocument, (result, e) -> {

@@ -29,6 +29,9 @@ import java.util.stream.Stream;
 
 public final class TextStructureUtils {
 
+    // The ECS Grok pattern compatibility mode to use when no ecs_compatibility parameter is specified in the request.
+    private static final boolean DEFAULT_ECS_COMPATIBILITY = false;
+
     private static final Logger logger = LogManager.getLogger(TextStructureUtils.class);
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     public static final String MAPPING_TYPE_SETTING = "type";
@@ -218,7 +221,8 @@ public final class TextStructureUtils {
                         true,
                         true,
                         true,
-                        timeoutChecker
+                        timeoutChecker,
+                        Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
                     );
                     try {
                         timestampFormatFinder.addSample(value.toString());
@@ -259,6 +263,24 @@ public final class TextStructureUtils {
         List<Map<String, ?>> sampleRecords,
         TimeoutChecker timeoutChecker
     ) {
+        return guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, DEFAULT_ECS_COMPATIBILITY);
+    }
+
+    /**
+     * Given the sampled records, guess appropriate Elasticsearch mappings.
+     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
+     *                    can be appended by this method.
+     * @param sampleRecords The sampled records.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param ecsCompatibility The mode of compatibility with ECS Grok patterns
+     * @return A map of field name to mapping settings.
+     */
+    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+        List<String> explanation,
+        List<Map<String, ?>> sampleRecords,
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
+    ) {
 
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
@@ -276,7 +298,8 @@ public final class TextStructureUtils {
                 explanation,
                 fieldName,
                 fieldValues,
-                timeoutChecker
+                timeoutChecker,
+                ecsCompatibility
             );
             if (mappingAndFieldStats != null) {
                 if (mappingAndFieldStats.v1() != null) {
@@ -295,7 +318,8 @@ public final class TextStructureUtils {
         List<String> explanation,
         String fieldName,
         List<Object> fieldValues,
-        TimeoutChecker timeoutChecker
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
     ) {
         if (fieldValues == null || fieldValues.isEmpty()) {
             // We can get here if all the records that contained a given field had a null value for it.
@@ -318,12 +342,13 @@ public final class TextStructureUtils {
                 explanation,
                 fieldName,
                 fieldValues.stream().flatMap(TextStructureUtils::flatten).collect(Collectors.toList()),
-                timeoutChecker
+                timeoutChecker,
+                ecsCompatibility
             );
         }
 
         Collection<String> fieldValuesAsStrings = fieldValues.stream().map(Object::toString).collect(Collectors.toList());
-        Map<String, String> mapping = guessScalarMapping(explanation, fieldName, fieldValuesAsStrings, timeoutChecker);
+        Map<String, String> mapping = guessScalarMapping(explanation, fieldName, fieldValuesAsStrings, timeoutChecker, ecsCompatibility);
         timeoutChecker.check("mapping determination");
         return new Tuple<>(mapping, calculateFieldStats(mapping, fieldValuesAsStrings, timeoutChecker));
     }
@@ -355,11 +380,19 @@ public final class TextStructureUtils {
     static Map<String, String> findTimestampMapping(
         List<String> explanation,
         Collection<String> fieldValues,
-        TimeoutChecker timeoutChecker
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
     ) {
         assert fieldValues.isEmpty() == false;
 
-        TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, timeoutChecker);
+        TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(
+            explanation,
+            true,
+            true,
+            true,
+            timeoutChecker,
+            ecsCompatibility
+        );
         fieldValues.forEach(timestampFormatFinder::addSample);
         return timestampFormatFinder.getEsDateMappingTypeWithFormat();
     }
@@ -382,7 +415,8 @@ public final class TextStructureUtils {
         List<String> explanation,
         String fieldName,
         Collection<String> fieldValues,
-        TimeoutChecker timeoutChecker
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
     ) {
         assert fieldValues.isEmpty() == false;
 
@@ -391,7 +425,7 @@ public final class TextStructureUtils {
         }
 
         try {
-            return findTimestampMapping(explanation, fieldValues, timeoutChecker);
+            return findTimestampMapping(explanation, fieldValues, timeoutChecker, ecsCompatibility);
         } catch (IllegalArgumentException e) {
             // To be mapped as type "date" all the values must match the same timestamp format - if
             // they don't we'll end up here, and move on to try other possible mappings
@@ -475,7 +509,8 @@ public final class TextStructureUtils {
         String timestampField,
         List<String> timestampFormats,
         boolean needClientTimezone,
-        boolean needNanosecondPrecision
+        boolean needNanosecondPrecision,
+        String ecsCompatibility
     ) {
 
         if (grokPattern == null && csvProcessorSettings == null && timestampField == null) {
@@ -494,6 +529,10 @@ public final class TextStructureUtils {
             if (customGrokPatternDefinitions.isEmpty() == false) {
                 grokProcessorSettings.put("pattern_definitions", customGrokPatternDefinitions);
             }
+            grokProcessorSettings.put(
+                "ecs_compatibility",
+                (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? Grok.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility
+            );
             processors.add(Collections.singletonMap("grok", grokProcessorSettings));
         } else {
             assert customGrokPatternDefinitions.isEmpty();

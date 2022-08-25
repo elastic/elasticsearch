@@ -54,7 +54,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
                 randomNumber = randomDoubleBetween(0.0, 3.0, false);
             } else {
                 keywordValue = UPPER_KEYWORD;
-                randomNumber = randomDoubleBetween(5.0, 10.0, false);
+                randomNumber = randomDoubleBetween(5.0, 9.0, false);
             }
             builders.add(
                 client().prepareIndex("idx")

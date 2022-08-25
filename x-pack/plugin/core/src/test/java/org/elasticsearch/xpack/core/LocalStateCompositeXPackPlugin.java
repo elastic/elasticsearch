@@ -88,6 +88,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -197,7 +198,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -212,7 +214,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier
+                repositoriesServiceSupplier,
+                tracer
             )
         );
 
@@ -230,7 +233,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         nodeEnvironment,
                         namedWriteableRegistry,
                         expressionResolver,
-                        repositoriesServiceSupplier
+                        repositoriesServiceSupplier,
+                        tracer
                     )
                 )
             );
@@ -402,7 +406,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream()
@@ -417,7 +422,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         xContentRegistry,
                         networkService,
                         dispatcher,
-                        clusterSettings
+                        clusterSettings,
+                        tracer
                     )
                 )
             );
@@ -719,10 +725,16 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
 
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> allListeners = new GroupedActionListener<>(
-            ActionListener.wrap(
-                listenerResults -> finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName())),
-                finalListener::onFailure
-            ),
+            ActionListener.wrap(listenerResults -> {
+                // If the clean-up produced only one result, use that to pass along. In most
+                // cases it should be 1-1 mapping of feature to response. Passing back success
+                // prevents us from writing validation tests on this API.
+                if (listenerResults != null && listenerResults.size() == 1) {
+                    finalListener.onResponse(listenerResults.stream().findFirst().get());
+                } else {
+                    finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
+                }
+            }, finalListener::onFailure),
             systemPlugins.size()
         );
         systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));

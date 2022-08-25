@@ -1,5 +1,0 @@
-pr: 85941
-summary: New service to keep track of the master history as seen from each node
-area: Health
-type: feature
-issues: []

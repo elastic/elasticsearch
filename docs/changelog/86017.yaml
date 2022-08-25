@@ -1,5 +1,0 @@
-pr: 86017
-summary: Batch execute template and pipeline cluster state operations
-area: "Indices APIs"
-type: enhancement
-issues: []

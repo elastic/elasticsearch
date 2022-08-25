@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
 
 /**
@@ -56,47 +55,21 @@ import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_
 class Elasticsearch {
 
     /**
-     * Main entry point for starting elasticsearch
+     * Main entry point for starting elasticsearch.
      */
     public static void main(final String[] args) {
 
-        PrintStream out = getStdout();
-        PrintStream err = getStderr();
-        final ServerArgs serverArgs = initPhase1(err);
-        assert serverArgs != null;
+        Bootstrap bootstrap = initPhase1();
+        assert bootstrap != null;
 
         try {
-            BootstrapState state = initPhase2(serverArgs);
-            initPhase3(serverArgs, state, err, out);
+            initPhase2(bootstrap);
+            initPhase3(bootstrap);
         } catch (NodeValidationException e) {
-            exitWithUserException(err, ExitCodes.CONFIG, e);
+            bootstrap.exitWithUserException(ExitCodes.CONFIG, e);
         } catch (Throwable t) {
-            exitWithUnknownException(err, t);
+            bootstrap.exitWithUnknownException(t);
         }
-    }
-
-    private static void exitWithUserException(PrintStream err, int exitCode, Exception e) {
-        err.print(USER_EXCEPTION_MARKER);
-        err.println(e.getMessage());
-        gracefullyExit(err, exitCode);
-    }
-
-    private static void exitWithUnknownException(PrintStream err, Throwable e) {
-        Logger logger = LogManager.getLogger(Elasticsearch.class);
-        logger.error("fatal exception while booting Elasticsearch", e);
-        gracefullyExit(err, 1); // mimic JDK exit code on exception
-    }
-
-    // sends a stacktrace of an exception to the controlling cli process
-    private static void sendGenericException(PrintStream err, Throwable t) {
-        t.printStackTrace(err);
-        err.flush();
-    }
-
-    private static void gracefullyExit(PrintStream err, int exitCode) {
-        printLogsSuggestion(err);
-        err.flush();
-        exit(exitCode);
     }
 
     @SuppressForbidden(reason = "grab stderr for communication with server-cli")
@@ -110,11 +83,6 @@ class Elasticsearch {
         return System.out;
     }
 
-    @SuppressForbidden(reason = "main exit path")
-    private static void exit(int exitCode) {
-        System.exit(exitCode);
-    }
-
     /**
      * First phase of process initialization.
      *
@@ -122,7 +90,9 @@ class Elasticsearch {
      * finally initializing logging. As little as possible should be done in this phase because
      * initializing logging is the last step.
      */
-    private static ServerArgs initPhase1(PrintStream err) {
+    private static Bootstrap initPhase1() {
+        final PrintStream out = getStdout();
+        final PrintStream err = getStderr();
         final ServerArgs args;
         try {
             initSecurityProperties();
@@ -157,30 +127,31 @@ class Elasticsearch {
             LogConfigurator.configure(nodeEnv, args.quiet() == false);
         } catch (Throwable t) {
             // any exception this early needs to be fully printed and fail startup
-            sendGenericException(err, t);
-            exit(1); // mimic JDK exit code on exception
+            t.printStackTrace(err);
+            err.flush();
+            Bootstrap.exit(1); // mimic JDK exit code on exception
             return null; // unreachable, to satisfy compiler
         }
 
-        return args;
+        return new Bootstrap(out, err, args);
     }
-
-    // state needed to pass between phase 2 and 3
-    record BootstrapState(Environment environment, SecureSettings secureSettings, Spawner spawner) {}
 
     /**
      * Second phase of process initialization.
      *
      * <p> Phase 2 consists of everything that must occur up to and including security manager initialization.
      */
-    private static BootstrapState initPhase2(ServerArgs args) throws IOException {
+    private static void initPhase2(Bootstrap bootstrap) throws IOException {
+        final ServerArgs args = bootstrap.args();
         final SecureSettings keystore;
         try {
             keystore = KeyStoreWrapper.bootstrap(args.configDir(), args::keystorePassword);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        bootstrap.setSecureSettings(keystore);
         Environment nodeEnv = createEnvironment(args.configDir(), args.nodeSettings(), keystore);
+        bootstrap.setEnvironment(nodeEnv);
 
         initPidFile(args.pidFile());
 
@@ -189,8 +160,7 @@ class Elasticsearch {
         // setDefaultUncaughtExceptionHandler
         Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
-        Spawner spawner = new Spawner();
-        spawner.spawnNativeControllers(nodeEnv);
+        bootstrap.spawner().spawnNativeControllers(nodeEnv);
 
         nodeEnv.validateNativesConfig(); // temporary directories are important for JNA
         initializeNatives(
@@ -218,8 +188,6 @@ class Elasticsearch {
             SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
             args.pidFile()
         );
-
-        return new BootstrapState(nodeEnv, keystore, spawner);
     }
 
     /**
@@ -236,16 +204,14 @@ class Elasticsearch {
      *     <li>The parent CLI process has been notified the system is ready</li>
      * </ul>
      *
-     * @param args arguments sent to this server
-     * @param state state from initializing security manager
+     * @param bootstrap the bootstrap state
      * @throws IOException if a problem with filesystem or network occurs
      * @throws NodeValidationException if the node cannot start due to a node configuration issue
      */
-    private static void initPhase3(ServerArgs args, BootstrapState state, PrintStream err, PrintStream out) throws IOException,
-        NodeValidationException {
+    private static void initPhase3(Bootstrap bootstrap) throws IOException, NodeValidationException {
         checkLucene();
 
-        Node node = new Node(state.environment()) {
+        Node node = new Node(bootstrap.environment()) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,
@@ -255,14 +221,14 @@ class Elasticsearch {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
-        INSTANCE = new Elasticsearch(state.spawner, node);
+        INSTANCE = new Elasticsearch(bootstrap.spawner(), node);
 
         // any secure settings must be read during node construction
-        IOUtils.close(state.secureSettings());
+        IOUtils.close(bootstrap.secureSettings());
 
         INSTANCE.start();
 
-        if (args.daemonize()) {
+        if (bootstrap.args().daemonize()) {
             LogConfigurator.removeConsoleAppender();
         }
 
@@ -270,10 +236,9 @@ class Elasticsearch {
         // Signaling readiness to accept requests must remain the last step of initialization. Note that it is extremely
         // important closing the err stream to the CLI when daemonizing is the last statement since that is the only
         // way to pass errors to the CLI
-        err.println(BootstrapInfo.SERVER_READY_MARKER);
-        if (args.daemonize()) {
-            out.close();
-            err.close();
+        bootstrap.sendCliMarker(BootstrapInfo.SERVER_READY_MARKER);
+        if (bootstrap.args().daemonize()) {
+            bootstrap.closeStreams();
         } else {
             startCliMonitorThread(System.in);
         }
@@ -367,22 +332,6 @@ class Elasticsearch {
     }
 
     /**
-     * Prints a message directing the user to look at the logs. A message is only printed if
-     * logging has been configured.
-     */
-    static void printLogsSuggestion(PrintStream err) {
-        final String basePath = System.getProperty("es.logs.base_path");
-        assert basePath != null : "logging wasn't initialized";
-        err.println(
-            "ERROR: Elasticsearch did not exit normally - check the logs at "
-                + basePath
-                + System.getProperty("file.separator")
-                + System.getProperty("es.logs.cluster_name")
-                + ".log"
-        );
-    }
-
-    /**
      * Starts a thread that monitors stdin for a shutdown signal.
      *
      * If the shutdown signal is received, Elasticsearch exits with status code 0.
@@ -399,10 +348,10 @@ class Elasticsearch {
                 // ignore, whether we cleanly got end of stream (-1) or an error, we will shut down below
             } finally {
                 if (msg == BootstrapInfo.SERVER_SHUTDOWN_MARKER) {
-                    exit(0);
+                    Bootstrap.exit(0);
                 } else {
                     // parent process died or there was an error reading from it
-                    exit(1);
+                    Bootstrap.exit(1);
                 }
             }
         }).start();

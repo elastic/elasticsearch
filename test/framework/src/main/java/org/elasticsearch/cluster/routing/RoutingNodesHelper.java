@@ -60,7 +60,7 @@ public final class RoutingNodesHelper {
     }
 
     public static RoutingNode routingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
-        final RoutingNode routingNode = new RoutingNode(nodeId, node);
+        final RoutingNode routingNode = new RoutingNode(nodeId, node, shards.length);
         for (ShardRouting shardRouting : shards) {
             routingNode.add(shardRouting);
         }

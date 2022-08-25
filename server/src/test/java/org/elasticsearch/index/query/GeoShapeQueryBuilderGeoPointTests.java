@@ -10,23 +10,25 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.search.geo.GeoShapeQueryBuilderTestCase;
 
-public class GeoShapeQueryBuilderGeoPointTests extends GeoShapeQueryBuilderTests {
+public class GeoShapeQueryBuilderGeoPointTests extends GeoShapeQueryBuilderTestCase {
 
-    protected String fieldName() {
-        return GEO_POINT_FIELD_NAME;
+    protected String getFieldName() {
+        return randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME);
     }
 
+    @Override
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
         Geometry geometry = GeometryTestUtils.randomPolygon(false);
         GeoShapeQueryBuilder builder;
         clearShapeFields();
         if (indexedShape == false) {
-            builder = new GeoShapeQueryBuilder(fieldName(), geometry);
+            builder = new GeoShapeQueryBuilder(getFieldName(), geometry);
         } else {
             indexedShapeToReturn = geometry;
             indexedShapeId = randomAlphaOfLengthBetween(3, 20);
-            builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId);
+            builder = new GeoShapeQueryBuilder(getFieldName(), indexedShapeId);
             if (randomBoolean()) {
                 indexedShapeIndex = randomAlphaOfLengthBetween(3, 20);
                 builder.indexedShapeIndex(indexedShapeIndex);
@@ -49,5 +51,4 @@ public class GeoShapeQueryBuilderGeoPointTests extends GeoShapeQueryBuilderTests
         }
         return builder;
     }
-
 }

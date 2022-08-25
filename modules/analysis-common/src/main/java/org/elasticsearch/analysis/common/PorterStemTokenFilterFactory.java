@@ -18,7 +18,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 public class PorterStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     PorterStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
     }
 
     @Override

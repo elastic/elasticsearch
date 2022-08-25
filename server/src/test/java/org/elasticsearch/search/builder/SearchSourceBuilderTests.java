@@ -500,10 +500,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
 
-        String restContent = "{\"size\" : " + randomSize + "}";
+        // SearchSourceBuilder.fromXContent treats -1 as not-set
+        int boundedRandomSize = randomIntBetween(-100000, -2);
+        String restContent = "{\"size\" : " + boundedRandomSize + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
-            assertThat(ex.getMessage(), containsString(Integer.toString(randomSize)));
+            assertThat(ex.getMessage(), containsString(Integer.toString(boundedRandomSize)));
         }
 
         restContent = "{\"size\" : -1}";

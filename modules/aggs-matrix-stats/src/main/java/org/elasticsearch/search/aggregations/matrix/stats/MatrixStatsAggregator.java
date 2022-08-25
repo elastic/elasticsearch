@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -58,13 +58,13 @@ final class MatrixStatsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final NumericDoubleValues[] values = new NumericDoubleValues[valuesSources.fieldNames().length];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = valuesSources.getField(i, ctx);
+            values[i] = valuesSources.getField(i, aggCtx.getLeafReaderContext());
         }
 
         return new LeafBucketCollectorBase(sub, values) {

@@ -47,7 +47,6 @@ tasks.named('forbiddenApisMain').configure {
 // TODO: should we have licenses for our test deps?
 tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("dependenciesInfo").configure { enabled = false }
-tasks.named("dependenciesGraph").configure { enabled = false }
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
@@ -56,7 +55,6 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
-          'org.apache.log4j.Category',
           'org.apache.log4j.Level',
           'org.apache.log4j.Logger',
           'org.apache.log4j.Priority',

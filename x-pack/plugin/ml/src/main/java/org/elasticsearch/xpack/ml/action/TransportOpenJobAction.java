@@ -216,7 +216,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }, listener::onFailure);
 
             // Get the job config
-            jobConfigProvider.getJob(jobParams.getJobId(), ActionListener.wrap(builder -> {
+            jobConfigProvider.getJob(jobParams.getJobId(), null, ActionListener.wrap(builder -> {
                 jobParams.setJob(builder.build());
                 getJobHandler.onResponse(null);
             }, listener::onFailure));

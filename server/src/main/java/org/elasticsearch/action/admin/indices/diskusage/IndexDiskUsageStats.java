@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String NORMS_IN_BYTES = "norms_in_bytes";
     public static final String TERM_VECTORS = "term_vectors";
     public static final String TERM_VECTORS_IN_BYTES = "term_vectors_in_bytes";
+    public static final String KNN_VECTORS = "knn_vectors";
+    public static final String KNN_VECTORS_IN_BYTES = "knn_vectors_in_bytes";
 
     public static final String STORE_SIZE = "store_size";
     public static final String STORE_SIZE_IN_BYTES = "store_size_in_bytes";
@@ -119,6 +122,11 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         getOrAdd(fieldName).termVectorsBytes += bytes;
     }
 
+    public void addKnnVectors(String fieldName, long bytes) {
+        checkByteSize(bytes);
+        getOrAdd(fieldName).knnVectorsBytes += bytes;
+    }
+
     public IndexDiskUsageStats add(IndexDiskUsageStats other) {
         other.fields.forEach((k, v) -> getOrAdd(k).add(v));
         this.indexSizeInBytes += other.indexSizeInBytes;
@@ -168,6 +176,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         private long pointsBytes;
         private long normsBytes;
         private long termVectorsBytes;
+        private long knnVectorsBytes;
 
         private PerFieldDiskUsage() {
 
@@ -180,6 +189,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes = in.readVLong();
             normsBytes = in.readVLong();
             termVectorsBytes = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+                knnVectorsBytes = in.readVLong();
+            }
         }
 
         @Override
@@ -190,6 +202,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             out.writeVLong(pointsBytes);
             out.writeVLong(normsBytes);
             out.writeVLong(termVectorsBytes);
+            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+                out.writeVLong(knnVectorsBytes);
+            }
         }
 
         private void add(PerFieldDiskUsage other) {
@@ -199,6 +214,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes += other.pointsBytes;
             normsBytes += other.normsBytes;
             termVectorsBytes += other.termVectorsBytes;
+            knnVectorsBytes += other.knnVectorsBytes;
         }
 
         public long getInvertedIndexBytes() {
@@ -225,8 +241,12 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             return termVectorsBytes;
         }
 
+        public long getKnnVectorsBytes() {
+            return knnVectorsBytes;
+        }
+
         long totalBytes() {
-            return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes;
+            return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes + knnVectorsBytes;
         }
 
         @Override
@@ -254,6 +274,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
             builder.field(TERM_VECTORS, new ByteSizeValue(termVectorsBytes));
             builder.field(TERM_VECTORS_IN_BYTES, termVectorsBytes);
+
+            builder.field(KNN_VECTORS, new ByteSizeValue(knnVectorsBytes));
+            builder.field(KNN_VECTORS_IN_BYTES, knnVectorsBytes);
             return builder;
         }
 

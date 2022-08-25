@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Project;
@@ -21,7 +20,7 @@ import org.gradle.internal.jvm.Jvm;
 
 import java.nio.file.Path;
 
-public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
 
     public static final String JDK_JAR_HELL_CONFIG_NAME = "jdkJarHell";
     public static final String LIBS_ELASTICSEARCH_CORE_PROJECT_PATH = ":libs:elasticsearch-core";
@@ -55,7 +54,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.setClasspath(runtimeConfiguration.plus(compileOnly));
-            t.setJarsToScan(runtimeConfiguration.fileCollection(dep -> {
+            t.getJarsToScan().from(runtimeConfiguration.fileCollection(dep -> {
                 // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
                 // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
                 // err on the side of scanning these to make sure we don't miss anything
@@ -65,8 +64,8 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
             t.setJavaHome(Jvm.current().getJavaHome().getPath());
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
-            t.setJdkJarHellClasspath(jdkJarHellConfig);
-            t.setForbiddenAPIsClasspath(project.getConfigurations().getByName("forbiddenApisCliJar").plus(compileOnly));
+            t.getJdkJarHellClasspath().from(jdkJarHellConfig);
+            t.getForbiddenAPIsClasspath().from(project.getConfigurations().getByName("forbiddenApisCliJar").plus(compileOnly));
         });
         return audit;
     }

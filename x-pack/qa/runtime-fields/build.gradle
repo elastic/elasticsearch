@@ -95,6 +95,11 @@ subprojects {
           'search.aggregation/20_terms/string profiler via global ordinals native implementation',
           'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
           'search.aggregation/170_cardinality_metric/profiler string',
+          'search.aggregation/170_cardinality_metric/profiler string segment ords hint',
+          'search.aggregation/170_cardinality_metric/profiler string global ords hint',
+          'search.aggregation/170_cardinality_metric/profiler string direct hint',
+          'search.aggregation/170_cardinality_metric/profiler string save memory hint',
+          'search.aggregation/170_cardinality_metric/profiler string save time hint',
           'search.aggregation/235_composite_sorted/*',
           // timeseries dimensions can't be runtime fields
           'search.aggregation/450_time_series/*',

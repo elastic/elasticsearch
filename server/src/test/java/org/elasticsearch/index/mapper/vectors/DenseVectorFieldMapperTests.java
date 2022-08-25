@@ -16,11 +16,11 @@ import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.KnnVectorFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -122,16 +122,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        if (indexed) {
-            assertThat(query, instanceOf(KnnVectorFieldExistsQuery.class));
-            KnnVectorFieldExistsQuery existsQuery = (KnnVectorFieldExistsQuery) query;
-            assertEquals("field", existsQuery.getField());
-        } else {
-            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
-            DocValuesFieldExistsQuery existsQuery = (DocValuesFieldExistsQuery) query;
-            assertEquals("field", existsQuery.getField());
-            assertDocValuesField(fields, "field");
-        }
+        assertThat(query, instanceOf(FieldExistsQuery.class));
+        FieldExistsQuery existsQuery = (FieldExistsQuery) query;
+        assertEquals("field", existsQuery.getField());
         assertNoFieldNamesField(fields);
     }
 
@@ -458,7 +451,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("ef_construction", efConstruction);
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");

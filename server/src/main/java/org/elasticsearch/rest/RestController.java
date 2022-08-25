@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -28,6 +29,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -38,6 +40,7 @@ import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -89,16 +92,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
+    private final Tracer tracer;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService
+        UsageService usageService,
+        Tracer tracer
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
+        this.tracer = tracer;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -403,11 +409,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
             && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
-    private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
+    private boolean handleNoHandlerFound(
+        ThreadContext threadContext,
+        String rawPath,
+        RestRequest.Method method,
+        String uri,
+        RestChannel channel
+    ) {
         // Get the map of matching handlers for a request, for the full set of HTTP methods.
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
             if (method == RestRequest.Method.OPTIONS) {
+                startTrace(threadContext, channel);
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
@@ -415,11 +428,57 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
+                startTrace(threadContext, channel);
                 handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
                 return true;
             }
         }
         return false;
+    }
+
+    private void startTrace(ThreadContext threadContext, RestChannel channel) {
+        startTrace(threadContext, channel, null);
+    }
+
+    private void startTrace(ThreadContext threadContext, RestChannel channel, String restPath) {
+        final RestRequest req = channel.request();
+        if (restPath == null) {
+            restPath = req.path();
+        }
+        String method = null;
+        try {
+            method = req.method().name();
+        } catch (IllegalArgumentException e) {
+            // Invalid methods throw an exception
+        }
+        String name;
+        if (method != null) {
+            name = method + " " + restPath;
+        } else {
+            name = restPath;
+        }
+
+        Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
+        req.getHeaders().forEach((key, values) -> {
+            final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
+            final String value = switch (lowerKey) {
+                case "authorization", "cookie", "secret", "session", "set_cookie", "token" -> "[REDACTED]";
+                default -> String.join("; ", values);
+            };
+            attributes.put("http.request.headers." + lowerKey, value);
+        });
+        attributes.put("http.method", method);
+        attributes.put("http.url", req.uri());
+        switch (req.getHttpRequest().protocolVersion()) {
+            case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
+            case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
+        }
+
+        tracer.startTrace(threadContext, "rest-" + channel.request().getRequestId(), name, attributes);
+    }
+
+    private void traceException(RestChannel channel, Throwable e) {
+        this.tracer.addError("rest-" + channel.request().getRequestId(), e);
     }
 
     private static void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
@@ -438,6 +497,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             copyRestHeaders(request, threadContext);
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
+            startTrace(threadContext, channel);
             channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             return;
         }
@@ -461,19 +521,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     handler = handlers.getHandler(requestMethod, restApiVersion);
                 }
                 if (handler == null) {
-                    if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
+                    if (handleNoHandlerFound(threadContext, rawPath, requestMethod, uri, channel)) {
                         return;
                     }
                 } else {
+                    startTrace(threadContext, channel, handlers.getPath());
                     dispatchRequest(request, channel, handler, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
+            startTrace(threadContext, channel);
+            traceException(channel, e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
+        startTrace(threadContext, channel);
         handleBadRequest(uri, requestMethod, channel);
     }
 
@@ -497,7 +561,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     String traceparent = distinctHeaderValues.get(0);
                     if (traceparent.length() >= 55) {
                         threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                        threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
                     }
+                } else if (name.equals(Task.TRACE_STATE)) {
+                    threadContext.putTransient("parent_" + Task.TRACE_STATE, distinctHeaderValues.get(0));
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }
@@ -670,7 +737,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
-
     }
 
     private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {

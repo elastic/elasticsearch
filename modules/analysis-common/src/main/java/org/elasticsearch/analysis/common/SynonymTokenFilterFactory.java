@@ -42,7 +42,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final AnalysisMode analysisMode;
 
     SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.settings = settings;
 
         if (settings.get("ignore_case") != null) {

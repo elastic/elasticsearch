@@ -10,7 +10,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -48,11 +47,18 @@ public class CoordinatorRewriteContextProvider {
 
     @Nullable
     public CoordinatorRewriteContext getCoordinatorRewriteContext(Index index) {
-        ClusterState clusterState = clusterStateSupplier.get();
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        var clusterState = clusterStateSupplier.get();
+        var indexMetadata = clusterState.metadata().index(index);
 
-        if (indexMetadata == null || indexMetadata.getTimestampRange().containsAllShardRanges() == false) {
+        if (indexMetadata == null) {
             return null;
+        }
+        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        if (timestampRange.containsAllShardRanges() == false) {
+            timestampRange = indexMetadata.getTimeSeriesTimestampRange();
+            if (timestampRange == null) {
+                return null;
+            }
         }
 
         DateFieldMapper.DateFieldType dateFieldType = mappingSupplier.apply(index);
@@ -61,7 +67,6 @@ public class CoordinatorRewriteContextProvider {
             return null;
         }
 
-        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
-        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, index, timestampRange, dateFieldType);
+        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, timestampRange, dateFieldType);
     }
 }

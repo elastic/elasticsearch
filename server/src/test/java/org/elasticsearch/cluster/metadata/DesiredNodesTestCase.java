@@ -127,7 +127,8 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(random()),
             randomLongBetween(0, Long.MAX_VALUE - 1000),
-            randomList(1, 100, DesiredNodesTestCase::randomDesiredNode)
+            randomList(1, 100, DesiredNodesTestCase::randomDesiredNode),
+            randomBoolean()
         );
     }
 

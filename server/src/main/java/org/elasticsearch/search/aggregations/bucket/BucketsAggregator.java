@@ -46,13 +46,13 @@ public abstract class BucketsAggregator extends AggregatorBase {
     public BucketsAggregator(
         String name,
         AggregatorFactories factories,
-        AggregationContext context,
+        AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, bucketCardinality, metadata);
-        multiBucketConsumer = context.multiBucketConsumer();
+        super(name, factories, aggCtx, parent, bucketCardinality, metadata);
+        multiBucketConsumer = aggCtx.multiBucketConsumer();
         docCounts = bigArrays().newLongArray(1, true);
         docCountProvider = new DocCountProvider();
     }

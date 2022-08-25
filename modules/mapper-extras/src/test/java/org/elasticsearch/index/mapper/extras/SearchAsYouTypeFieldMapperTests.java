@@ -23,9 +23,9 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
@@ -593,9 +593,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         Query q = parser.parse("foo:*");
         assertEquals(
             new ConstantScoreQuery(
-                new BooleanQuery.Builder().add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
-                    .add(new NormsFieldExistsQuery("foo.bar._3gram"), BooleanClause.Occur.SHOULD)
-                    .add(new NormsFieldExistsQuery("foo.bar._2gram"), BooleanClause.Occur.SHOULD)
+                new BooleanQuery.Builder().add(new FieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
+                    .add(new FieldExistsQuery("foo.bar._3gram"), BooleanClause.Occur.SHOULD)
+                    .add(new FieldExistsQuery("foo.bar._2gram"), BooleanClause.Occur.SHOULD)
                     .add(new TermQuery(new Term("_field_names", "foo.bar._index_prefix")), BooleanClause.Occur.SHOULD)
                     .build()
             ),

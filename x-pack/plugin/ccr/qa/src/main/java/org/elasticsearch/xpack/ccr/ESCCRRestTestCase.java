@@ -335,7 +335,13 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return List.copyOf(actualBackingIndices);
     }
 
-    protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {
+    protected static void createAutoFollowPattern(
+        RestClient client,
+        String name,
+        String pattern,
+        String remoteCluster,
+        String followIndexPattern
+    ) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
@@ -345,6 +351,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
                     bodyBuilder.value(pattern);
                 }
                 bodyBuilder.endArray();
+                if (followIndexPattern != null) {
+                    bodyBuilder.field("follow_index_pattern", followIndexPattern);
+                }
                 bodyBuilder.field("remote_cluster", remoteCluster);
             }
             bodyBuilder.endObject();

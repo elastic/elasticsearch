@@ -63,18 +63,27 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     private final ClusterStateListener shutdownListener;
     private volatile boolean enabled;
 
-    public HealthNodeTaskExecutor(
-        ClusterService clusterService,
-        PersistentTasksService persistentTasksService,
-        Settings settings,
-        ClusterSettings clusterSettings
-    ) {
+    private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
         super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.taskStarter = this::startTask;
         this.shutdownListener = this::shuttingDown;
         this.enabled = ENABLED_SETTING.get(settings);
+    }
+
+    public static HealthNodeTaskExecutor create(
+        ClusterService clusterService,
+        PersistentTasksService persistentTasksService,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
+        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings);
+        healthNodeTaskExecutor.registerListeners(clusterSettings);
+        return healthNodeTaskExecutor;
+    }
+
+    private void registerListeners(ClusterSettings clusterSettings) {
         if (this.enabled) {
             clusterService.addListener(taskStarter);
             clusterService.addListener(shutdownListener);

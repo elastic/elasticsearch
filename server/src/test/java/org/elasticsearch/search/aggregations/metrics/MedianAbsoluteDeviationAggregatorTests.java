@@ -12,7 +12,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -96,7 +96,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), randomSample(size, point -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), randomSample(size, point -> {
             sample.add(point);
             return singleton(new SortedNumericDocValuesField(FIELD_NAME, point));
         }), agg -> {
@@ -108,7 +108,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     public void testSomeMatchesNumericDocValues() throws IOException {
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), randomSample(size, point -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), randomSample(size, point -> {
             sample.add(point);
             return singleton(new NumericDocValuesField(FIELD_NAME, point));
         }), agg -> {
@@ -147,7 +147,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             FIELD_NAME
         );
 
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery(FIELD_NAME), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery(FIELD_NAME), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
         }, agg -> {

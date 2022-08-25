@@ -72,6 +72,8 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
             .put("user_search.pool.enabled", randomBoolean())
             .put("follow_referrals", ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
             .put("order", 0)
+            .put("timeout.tcp_connect", "10s")
+            .put("timeout.response", "10s")
             .build();
         Settings.Builder builder = Settings.builder().put(globalSettings);
         settings.keySet().forEach(k -> { builder.copy("xpack.security.authc.realms.ldap.ad-as-ldap-test." + k, k, settings); });

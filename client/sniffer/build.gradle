@@ -78,7 +78,6 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
-          'org.apache.log4j.Category',
           'org.apache.log4j.Level',
           'org.apache.log4j.Logger',
           'org.apache.log4j.Priority',

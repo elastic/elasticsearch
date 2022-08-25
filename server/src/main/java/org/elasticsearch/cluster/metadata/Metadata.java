@@ -1024,9 +1024,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return Optional.ofNullable((NodesShutdownMetadata) this.custom(NodesShutdownMetadata.TYPE))
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .orElse(Collections.emptyMap());
+        return this.custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY).getAllNodeMetadataMap();
     }
 
     public Map<String, Custom> customs() {
@@ -1772,11 +1770,21 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         /**
          * Adds a {@link ReservedStateMetadata} for a given namespace to the metadata builder
-         * @param metadata an {@link ReservedStateMetadata}
+         * @param metadata a {@link ReservedStateMetadata}
          * @return {@link Builder}
          */
         public Builder put(ReservedStateMetadata metadata) {
             reservedStateMetadata.put(metadata.namespace(), metadata);
+            return this;
+        }
+
+        /**
+         * Removes a {@link ReservedStateMetadata} for a given namespace
+         * @param metadata a {@link ReservedStateMetadata}
+         * @return {@link Builder}
+         */
+        public Builder removeReservedState(ReservedStateMetadata metadata) {
+            reservedStateMetadata.remove(metadata.namespace());
             return this;
         }
 

@@ -1,5 +1,5 @@
 pr: 89611
-summary: "[8.4][ML] Validate trained model deployment `queue_capacity` limit"
+summary: "[ML] Validate trained model deployment `queue_capacity` limit"
 area: Machine Learning
 type: bug
 issues:

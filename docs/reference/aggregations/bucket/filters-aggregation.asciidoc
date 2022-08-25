@@ -66,6 +66,7 @@ Response:
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
+[[anonymous-filters]]
 ==== Anonymous filters
 
 The filters field can also be provided as an array of filters, as in the
@@ -199,7 +200,7 @@ parameter can be as follows:
 `false`::         (Default) Returns the buckets as an object
 `true`::          Returns the buckets as an array of objects
 
-NOTE: This parameter is ignored by <<Anonymous filters>>.
+NOTE: This parameter is ignored by <<anonymous-filters,Anonymous filters>>.
 
 Example:
 

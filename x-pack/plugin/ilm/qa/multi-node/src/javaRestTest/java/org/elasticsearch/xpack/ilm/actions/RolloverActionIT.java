@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.ilm.actions;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -191,6 +193,97 @@ public class RolloverActionIT extends ESRestTestCase {
             assertTrue(indexExists(originalIndex));
             assertEquals("true", getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
         }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testRolloverActionWithEmptyIndex() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(
+            client(),
+            originalIndex,
+            alias,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+        );
+
+        // create policy
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            "hot",
+            new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null, null, null, null)
+        );
+        // update policy on index
+        updatePolicy(client(), originalIndex, policy);
+
+        // maybe set the controlling setting to explicitly true (rather than just true by default)
+        if (randomBoolean()) {
+            setLifecycleRolloverOnlyIfHasDocumentsSetting(true);
+        }
+
+        // because the index is empty, it doesn't roll over
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), originalIndex).getName(), is(WaitForRolloverReadyStep.NAME));
+            assertFalse(indexExists(secondIndex));
+            assertTrue(indexExists(originalIndex));
+        }, 30, TimeUnit.SECONDS);
+
+        switch (between(0, 2)) {
+            case 0:
+                // index document {"foo": "bar"} to trigger rollover
+                index(client(), originalIndex, "_id", "foo", "bar");
+                break;
+
+            case 1:
+                // change the policy to permit empty rollovers -- with either min_docs or min_primary_shard_docs set to 0
+                createNewSingletonPolicy(
+                    client(),
+                    policy,
+                    "hot",
+                    randomBoolean()
+                        ? new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null, null, 0L, null)
+                        : new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null, null, null, 0L)
+                );
+                break;
+
+            case 2:
+                // change the cluster-wide setting to permit empty rollovers
+                setLifecycleRolloverOnlyIfHasDocumentsSetting(false);
+                break;
+
+            default:
+                throw new AssertionError("failure, got illegal switch case");
+        }
+
+        // now the index rolls over as expected
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey()));
+            assertTrue(indexExists(secondIndex));
+            assertTrue(indexExists(originalIndex));
+            assertEquals("true", getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
+        }, 30, TimeUnit.SECONDS);
+
+        // reset to null so that the post-test cleanup doesn't fail because it sees a deprecated setting
+        setLifecycleRolloverOnlyIfHasDocumentsSetting(null);
+    }
+
+    private void setLifecycleRolloverOnlyIfHasDocumentsSetting(@Nullable Boolean value) throws IOException {
+        try {
+            Settings.Builder settings = Settings.builder();
+            if (value != null) {
+                settings.put(LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS, value.booleanValue());
+            } else {
+                settings.putNull(LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS);
+            }
+            updateClusterSettings(settings.build());
+            if (value != null) {
+                fail("expected WarningFailureException from warnings");
+            }
+        } catch (WarningFailureException e) {
+            // expected, this setting is deprecated, so we can get back a warning
+        }
     }
 
     public void testILMRolloverRetriesOnReadOnlyBlock() throws Exception {

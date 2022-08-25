@@ -96,10 +96,6 @@ public class StablePluginClassLoader extends SecureClassLoader {
      * heavy lifting. jdk.internal.loader.Loader takes ResolvedModules for its argument, while URLClassLoader constructs
      * a URLClassPath object. The AppClassLoader, on the other hand, loads modules as it goes.
      *
-     * First cut: single jar only
-     * Second cut: main jar plus dependencies (can we have modularized main jar with unmodularized dependencies?)
-     * Third cut: link it up with the "crate/bundle" descriptor
-     *
      * TODO: consider a factory pattern for more specific exception handling for scan, etc.
      */
     @SuppressForbidden(reason = "need access to the jar file")
@@ -152,8 +148,6 @@ public class StablePluginClassLoader extends SecureClassLoader {
                     .map(Optional::get)
                     .collect(Collectors.toSet());
 
-                // TODO: We could enforce "split packages" on our jars here, but
-                // that seems too restrictive
                 this.packageNames.addAll(jarPackages);
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
@@ -173,17 +167,6 @@ public class StablePluginClassLoader extends SecureClassLoader {
      */
     @Override
     protected Class<?> findClass(String moduleName, String name) {
-        // built-in classloader:
-        // 1. if we have a module name, we get the package name and look up the module,
-        // then load from the module by calling define class with the name and module
-        // 2. if there's no moduleName, search on the classpath
-        // The system has a map of packages to modules that it gets by loading the module
-        // layer -- do we have this for our plugin loading?
-        //
-        // URLClassLoader does not implement this
-        //
-        // jdk.internal.loader.Loader can pull a class out of a loaded module pretty easily;
-        // ModuleReference does a lot of the work
         if (Objects.isNull(moduleName) || this.module.getName().equals(moduleName) == false) {
             return null;
         }
@@ -198,16 +181,6 @@ public class StablePluginClassLoader extends SecureClassLoader {
      */
     @Override
     protected Class<?> findClass(String name) {
-        // built-in classloaders:
-        // try to find a module for the class name by looking up package, then do what
-        // findClass(String, String) does
-        //
-        // URLClassLoader is constructed with a list of classpaths, and searches those classpaths
-        // for resources. If it finds a .class file, it calls defineClass
-        //
-        // jdk.internal.loader.Loader can pull a class out of a loaded module pretty easily;
-        // ModuleReference does a lot of the work
-
         String rn = name.replace('.', '/').concat(".class");
 
         try (InputStream in = internalLoader.getResourceAsStream(rn)) {

@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Arrays.stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -343,7 +344,55 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         assertThat(unrestricted, notNullValue());
         Object instance2 = unrestricted.getConstructor().newInstance();
         assertThat(instance2.toString(), containsString("MyImportingClass[imports ResultSet]"));
+    }
 
+    public void testMultiReleaseJar() throws Exception {
+        Object fooBar = newFooBar(true, 7, 9, 11, 15);
+        assertThat(fooBar.toString(), equalTo("FooBar 15"));
+
+        fooBar = newFooBar(false);
+        assertThat(fooBar.toString(), equalTo("FooBar 0"));
+
+        fooBar = newFooBar(true, 10_000);
+        assertThat(fooBar.toString(), equalTo("FooBar 0"));
+    }
+
+    /*
+     * Instantiates an instance of FooBar. First generates and compiles the code, then packages it,
+     * and lastly loads the FooBar class with an embedded loader.
+     *
+     * @param enableMulti whether to set the multi-release attribute
+     * @param versions the runtime version number of the entries to create in the jar
+     */
+    private Object newFooBar(boolean enableMulti, int... versions) throws Exception {
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("p/FooBar.class", classBytesForVersion(0)); // root version is always 0
+        if (enableMulti) {
+            jarEntries.put("META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(StandardCharsets.UTF_8));
+        }
+        stream(versions).forEach(v -> jarEntries.put("META-INF/versions/" + v + "/p/FooBar.class", classBytesForVersion(v)));
+
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-jar.jar");
+        JarUtils.createJarWithEntries(jar, jarEntries);
+        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
+            StablePluginClassLoaderTests.class.getClassLoader(),
+            List.of(jar)
+        );
+        Class<?> c = loader.loadClass("p.FooBar");
+        return c.getConstructor().newInstance();
+    }
+
+    /* Creates a FooBar class that reports the given version in its toString. */
+    static byte[] classBytesForVersion(int version) {
+        return InMemoryJavaCompiler.compile("p.FooBar", String.format(Locale.ENGLISH, """
+            package p;
+            public class FooBar {
+                @Override public String toString() {
+                    return "FooBar %d";
+                }
+            }
+            """, version));
     }
 
     private static void createJarWithSingleClass(Path jar, List<String> packagePathElements, String className) throws IOException {

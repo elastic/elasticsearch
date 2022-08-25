@@ -586,7 +586,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             )
         ).actionGet();
         assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), emptyIterable());
-        assertThat(profileHasPrivilegesResponse.errorUids(), emptyIterable());
+        assertThat(profileHasPrivilegesResponse.errors(), anEmptyMap());
 
         // Ensure index does not exist
         assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
@@ -650,7 +650,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             )
         ).actionGet();
         assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), emptyIterable());
-        assertThat(profileHasPrivilegesResponse.errorUids(), emptyIterable());
+        assertThat(profileHasPrivilegesResponse.errors(), anEmptyMap());
 
         // Enable again for search
         final SetProfileEnabledRequest setProfileEnabledRequest2 = new SetProfileEnabledRequest(

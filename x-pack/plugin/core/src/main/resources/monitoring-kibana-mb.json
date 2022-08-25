@@ -29,10 +29,6 @@
               "ignore_above": 1024,
               "type": "keyword"
             },
-            "name": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
             "id": {
               "ignore_above": 1024,
               "type": "keyword"
@@ -44,118 +40,6 @@
             "version": {
               "ignore_above": 1024,
               "type": "keyword"
-            },
-            "environment": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "ephemeral_id": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "hostname": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "node": {
-              "properties": {
-                "name": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                }
-              }
-            },
-            "origin": {
-              "properties": {
-                "address": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "environment": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "ephemeral_id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "name": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "node": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword",
-                      "ignore_above": 1024
-                    }
-                  }
-                },
-                "state": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "type": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "version": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                }
-              }
-            },
-            "state": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "target": {
-              "properties": {
-                "address": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "environment": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "ephemeral_id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "id": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "name": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "node": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword",
-                      "ignore_above": 1024
-                    }
-                  }
-                },
-                "state": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "type": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                },
-                "version": {
-                  "type": "keyword",
-                  "ignore_above": 1024
-                }
-              }
             }
           }
         },
@@ -587,14 +471,6 @@
             "name": {
               "type": "keyword",
               "ignore_above": 1024
-            },
-            "architecture": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "hostname": {
-              "type": "keyword",
-              "ignore_above": 1024
             }
           }
         },
@@ -611,25 +487,6 @@
         },
         "event": {
           "properties": {
-            "action": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "agent_id_status": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "category": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "code": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "created": {
-              "type": "date"
-            },
             "dataset": {
               "type": "keyword",
               "ignore_above": 1024
@@ -637,74 +494,7 @@
             "duration": {
               "type": "long"
             },
-            "end": {
-              "type": "date"
-            },
-            "hash": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "id": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "ingested": {
-              "type": "date"
-            },
-            "kind": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
             "module": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "original": {
-              "type": "keyword",
-              "index": false,
-              "doc_values": false,
-              "ignore_above": 1024
-            },
-            "outcome": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "provider": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "reason": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "reference": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "risk_score": {
-              "type": "float"
-            },
-            "risk_score_norm": {
-              "type": "float"
-            },
-            "sequence": {
-              "type": "long"
-            },
-            "severity": {
-              "type": "long"
-            },
-            "start": {
-              "type": "date"
-            },
-            "timezone": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "type": {
-              "type": "keyword",
-              "ignore_above": 1024
-            },
-            "url": {
               "type": "keyword",
               "ignore_above": 1024
             }

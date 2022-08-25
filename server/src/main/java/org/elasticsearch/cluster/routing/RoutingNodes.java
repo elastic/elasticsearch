@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -122,7 +123,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
                         // LinkedHashMap to preserve order
-                        nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).add(shard);
+                        nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).addWithoutValidation(shard);
                         assignedShardsAdd(shard);
                         if (shard.relocating()) {
                             relocatingShards++;
@@ -130,7 +131,8 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                             addInitialRecovery(targetShardRouting, indexShard.primary);
                             // LinkedHashMap to preserve order.
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
-                            nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode).add(targetShardRouting);
+                            nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode)
+                                .addWithoutValidation(targetShardRouting);
                             assignedShardsAdd(targetShardRouting);
                         } else if (shard.initializing()) {
                             if (shard.primary()) {
@@ -145,6 +147,12 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                 }
             }
         }
+        assert invariant();
+    }
+
+    private boolean invariant() {
+        nodesToShards.values().forEach(RoutingNode::invariant);
+        return true;
     }
 
     private RoutingNodes(RoutingNodes routingNodes) {
@@ -192,7 +200,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         if (routing.recoverySource().getType() == RecoverySource.Type.PEER) {
             // add/remove corresponding outgoing recovery on node with primary shard
             if (primary == null) {
-                throw new IllegalStateException("shard is peer recovering but primary is unassigned");
+                throw new IllegalStateException("shard [" + routing + "] is peer recovering but primary is unassigned");
             }
             Recoveries.getOrAdd(recoveriesPerNode, primary.currentNodeId()).addOutgoing(howMany);
 
@@ -977,6 +985,30 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             ignored.add(shard);
         }
 
+        public void resetFailedAllocationCounter(RoutingChangesObserver routingChangesObserver) {
+            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = iterator();
+            while (unassignedIterator.hasNext()) {
+                ShardRouting shardRouting = unassignedIterator.next();
+                UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+                unassignedIterator.updateUnassigned(
+                    new UnassignedInfo(
+                        unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
+                        unassignedInfo.getMessage(),
+                        unassignedInfo.getFailure(),
+                        0,
+                        unassignedInfo.getUnassignedTimeInNanos(),
+                        unassignedInfo.getUnassignedTimeInMillis(),
+                        unassignedInfo.isDelayed(),
+                        unassignedInfo.getLastAllocationStatus(),
+                        Collections.emptySet(),
+                        unassignedInfo.getLastAllocatedNodeId()
+                    ),
+                    shardRouting.recoverySource(),
+                    routingChangesObserver
+                );
+            }
+        }
+
         public class UnassignedIterator implements Iterator<ShardRouting>, ExistingShardsAllocator.UnassignedAllocationHandler {
 
             private final ListIterator<ShardRouting> iterator;
@@ -1265,9 +1297,9 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     public Iterator<ShardRouting> nodeInterleavedShardIterator() {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodesToShards.size());
         for (final var routingNode : nodesToShards.values()) {
-            final var iterator = routingNode.copyShards().iterator();
-            if (iterator.hasNext()) {
-                queue.add(iterator);
+            final var shards = routingNode.copyShards();
+            if (shards.length > 0) {
+                queue.add(Iterators.forArray(shards));
             }
         }
         return new Iterator<>() {

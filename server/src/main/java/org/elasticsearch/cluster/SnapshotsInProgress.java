@@ -1564,7 +1564,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     i -> new ByRepo(i.readList(Entry::readFrom)),
                     i -> new ByRepo.ByRepoDiff(
                         DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), Entry::readFrom, EntryDiff::new),
-                        i.readStringList()
+                        DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)
                     )
                 )
             );
@@ -1594,6 +1594,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     private record ByRepo(List<Entry> entries) implements Diffable<ByRepo> {
 
         static final ByRepo EMPTY = new ByRepo(List.of());
+        private static final DiffableUtils.NonDiffableValueSerializer<String, Integer> INT_DIFF_VALUE_SERIALIZER =
+            new DiffableUtils.NonDiffableValueSerializer<>() {
+                @Override
+                public void write(Integer value, StreamOutput out) throws IOException {
+                    out.writeVInt(value);
+                }
+
+                @Override
+                public Integer read(StreamInput in, String key) throws IOException {
+                    return in.readVInt();
+                }
+            };
 
         private ByRepo(List<Entry> entries) {
             this.entries = List.copyOf(entries);
@@ -1611,7 +1623,21 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 toMapByUUID(this),
                 DiffableUtils.getStringKeySerializer()
             );
-            return new ByRepoDiff(diff, entries.stream().map(e -> e.snapshot().getSnapshotId().getUUID()).toList());
+            final DiffableUtils.MapDiff<String, Integer, Map<String, Integer>> positionDiff = DiffableUtils.diff(
+                toPositionMap(previousState),
+                toPositionMap(this),
+                DiffableUtils.getStringKeySerializer(),
+                INT_DIFF_VALUE_SERIALIZER
+            );
+            return new ByRepoDiff(diff, positionDiff);
+        }
+
+        public static Map<String, Integer> toPositionMap(ByRepo part) {
+            final Map<String, Integer> before = new HashMap<>(part.entries.size());
+            for (int i = 0; i < part.entries.size(); i++) {
+                before.put(part.entries.get(i).snapshot().getSnapshotId().getUUID(), i);
+            }
+            return before;
         }
 
         public static Map<String, Entry> toMapByUUID(ByRepo part) {
@@ -1622,25 +1648,24 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return before;
         }
 
-        private record ByRepoDiff(DiffableUtils.MapDiff<String, Entry, Map<String, Entry>> diff, List<String> snapshotIds)
-            implements
-                Diff<ByRepo> {
+        private record ByRepoDiff(
+            DiffableUtils.MapDiff<String, Entry, Map<String, Entry>> diff,
+            DiffableUtils.MapDiff<String, Integer, Map<String, Integer>> positionDiff
+        ) implements Diff<ByRepo> {
 
             @Override
             public ByRepo apply(ByRepo part) {
                 final var updated = diff.apply(toMapByUUID(part));
+                final var updatedPositions = positionDiff.apply(toPositionMap(part));
                 final Entry[] arr = new Entry[updated.size()];
-                for (int i = 0; i < snapshotIds.size(); i++) {
-                    String snapshotId = snapshotIds.get(i);
-                    arr[i] = updated.get(snapshotId);
-                }
+                updatedPositions.forEach((uuid, position) -> arr[position] = updated.get(uuid));
                 return new ByRepo(List.of(arr));
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 diff.writeTo(out);
-                out.writeStringCollection(snapshotIds);
+                positionDiff.writeTo(out);
             }
         }
     }

@@ -56,18 +56,17 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         clusterService = createClusterService(threadPool);
-        try (CapturingTransport transport = new CapturingTransport()) {
-            transportService = transport.createTransportService(
-                clusterService.getSettings(),
-                threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> clusterService.localNode(),
-                null,
-                Collections.emptySet()
-            );
-            transportService.start();
-            transportService.acceptIncomingRequests();
-        }
+        CapturingTransport transport = new CapturingTransport();
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
+        transportService.start();
+        transportService.acceptIncomingRequests();
         localNode = new DiscoveryNode(
             "local_node",
             buildNewFakeTransportAddress(),

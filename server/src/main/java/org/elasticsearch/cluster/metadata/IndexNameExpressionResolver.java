@@ -1224,16 +1224,16 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 wildcardSeen = true;
-                Stream<IndexAbstraction> matches = matches(context, expression);
+                Stream<IndexAbstraction> matches = expressionMatches(context, expression);
                 Collection<String> finalResult = result;
-                boolean expandedMatches = expandMatches(context, matches, expanded -> {
+                boolean someMatchesExpanded = expandMatches(context, matches, expanded -> {
                     if (add) {
                         finalResult.add(expanded);
                     } else {
                         finalResult.remove(expanded);
                     }
                 });
-                if (context.getOptions().allowNoIndices() == false && expandedMatches == false) {
+                if (context.getOptions().allowNoIndices() == false && someMatchesExpanded == false) {
                     throw indexNotFoundException(expression);
                 }
             }
@@ -1310,7 +1310,7 @@ public class IndexNameExpressionResolver {
             return excludeState;
         }
 
-        private static Stream<IndexAbstraction> matches(Context context, String expression) {
+        private static Stream<IndexAbstraction> expressionMatches(Context context, String expression) {
             final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
             Stream<IndexAbstraction> matchesStream;
             if (Regex.isSuffixMatchPattern(expression)) {

@@ -1310,6 +1310,13 @@ public class IndexNameExpressionResolver {
             return excludeState;
         }
 
+        /**
+         * Given a single wildcard {@param expression}, return the {@code Stream} that contains all the resources (i.e. indices, aliases,
+         * and datastreams), that exist in the cluster at this moment in time, and that the wildcard "resolves" to (i.e. the resource's
+         * name matches the {@param expression} wildcard).
+         * The {@param context} provides the current time-snapshot of all the resources, as well as conditions
+         * on whether to consider alias and datastream resources, as well as system and hidden resources.
+         */
         private static Stream<IndexAbstraction> expressionMatches(Context context, String expression) {
             final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
             Stream<IndexAbstraction> matchesStream;
@@ -1323,11 +1330,14 @@ public class IndexNameExpressionResolver {
                 matchesStream = matchesStream.filter(e -> e.getType() != Type.ALIAS);
             }
             if (Regex.isMatchAllPattern(expression) == false && Regex.isSuffixMatchPattern(expression) == false) {
+                // filters matches based on the wildcard expression, note that the suffix wildcard filtering is already handled above
                 matchesStream = matchesStream.filter(e -> Regex.simpleMatch(expression, e.getName()));
             }
             if (context.includeDataStreams() == false) {
                 matchesStream = matchesStream.filter(e -> e.isDataStreamRelated() == false);
             }
+            // historic, ie not net new, system indices are NOT filtered out, ie they are included like the net new system resources that
+            // respect the context access predicate (itself based on HTTP request headers and endpoint kind) are included
             matchesStream = matchesStream.filter(
                 e -> e.isSystem() == false
                     || (e.getType() != Type.DATA_STREAM
@@ -1337,6 +1347,8 @@ public class IndexNameExpressionResolver {
             );
             if (context.getOptions().expandWildcardsHidden() == false) {
                 if (expression.startsWith(".")) {
+                    // there is this behavior that hidden indices that start with "." are not hidden if the wildcard expression also
+                    // starts with "."
                     matchesStream = matchesStream.filter(e -> e.isHidden() == false || e.getName().startsWith("."));
                 } else {
                     matchesStream = matchesStream.filter(e -> e.isHidden() == false);

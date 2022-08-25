@@ -48,13 +48,34 @@ using a set of <<sort-search-results,sort values>> from the previous page.
 Using `search_after` requires multiple search requests with the same `query` and
 `sort` values. The first step is to run an initial request. The following
 example sorts the results by two fields (`date` and `tie_breaker_id`):
-[source,js]
+
+
+////
+[source,console]
+--------------------------------------------------
+PUT twitter
+{
+  "mappings": {
+    "properties": {
+      "tie_breaker_id": {
+        "type": "keyword"
+      },
+      "date": {
+        "type": "date"
+      }
+    }
+  }
+}
+--------------------------------------------------
+////
+
+[source,console]
 --------------------------------------------------
 GET twitter/_search
 {
     "query": {
-        "match" : {
-            "title" : "elasticsearch"
+        "match": {
+            "title": "elasticsearch"
         }
     },
     "sort": [
@@ -63,22 +84,21 @@ GET twitter/_search
     ]
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
+//TEST[continued]
 
 <1> A copy of the `_id` field with `doc_values` enabled
 
 The search response includes an array of `sort` values for each hit. To retrieve
 the next page of results, repeat the request, take the `sort` values from the
 last hit, and insert those into the `search_after` array:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 GET twitter/_search
 {
     "query": {
-        "match" : 
-            "title" : "elasticsearch"
+        "match": {
+            "title": "elasticsearch"
         }
     },
     "search_after": [1463538857, "654323"],
@@ -88,9 +108,8 @@ GET twitter/_search
     ]
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id": {"unmapped_type": "keyword"}/]
+//TEST[continued]
+
 Repeat this process by updating the `search_after` array every time you retrieve a 
 new page of results. If a <<near-real-time,refresh>> occurs between these requests,
 the order of your results may change, causing inconsistent results across pages. To

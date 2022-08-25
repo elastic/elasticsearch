@@ -1,0 +1,5 @@
+pr: 89568
+summary: check parent circuit breaker when allocating empty bucket
+area: Aggregations
+type: bug
+issues: [80789]

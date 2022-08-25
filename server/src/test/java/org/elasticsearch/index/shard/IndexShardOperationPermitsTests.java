@@ -279,7 +279,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         try (Releasable ignored = blockAndWait()) {
             // we preserve the thread context here so that we have a different context in the call to acquire than the context present
             // when the releasable is closed
-            try (ThreadContext.StoredContext ignore = context.newStoredContext(false)) {
+            try (ThreadContext.StoredContext ignore = context.newStoredContext()) {
                 context.putHeader("foo", "bar");
                 context.putTransient("bar", "baz");
                 // test both with and without a executor name

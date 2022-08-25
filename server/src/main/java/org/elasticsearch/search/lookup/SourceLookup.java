@@ -24,13 +24,14 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-public class SourceLookup {
+public class SourceLookup implements Map<String, Object> {
     private SourceProvider sourceProvider;
 
     private int docId = -1;
@@ -136,6 +137,67 @@ public class SourceLookup {
      */
     public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticsearchParseException {
         return sourceAsMapAndType(source).v2();
+    }
+
+    @Override
+    public Object get(Object key) {
+        return source().get(key);
+    }
+
+    @Override
+    public int size() {
+        return source().size();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return source().isEmpty();
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+        return source().containsKey(key);
+    }
+
+    @Override
+    public boolean containsValue(Object value) {
+        return source().containsValue(value);
+    }
+
+    @Override
+    public Set<String> keySet() {
+        return source().keySet();
+    }
+
+    @Override
+    public Collection<Object> values() {
+        return source().values();
+    }
+
+    @Override
+    public Set<Map.Entry<String, Object>> entrySet() {
+        return source().entrySet();
+    }
+
+    @Override
+    public Object put(String key, Object value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object remove(Object key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    public void putAll(Map m) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void clear() {
+        throw new UnsupportedOperationException();
     }
 
     /**

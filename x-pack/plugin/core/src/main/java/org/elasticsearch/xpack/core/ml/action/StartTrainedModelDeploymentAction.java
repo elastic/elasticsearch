@@ -255,6 +255,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (queueCapacity > MAX_QUEUE_CAPACITY) {
                 validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be less than " + MAX_QUEUE_CAPACITY);
             }
+            if (timeout.nanos() < 1L) {
+                validationException.addValidationError("[" + TIMEOUT + "] must be positive");
+            }
             return validationException.validationErrors().isEmpty() ? null : validationException;
         }
 

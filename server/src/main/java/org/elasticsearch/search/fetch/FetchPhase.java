@@ -109,8 +109,9 @@ public class FetchPhase {
         // make sure that we iterate in doc id order
         Arrays.sort(docs);
 
+        SourceLoader sourceLoader = context.newSourceLoader();
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields, sourceLoader);
         profiler.visitor(fieldsVisitor);
 
         FetchContext fetchContext = new FetchContext(context);
@@ -241,7 +242,11 @@ public class FetchPhase {
         }
     }
 
-    private static FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
+    private static FieldsVisitor createStoredFieldsVisitor(
+        SearchContext context,
+        Map<String, Set<String>> storedToRequestedFields,
+        SourceLoader sourceLoader
+    ) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -250,6 +255,11 @@ public class FetchPhase {
                 context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
+            if (loadSource) {
+                if (false == sourceLoader.requiredStoredFields().isEmpty()) {
+                    return new CustomFieldsVisitor(sourceLoader.requiredStoredFields(), true);
+                }
+            }
             return new FieldsVisitor(loadSource);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
@@ -273,6 +283,9 @@ public class FetchPhase {
                 }
             }
             boolean loadSource = sourceRequired(context);
+            if (loadSource) {
+                sourceLoader.requiredStoredFields().forEach(fieldName -> storedToRequestedFields.putIfAbsent(fieldName, Set.of()));
+            }
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 return new FieldsVisitor(loadSource);

@@ -16,6 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.waitUntil;
@@ -396,6 +398,25 @@ public final class TimeSeriesRestDriver {
         return (String) snapResponse.get("state");
     }
 
+    /**
+     * This method waits to get the shrunk index name and if it fails, it triggers once a cluster state update and tries again.
+     * The motivation behind this method is that in ShrinkAction there are cluster state dependent steps, for example
+     * {@link org.elasticsearch.xpack.core.ilm.CheckTargetShardsCountStep}, that might miss the latest policy update if they are
+     * already queued, see {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#submitUnlessAlreadyQueued}. In the real world
+     * there is usually another cluster state coming but since this is the test world there is not. That is what this method is simulating.
+     */
+    @Nullable
+    public static String waitAndGetShrinkIndexNameWithExtraClusterStateChange(RestClient client, String originalIndex)
+        throws InterruptedException, IOException {
+        String shrunkenIndexName = waitAndGetShrinkIndexName(client, originalIndex);
+        if (shrunkenIndexName == null) {
+            logger.info("Executing dummy cluster update to re-trigger a cluster state dependent step.");
+            executeDummyClusterStateUpdate(client);
+            shrunkenIndexName = waitAndGetShrinkIndexName(client, originalIndex);
+        }
+        return shrunkenIndexName;
+    }
+
     @SuppressWarnings("unchecked")
     @Nullable
     public static String waitAndGetShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException {
@@ -441,6 +462,17 @@ public final class TimeSeriesRestDriver {
         }, 30, TimeUnit.SECONDS);
         logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
         return shrunkenIndexName[0];
+    }
+
+    private static void executeDummyClusterStateUpdate(RestClient client) throws IOException {
+        createIndexWithSettings(
+            client,
+            "dummy-index",
+            Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .putNull(DataTier.TIER_PREFERENCE)
+        );
     }
 
     public static Template getTemplate(String policyName) {

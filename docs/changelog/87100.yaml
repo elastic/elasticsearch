@@ -1,5 +1,0 @@
-pr: 87100
-summary: Give doc-value-only mappings to numeric fields on metrics templates
-area: Data streams
-type: enhancement
-issues: []

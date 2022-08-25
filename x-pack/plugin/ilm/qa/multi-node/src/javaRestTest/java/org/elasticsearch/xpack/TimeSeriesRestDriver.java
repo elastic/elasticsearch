@@ -398,6 +398,13 @@ public final class TimeSeriesRestDriver {
         return (String) snapResponse.get("state");
     }
 
+    /**
+     * This method waits to get the shrunk index name and if it fails, it triggers once a cluster state update and tries again.
+     * The motivation behind this method is that in ShrinkAction there are cluster state dependent steps, for example
+     * {@link org.elasticsearch.xpack.core.ilm.CheckTargetShardsCountStep}, that might miss the latest policy update if they are
+     * already queued, see {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#submitUnlessAlreadyQueued}. In the real world
+     * there is usually another cluster state coming but since this is the test world there is not. That is what this method is simulating.
+     */
     @Nullable
     public static String waitAndGetShrinkIndexNameWithExtraClusterStateChange(RestClient client, String originalIndex)
         throws InterruptedException, IOException {

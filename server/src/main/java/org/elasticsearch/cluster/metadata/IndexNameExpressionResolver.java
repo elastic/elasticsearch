@@ -1308,8 +1308,13 @@ public class IndexNameExpressionResolver {
             SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
             if (Regex.isMatchAllPattern(expression)) {
                 return filterIndicesLookup(indicesLookup, null, context.getOptions().ignoreAliases(), context.includeDataStreams());
-            } else if (expression.indexOf("*") == expression.length() - 1) {
-                return suffixWildcard(indicesLookup, expression, context.getOptions().ignoreAliases(), context.includeDataStreams());
+            } else if (Regex.isSuffixMatchPattern(expression)) {
+                return filterIndicesLookup(
+                    filterIndicesLookupForSuffixWildcard(indicesLookup, expression),
+                    null,
+                    context.getOptions().ignoreAliases(),
+                    context.includeDataStreams()
+                );
             } else {
                 return filterIndicesLookup(
                     indicesLookup,
@@ -1320,19 +1325,16 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static Map<String, IndexAbstraction> suffixWildcard(
+        private static Map<String, IndexAbstraction> filterIndicesLookupForSuffixWildcard(
             SortedMap<String, IndexAbstraction> indicesLookup,
-            String expression,
-            boolean ignoreAliases,
-            boolean includeDataStreams
+            String expression
         ) {
-            assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
+            assert Regex.isSuffixMatchPattern(expression);
             String fromPrefix = expression.substring(0, expression.length() - 1);
             char[] toPrefixCharArr = fromPrefix.toCharArray();
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
-            SortedMap<String, IndexAbstraction> subMap = indicesLookup.subMap(fromPrefix, toPrefix);
-            return filterIndicesLookup(subMap, null, ignoreAliases, includeDataStreams);
+            return indicesLookup.subMap(fromPrefix, toPrefix);
         }
 
         private static Map<String, IndexAbstraction> filterIndicesLookup(

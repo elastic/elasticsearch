@@ -1218,12 +1218,12 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 wildcardSeen = true;
-                final Map<String, IndexAbstraction> matches = matches(context, expression);
+                final Stream<IndexAbstraction> matches = matches(context, expression);
                 if (context.getOptions().allowNoIndices() == false && matches.isEmpty()) {
                     throw indexNotFoundException(expression);
                 }
                 Collection<String> finalResult = result;
-                expandMatches(context, matches.values(), expression.startsWith("."), expanded -> {
+                expandMatches(context, matches, expression.startsWith("."), expanded -> {
                     if (add) {
                         finalResult.add(expanded);
                     } else {
@@ -1304,25 +1304,24 @@ public class IndexNameExpressionResolver {
             return excludeState;
         }
 
-        private static Map<String, IndexAbstraction> matches(Context context, String expression) {
-            SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
-            if (Regex.isMatchAllPattern(expression)) {
-                return filterIndicesLookup(indicesLookup, null, context.getOptions().ignoreAliases(), context.includeDataStreams());
-            } else if (Regex.isSuffixMatchPattern(expression)) {
-                return filterIndicesLookup(
-                    filterIndicesLookupForSuffixWildcard(indicesLookup, expression),
-                    null,
-                    context.getOptions().ignoreAliases(),
-                    context.includeDataStreams()
-                );
+        private static Stream<IndexAbstraction> matches(Context context, String expression) {
+            final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
+            Stream<IndexAbstraction> matchesStream;
+            if (Regex.isSuffixMatchPattern(expression)) {
+                matchesStream = filterIndicesLookupForSuffixWildcard(indicesLookup, expression).values().stream();
             } else {
-                return filterIndicesLookup(
-                    indicesLookup,
-                    e -> Regex.simpleMatch(expression, e.getKey()),
-                    context.getOptions().ignoreAliases(),
-                    context.includeDataStreams()
-                );
+                matchesStream = indicesLookup.values().stream();
             }
+            if (context.getOptions().ignoreAliases()) {
+                matchesStream = matchesStream.filter(e -> e.getType() != Type.ALIAS);
+            }
+            if (Regex.isMatchAllPattern(expression) == false && Regex.isSuffixMatchPattern(expression) == false) {
+                matchesStream = matchesStream.filter(e -> Regex.simpleMatch(expression, e.getName()));
+            }
+            if (context.includeDataStreams() == false) {
+                matchesStream = matchesStream.filter(e -> e.isDataStreamRelated() == false);
+            }
+            return matchesStream;
         }
 
         private static Map<String, IndexAbstraction> filterIndicesLookupForSuffixWildcard(
@@ -1335,33 +1334,6 @@ public class IndexNameExpressionResolver {
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
             return indicesLookup.subMap(fromPrefix, toPrefix);
-        }
-
-        private static Map<String, IndexAbstraction> filterIndicesLookup(
-            Map<String, IndexAbstraction> indicesLookup,
-            Predicate<? super Map.Entry<String, IndexAbstraction>> filter,
-            boolean ignoreAliases,
-            boolean includeDataStreams
-        ) {
-            boolean shouldConsumeStream = false;
-            Stream<Map.Entry<String, IndexAbstraction>> stream = indicesLookup.entrySet().stream();
-            if (ignoreAliases) {
-                shouldConsumeStream = true;
-                stream = stream.filter(e -> e.getValue().getType() != IndexAbstraction.Type.ALIAS);
-            }
-            if (filter != null) {
-                shouldConsumeStream = true;
-                stream = stream.filter(filter);
-            }
-            if (includeDataStreams == false) {
-                shouldConsumeStream = true;
-                stream = stream.filter(e -> e.getValue().isDataStreamRelated() == false);
-            }
-            if (shouldConsumeStream) {
-                return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            } else {
-                return indicesLookup;
-            }
         }
 
         private static void expandMatches(

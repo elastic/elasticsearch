@@ -160,7 +160,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             doWrite(ctx, restResponse, promise);
             success = true;
             // see if we have any queued up responses that became writeable due to the above write
-            drainQueuedNowWritable(ctx);
+            doWriteQueued(ctx);
         } catch (IllegalStateException e) {
             ctx.channel().close();
         } finally {
@@ -170,7 +170,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         }
     }
 
-    private void drainQueuedNowWritable(ChannelHandlerContext ctx) throws IOException {
+    private void doWriteQueued(ChannelHandlerContext ctx) throws IOException {
         while (outboundHoldingQueue.isEmpty() == false && outboundHoldingQueue.peek().v1().getSequence() == writeSequence) {
             final Tuple<? extends Netty4RestResponse, ChannelPromise> top = outboundHoldingQueue.poll();
             assert top != null : "we know the outbound holding queue to not be empty at this point";
@@ -280,7 +280,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         while (channel.isWritable()) {
             WriteOperation currentWrite = queuedWrites.poll();
             if (currentWrite == null) {
-                drainQueuedNowWritable(ctx);
+                doWriteQueued(ctx);
                 if (channel.isWritable() == false) {
                     // try flushing to make channel writable again, loop will only continue if channel becomes writable again
                     ctx.flush();

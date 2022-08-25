@@ -41,6 +41,11 @@ public abstract class TransportSingleItemBulkWriteAction<
         this.bulkAction = bulkAction;
     }
 
+    @Override
+    protected void doExecute(Task task, final Request request, final ActionListener<Response> listener) {
+        bulkAction.execute(task, toSingleItemBulkRequest(request), TransportBulkAction.wrapBulkResponseAsSingle(listener));
+    }
+
     public static BulkRequest toSingleItemBulkRequest(ReplicatedWriteRequest<?> request) {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(((DocWriteRequest<?>) request));
@@ -49,10 +54,5 @@ public abstract class TransportSingleItemBulkWriteAction<
         bulkRequest.waitForActiveShards(request.waitForActiveShards());
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
         return bulkRequest;
-    }
-
-    @Override
-    protected void doExecute(Task task, final Request request, final ActionListener<Response> listener) {
-        bulkAction.execute(task, toSingleItemBulkRequest(request), TransportBulkAction.wrapBulkResponseAsSingle(listener));
     }
 }

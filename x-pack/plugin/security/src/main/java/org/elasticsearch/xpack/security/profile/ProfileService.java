@@ -15,7 +15,10 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.*;
+import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -82,6 +85,7 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -528,7 +532,7 @@ public class ProfileService {
         // attempt to create a doc with the same ID and cause version conflict which is handled.
         final ProfileDocument profileDocument = ProfileDocument.fromSubjectWithUid(subject, uid);
         final String docId = uidToDocId(profileDocument.uid());
-        final BulkRequest bulkRequest = TransportSingleItemBulkWriteAction.toSingleItemBulkRequest(
+        final BulkRequest bulkRequest = toSingleItemBulkRequest(
             client.prepareIndex(SECURITY_PROFILE_ALIAS)
                 .setId(docId)
                 .setSource(wrapProfileDocument(profileDocument))

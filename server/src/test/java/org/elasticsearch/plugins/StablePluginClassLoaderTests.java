@@ -264,7 +264,6 @@ public class StablePluginClassLoaderTests extends ESTestCase {
     public void testModuleDenyList() throws Exception {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-jar-with-resources.jar");
-        // TODO: add more resources than just the class
         createJarWithSingleClass(jar, "MyImportingClass", """
             package p;
             import java.lang.management.ThreadInfo;
@@ -272,21 +271,31 @@ public class StablePluginClassLoaderTests extends ESTestCase {
             public class MyImportingClass {
                 @Override
                 public String toString() {
-                    return "MyImportingClass[imports " + ThreadInfo.class.getSimpleName() + "," + ResultSet.class.getSimpleName() + "]";
+                    return "MyImportingClass[imports " + ResultSet.class.getSimpleName() + "]";
                 }
             }
             """);
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
+        StablePluginClassLoader denyListLoader = StablePluginClassLoader.getInstance(
             StablePluginClassLoaderTests.class.getClassLoader(),
             List.of(jar),
             Set.of("java.sql")
         );
-        Class<?> c = loader.loadClass("p.MyImportingClass");
-        assertThat(c, notNullValue());
-        Object instance = c.getConstructor().newInstance();
-        IllegalAccessError e = expectThrows(IllegalAccessError.class, instance::toString);
+        Class<?> denyListed = denyListLoader.loadClass("p.MyImportingClass");
+        assertThat(denyListed, notNullValue());
+        Object instance1 = denyListed.getConstructor().newInstance();
+        IllegalAccessError e = expectThrows(IllegalAccessError.class, instance1::toString);
         assertThat(e.getMessage(), containsString("cannot access class java.sql.ResultSet (in module java.sql)"));
+
+        StablePluginClassLoader unrestrictedLoader = StablePluginClassLoader.getInstance(
+            StablePluginClassLoaderTests.class.getClassLoader(),
+            List.of(jar)
+        );
+        Class<?> unrestricted = unrestrictedLoader.loadClass("p.MyImportingClass");
+        assertThat(unrestricted, notNullValue());
+        Object instance2 = unrestricted.getConstructor().newInstance();
+        assertThat(instance2.toString(), containsString("MyImportingClass[imports ResultSet]"));
+
     }
 
     private static void createJarWithSingleClass(Path jar, String className) throws IOException {

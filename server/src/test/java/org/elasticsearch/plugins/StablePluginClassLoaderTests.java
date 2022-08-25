@@ -11,13 +11,10 @@ package org.elasticsearch.plugins;
 import joptsimple.internal.Strings;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
-import java.lang.module.Configuration;
-import java.lang.module.ModuleFinder;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
@@ -43,58 +40,7 @@ import static org.hamcrest.Matchers.nullValue;
  * {/@link org.elasticsearch.core.internal.provider.EmbeddedImplClassLoaderTests}
  *   - creates jars for tests
  */
-@ESTestCase.WithoutSecurityManager
 public class StablePluginClassLoaderTests extends ESTestCase {
-
-    // This test is just to see that there's a jar with a compiled class in it
-    // TODO: remove
-    public void testJarWithURLClassLoader() throws Exception {
-
-        Path topLevelDir = createTempDir(getTestName());
-        Path outerJar = topLevelDir.resolve("my-jar.jar");
-        createJarWithSingleClass(outerJar, List.of("p"), "MyClass");
-
-        // loading it with a URL classloader (just checking the jar, remove
-        // this block)
-        URL[] urls = new URL[] { outerJar.toUri().toURL() };
-        URLClassLoader parent = URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
-        PrivilegedAction<URLClassLoader> pa = () -> URLClassLoader.newInstance(urls, parent);
-        try (@SuppressWarnings("removal")
-        URLClassLoader loader = AccessController.doPrivileged(pa)) {
-            Class<?> c = loader.loadClass("p.MyClass");
-            Object instance = c.getConstructor().newInstance();
-            assertThat(instance.toString(), equalTo("MyClass"));
-        } finally {
-            PrivilegedOperations.closeURLClassLoader(parent);
-        }
-    }
-
-    // lets me look inside the module system classloader to see how it works
-    // TODO: remove (also remove WithoutSecurityManager annotation)
-    public void testLoadWithModuleLayer() throws Exception {
-        Path topLevelDir = createTempDir(getTestName());
-        Path jar = topLevelDir.resolve("my-jar.jar");
-        createModularJar(jar, "MyClass");
-
-        // load it with a module
-        ModuleFinder moduleFinder = ModuleFinder.of(jar);
-        ModuleLayer mparent = ModuleLayer.boot();
-        Configuration cf = mparent.configuration().resolve(moduleFinder, ModuleFinder.of(), Set.of("p"));
-        // we have the module, but how do we load the class?
-
-        PrivilegedAction<ClassLoader> pa = () -> ModuleLayer.defineModulesWithOneLoader(
-            cf,
-            List.of(mparent),
-            this.getClass().getClassLoader()
-        ).layer().findLoader("p");
-        @SuppressWarnings("removal")
-        ClassLoader loader = AccessController.doPrivileged(pa);
-        Class<?> c = loader.loadClass("p.MyClass");
-        assertThat(c, notNullValue());
-        Object instance = c.getConstructor().newInstance();
-        assertThat("MyClass", equalTo(instance.toString()));
-
-    }
 
     /**
      * Test the loadClass method, which is the real entrypoint for users of the classloader
@@ -245,6 +191,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Object instance3 = c3.getConstructor().newInstance();
         assertThat(instance3.toString(), equalTo("OtherClass"));
     }
+
     public void testNoParentFirstSearch() throws Exception {
         Path tempDir = createTempDir(getTestName());
         Path overlappingJar = tempDir.resolve("my-overlapping-jar.jar");
@@ -403,7 +350,8 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createJarWithSingleClass(jar, packagePathElements, className, getSimpleSourceString(packagePathElements, className, className));
     }
 
-    private static void createJarWithSingleClass(Path jar, List<String> packagePathElements, String className, String source) throws IOException {
+    private static void createJarWithSingleClass(Path jar, List<String> packagePathElements, String className, String source)
+        throws IOException {
         Map<String, CharSequence> sources = new HashMap<>();
         String canonicalName = toBinaryName(packagePathElements) + "." + className;
         // TODO: windows
@@ -447,18 +395,5 @@ public class StablePluginClassLoaderTests extends ESTestCase {
                 }
             }
             """, toBinaryName(packagePathElements), className, toStringOutput);
-    }
-
-    // TODO: remove
-    private static void createModularJar(Path jar, String className) throws IOException {
-        Map<String, CharSequence> sources = new HashMap<>();
-        sources.put("p." + className, getSimpleSourceString(List.of("p"), className, className));
-        sources.put("module-info", "module p {exports p;}");
-        var classToBytes = InMemoryJavaCompiler.compile(sources);
-
-        Map<String, byte[]> jarEntries = new HashMap<>();
-        jarEntries.put("p/" + className + ".class", classToBytes.get("p." + className));
-        jarEntries.put("module-info.class", classToBytes.get("module-info"));
-        JarUtils.createJarWithEntries(jar, jarEntries);
     }
 }

@@ -692,33 +692,52 @@ public class ProfileService {
     }
 
     // package private for testing
-    void updateProfileForActivate(Subject subject, VersionedDocument currentVersionedDocument, ActionListener<Profile> listener)
-        throws IOException {
-        final ProfileDocument newProfileDocument = updateWithSubject(currentVersionedDocument.doc, subject);
-        // If the profile content does not change and it is recently updated within last 30 seconds, do not update it again
-        // to avoid potential excessive version conflicts
-        if (newProfileDocument.user().equals(currentVersionedDocument.doc.user())
-            && currentVersionedDocument.doc.enabled()
-            && newProfileDocument.lastSynchronized() - currentVersionedDocument.doc.lastSynchronized() < ACTIVATE_INTERVAL_IN_MS) {
-            logger.debug(
-                "skip user profile activate update because last_synchronized [{}] is within grace period",
-                currentVersionedDocument.doc.lastSynchronized()
-            );
-            listener.onResponse(currentVersionedDocument.toProfile(Set.of()));
+    void updateProfileForActivate(Subject subject, VersionedDocument currentVersionedDocumentBySearch, ActionListener<Profile> listener) {
+        final ProfileDocument newProfileDocument = updateWithSubject(currentVersionedDocumentBySearch.doc, subject);
+
+        if (shouldSkipUpdateForActivate(currentVersionedDocumentBySearch.doc, newProfileDocument)) {
+            listener.onResponse(currentVersionedDocumentBySearch.toProfile(Set.of()));
             return;
         }
 
-        doUpdate(
-            buildUpdateRequest(
-                newProfileDocument.uid(),
-                wrapProfileDocumentWithoutApplicationData(newProfileDocument),
-                RefreshPolicy.WAIT_UNTIL
-            ),
-            listener.map(
-                updateResponse -> new VersionedDocument(newProfileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
-                    .toProfile(Set.of())
-            )
-        );
+        // The current document by search may not be up-to-date, using GET to retrieve it again to double check whether
+        // update is truly necessary. Note the document by GET is only used as an optimisation technique for skipping the update.
+        // It does not affect the result of update when the update does need to happen.
+        getVersionedDocument(currentVersionedDocumentBySearch.doc.uid(), ActionListener.wrap(currentVersionedDocumentByGet -> {
+            if (shouldSkipUpdateForActivate(currentVersionedDocumentByGet.doc, newProfileDocument)) {
+                listener.onResponse(currentVersionedDocumentByGet.toProfile(Set.of()));
+            } else {
+                doUpdate(
+                    buildUpdateRequest(
+                        newProfileDocument.uid(),
+                        wrapProfileDocumentWithoutApplicationData(newProfileDocument),
+                        RefreshPolicy.WAIT_UNTIL
+                    ),
+                    listener.map(
+                        updateResponse -> new VersionedDocument(
+                            newProfileDocument,
+                            updateResponse.getPrimaryTerm(),
+                            updateResponse.getSeqNo()
+                        ).toProfile(Set.of())
+                    )
+                );
+            }
+        }, listener::onFailure));
+    }
+
+    // If the profile content does not change and it is recently updated within last 30 seconds, do not update it again
+    // to avoid potential excessive version conflicts
+    private boolean shouldSkipUpdateForActivate(ProfileDocument currentProfileDocument, ProfileDocument newProfileDocument) {
+        if (newProfileDocument.user().equals(currentProfileDocument.user())
+            && currentProfileDocument.enabled()
+            && newProfileDocument.lastSynchronized() - currentProfileDocument.lastSynchronized() < ACTIVATE_INTERVAL_IN_MS) {
+            logger.debug(
+                "skip user profile activate update because last_synchronized [{}] is within grace period",
+                currentProfileDocument.lastSynchronized()
+            );
+            return true;
+        }
+        return false;
     }
 
     private UpdateRequest buildUpdateRequest(String uid, XContentBuilder builder, RefreshPolicy refreshPolicy) {

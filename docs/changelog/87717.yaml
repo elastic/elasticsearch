@@ -1,6 +1,0 @@
-pr: 87717
-summary: Add rollover permissions for `remote_monitoring_agent`
-area: Authorization
-type: bug
-issues:
- - 84161

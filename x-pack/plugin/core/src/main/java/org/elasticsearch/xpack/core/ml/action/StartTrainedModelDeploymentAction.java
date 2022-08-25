@@ -71,6 +71,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             AllocationStatus.State.FULLY_ALLOCATED };
 
         private static final int MAX_THREADS_PER_ALLOCATION = 32;
+        /**
+         * If the queue is created then we can OOM when we create the queue.
+         */
+        private static final int MAX_QUEUE_CAPACITY = 1_000_000;
 
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField TIMEOUT = new ParseField("timeout");
@@ -247,6 +251,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             }
             if (queueCapacity < 1) {
                 validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be a positive integer");
+            }
+            if (queueCapacity > MAX_QUEUE_CAPACITY) {
+                validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be less than " + MAX_QUEUE_CAPACITY);
             }
             return validationException.validationErrors().isEmpty() ? null : validationException;
         }

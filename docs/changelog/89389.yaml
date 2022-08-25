@@ -1,6 +1,0 @@
-pr: 89389
-summary: Assign the right path to objects merged when parsing mappings
-area: Mapping
-type: bug
-issues:
- - 88573

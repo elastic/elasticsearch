@@ -33,6 +33,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -44,6 +45,8 @@ import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.TextDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -276,6 +279,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SCRIPT) {
+                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                    fieldDataContext.lookupSupplier().get().source(),
+                    TextDocValuesField::new
+                );
+            }
+
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
         }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -64,6 +65,7 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -519,6 +521,17 @@ public final class DateFieldMapper extends FieldMapper {
             };
         }
 
+        // returns a Long to support source fallback which emulates numeric doc values for dates
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, nullValue) {
+                @Override
+                public Long parseSourceValue(Object value) {
+                    String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
+                    return parse(date);
+                }
+            };
+        }
+
         private String format(long timestamp, DateFormatter formatter) {
             ZonedDateTime dateTime = resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
             return formatter.format(dateTime);
@@ -750,8 +763,34 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType(), resolution.getDefaultToScriptFieldFactory());
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (operation == FielddataOperation.SEARCH) {
+                failIfNoDocValues();
+            }
+
+            if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
+                return new SortedNumericIndexFieldData.Builder(
+                    name(),
+                    resolution.numericType(),
+                    resolution.getDefaultToScriptFieldFactory()
+                );
+            }
+
+            if (operation == FielddataOperation.SCRIPT) {
+                SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name(),
+                    resolution.numericType().getValuesSourceType(),
+                    sourceValueFetcher(sourcePaths),
+                    searchLookup.source(),
+                    resolution.getDefaultToScriptFieldFactory()
+                );
+            }
+
+            throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
         }
 
         @Override

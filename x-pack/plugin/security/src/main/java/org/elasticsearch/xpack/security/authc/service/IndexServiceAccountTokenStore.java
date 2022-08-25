@@ -17,7 +17,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -61,6 +60,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -146,7 +146,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 .setOpType(OpType.CREATE)
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .request();
-            final BulkRequest bulkRequest = TransportSingleItemBulkWriteAction.toSingleItemBulkRequest(indexRequest);
+            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
 
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(

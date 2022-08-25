@@ -1336,9 +1336,11 @@ public class IndexNameExpressionResolver {
                     || context.systemIndexAccessPredicate.test(e.getName())
             );
             if (context.getOptions().expandWildcardsHidden() == false) {
-                matchesStream = matchesStream.filter(
-                    e -> e.isHidden() == false || (e.getName().startsWith(".") && expression.startsWith("."))
-                );
+                if (expression.startsWith(".")) {
+                    matchesStream = matchesStream.filter(e -> e.isHidden() == false || e.getName().startsWith("."));
+                } else {
+                    matchesStream = matchesStream.filter(e -> e.isHidden() == false);
+                }
             }
             return matchesStream;
         }

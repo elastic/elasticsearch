@@ -150,7 +150,7 @@ public class ReservedRepositoryActionTests extends ESTestCase {
                 throw new RepositoryException(request.name(), "repository type [" + request.type() + "] does not exist");
             }
             return null;
-        }).when(repositoriesService).validateRepositoryRequest(any());
+        }).when(repositoriesService).validateRepositoryCanBeCreated(any());
 
         return repositoriesService;
     }

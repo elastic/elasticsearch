@@ -141,10 +141,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      */
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
+        validateRepositoryName(request.name());
 
         // Trying to create the new repository on master to make sure it works
         try {
-            validateRepositoryRequest(request);
+            validateRepositoryCanBeCreated(request);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -298,9 +299,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      *
      * @param request
      */
-    public void validateRepositoryRequest(final PutRepositoryRequest request) {
+    public void validateRepositoryCanBeCreated(final PutRepositoryRequest request) {
         final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
-        validate(request.name());
 
         // Trying to create the new repository on master to make sure it works
         closeRepository(createRepository(newRepositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists));
@@ -755,7 +755,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return new UnknownTypeRepository(repositoryMetadata);
     }
 
-    private static void validate(final String repositoryName) {
+    public static void validateRepositoryName(final String repositoryName) {
         if (Strings.hasLength(repositoryName) == false) {
             throw new RepositoryException(repositoryName, "cannot be empty");
         }

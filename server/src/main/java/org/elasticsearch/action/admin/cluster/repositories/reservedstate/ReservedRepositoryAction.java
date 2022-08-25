@@ -59,7 +59,8 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
 
         for (var repositoryRequest : repositories) {
             validate(repositoryRequest);
-            repositoriesService.validateRepositoryRequest(repositoryRequest);
+            RepositoriesService.validateRepositoryName(repositoryRequest.name());
+            repositoriesService.validateRepositoryCanBeCreated(repositoryRequest);
         }
 
         return repositories;

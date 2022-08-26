@@ -1,13 +1,13 @@
 [role="xpack"]
 [[security-api-get-user-profile]]
-=== Get user profile API
+=== Get user profiles API
 ++++
-<titleabbrev>Get user profile</titleabbrev>
+<titleabbrev>Get user profiles</titleabbrev>
 ++++
 
 beta::[]
 
-Retrieves a user's profile using the unique profile ID.
+Retrieves user profiles using a list of unique profile ID.
 
 [[security-api-get-user-profile-request]]
 ==== {api-request-title}
@@ -31,7 +31,8 @@ The get user profile API returns the user profile document matching a specified
 ==== {api-path-parms-title}
 
 `uid`::
-(Required, string) A unique identifier for the user profile.
+(Required, string) The unique identifier for the user profile. You can specify multiple IDs as
+a comma-separated list.
 
 [[security-api-get-user-profile-query-params]]
 ==== {api-query-parms-title}
@@ -65,33 +66,35 @@ The API returns the following response for a `uid` matching `u_79HkWkwmnBH5gqFKw
 [source,console-result]
 ----
 {
-  "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0": {
-    "uid": "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0",
-    "enabled": true,
-    "last_synchronized": 1642650651037,
-    "user": {
-      "username": "jacknich",
-      "roles": [
-        "admin", "other_role1"
-      ],
-      "realm_name": "native",
-      "full_name": "Jack Nicholson",
-      "email": "jacknich@example.com"
-    },
-    "labels": {
-      "direction": "north"
-    },
-    "data": {}, <1>
-    "_doc": {
-      "_primary_term": 88,
-      "_seq_no": 66
+  "profiles": [
+    {
+      "uid": "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0",
+      "enabled": true,
+      "last_synchronized": 1642650651037,
+      "user": {
+        "username": "jacknich",
+        "roles": [
+          "admin", "other_role1"
+        ],
+        "realm_name": "native",
+        "full_name": "Jack Nicholson",
+        "email": "jacknich@example.com"
+      },
+      "labels": {
+        "direction": "north"
+      },
+      "data": {}, <1>
+      "_doc": {
+        "_primary_term": 88,
+        "_seq_no": 66
+      }
     }
-  }
+  ]
 }
 ----
-// TESTRESPONSE[s/1642650651037/$body.u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0.last_synchronized/]
-// TESTRESPONSE[s/88/$body.u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0._doc._primary_term/]
-// TESTRESPONSE[s/66/$body.u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0._doc._seq_no/]
+// TESTRESPONSE[s/1642650651037/$body.profiles.0.last_synchronized/]
+// TESTRESPONSE[s/88/$body.profiles.0._doc._primary_term/]
+// TESTRESPONSE[s/66/$body.profiles.0._doc._seq_no/]
 
 <1> No content is returned in the `data` field by default.
 
@@ -107,35 +110,55 @@ GET /_security/profile/u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0?data=app1
 [source,console-result]
 ----
 {
-  "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0": {
-    "uid": "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0",
-    "enabled": true,
-    "last_synchronized": 1642650651037,
-    "user": {
-      "username": "jacknich",
-      "roles": [
-        "admin", "other_role1"
-      ],
-      "realm_name": "native",
-      "full_name": "Jack Nicholson",
-      "email": "jacknich@example.com"
-    },
-    "labels": {
-      "direction": "north"
-    },
-    "data": {
-      "app1": {
-        "key1": "value1"
+  "profiles": [
+    {
+      "uid": "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0",
+      "enabled": true,
+      "last_synchronized": 1642650651037,
+      "user": {
+        "username": "jacknich",
+        "roles": [
+          "admin", "other_role1"
+        ],
+        "realm_name": "native",
+        "full_name": "Jack Nicholson",
+        "email": "jacknich@example.com"
+      },
+      "labels": {
+        "direction": "north"
+      },
+      "data": {
+        "app1": {
+          "key1": "value1"
+        }
+      },
+      "_doc": {
+        "_primary_term": 88,
+        "_seq_no": 66
       }
-    },
-    "_doc": {
-      "_primary_term": 88,
-      "_seq_no": 66
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/1642650651037/$body.profiles.0.last_synchronized/]
+// TESTRESPONSE[s/88/$body.profiles.0._doc._primary_term/]
+// TESTRESPONSE[s/66/$body.profiles.0._doc._seq_no/]
+
+If there has been any errors when retrieving the user profiles, they are returned in the `errors` field:
+
+[source,js]
+--------------------------------------------------
+{
+  "profiles": [],
+  "errors": {
+    "count": 1,
+    "details": {
+       "u_FmxQt3gr1BBH5wpnz9HkouPj3Q710XkOgg1PWkwLPBW_5": {
+         "type": "resource_not_found_exception",
+         "reason": "profile document not found"
+       }
     }
   }
 }
-----
-// TESTRESPONSE[s/1642650651037/$body.u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0.last_synchronized/]
-// TESTRESPONSE[s/88/$body.u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0._doc._primary_term/]
-// TESTRESPONSE[s/66/$body.u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0._doc._seq_no/]
-
+--------------------------------------------------
+// NOTCONSOLE

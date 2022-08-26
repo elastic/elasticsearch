@@ -1,0 +1,5 @@
+pr: 89333
+summary: Return 400 error for `GetUserPrivileges` call with API keys
+area: Security
+type: enhancement
+issues: []

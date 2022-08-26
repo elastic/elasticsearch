@@ -19,6 +19,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -93,7 +94,7 @@ public class CodecTests extends ESTestCase {
             settings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE
         );
-        return new CodecService(service);
+        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
 }

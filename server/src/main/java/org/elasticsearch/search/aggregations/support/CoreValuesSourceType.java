@@ -371,34 +371,10 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                         return Rounding::prepareForUnknown;
                     }
 
-                    // If we have bounds stepping over each other from query bound checks, return a trivial rounding.
+                    // If we have bounds stepping over each other from query bound checks, return an unknown rounding
+                    // (which we expect to never actually get any values to round).
                     if (range[0] > range[1]) {
-                        return rounding -> new Rounding.Prepared() {
-                            @Override
-                            public long round(long utcMillis) {
-                                return 0;
-                            }
-
-                            @Override
-                            public long nextRoundingValue(long utcMillis) {
-                                return 0;
-                            }
-
-                            @Override
-                            public double roundingSize(long utcMillis, Rounding.DateTimeUnit timeUnit) {
-                                return 0;
-                            }
-
-                            @Override
-                            public double roundingSize(Rounding.DateTimeUnit timeUnit) {
-                                return 0;
-                            }
-
-                            @Override
-                            public long[] fixedRoundingPoints() {
-                                return null;
-                            }
-                        };
+                        return Rounding::prepareForUnknown;
                     }
 
                     return rounding -> rounding.prepare(range[0], range[1]);

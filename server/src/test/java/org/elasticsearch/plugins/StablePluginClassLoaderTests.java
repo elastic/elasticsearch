@@ -302,11 +302,13 @@ public class StablePluginClassLoaderTests extends ESTestCase {
             }
             """);
 
-        try (StablePluginClassLoader denyListLoader = StablePluginClassLoader.getInstance(
-            StablePluginClassLoaderTests.class.getClassLoader(),
-            List.of(jar),
-            Set.of("java.sql")
-        )) {
+        try (
+            StablePluginClassLoader denyListLoader = StablePluginClassLoader.getInstance(
+                StablePluginClassLoaderTests.class.getClassLoader(),
+                List.of(jar),
+                Set.of("java.sql")
+            )
+        ) {
             Class<?> denyListed = denyListLoader.loadClass("p.MyImportingClass");
             assertThat(denyListed, notNullValue());
             Object instance1 = denyListed.getConstructor().newInstance();
@@ -339,10 +341,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
     }
 
     private static StablePluginClassLoader getLoader(List<Path> jars) {
-        return StablePluginClassLoader.getInstance(
-            StablePluginClassLoaderTests.class.getClassLoader(),
-            jars
-        );
+        return StablePluginClassLoader.getInstance(StablePluginClassLoaderTests.class.getClassLoader(), jars);
     }
 
     /*

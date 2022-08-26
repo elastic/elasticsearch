@@ -23,7 +23,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
 /**
  * {@link ShardSnapshotTaskRunner} performs snapshotting tasks, prioritizing {@link ShardSnapshotTask}
  * over {@link FileSnapshotTask}. Each enqueued shard to snapshot results in one {@link ShardSnapshotTask}
- * and zero or more {@link FileSnapshotTask}.
+ * and zero or more {@link FileSnapshotTask}s.
  */
 public class ShardSnapshotTaskRunner {
     private final ThrottledTaskRunner<SnapshotTask> throttledTaskRunner;
@@ -128,12 +128,12 @@ public class ShardSnapshotTaskRunner {
         throttledTaskRunner.enqueueTask(task);
     }
 
-    // for testing
+    // visible for testing
     int runningTasks() {
         return throttledTaskRunner.runningTasks();
     }
 
-    // for testing
+    // visible for testing
     int queueSize() {
         return throttledTaskRunner.queueSize();
     }

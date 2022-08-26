@@ -83,7 +83,7 @@ public interface SourceLoader {
     };
 
     /**
-     * Load {@code _source} from doc vales.
+     * Load {@code _source} from doc values.
      */
     class Synthetic implements SourceLoader {
         private final SyntheticFieldLoader loader;

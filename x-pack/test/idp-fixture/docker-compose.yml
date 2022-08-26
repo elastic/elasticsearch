@@ -144,7 +144,7 @@ services:
       - ./openldap/certs:/container/service/slapd/assets/certs
 
   shibboleth-idp:
-    image: "unicon/shibboleth-idp:3.4.2"
+    image: "elastic/shibboleth-idp:test"
     depends_on:
       - openldap
     environment:

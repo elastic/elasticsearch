@@ -1,5 +1,9 @@
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.internal.DockerBase
+import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
 apply plugin: 'elasticsearch.test.fixtures'
@@ -34,9 +38,16 @@ tasks.named("preProcessFixture").configure {
 }
 
 tasks.named('composeUp').configure {
-  dependsOn "preProcessFixture"
+  dependsOn "preProcessFixture", "buildShibbolethImage"
 }
 
 tasks.named('composePull').configure {
   enabled = false // this task fails due to docker-compose oddities
 }
+
+task buildShibbolethImage(type: Exec) {
+  workingDir "shibboleth-idp"
+  commandLine 'docker',  'buildx', 'build', '-t', 'elastic/shibboleth-idp:test', '.', '--platform', 'linux/amd64' //change to linux/arm64v8 to test
+}
+
+

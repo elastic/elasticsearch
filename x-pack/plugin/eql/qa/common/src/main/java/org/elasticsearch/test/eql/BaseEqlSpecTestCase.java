@@ -46,7 +46,11 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
      * For now, every value will be converted to a String.
      */
     private final String[] joinKeys;
-    private final Integer size;
+
+    /**
+     * any negative value means undefined (ie. no "size" will be passed to the query)
+     */
+    private final int size;
 
     @Before
     public void setup() throws Exception {
@@ -111,7 +115,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         this.name = name;
         this.eventIds = eventIds;
         this.joinKeys = joinKeys;
-        this.size = size;
+        this.size = size == null ? -1 : size;
     }
 
     public void test() throws Exception {
@@ -141,7 +145,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (tiebreaker != null) {
             builder.field("tiebreaker_field", tiebreaker);
         }
-        builder.field("size", this.size == null ? requestSize() : this.size);
+        builder.field("size", this.size < 0 ? requestSize() : this.size);
         builder.field("fetch_size", requestFetchSize());
         builder.field("result_position", requestResultPosition());
         builder.endObject();

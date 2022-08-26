@@ -30,21 +30,46 @@ setup:
 
   - do:
       security.put_user:
-        username: "api_key_user"
+        username: "api_key_admin"
         body:  >
           {
             "password" : "x-pack-test-password",
             "roles" : [ "admin_role" ],
-            "full_name" : "API key user"
+            "full_name" : "API key admin"
           }
 
+  - do:
+      security.put_role:
+        name: "user_role"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
 
-
+  - do:
+      security.put_user:
+        username: "api_key_user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "user_role" ],
+            "full_name" : "API key user"
+          }
 ---
 teardown:
   - do:
       security.delete_role:
         name: "admin_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_admin"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "user_role"
         ignore: 404
 
   - do:
@@ -59,7 +84,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
       security.create_api_key:
         body:  >
           {
@@ -71,15 +96,16 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
       security.get_api_key:
         id: "$api_key_id_0"
   - match: { "api_keys.0.id": "$api_key_id_0" }
   - match: { "api_keys.0.role_descriptors": { } }
+  - is_false: api_keys.0.limited_by
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
       security.create_api_key:
         body:  >
           {
@@ -92,15 +118,16 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
       security.get_api_key:
         id: "$api_key_id_1"
   - match: { "api_keys.0.id": "$api_key_id_1" }
   - match: { "api_keys.0.role_descriptors": { } }
+  - is_false: api_keys.0.limited_by
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
       security.create_api_key:
         body:  >
           {
@@ -123,7 +150,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
       security.get_api_key:
         id: "$api_key_id_2"
   - match: { "api_keys.0.id": "$api_key_id_2" }
@@ -152,10 +179,11 @@ teardown:
     }
   }
   }
+  - is_false: api_keys.0.limited_by
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
       security.create_api_key:
         body:  >
           {
@@ -188,7 +216,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
       security.get_api_key:
         id: "$api_key_id_3"
   - match: { "api_keys.0.id": "$api_key_id_3" }
@@ -239,11 +267,12 @@ teardown:
     }
   }
   }
+  - is_false: api_keys.0.limited_by
 
   # Query API keys
   - do:
       headers:
-        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
       security.query_api_keys:
         body: >
           {
@@ -253,8 +282,10 @@ teardown:
   - match: { count: 4 }
   - match: { "api_keys.0.name": "key-0-with-implicit-inherit" }
   - match: { "api_keys.0.role_descriptors": { } }
+  - is_false: api_keys.0.limited_by
   - match: { "api_keys.1.name": "key-1-with-explicit-inherit" }
   - match: { "api_keys.1.role_descriptors": { } }
+  - is_false: api_keys.1.limited_by
   - match: { "api_keys.2.name": "key-2-with-single-assigned-role-descriptor"}
   - match: { "api_keys.2.role_descriptors": {
     "role-a": {
@@ -281,6 +312,7 @@ teardown:
     }
   }
   }
+  - is_false: api_keys.2.limited_by
   - match: { "api_keys.3.name": "key-3-with-multiple-assigned-role-descriptors"}
   - match: { "api_keys.3.role_descriptors": {
     "role-a": {
@@ -329,4 +361,148 @@ teardown:
     }
   }
   }
+  - is_false: api_keys.3.limited_by
 
+---
+"Test API key limited-by role descriptors in Get and Query responses":
+  - skip:
+      features: transform_and_set
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body:  >
+          {
+            "name": "key-0-limited-by-api-key-user"
+          }
+  - match: { name: "key-0-limited-by-api-key-user" }
+  - is_true: id
+  - set: { id: api_key_id_0 }
+  - set: { encoded: login_creds_0 }
+
+  # The key cannot view its own limited-by because it has only manage_own_api_key privileges
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: ApiKey ${login_creds_0}
+      security.get_api_key:
+        id: "$api_key_id_0"
+        with_limited_by: true
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        id: "$api_key_id_0"
+        owner: true
+        with_limited_by: true
+  - match: { "api_keys.0.id": "$api_key_id_0" }
+  - is_true: api_keys.0.role_descriptors
+  - length: { "api_keys.0.limited_by": 1 }
+  - match: { "api_keys.0.limited_by.0": {
+    "user_role" : {
+      "cluster" : [
+        "manage_own_api_key"
+      ],
+      "indices" : [ ],
+      "applications" : [ ],
+      "run_as" : [ ],
+      "metadata" : { },
+      "transient_metadata" : {
+        "enabled" : true
+      }
+    }
+  }
+  }
+
+  # Query API keys
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_admin
+      security.query_api_keys:
+        with_limited_by: true
+        body: >
+          {
+            "query": { "term": { "name": "key-0-limited-by-api-key-user" }}
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match: { "api_keys.0.name": "key-0-limited-by-api-key-user" }
+  - match: { "api_keys.0.id": "$api_key_id_0" }
+  - is_true: api_keys.0.role_descriptors
+  - length: { "api_keys.0.limited_by": 1 }
+  - match: { "api_keys.0.limited_by.0": {
+    "user_role" : {
+      "cluster" : [
+        "manage_own_api_key"
+      ],
+      "indices" : [ ],
+      "applications" : [ ],
+      "run_as" : [ ],
+      "metadata" : { },
+      "transient_metadata" : {
+        "enabled" : true
+      }
+    }
+  }
+  }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # api_key_admin
+      security.create_api_key:
+        body:  >
+          {
+            "name": "key-1-limited-by-api-key-admin"
+          }
+  - match: { name: "key-1-limited-by-api-key-admin" }
+  - is_true: id
+  - set: { id: api_key_id_1 }
+  - set: { encoded: login_creds_1 }
+
+  # This key can view its own limited-by because it inherits manage_api_key privileges
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds_1}
+      security.get_api_key:
+        id: "$api_key_id_1"
+        with_limited_by: true
+  - match: { "api_keys.0.id": "$api_key_id_1" }
+  - is_true: api_keys.0.role_descriptors
+  - length: { "api_keys.0.limited_by": 1 }
+  - match: { "api_keys.0.limited_by.0": {
+    "admin_role" : {
+      "cluster" : [
+        "manage_api_key"
+      ],
+      "indices" : [
+        {
+          "names" : [
+            "*"
+          ],
+          "privileges" : [
+            "all"
+          ],
+          "allow_restricted_indices" : false
+        }
+      ],
+      "applications" : [
+        {
+          "application" : "myapp",
+          "privileges" : [
+            "*"
+          ],
+          "resources" : [
+            "*"
+          ]
+        }
+      ],
+      "run_as" : [ ],
+      "metadata" : { },
+      "transient_metadata" : {
+        "enabled" : true
+      }
+    }
+  }
+  }

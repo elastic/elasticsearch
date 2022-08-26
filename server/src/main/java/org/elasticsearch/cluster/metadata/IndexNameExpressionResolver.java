@@ -1229,7 +1229,7 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 wildcardSeen = true;
-                Stream<IndexAbstraction> matchingResources = wildcardExpressionMatchingResources(context, expression);
+                Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
                 Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
                 AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
                 if (context.getOptions().allowNoIndices() == false) {
@@ -1323,7 +1323,7 @@ public class IndexNameExpressionResolver {
          * on whether to consider alias, datastream, system, and hidden resources.
          * It does NOT consider the open or closed status of index resources.
          */
-        private static Stream<IndexAbstraction> wildcardExpressionMatchingResources(Context context, String wildcardExpression) {
+        private static Stream<IndexAbstraction> matchResourcesToWildcard(Context context, String wildcardExpression) {
             assert Regex.isSimpleMatchPattern(wildcardExpression);
             final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
             Stream<IndexAbstraction> matchesStream;

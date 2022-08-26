@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -34,13 +35,39 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
             String[] nodeIds = state.getNodes().getNodes().keySet().toArray(new String[0]);
             DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
-            DiskHealthInfo green = new DiskHealthInfo(HealthStatus.GREEN, null);
             assertBusy(() -> {
                 Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, healthNode.getName())
                     .getDiskHealthInfo();
                 assertThat(healthInfoCache.size(), equalTo(nodeIds.length));
                 for (String nodeId : nodeIds) {
-                    assertThat(healthInfoCache.get(nodeId), equalTo(green));
+                    assertThat(healthInfoCache.get(nodeId), equalTo(GREEN));
+                }
+            });
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
+        }
+    }
+
+    public void testNodeLeavingCluster() throws Exception {
+        try (InternalTestCluster internalCluster = internalCluster()) {
+            ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
+            Collection<DiscoveryNode> nodes = state.getNodes().getNodes().values();
+            DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
+            DiscoveryNode nodeToLeave = nodes.stream()
+                .filter(node -> node.getId().equals(healthNode.getId()) == false)
+                .findAny()
+                .orElseThrow();
+            internalCluster.stopNode(nodeToLeave.getName());
+            assertBusy(() -> {
+                Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, healthNode.getName())
+                    .getDiskHealthInfo();
+                assertThat(healthInfoCache.size(), equalTo(nodes.size() - 1));
+                for (DiscoveryNode node : nodes) {
+                    if (node.getId().equals(nodeToLeave.getId())) {
+                        assertThat(healthInfoCache.containsKey(node.getId()), equalTo(false));
+                    } else {
+                        assertThat(healthInfoCache.get(node.getId()), equalTo(GREEN));
+                    }
                 }
             });
         } catch (IOException e) {

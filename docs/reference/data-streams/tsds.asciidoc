@@ -1,8 +1,7 @@
-ifeval::["{release-state}"=="unreleased"]
 [[tsds]]
 == Time series data stream (TSDS)
 
-preview::[]
+preview:[]
 
 A time series data stream (TSDS) models timestamped metrics data as one or
 more time series.
@@ -305,4 +304,3 @@ Now that you know the basics, you're ready to <<set-up-tsds,create a TSDS>> or
 
 include::set-up-tsds.asciidoc[]
 include::tsds-index-settings.asciidoc[]
-endif::[]

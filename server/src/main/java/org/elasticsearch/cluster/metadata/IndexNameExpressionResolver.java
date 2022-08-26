@@ -1176,19 +1176,24 @@ public class IndexNameExpressionResolver {
         }
 
         /**
-         * Returns all the existing resource (index, alias and datastream) names that the {@param expressions} resolve to.
-         * The passed-in {@param expressions} might contain wildcards and exclusions, as well as plain resource names.
+         * Returns all the existing resource (index, alias and datastream) names that the {@param expressions} list resolves to.
+         * The passed-in {@param expressions} can contain wildcards and exclusions, as well as plain resource names, but it mustn't be empty.
+         * <br>
          * The return is a {@code Collection} (usually a {@code Set} but can also be a {@code List}, for performance reasons) of plain
          * resource names only. All the returned resources are "accessible", in the given context, i.e. the resources exist
          * and are not an alias or a datastream if the context does not permit it.
          * Wildcard expressions, depending on the context:
-         *   - might throw an exception if they don't resolve to anything
-         *   - might not resolve to hidden or system resources (but plain names can refer to hidden or system resources)
-         *   - might resolve to aliases and datastreams, and it could be (depending on the context) that their backing indices are what's
-         *   ultimately returned, instead of the alias or datastream name
+         * <ol>
+         *   <li>might throw an exception if they don't resolve to anything</li>
+         *   <li>might not resolve to hidden or system resources (but plain names can refer to hidden or system resources)</li>
+         *   <li>might resolve to aliases and datastreams, and it could be (depending on the context) that their backing indices are what's
+         * ultimately returned, instead of the alias or datastream name</li>
+         * </ol>
          */
         private static Collection<String> innerResolve(Context context, List<String> expressions) {
-            Objects.requireNonNull(expressions);
+            if (Objects.requireNonNull(expressions).isEmpty()) {
+                throw new IllegalStateException("Cannot resolve empty index expression");
+            }
             Collection<String> result = null;
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
@@ -1241,14 +1246,11 @@ public class IndexNameExpressionResolver {
                 }
             }
             if (result == null) {
-                result = expressions;
+                // optimisation that avoids allocating a new collection when all the expressions argument exist
+                return expressions;
+            } else {
+                return result;
             }
-            if (result.isEmpty() && context.getOptions().allowNoIndices() == false) {
-                IndexNotFoundException infe = new IndexNotFoundException((String) null);
-                infe.setResources("index_or_alias", expressions.toArray(new String[0]));
-                throw infe;
-            }
-            return result;
         }
 
         private static void validateAliasOrIndex(String expression) {

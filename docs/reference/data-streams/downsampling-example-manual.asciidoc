@@ -21,8 +21,7 @@ This is a simplified example that allows you to see quickly how <<downsampling,d
 
 Refer to <<tsds-prereqs,time series data stream prerequisites>>.
 
-For the example you need a sample data set. Go `FIX ME -> https://download.elastic.co/demos/elasticsearch/sample-k8s-metrics.json[here]` to
-download the file, and save it in the local directory where you're running {es}.
+For the example you need a sample data set. Go link:https://download.elastic.co/demos/elasticsearch/sample-k8s-metrics.json[here (I am not yet a working link)] to download the file, and save it in the local directory where you're running {es}.
 
 [discrete]
 [[downsampling-manual-create-index]]

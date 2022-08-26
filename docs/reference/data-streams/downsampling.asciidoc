@@ -4,7 +4,7 @@ ifeval::["{release-state}"=="unreleased"]
 
 IMPORTANT: {es-feature-flag}
 
-Metrics solutions collect large amounts of time series data that grow over time. Also, as time series data ages, it becomes less relevant to the current state of the system.
+Metrics solutions collect large amounts of time series data that grow over time. As that time series data ages, it becomes less relevant to the current state of the system.
 
 Downsampling, in conjunction with a <<tsds,time series data stream>>, provides a method to reduce your metrics storage volume by replacing older time series data with data of a higher sampling time interval. The higher interval, lower granularity data is stored in a rollup index together with statistical representations of the original data, the `min`, `max`, `sum`, `value_count`, and `average` for each metric. <<time-series-dimension,Time series dimensions>> are stored unchanged.
 

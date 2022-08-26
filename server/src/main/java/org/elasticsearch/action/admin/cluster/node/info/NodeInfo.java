@@ -183,7 +183,7 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            Settings.writeSettingsToStream(settings, out);
+            settings.writeTo(out);
         }
         out.writeOptionalWriteable(getInfo(OsInfo.class));
         out.writeOptionalWriteable(getInfo(ProcessInfo.class));

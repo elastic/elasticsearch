@@ -1,5 +1,0 @@
-pr: 88397
-summary: Polling cluster formation state for master-is-stable health indicator
-area: Health
-type: enhancement
-issues: []

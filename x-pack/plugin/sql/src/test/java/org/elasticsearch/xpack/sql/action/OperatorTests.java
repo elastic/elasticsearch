@@ -323,7 +323,7 @@ public class OperatorTests extends ESTestCase {
 
         Driver driver = new Driver(
             List.of(
-                new ListLongBlockSourceOperator(LongStream.range(0, 100).boxed().toList()),
+                new ListLongBlockSourceOperator(LongStream.range(0, 100_000).boxed().toList()),
                 new AggregationOperator(
                     List.of(
                         new Aggregator(AggregatorFunction.avg, AggregatorMode.PARTIAL, 0),
@@ -358,11 +358,11 @@ public class OperatorTests extends ESTestCase {
         assertEquals(1, pageCount.get());
         assertEquals(1, rowCount.get());
         // assert average
-        assertEquals(49.5, lastPage.get().getBlock(0).getDouble(0), 0);
+        assertEquals(49_999.5, lastPage.get().getBlock(0).getDouble(0), 0);
         // assert count
-        assertEquals(100, lastPage.get().getBlock(1).getLong(0));
+        assertEquals(100_000, lastPage.get().getBlock(1).getLong(0));
         // assert max
-        assertEquals(99L, lastPage.get().getBlock(2).getLong(0));
+        assertEquals(99_999L, lastPage.get().getBlock(2).getLong(0));
     }
 
     // Trivial test with small input

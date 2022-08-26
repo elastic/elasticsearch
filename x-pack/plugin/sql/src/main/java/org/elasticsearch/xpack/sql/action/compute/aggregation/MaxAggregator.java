@@ -57,7 +57,7 @@ public class MaxAggregator implements AggregatorFunction {
             LongState tmpState = new LongState();
             for (int i = 0; i < block.getPositionCount(); i++) {
                 blobBlock.get(i, tmpState);
-                state.longValue(state.longValue() + tmpState.longValue());
+                state.longValue(Math.max(state.longValue(), tmpState.longValue()));
             }
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);

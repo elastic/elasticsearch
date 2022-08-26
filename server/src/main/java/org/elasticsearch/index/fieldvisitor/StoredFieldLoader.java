@@ -106,7 +106,7 @@ public abstract class StoredFieldLoader {
     private static class EmptyStoredFieldLoader implements LeafStoredFieldLoader {
 
         @Override
-        public void advanceTo(int doc) throws IOException { }
+        public void advanceTo(int doc) throws IOException {}
 
         @Override
         public BytesReference source() {

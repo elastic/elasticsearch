@@ -232,8 +232,8 @@ public class FetchPhase {
     private static StoredFieldLoader createStoredFieldLoader(
         SearchContext context,
         SourceLoader sourceLoader,
-        Map<String, Set<String>> storedToRequestedFields)
-    {
+        Map<String, Set<String>> storedToRequestedFields
+    ) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {

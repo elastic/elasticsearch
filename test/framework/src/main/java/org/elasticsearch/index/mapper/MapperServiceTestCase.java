@@ -42,8 +42,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -703,13 +701,16 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return syntheticSourceBytes.utf8ToString();
     }
 
-    protected static LeafStoredFieldLoader syntheticSourceStoredFieldLoader(DocumentMapper mapper, LeafReader leafReader, SourceLoader loader)
-        throws IOException {
+    protected static LeafStoredFieldLoader syntheticSourceStoredFieldLoader(
+        DocumentMapper mapper,
+        LeafReader leafReader,
+        SourceLoader loader
+    ) throws IOException {
         if (loader.requiredStoredFields().isEmpty()) {
             return StoredFieldLoader.empty().getLoader(leafReader.getContext(), null);
         }
-        LeafStoredFieldLoader storedFields
-            = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leafReader.getContext(), null);
+        LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, loader.requiredStoredFields())
+            .getLoader(leafReader.getContext(), null);
         storedFields.advanceTo(0);
         return storedFields;
     }

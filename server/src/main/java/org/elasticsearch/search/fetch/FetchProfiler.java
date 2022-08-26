@@ -10,7 +10,6 @@ package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
@@ -20,7 +19,6 @@ import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -63,10 +61,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
 
     @Override
     public StoredFieldLoader storedFields(StoredFieldLoader storedFieldLoader) {
-        current.debug.put(
-            "stored_fields",
-            storedFieldLoader.fieldsToLoad()
-        );
+        current.debug.put("stored_fields", storedFieldLoader.fieldsToLoad());
         return new StoredFieldLoader() {
             @Override
             public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) {

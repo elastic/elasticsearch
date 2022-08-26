@@ -267,8 +267,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 }
             }
         }
-        source
-            = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId }).source(leafStoredFieldLoader, docIdAndVersion.docId);
+        source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+            .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
         if (source != null) {
             // apply request-level source filtering
@@ -304,8 +304,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
         if (fetchSourceContext.fetchSource()) {
             fieldsToLoad.addAll(loader.requiredStoredFields());
-        }
-        else {
+        } else {
             if (fieldsToLoad.isEmpty()) {
                 return StoredFieldLoader.empty();
             }

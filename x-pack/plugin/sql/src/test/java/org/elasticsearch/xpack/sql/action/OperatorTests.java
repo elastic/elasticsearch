@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.action.compute.aggregation.AggregatorFunction
 import org.elasticsearch.xpack.sql.action.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.sql.action.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.xpack.sql.action.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.xpack.sql.action.compute.data.Block;
 import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneSourceOperator;
@@ -315,8 +316,8 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
-    // Trivial test with small input
-    public void testBasicAvgOperators() {
+    // Basic aggregator test with small(ish) input
+    public void testBasicAggOperators() {
         AtomicInteger pageCount = new AtomicInteger();
         AtomicInteger rowCount = new AtomicInteger();
         AtomicReference<Page> lastPage = new AtomicReference<>();
@@ -363,6 +364,29 @@ public class OperatorTests extends ESTestCase {
         assertEquals(100_000, lastPage.get().getBlock(1).getLong(0));
         // assert max
         assertEquals(99_999L, lastPage.get().getBlock(2).getLong(0));
+    }
+
+    // Tests avg aggregators with multiple intermediate partial blocks
+    public void testIntermediateAvgOperators() {
+        Operator source = new ListLongBlockSourceOperator(LongStream.range(0, 100_000).boxed().toList());
+        List<Page> pages = new ArrayList<>();
+        Page page;
+        while ((page = source.getOutput()) != null) {
+            pages.add(page);
+        }
+        List<Block> intermediateBlocks = new ArrayList<>();
+        for (Page inputPage : pages) {
+            var aggregator = new Aggregator(AggregatorFunction.avg, AggregatorMode.PARTIAL, 0);
+            aggregator.processPage(inputPage);
+            intermediateBlocks.add(aggregator.evaluate());
+        }
+
+        var finalAggregator = new Aggregator(AggregatorFunction.avg, AggregatorMode.FINAL, 0);
+        for (var block : intermediateBlocks) {
+            finalAggregator.processPage(new Page(block));
+        }
+        Block resultBlock = finalAggregator.evaluate();
+        assertEquals(49_999.5, resultBlock.getDouble(0), 0);
     }
 
     // Trivial test with small input
@@ -456,24 +480,45 @@ public class OperatorTests extends ESTestCase {
     }
 
     /**
-     * A source operator whose output is the given long values. This operator produces a single
-     * Page with a single Block. The Block contains the long values from the given list, in order.
+     * A source operator whose output is the given long values. This operator produces pages
+     * containing a single Block. The Block contains the long values from the given list, in order.
      */
     class ListLongBlockSourceOperator implements Operator {
 
-        private final List<Long> values;
+        private final long[] values;
 
         ListLongBlockSourceOperator(List<Long> values) {
-            this.values = values;
+            this.values = values.stream().mapToLong(Long::longValue).toArray();
         }
 
         boolean finished;
 
+        int position;
+
+        static final int MAX_PAGE_POSITIONS = 16 * 1024;
+
         @Override
         public Page getOutput() {
+            if (finished) {
+                return null;
+            }
             // all in one page, for now
-            finished = true;
-            return new Page(new LongBlock(values.stream().mapToLong(Long::longValue).toArray(), values.size()));
+            if (position >= values.length) {
+                finish();
+                return null;
+            }
+            int positionCount = Math.min(random().nextInt(MAX_PAGE_POSITIONS), remaining());
+            final long[] array = new long[positionCount];
+            int offset = position;
+            for (int i = 0; i < positionCount; i++) {
+                array[i] = values[offset + i];
+            }
+            position += positionCount;
+            return new Page(new LongBlock(array, array.length));
+        }
+
+        int remaining() {
+            return values.length - position;
         }
 
         @Override

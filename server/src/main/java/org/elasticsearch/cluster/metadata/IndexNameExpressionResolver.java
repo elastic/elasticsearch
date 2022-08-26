@@ -49,9 +49,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class IndexNameExpressionResolver {
@@ -1169,8 +1169,8 @@ public class IndexNameExpressionResolver {
                     dataStreamsAbstractions = dataStreamsAbstractions.filter(indexAbstraction -> indexAbstraction.isHidden() == false);
                 }
                 // dedup backing indices if expand hidden indices option is true
-                Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
-                expandMatches(context, dataStreamsAbstractions, resolvedIncludingDataStreams::add);
+                Set<String> resolvedIncludingDataStreams = expandToOpenClosed(context, dataStreamsAbstractions).collect(Collectors.toSet());
+                resolvedIncludingDataStreams.addAll(resolvedExpressions);
                 return resolvedIncludingDataStreams;
             }
         }
@@ -1377,30 +1377,9 @@ public class IndexNameExpressionResolver {
             return indicesLookup.subMap(fromPrefix, toPrefix);
         }
 
-        private static boolean expandMatches(Context context, Stream<IndexAbstraction> matches, Consumer<String> expandConsumer) {
+        private static Stream<String> expandToOpenClosed(Context context, Stream<IndexAbstraction> resources) {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
-            AtomicBoolean matchesExpanded = new AtomicBoolean(false);
-            matches.forEach(indexAbstraction -> {
-                matchesExpanded.set(true);
-                if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
-                    expandConsumer.accept(indexAbstraction.getName());
-                } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
-                    expandConsumer.accept(indexAbstraction.getName());
-                } else {
-                    for (Index index : indexAbstraction.getIndices()) {
-                        IndexMetadata meta = context.state.metadata().index(index);
-                        if (excludeState == null || meta.getState() != excludeState) {
-                            expandConsumer.accept(meta.getIndex().getName());
-                        }
-                    }
-                }
-            });
-            return matchesExpanded.get();
-        }
-
-        private static Stream<String> expandToOpenClosed(Context context, Stream<IndexAbstraction> matches) {
-            final IndexMetadata.State excludeState = excludeState(context.getOptions());
-            return matches.flatMap(indexAbstraction -> {
+            return resources.flatMap(indexAbstraction -> {
                 if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
                     return Stream.of(indexAbstraction.getName());
                 } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {

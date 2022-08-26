@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -447,16 +448,20 @@ public interface AuthorizationEngine {
         @Nullable
         private final AuthorizationContext originatingAuthorizationContext;
 
+        private final Optional<Boolean> originatingActionGranted;
+
         public RequestInfo(
             Authentication authentication,
             TransportRequest request,
             String action,
-            AuthorizationContext originatingContext
+            AuthorizationContext originatingContext,
+            Boolean originatingActionGranted
         ) {
             this.authentication = Objects.requireNonNull(authentication);
             this.request = Objects.requireNonNull(request);
             this.action = Objects.requireNonNull(action);
             this.originatingAuthorizationContext = originatingContext;
+            this.originatingActionGranted = Optional.ofNullable(originatingActionGranted);
         }
 
         public String getAction() {
@@ -469,6 +474,10 @@ public interface AuthorizationEngine {
 
         public TransportRequest getRequest() {
             return request;
+        }
+
+        public Optional<Boolean> getOriginatingActionGranted() {
+            return originatingActionGranted;
         }
 
         @Nullable
@@ -499,6 +508,7 @@ public interface AuthorizationEngine {
      */
     class AuthorizationResult {
 
+        public static final String THREAD_CONTEXT_KEY = "_xpack_security_authorization";
         private final boolean granted;
         private final boolean auditable;
 

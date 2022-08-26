@@ -183,6 +183,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
             authentication,
             new SearchRequest(),
             SearchAction.NAME,
+            null,
             null
         );
 

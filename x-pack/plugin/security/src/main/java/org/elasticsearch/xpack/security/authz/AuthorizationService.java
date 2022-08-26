@@ -218,6 +218,7 @@ public class AuthorizationService {
     ) {
 
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
+        final Boolean originatingActionGranted = extractAuthorizationGranted(threadContext, action);
 
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
          * as well, but which must not bleed across different action context (eg parent-child action contexts).
@@ -256,7 +257,13 @@ public class AuthorizationService {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
             } else {
-                final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action, enclosingContext);
+                final RequestInfo requestInfo = new RequestInfo(
+                    authentication,
+                    unwrappedRequest,
+                    action,
+                    enclosingContext,
+                    originatingActionGranted
+                );
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
                     threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
@@ -265,6 +272,20 @@ public class AuthorizationService {
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
             }
         }
+    }
+
+    private static Boolean extractAuthorizationGranted(ThreadContext threadContext, String childAction) {
+        final String originatingAction = threadContext.getTransient(ORIGINATING_ACTION_KEY);
+        if (Strings.isNullOrEmpty(originatingAction)) {
+            // No parent action
+            return null;
+        }
+
+        final String parentAuthorizationGranted = threadContext.getHeader(AuthorizationResult.THREAD_CONTEXT_KEY);
+        if (parentAuthorizationGranted == null) {
+            return null;
+        }
+        return Boolean.valueOf(parentAuthorizationGranted);
     }
 
     @Nullable
@@ -485,6 +506,9 @@ public class AuthorizationService {
         final String action = requestInfo.getAction();
         if (result.getIndicesAccessControl() != null) {
             threadContext.putTransient(INDICES_PERMISSIONS_KEY, result.getIndicesAccessControl());
+            if (threadContext.getHeader(AuthorizationResult.THREAD_CONTEXT_KEY) == null) {
+                threadContext.putHeader(AuthorizationResult.THREAD_CONTEXT_KEY, String.valueOf(result.isGranted()));
+            }
         }
         // if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
@@ -502,7 +526,13 @@ public class AuthorizationService {
                     authzInfo,
                     result.getIndicesAccessControl()
                 );
-                final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME, parentContext);
+                final RequestInfo aliasesRequestInfo = new RequestInfo(
+                    authentication,
+                    request,
+                    IndicesAliasesAction.NAME,
+                    parentContext,
+                    result.isGranted()
+                );
                 authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo, ril -> {
                     resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                         List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
@@ -814,7 +844,8 @@ public class AuthorizationService {
                     requestInfo.getAuthentication(),
                     requestInfo.getRequest(),
                     bulkItemAction,
-                    bulkAuthzContext
+                    bulkAuthzContext,
+                    requestInfo.getOriginatingActionGranted().orElse(null)
                 );
                 authzEngine.authorizeIndexAction(
                     bulkItemInfo,

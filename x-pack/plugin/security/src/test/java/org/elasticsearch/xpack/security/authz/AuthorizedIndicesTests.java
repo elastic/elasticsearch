@@ -369,6 +369,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             AuthenticationTestHelper.builder().user(new User(randomAlphaOfLength(8))).realmRef(realm).build(false),
             request,
             action,
+            null,
             null
         );
     }

@@ -34,6 +34,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -365,7 +366,8 @@ public final class IndicesPermission {
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> lookup,
-        FieldPermissionsCache fieldPermissionsCache
+        FieldPermissionsCache fieldPermissionsCache,
+        Optional<Boolean> parentActionGranted
     ) {
         // Short circuit if the indicesPermission allows all access to every index
         if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
@@ -381,7 +383,12 @@ public final class IndicesPermission {
             totalResourceCount += resource.size();
         }
 
-        final boolean overallGranted = isActionGranted(action, resources);
+        final boolean overallGranted;
+        if (parentActionGranted.isPresent() && parentActionGranted.get()) {
+            overallGranted = true;
+        } else {
+            overallGranted = isActionGranted(action, resources);
+        }
 
         final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = buildIndicesAccessControl(
             action,
@@ -393,7 +400,7 @@ public final class IndicesPermission {
         return new IndicesAccessControl(overallGranted, indexPermissions);
     }
 
-    private Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(
+    public Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(
         final String action,
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
@@ -527,7 +534,7 @@ public final class IndicesPermission {
      * Returns {@code true} if action is granted for all {@code requestedResources}.
      * If action is not granted for at least one resource, this method will return {@code false}.
      */
-    private boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
+    public boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 

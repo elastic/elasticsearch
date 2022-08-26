@@ -88,6 +88,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -271,6 +272,7 @@ public class RBACEngine implements AuthorizationEngine {
     ) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
+
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
@@ -358,7 +360,8 @@ public class RBACEngine implements AuthorizationEngine {
                             action,
                             authorizationInfo,
                             Sets.newHashSet(resolvedIndices.getLocal()),
-                            aliasOrIndexLookup
+                            aliasOrIndexLookup,
+                            requestInfo.getOriginatingActionGranted()
                         )
                     );
                 }
@@ -384,7 +387,8 @@ public class RBACEngine implements AuthorizationEngine {
                                     action,
                                     authorizationInfo,
                                     Sets.newHashSet(resolvedIndices.getLocal()),
-                                    aliasOrIndexLookup
+                                    aliasOrIndexLookup,
+                                    requestInfo.getOriginatingActionGranted()
                                 )
                             );
                         }
@@ -813,10 +817,17 @@ public class RBACEngine implements AuthorizationEngine {
         String action,
         AuthorizationInfo authorizationInfo,
         Set<String> indices,
-        Map<String, IndexAbstraction> aliasAndIndexLookup
+        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        Optional<Boolean> parentActionGranted
     ) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
-        final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
+        final IndicesAccessControl accessControl = role.authorize(
+            action,
+            indices,
+            aliasAndIndexLookup,
+            fieldPermissionsCache,
+            parentActionGranted
+        );
         return new IndexAuthorizationResult(true, accessControl);
     }
 

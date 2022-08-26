@@ -95,7 +95,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
 
         PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-        RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("bar", "foo"), action, null);
+        RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("bar", "foo"), action, null, null);
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         doAnswer(invocationOnMock -> {
             ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
@@ -135,7 +135,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("target", "source"), action, null);
+            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("target", "source"), action, null, null);
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.deny());
@@ -160,7 +160,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         // swap target and source for success
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("source", "target"), action, null);
+            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("source", "target"), action, null, null);
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.granted());

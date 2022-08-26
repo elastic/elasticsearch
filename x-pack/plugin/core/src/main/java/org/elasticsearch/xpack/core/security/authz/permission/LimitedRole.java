@@ -20,12 +20,13 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
 /**
  * A {@link Role} limited by another role.<br>
- * The effective permissions returned on {@link #authorize(String, Set, Map, FieldPermissionsCache)} call would be limited by the
+ * The effective permissions returned on {@code authorize(String, Set, Map, FieldPermissionsCache)} call would be limited by the
  * provided role.
  */
 public final class LimitedRole implements Role {
@@ -96,19 +97,22 @@ public final class LimitedRole implements Role {
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> aliasAndIndexLookup,
-        FieldPermissionsCache fieldPermissionsCache
+        FieldPermissionsCache fieldPermissionsCache,
+        Optional<Boolean> parentActionGranted
     ) {
         IndicesAccessControl indicesAccessControl = baseRole.authorize(
             action,
             requestedIndicesOrAliases,
             aliasAndIndexLookup,
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            parentActionGranted
         );
         IndicesAccessControl limitedByIndicesAccessControl = limitedByRole.authorize(
             action,
             requestedIndicesOrAliases,
             aliasAndIndexLookup,
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            parentActionGranted
         );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }

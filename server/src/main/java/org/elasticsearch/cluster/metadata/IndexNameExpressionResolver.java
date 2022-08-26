@@ -1335,31 +1335,33 @@ public class IndexNameExpressionResolver {
                 matchesStream = indicesLookup.values().stream();
             }
             if (context.getOptions().ignoreAliases()) {
-                matchesStream = matchesStream.filter(e -> e.getType() != Type.ALIAS);
+                matchesStream = matchesStream.filter(indexAbstraction -> indexAbstraction.getType() != Type.ALIAS);
             }
             if (Regex.isMatchAllPattern(wildcardExpression) == false && Regex.isSuffixMatchPattern(wildcardExpression) == false) {
                 // filters matches based on the wildcard expression, note that the suffix wildcard filtering is already handled above
-                matchesStream = matchesStream.filter(e -> Regex.simpleMatch(wildcardExpression, e.getName()));
+                matchesStream = matchesStream.filter(indexAbstraction -> Regex.simpleMatch(wildcardExpression, indexAbstraction.getName()));
             }
             if (context.includeDataStreams() == false) {
-                matchesStream = matchesStream.filter(e -> e.isDataStreamRelated() == false);
+                matchesStream = matchesStream.filter(indexAbstraction -> indexAbstraction.isDataStreamRelated() == false);
             }
             // historic, i.e. not net-new, system indices are included irrespective of the system access predicate
             // the system access predicate is based on the endpoint kind and HTTP request headers that identify the stack feature
             matchesStream = matchesStream.filter(
-                e -> e.isSystem() == false
-                    || (e.getType() != Type.DATA_STREAM
-                        && e.getParentDataStream() == null
-                        && context.netNewSystemIndexPredicate.test(e.getName()) == false)
-                    || context.systemIndexAccessPredicate.test(e.getName())
+                indexAbstraction -> indexAbstraction.isSystem() == false
+                    || (indexAbstraction.getType() != Type.DATA_STREAM
+                        && indexAbstraction.getParentDataStream() == null
+                        && context.netNewSystemIndexPredicate.test(indexAbstraction.getName()) == false)
+                    || context.systemIndexAccessPredicate.test(indexAbstraction.getName())
             );
             if (context.getOptions().expandWildcardsHidden() == false) {
                 if (wildcardExpression.startsWith(".")) {
                     // there is this behavior that hidden indices that start with "." are not hidden if the wildcard expression also
                     // starts with "."
-                    matchesStream = matchesStream.filter(e -> e.isHidden() == false || e.getName().startsWith("."));
+                    matchesStream = matchesStream.filter(
+                        indexAbstraction -> indexAbstraction.isHidden() == false || indexAbstraction.getName().startsWith(".")
+                    );
                 } else {
-                    matchesStream = matchesStream.filter(e -> e.isHidden() == false);
+                    matchesStream = matchesStream.filter(indexAbstraction -> indexAbstraction.isHidden() == false);
                 }
             }
             return matchesStream;
@@ -1367,10 +1369,10 @@ public class IndexNameExpressionResolver {
 
         private static Map<String, IndexAbstraction> filterIndicesLookupForSuffixWildcard(
             SortedMap<String, IndexAbstraction> indicesLookup,
-            String expression
+            String suffixWildcardExpression
         ) {
-            assert Regex.isSuffixMatchPattern(expression);
-            String fromPrefix = expression.substring(0, expression.length() - 1);
+            assert Regex.isSuffixMatchPattern(suffixWildcardExpression);
+            String fromPrefix = suffixWildcardExpression.substring(0, suffixWildcardExpression.length() - 1);
             char[] toPrefixCharArr = fromPrefix.toCharArray();
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);

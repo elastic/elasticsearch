@@ -76,18 +76,15 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         ClusterState state = prevState.state();
 
         for (var request : requests) {
-            roleMappingStore.putRoleMapping(
-                request,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Boolean aBoolean) {}
+            roleMappingStore.putRoleMapping(request, new ActionListener<>() {
+                @Override
+                public void onResponse(Boolean aBoolean) {}
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new IllegalStateException("Error creating role mapping [" + request.getName() + "]", e);
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    throw new IllegalStateException("Error creating role mapping [" + request.getName() + "]", e);
                 }
-            );
+            });
         }
 
         Set<String> entities = requests.stream().map(r -> r.getName()).collect(Collectors.toSet());
@@ -99,18 +96,15 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             var deleteRequest = new DeleteRoleMappingRequest();
             deleteRequest.setName(mappingToDelete);
 
-            roleMappingStore.deleteRoleMapping(
-                deleteRequest,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Boolean aBoolean) {}
+            roleMappingStore.deleteRoleMapping(deleteRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(Boolean aBoolean) {}
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new IllegalStateException("Error deleting role mapping [" + mappingToDelete + "]", e);
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    throw new IllegalStateException("Error deleting role mapping [" + mappingToDelete + "]", e);
                 }
-            );
+            });
         }
 
         return new TransformState(state, entities);

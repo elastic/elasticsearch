@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,6 +34,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -44,9 +44,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -177,37 +175,23 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     }
 
     // package private for testing
-    void validateForImmutableState(Request request, ClusterState state) {
+    void validateForReservedState(Request request, ClusterState state) {
         Optional<String> handlerName = reservedStateHandlerName();
         assert handlerName.isPresent();
 
-        Set<String> modified = modifiedKeys(request);
-        List<String> errors = new ArrayList<>();
-
-        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
-            Set<String> conflicts = metadata.conflicts(handlerName.get(), modified);
-            if (conflicts.isEmpty() == false) {
-                errors.add(format("[%s] set as read-only by [%s]", String.join(", ", conflicts), metadata.namespace()));
-            }
-        }
-
-        if (errors.isEmpty() == false) {
-            throw new IllegalArgumentException(
-                format("Failed to process request [%s] with errors: [%s]", request, String.join(", ", errors))
-            );
-        }
+        ReservedClusterStateService.validateForReservedState(state, handlerName.get(), modifiedKeys(request), request.toString());
     }
 
     // package private for testing
-    boolean supportsImmutableState() {
+    boolean supportsReservedState() {
         return reservedStateHandlerName().isPresent();
     }
 
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
-        if (supportsImmutableState()) {
-            validateForImmutableState(request, state);
+        if (supportsReservedState()) {
+            validateForReservedState(request, state);
         }
         logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
         if (task != null) {

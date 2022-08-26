@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -269,5 +270,29 @@ public class ReservedClusterStateService {
 
         visited.remove(key);
         ordered.add(key);
+    }
+
+    /**
+     * Helper method that verifies for key clashes on reserved state updates
+     * @param state the current cluster state
+     * @param handlerName the name of the reserved state handler related to this implementation
+     * @param modified the set of modified keys by the related request
+     * @param request a string representation of the request for error reporting purposes
+     */
+    public static void validateForReservedState(ClusterState state, String handlerName, Set<String> modified, String request) {
+        List<String> errors = new ArrayList<>();
+
+        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
+            Set<String> conflicts = metadata.conflicts(handlerName, modified);
+            if (conflicts.isEmpty() == false) {
+                errors.add(format("[%s] set as read-only by [%s]", String.join(", ", conflicts), metadata.namespace()));
+            }
+        }
+
+        if (errors.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                format("Failed to process request [%s] with errors: [%s]", request, String.join(", ", errors))
+            );
+        }
     }
 }

@@ -1177,7 +1177,8 @@ public class IndexNameExpressionResolver {
 
         /**
          * Returns all the existing resource (index, alias and datastream) names that the {@param expressions} list resolves to.
-         * The passed-in {@param expressions} can contain wildcards and exclusions, as well as plain resource names, but it mustn't be empty.
+         * The passed-in {@param expressions} can contain wildcards and exclusions, as well as plain resource names,
+         * but it mustn't be empty.
          * <br>
          * The return is a {@code Collection} (usually a {@code Set} but can also be a {@code List}, for performance reasons) of plain
          * resource names only. All the returned resources are "accessible", in the given context, i.e. the resources exist

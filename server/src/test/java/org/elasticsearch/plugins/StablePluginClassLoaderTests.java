@@ -19,8 +19,6 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -152,12 +150,11 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar, "p.MyClassInPackageP");
 
         URL[] urls = new URL[] { overlappingJar.toUri().toURL() };
-        PrivilegedAction<URLClassLoader> pa = () -> URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
-        @SuppressWarnings("removal")
-        URLClassLoader parent = AccessController.doPrivileged(pa);
 
-        try (StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar))) {
-
+        try (
+            URLClassLoader parent = URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
+            StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar))
+        ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClassInPackageP");
             Object instance = c.getConstructor().newInstance();
@@ -189,12 +186,11 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar, "p." + className);
 
         URL[] urls = new URL[] { overlappingJar.toUri().toURL() };
-        PrivilegedAction<URLClassLoader> pa = () -> URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
-        @SuppressWarnings("removal")
-        URLClassLoader parent = AccessController.doPrivileged(pa);
 
-        try (StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar))) {
-
+        try (
+            URLClassLoader parent = URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
+            StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar))
+        ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClass");
             Object instance = c.getConstructor().newInstance();

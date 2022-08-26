@@ -281,11 +281,6 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             if (currentWrite == null) {
                 doWriteQueued(ctx);
                 if (channel.isWritable() == false) {
-                    // try flushing to make channel writable again, loop will only continue if channel becomes writable again
-                    ctx.flush();
-                    needsFlush = false;
-                }
-                if (channel.isWritable() == false) {
                     break;
                 }
                 currentWrite = queuedWrites.poll();

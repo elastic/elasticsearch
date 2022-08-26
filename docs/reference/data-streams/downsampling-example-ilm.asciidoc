@@ -4,7 +4,7 @@
 <titleabbrev>Example: Configure downsampling with ILM</titleabbrev>
 ++++
 
-IMPORTANT: {es-feature-flag}
+preview::[]
 
 This is a simplified example that allows you to see quickly how
 <<downsampling,downsampling>> works as part of an ILM policy to reduce the
@@ -494,8 +494,8 @@ metrics.
 }
 ```
 
-You can use the data stream stats API get statistics for the data stream,
-including the storage size.
+Use the <<data-stream-stats-api,data stream stats API>> to get statistics for
+the data stream, including the storage size.
 
 [source,console]
 ----
@@ -526,10 +526,12 @@ GET /_data_stream/datastream/_stats?human=true
 }
 ```
 
+This example demonstrates how downsampling works as part of an ILM policy to
+reduce the storage size of metrics data as it becomes less current and less
+frequently queried.
 
-
-
-**MORE TO COME, AFTER ILM PR IS MERGED.**
+You can also try our <<downsampling-example-manual,Run downsampling manually>>
+example to learn how downsampling can work outside of an ILM policy.
 
 ////
 [source,console]

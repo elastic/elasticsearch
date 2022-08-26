@@ -2,7 +2,7 @@ ifeval::["{release-state}"=="unreleased"]
 [[downsampling]]
 === Downsampling a time series data stream
 
-IMPORTANT: {es-feature-flag}
+preview::[]
 
 Metrics solutions collect large amounts of time series data that grow over time. As that time series data ages, it becomes less relevant to the current state of the system.
 

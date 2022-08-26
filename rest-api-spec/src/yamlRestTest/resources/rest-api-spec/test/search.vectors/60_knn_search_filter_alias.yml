@@ -2,7 +2,7 @@ setup:
   - skip:
       version: ' - 8.4.99'
       reason: 'filtered alias for kNN search added in 8.5'
-      
+
   - do:
       indices.create:
         index: test
@@ -97,6 +97,40 @@ setup:
           knn:
             field: test_vector
             query_vector: [ 230.0, 300.33, -34.8988, 15.555 ]
+            k: 2
+            num_candidates: 100
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 0.5 ]
+            k: 2
+            num_candidates: 100
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: v1 }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.name.0: v2 }
+
+  - do:
+      search:
+        index: test-alias
+        body:
+          fields: [ name ]
+          knn:
+            field: test_vector
+            query_vector: [ 230.0, 300.33, -34.8988, 0.5 ]
             k: 2
             num_candidates: 100
 

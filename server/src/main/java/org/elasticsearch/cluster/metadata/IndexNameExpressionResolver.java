@@ -1314,8 +1314,8 @@ public class IndexNameExpressionResolver {
          * Given a single wildcard {@param expression}, return the {@code Stream} that contains all the resources (i.e. indices, aliases,
          * and datastreams), that exist in the cluster at this moment in time, and that the wildcard "resolves" to (i.e. the resource's
          * name matches the {@param expression} wildcard).
-         * The {@param context} provides the current time-snapshot of all the resources, as well as conditions
-         * on whether to consider alias and datastream resources, as well as system and hidden resources.
+         * The {@param context} provides the current time-snapshot view of all the resources, as well as conditions
+         * on whether to consider alias, datastream, system, and hidden resources.
          */
         private static Stream<IndexAbstraction> expressionMatches(Context context, String expression) {
             final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
@@ -1336,8 +1336,8 @@ public class IndexNameExpressionResolver {
             if (context.includeDataStreams() == false) {
                 matchesStream = matchesStream.filter(e -> e.isDataStreamRelated() == false);
             }
-            // historic, ie not net new, system indices are NOT filtered out, ie they are included like the net new system resources that
-            // respect the context access predicate (itself based on HTTP request headers and endpoint kind) are included
+            // historic, i.e. not net-new, system indices are included irrespective of the system access predicate
+            // the system access predicate is based on the endpoint kind and HTTP request headers that identify the stack feature
             matchesStream = matchesStream.filter(
                 e -> e.isSystem() == false
                     || (e.getType() != Type.DATA_STREAM

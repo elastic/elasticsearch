@@ -64,7 +64,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
                 color = newColor;
                 break;
             case 3:
-                indexPrefix = randomAlphaOfLengthBetween(1, 10);
+                indexPrefix = indexPrefix + randomAlphaOfLengthBetween(1, 10);
                 break;
         }
 

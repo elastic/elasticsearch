@@ -19,6 +19,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -125,6 +126,28 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new Max(name, Double.NEGATIVE_INFINITY, formatter, metadata());
+    }
+
+    @Override
+    public boolean canUseCollectedAggregator() {
+        return true;
+    }
+
+    @Override
+    public CollectedAggregator buildCollectedAggregator(long[] ordsToCollect) {
+        CollectedMax collectedMax = new CollectedMax(name, metadata(), bigArraysForResults(), ordsToCollect.length);
+        boolean failed = true;
+        try {
+            for (int i = 0; i < ordsToCollect.length; i++) {
+                collectedMax.set(i, maxes.get(ordsToCollect[i]));
+            }
+            failed = false;
+        } finally {
+            if (failed) {
+                collectedMax.close();
+            }
+        }
+        return collectedMax;
     }
 
     @Override

@@ -182,6 +182,8 @@ public abstract class AggregationContext implements Releasable {
      */
     public abstract BigArrays bigArrays();
 
+    public abstract BigArrays bigArraysForResults();
+
     /**
      * The searcher that will execute this query.
      */
@@ -328,6 +330,7 @@ public abstract class AggregationContext implements Releasable {
         private final SearchExecutionContext context;
         private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
+        private final BigArrays bigArraysForResults;
         private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
         private final MultiBucketConsumer multiBucketConsumer;
@@ -362,6 +365,8 @@ public abstract class AggregationContext implements Releasable {
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
+            // Intentionally not overriding the circuit breaker service here
+            this.bigArraysForResults = bigArrays.withCircuitBreaking();
             if (bytesToPreallocate == 0) {
                 /*
                  * Its possible if a bit strange for the aggregations to ask
@@ -473,6 +478,10 @@ public abstract class AggregationContext implements Releasable {
             return bigArrays;
         }
 
+        @Override
+        public BigArrays bigArraysForResults() {
+            return bigArraysForResults;
+        }
         @Override
         public IndexSearcher searcher() {
             return context.searcher();

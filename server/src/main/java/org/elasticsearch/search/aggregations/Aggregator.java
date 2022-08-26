@@ -150,6 +150,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * @return a single {@link CollectedAggregator} object for the aggregation
      */
     public CollectedAggregator buildTopLevelCollectedAggregator() {
+        if (canUseCollectedAggregator()) {
+            assert parent() == null;
+            return buildCollectedAggregator(new long[]{0});
+        }
         throw new UnsupportedOperationException();
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.search.Collector;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -112,12 +113,20 @@ public class AggregationPhase {
         }
         if (useNewStyle) {
             List<CollectedAggregator> aggregations = new ArrayList<>(aggregators.length);
-            for (Aggregator aggregator : context.aggregations().aggregators()) {
-                try {
-                    aggregator.postCollection();
-                    aggregations.add(aggregator.buildTopLevelCollectedAggregator());
-                } catch (IOException e) {
-                    throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
+            boolean success = false;
+            try {
+                for (Aggregator aggregator : context.aggregations().aggregators()) {
+                    try {
+                        aggregator.postCollection();
+                        aggregations.add(aggregator.buildTopLevelCollectedAggregator());
+                    } catch (IOException e) {
+                        throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
+                    }
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(aggregations);
                 }
             }
             context.queryResult().addNewAggregations(aggregations);

@@ -325,6 +325,11 @@ public abstract class AggregatorBase extends Aggregator {
         return context.bigArrays();
     }
 
+
+    protected final BigArrays bigArraysForResults() {
+        return context.bigArraysForResults();
+    }
+
     /**
      * The "top level" query that will filter the results sent to this
      * {@linkplain Aggregator}. Used by all {@linkplain Aggregator}s that

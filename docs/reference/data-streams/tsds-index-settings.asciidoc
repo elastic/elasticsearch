@@ -1,7 +1,7 @@
 [[tsds-index-settings]]
 === Time series index settings
 
-preview:[]
+preview::[]
 
 Backing indices in a <<tsds,time series data stream (TSDS)>> support the
 following index settings.

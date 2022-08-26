@@ -4,7 +4,7 @@
 <titleabbrev>Set up a TSDS</titleabbrev>
 ++++
 
-preview:[]
+preview::[]
 
 To set up a <<tsds,time series data stream (TSDS)>>, follow these steps:
 

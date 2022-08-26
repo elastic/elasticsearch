@@ -52,7 +52,7 @@ class ReleasableIntArray implements IntArray {
 
     @Override
     public long ramBytesUsed() {
-        return 0; // How much? 2 objects? I think we'd double count if we used the usage of the bytes ref
+        return 0; // NOCOMMIT How much? 2 objects? I think we'd double count if we used the usage of the bytes ref
     }
 
     @Override

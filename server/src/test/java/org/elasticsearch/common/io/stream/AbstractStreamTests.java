@@ -13,6 +13,8 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -213,6 +215,27 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
         assertThat(deserialized, equalTo(strings));
     }
+
+    public void testBigIntArray() throws IOException {
+        int size = between(0, 10000);
+        IntArray testData = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(size, false);
+        for (int i = 0; i < size; i++) {
+            testData.set(i, randomInt());
+        }
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeBigIntArray(testData);
+
+        try (IntArray in = getStreamInput(out.bytes()).readBigIntArray()) {
+            assertBigIntArray(in);
+            assertThat(in.size(), equalTo(testData.size()));
+            for (int i = 0; i < size; i++) {
+                assertThat(in.get(i), equalTo(testData.get(i)));
+            }
+        }
+    }
+
+    protected void assertBigIntArray(IntArray in) {}
 
     public void testCollection() throws IOException {
         class FooBar implements Writeable {

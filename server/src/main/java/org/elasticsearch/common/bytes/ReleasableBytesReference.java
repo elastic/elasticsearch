@@ -11,6 +11,7 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -129,6 +130,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     @Override
     public StreamInput streamInput() throws IOException {
         assert hasReferences();
+        // NOCOMMIT why doesn't this inc the ref?
         return new BytesReferenceStreamInput(this) {
             @Override
             public ReleasableBytesReference readReleasableBytesReference() throws IOException {
@@ -211,6 +213,10 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     public int arrayOffset() {
         assert hasReferences();
         return delegate.arrayOffset();
+    }
+
+    public IntArray asIntArray() {
+        return new ReleasableIntArray(this);
     }
 
     private static final class RefCountedReleasable extends AbstractRefCounted {

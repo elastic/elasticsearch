@@ -1224,9 +1224,9 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 wildcardSeen = true;
-                Stream<IndexAbstraction> matches = expressionMatches(context, expression);
+                Stream<IndexAbstraction> matchingResources = wildcardExpressionMatchingResources(context, expression);
                 Collection<String> finalResult = result;
-                boolean someMatchesExpanded = expandMatches(context, matches, expanded -> {
+                boolean someMatchesExpanded = expandMatches(context, matchingResources, expanded -> {
                     if (add) {
                         finalResult.add(expanded);
                     } else {
@@ -1317,21 +1317,22 @@ public class IndexNameExpressionResolver {
          * The {@param context} provides the current time-snapshot view of all the resources, as well as conditions
          * on whether to consider alias, datastream, system, and hidden resources.
          */
-        private static Stream<IndexAbstraction> expressionMatches(Context context, String expression) {
+        private static Stream<IndexAbstraction> wildcardExpressionMatchingResources(Context context, String wildcardExpression) {
+            assert Regex.isSimpleMatchPattern(wildcardExpression);
             final SortedMap<String, IndexAbstraction> indicesLookup = context.getState().getMetadata().getIndicesLookup();
             Stream<IndexAbstraction> matchesStream;
-            if (Regex.isSuffixMatchPattern(expression)) {
+            if (Regex.isSuffixMatchPattern(wildcardExpression)) {
                 // this is an initial pre-filtering in the case where the expression is a common suffix wildcard, eg "test*"
-                matchesStream = filterIndicesLookupForSuffixWildcard(indicesLookup, expression).values().stream();
+                matchesStream = filterIndicesLookupForSuffixWildcard(indicesLookup, wildcardExpression).values().stream();
             } else {
                 matchesStream = indicesLookup.values().stream();
             }
             if (context.getOptions().ignoreAliases()) {
                 matchesStream = matchesStream.filter(e -> e.getType() != Type.ALIAS);
             }
-            if (Regex.isMatchAllPattern(expression) == false && Regex.isSuffixMatchPattern(expression) == false) {
+            if (Regex.isMatchAllPattern(wildcardExpression) == false && Regex.isSuffixMatchPattern(wildcardExpression) == false) {
                 // filters matches based on the wildcard expression, note that the suffix wildcard filtering is already handled above
-                matchesStream = matchesStream.filter(e -> Regex.simpleMatch(expression, e.getName()));
+                matchesStream = matchesStream.filter(e -> Regex.simpleMatch(wildcardExpression, e.getName()));
             }
             if (context.includeDataStreams() == false) {
                 matchesStream = matchesStream.filter(e -> e.isDataStreamRelated() == false);
@@ -1346,7 +1347,7 @@ public class IndexNameExpressionResolver {
                     || context.systemIndexAccessPredicate.test(e.getName())
             );
             if (context.getOptions().expandWildcardsHidden() == false) {
-                if (expression.startsWith(".")) {
+                if (wildcardExpression.startsWith(".")) {
                     // there is this behavior that hidden indices that start with "." are not hidden if the wildcard expression also
                     // starts with "."
                     matchesStream = matchesStream.filter(e -> e.isHidden() == false || e.getName().startsWith("."));

@@ -11,12 +11,15 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
+import io.netty.buffer.UnpooledHeapByteBuf;
 import io.netty.util.NettyRuntime;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -74,6 +77,9 @@ public class Netty4Utils {
     public static ByteBuf toByteBuf(final BytesReference reference) {
         if (reference.length() == 0) {
             return Unpooled.EMPTY_BUFFER;
+        } else if (reference.hasArray()) {
+            BytesRef ref = reference.toBytesRef();
+            return Unpooled.wrappedBuffer(ref.bytes, ref.offset, ref.length);
         }
         final BytesRefIterator iterator = reference.iterator();
         // usually we have one, two, or three components from the header, the message, and a buffer
@@ -87,6 +93,37 @@ public class Netty4Utils {
             if (buffers.size() == 1) {
                 return buffers.get(0);
             } else {
+                CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
+                composite.addComponents(true, buffers);
+                return composite;
+            }
+        } catch (IOException ex) {
+            throw new AssertionError("no IO happens here", ex);
+        }
+    }
+
+    public static ByteBuf toReleasableByteBuf(final ReleasableBytesReference reference) {
+        if (reference.length() == 0) {
+            return new ReleasableByteBuf(new byte[0], reference::close);
+        } else if (reference.hasArray()) {
+            BytesRef ref = reference.toBytesRef();
+            return new ReleasableByteBuf(ref.bytes, reference::close).slice(ref.offset, ref.length);
+        }
+        final BytesRefIterator iterator = reference.iterator();
+        // usually we have one, two, or three components from the header, the message, and a buffer
+        final List<ByteBuf> buffers = new ArrayList<>(3);
+        try {
+            BytesRef slice;
+            while ((slice = iterator.next()) != null) {
+                buffers.add(new ReleasableByteBuf(slice.bytes, reference::close).slice(slice.offset, slice.length));
+            }
+
+            if (buffers.size() == 1) {
+                return buffers.get(0);
+            } else {
+                for (int i = 0; i < buffers.size() - 1; ++i) {
+                    reference.incRef();
+                }
                 CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
                 composite.addComponents(true, buffers);
                 return composite;
@@ -116,5 +153,24 @@ public class Netty4Utils {
         // setting the processors. We must do it ourselves first just in case.
         setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         return NettyAllocator.getRecycler();
+    }
+
+    private static class ReleasableByteBuf extends UnpooledHeapByteBuf {
+
+        private final Runnable releasable;
+
+        private ReleasableByteBuf(byte[] array, Runnable releasable) {
+            super(UnpooledByteBufAllocator.DEFAULT, array, array.length);
+            this.releasable = releasable;
+        }
+
+        @Override
+        protected void deallocate() {
+            try {
+                super.deallocate();
+            } finally {
+                releasable.run();
+            }
+        }
     }
 }

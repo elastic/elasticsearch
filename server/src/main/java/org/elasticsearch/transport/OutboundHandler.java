@@ -68,6 +68,10 @@ final class OutboundHandler {
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
+        internalSend(channel, OutboundMessage.SerializedBytes.fromBytesReference(bytes), null, listener);
+    }
+
+    void sendBytes(TcpChannel channel, OutboundMessage.SerializedBytes bytes, ActionListener<Void> listener) {
         internalSend(channel, bytes, null, listener);
     }
 
@@ -162,36 +166,35 @@ final class OutboundHandler {
     }
 
     private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-        final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
-        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, byteStreamOutput::close);
-        final BytesReference message;
-        try {
+        final OutboundMessage.SerializedBytes message;
+        try (RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
             message = networkMessage.serialize(byteStreamOutput);
         } catch (Exception e) {
             logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);
-            wrappedListener.onFailure(e);
+            listener.onFailure(e);
             throw e;
         }
-        internalSend(channel, message, networkMessage, wrappedListener);
+        internalSend(channel, message, networkMessage, listener);
     }
 
     private void internalSend(
         TcpChannel channel,
-        BytesReference reference,
+        OutboundMessage.SerializedBytes serializedBytes,
         @Nullable OutboundMessage message,
         ActionListener<Void> listener
     ) {
+        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, serializedBytes::close);
+
         final long startTime = threadPool.rawRelativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
-        final long messageSize = reference.length();
-        TransportLogger.logOutboundMessage(channel, reference);
+        TransportLogger.logOutboundMessage(channel, serializedBytes);
         // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
-            channel.sendMessage(reference, new ActionListener<>() {
+            channel.sendMessage(serializedBytes, new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
-                    statsTracker.markBytesWritten(messageSize);
-                    listener.onResponse(v);
+                    statsTracker.markBytesWritten(serializedBytes.messageLength());
+                    wrappedListener.onResponse(v);
                     maybeLogSlowMessage(true);
                 }
 
@@ -205,7 +208,7 @@ final class OutboundHandler {
                     } else {
                         logger.log(closeConnectionExceptionLevel, () -> "send message failed [channel: " + channel + "]", e);
                     }
-                    listener.onFailure(e);
+                    wrappedListener.onFailure(e);
                     maybeLogSlowMessage(false);
                 }
 
@@ -219,7 +222,7 @@ final class OutboundHandler {
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "
                                     + "threshold of [{}ms] with success [{}]",
                                 message,
-                                messageSize,
+                                serializedBytes.messageLength(),
                                 channel,
                                 took,
                                 logThreshold,
@@ -230,7 +233,7 @@ final class OutboundHandler {
                 }
             });
         } catch (RuntimeException ex) {
-            listener.onFailure(ex);
+            wrappedListener.onFailure(ex);
             CloseableChannel.closeChannel(channel);
             throw ex;
         }

@@ -70,14 +70,17 @@ public class InboundDecoderTests extends ESTestCase {
             );
         }
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes = message.serialize(os);
+        try (
+            RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler);
+            OutboundMessage.SerializedBytes serializedBytes = message.serialize(os)
+        ) {
+            final BytesReference totalBytes = serializedBytes.getBytesReference();
             int totalHeaderSize = TcpHeader.headerSize(Version.CURRENT) + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(totalBytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(totalBytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -99,7 +102,7 @@ public class InboundDecoderTests extends ESTestCase {
             fragments.clear();
 
             final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
-            final ReleasableBytesReference releasable2 = ReleasableBytesReference.wrap(bytes2);
+            final ReleasableBytesReference releasable2 = new ReleasableBytesReference(bytes2, () -> {});
             int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
             assertEquals(totalBytes.length() - totalHeaderSize, bytesConsumed2);
 
@@ -135,13 +138,16 @@ public class InboundDecoderTests extends ESTestCase {
             compressionScheme
         );
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes = message.serialize(os);
+        try (
+            RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler);
+            OutboundMessage.SerializedBytes serializedBytes = message.serialize(os)
+        ) {
+            final BytesReference totalBytes = serializedBytes.getBytesReference();
             int partialHeaderSize = TcpHeader.headerSize(preHeaderVariableInt);
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(totalBytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(totalBytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(partialHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -192,13 +198,16 @@ public class InboundDecoderTests extends ESTestCase {
             null
         );
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+        try (
+            RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler);
+            OutboundMessage.SerializedBytes serializedBytes = message.serialize(os)
+        ) {
+            final BytesReference bytes = serializedBytes.getBytesReference();
             int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(bytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -238,8 +247,11 @@ public class InboundDecoderTests extends ESTestCase {
             message = new OutboundMessage.Response(threadContext, transportMessage, Version.CURRENT, requestId, false, scheme);
         }
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes = message.serialize(os);
+        try (
+            RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler);
+            OutboundMessage.SerializedBytes serializedBytes = message.serialize(os)
+        ) {
+            final BytesReference totalBytes = serializedBytes.getBytesReference();
             final BytesStreamOutput out = new BytesStreamOutput();
             transportMessage.writeTo(out);
             final BytesReference uncompressedBytes = out.bytes();
@@ -247,7 +259,7 @@ public class InboundDecoderTests extends ESTestCase {
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(totalBytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(totalBytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -305,13 +317,16 @@ public class InboundDecoderTests extends ESTestCase {
             Compression.Scheme.DEFLATE
         );
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+        try (
+            RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler);
+            OutboundMessage.SerializedBytes serializedBytes = message.serialize(os)
+        ) {
+            final BytesReference bytes = serializedBytes.getBytesReference();
             int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
+            final ReleasableBytesReference releasable1 = new ReleasableBytesReference(bytes, () -> {});
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
             assertTrue(releasable1.hasReferences());
@@ -343,12 +358,15 @@ public class InboundDecoderTests extends ESTestCase {
         );
 
         final ReleasableBytesReference releasable1;
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+        try (
+            RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler);
+            OutboundMessage.SerializedBytes serializedBytes = message.serialize(os);
+        ) {
+            final BytesReference bytes = serializedBytes.getBytesReference();
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            try (ReleasableBytesReference r = ReleasableBytesReference.wrap(bytes)) {
+            try (ReleasableBytesReference r = new ReleasableBytesReference(bytes, () -> {})) {
                 releasable1 = r;
                 expectThrows(IllegalStateException.class, () -> decoder.decode(releasable1, fragments::add));
             }

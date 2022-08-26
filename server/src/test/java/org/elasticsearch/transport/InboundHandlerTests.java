@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.AsyncBiFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -66,7 +67,12 @@ public class InboundHandlerTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling
         TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {}, ignoreDeserializationErrors);
-        TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
+        TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, new AsyncBiFunction<TcpChannel, BytesReference, Void>() {
+            @Override
+            public void apply(TcpChannel tcpChannel, BytesReference reference, ActionListener<Void> listener) {
+                tcpChannel.sendMessage(OutboundMessage.SerializedBytes.fromBytesReference(reference), listener);
+            }
+        });
         OutboundHandler outboundHandler = new OutboundHandler(
             "node",
             version,
@@ -170,7 +176,8 @@ public class InboundHandlerTests extends ESTestCase {
         );
 
         BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
+        OutboundMessage.SerializedBytes serializedBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
+        BytesReference fullRequestBytes = serializedBytes.getBytesReference();
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});

@@ -12,17 +12,25 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-abstract class OutboundMessage extends NetworkMessage {
+public abstract class OutboundMessage extends NetworkMessage {
 
     protected final Writeable message;
 
@@ -38,12 +46,10 @@ abstract class OutboundMessage extends NetworkMessage {
         this.message = message;
     }
 
-    BytesReference serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
+    SerializedBytes serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
 
-        // The compressible bytes stream will not close the underlying bytes stream
-        BytesReference reference;
         int variableHeaderLength = -1;
         final long preHeaderPosition = bytesStream.position();
 
@@ -77,17 +83,26 @@ abstract class OutboundMessage extends NetworkMessage {
                 stream.close();
             }
         }
-        final BytesReference message = bytesStream.bytes();
+
+        long postSerializePosition = bytesStream.position();
+        final long totalMessageLength = bytesStream.position() + zeroCopyBuffer.length();
+        bytesStream.seek(0);
+        final int contentSize = Math.toIntExact(totalMessageLength) - TcpHeader.headerSize(version);
+        TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
+        bytesStream.seek(postSerializePosition);
+
+        final ReleasableBytesReference[] message = bytesStream.returnByteComponentsAndReset();
+        final List<ReleasableBytesReference> components;
         if (zeroCopyBuffer.length() == 0) {
-            reference = message;
+            components = new ArrayList<>(message.length);
+            Collections.addAll(components, message);
         } else {
-            reference = CompositeBytesReference.of(message, zeroCopyBuffer);
+            components = new ArrayList<>(message.length + 1);
+            Collections.addAll(components, message);
+            components.add(ReleasableBytesReference.wrapOrInc(zeroCopyBuffer));
         }
 
-        bytesStream.seek(0);
-        final int contentSize = reference.length() - TcpHeader.headerSize(version);
-        TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
-        return reference;
+        return new SerializedBytes(components, Math.toIntExact(totalMessageLength));
     }
 
     // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
@@ -199,6 +214,69 @@ abstract class OutboundMessage extends NetworkMessage {
                 + "}{"
                 + message.getClass()
                 + "}";
+        }
+    }
+
+    public static class SerializedBytes implements Releasable {
+
+        private final AtomicBoolean ownershipTaken = new AtomicBoolean(false);
+        private final List<ReleasableBytesReference> components;
+        private final int messageLength;
+
+        public SerializedBytes(List<ReleasableBytesReference> components, int messageLength) {
+            this.components = components;
+            this.messageLength = messageLength;
+        }
+
+        public BytesReference getBytesReference() {
+            BytesReference[] references = new BytesReference[components.size()];
+            int i = 0;
+            for (ReleasableBytesReference component : components) {
+                references[i++] = component;
+            }
+            return CompositeBytesReference.of(references);
+        }
+
+        public static SerializedBytes fromBytesReference(BytesReference reference) {
+            return new OutboundMessage.SerializedBytes(
+                Collections.singletonList(ReleasableBytesReference.wrapOrInc(reference)),
+                reference.length()
+            );
+
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SerializedBytes that = (SerializedBytes) o;
+            return messageLength == that.messageLength && Objects.equals(components, that.components);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(components, messageLength);
+        }
+
+        public void takeOwnership() {
+            if (ownershipTaken.compareAndSet(false, true) == false) {
+                throw new IllegalStateException("Cannot take ownership of serialized bytes.");
+            }
+        }
+
+        public List<ReleasableBytesReference> components() {
+            return components;
+        }
+
+        public int messageLength() {
+            return messageLength;
+        }
+
+        @Override
+        public void close() {
+            if (ownershipTaken.get() == false) {
+                Releasables.close(components);
+            }
         }
     }
 }

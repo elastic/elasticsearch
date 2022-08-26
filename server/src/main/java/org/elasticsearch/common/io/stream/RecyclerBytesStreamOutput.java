@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -36,8 +37,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     private final ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
     private final Recycler<BytesRef> recycler;
     private final int pageSize;
-    private int pageIndex = -1;
-    private int currentCapacity = 0;
+    private int pageIndex;
+    private int currentCapacity;
     private int currentPageOffset;
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
@@ -45,6 +46,13 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         try (Recycler.V<BytesRef> obtain = recycler.obtain()) {
             pageSize = obtain.v().length;
         }
+        setInitialState();
+    }
+
+    private void setInitialState() {
+        assert pages.isEmpty();
+        this.pageIndex = -1;
+        this.currentCapacity = 0;
         this.currentPageOffset = pageSize;
     }
 
@@ -145,10 +153,12 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     public void reset() {
-        Releasables.close(pages);
-        pages.clear();
-        pageIndex = -1;
-        currentPageOffset = pageSize;
+        try {
+            Releasables.close(pages);
+        } finally {
+            pages.clear();
+        }
+        setInitialState();
     }
 
     @Override
@@ -168,11 +178,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     @Override
     public void close() {
-        try {
-            Releasables.close(pages);
-        } finally {
-            pages.clear();
-        }
+        reset();
     }
 
     /**
@@ -186,11 +192,15 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         return Math.toIntExact(position());
     }
 
-    @Override
-    public BytesReference bytes() {
+    private BytesReference[] getByteComponents(boolean releasable) {
         int position = (int) position();
+
         if (position == 0) {
-            return BytesArray.EMPTY;
+            if (releasable) {
+                return new ReleasableBytesReference[0];
+            } else {
+                return new BytesReference[0];
+            }
         } else {
             final int adjustment;
             final int bytesInLastPage;
@@ -204,18 +214,63 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             }
             final int pageCount = (position / pageSize) + adjustment;
             if (pageCount == 1) {
-                BytesRef page = pages.get(0).v();
-                return new BytesArray(page.bytes, page.offset, bytesInLastPage);
-            } else {
-                BytesReference[] references = new BytesReference[pageCount];
-                for (int i = 0; i < pageCount - 1; ++i) {
-                    references[i] = new BytesArray(this.pages.get(i).v());
+                Recycler.V<BytesRef> page = pages.get(0);
+                BytesRef ref = page.v();
+                BytesArray wrapped = new BytesArray(ref.bytes, ref.offset, bytesInLastPage);
+                if (releasable) {
+                    ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, page);
+                    return new ReleasableBytesReference[] { reference };
+                } else {
+                    return new BytesReference[] { wrapped };
                 }
-                BytesRef last = this.pages.get(pageCount - 1).v();
-                references[pageCount - 1] = new BytesArray(last.bytes, last.offset, bytesInLastPage);
-                return CompositeBytesReference.of(references);
+            } else {
+                final BytesReference[] references;
+                if (releasable) {
+                    references = new ReleasableBytesReference[pageCount];
+                } else {
+                    references = new BytesReference[pageCount];
+                }
+                for (int i = 0; i < pageCount - 1; ++i) {
+                    Recycler.V<BytesRef> page = this.pages.get(i);
+                    BytesArray wrapped = new BytesArray(page.v());
+                    if (releasable) {
+                        references[i] = new ReleasableBytesReference(wrapped, page);
+                    } else {
+                        references[i] = wrapped;
+                    }
+                }
+                Recycler.V<BytesRef> lastPage = this.pages.get(pageCount - 1);
+                BytesRef lastRef = lastPage.v();
+                BytesArray wrapped = new BytesArray(lastRef.bytes, lastRef.offset, bytesInLastPage);
+                if (releasable) {
+                    references[pageCount - 1] = new ReleasableBytesReference(wrapped, lastPage);
+                } else {
+                    references[pageCount - 1] = wrapped;
+                }
+                return references;
             }
         }
+
+    }
+
+    /**
+     * This will return the underlying contiguous byte components and remove them from the stream. This byte
+     * components MUST be closed by the accessor of this method as the stream removes references to them. The
+     * stream is reset after calling this method.
+     *
+     * @return releasable array of byte components
+     */
+    public ReleasableBytesReference[] returnByteComponentsAndReset() {
+        final ReleasableBytesReference[] toReturn = (ReleasableBytesReference[]) getByteComponents(true);
+        // Clear the current page list so that reset does not release them.
+        pages.clear();
+        reset();
+        return toReturn;
+    }
+
+    @Override
+    public BytesReference bytes() {
+        return CompositeBytesReference.of(getByteComponents(false));
     }
 
     private void ensureCapacity(int bytesNeeded) {

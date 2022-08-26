@@ -53,6 +53,15 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, NO_OP);
     }
 
+    public static ReleasableBytesReference wrapOrInc(BytesReference reference) {
+        if (reference instanceof ReleasableBytesReference releasableBytesReference) {
+            releasableBytesReference.incRef();
+            return releasableBytesReference;
+        } else {
+            return wrap(reference);
+        }
+    }
+
     @Override
     public void incRef() {
         refCounted.incRef();

@@ -13,12 +13,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -38,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -977,5 +980,53 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertThat(newEx, instanceOf(IOException.class));
         assertThat(newEx.getMessage(), equalTo("disk broken"));
         assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
+    }
+
+    public void testReturnByteComponentsAndReset() throws IOException {
+        int pageSize;
+        try (Recycler.V<BytesRef> obtain = recycler.obtain()) {
+            pageSize = obtain.v().length;
+        }
+
+        AtomicInteger allocs = new AtomicInteger(0);
+
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(() -> {
+            allocs.incrementAndGet();
+            Recycler.V<BytesRef> obtained = recycler.obtain();
+            return new Recycler.V<>() {
+                @Override
+                public BytesRef v() {
+                    return obtained.v();
+                }
+
+                @Override
+                public boolean isRecycled() {
+                    return obtained.isRecycled();
+                }
+
+                @Override
+                public void close() {
+                    obtained.close();
+                    allocs.decrementAndGet();
+                }
+            };
+        });
+
+        int pageCount = randomIntBetween(2, 6);
+        out.writeBytes(new byte[(pageSize * pageCount)]);
+
+        assertEquals(pageCount, allocs.get());
+        ReleasableBytesReference[] references = out.returnByteComponentsAndReset();
+        assertEquals(pageCount, references.length);
+
+        out.close();
+
+        assertEquals(pageCount, allocs.get());
+
+        references[0].incRef();
+        Releasables.close(references);
+        assertEquals(1, allocs.get());
+        references[0].close();
+        assertEquals(0, allocs.get());
     }
 }

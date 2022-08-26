@@ -9,6 +9,8 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
@@ -17,11 +19,14 @@ import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.OutboundMessage;
 import org.elasticsearch.transport.Transports;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Queue;
 
 /**
@@ -43,86 +48,47 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-        assert msg instanceof ByteBuf;
+        assert msg instanceof OutboundMessage.SerializedBytes || msg instanceof ByteBuf;
         assert Transports.assertDefaultThreadContext(threadContext);
         assert Transports.assertTransportThread();
-        final ByteBuf buf = (ByteBuf) msg;
-        if (ctx.channel().isWritable() && currentWrite == null && queuedWrites.isEmpty()) {
-            // nothing is queued for writing and the channel is writable, just pass the write down the pipeline directly
-            if (buf.readableBytes() > MAX_BYTES_PER_WRITE) {
-                writeInSlices(ctx, promise, buf);
+        final ByteBuf buf;
+        if (msg instanceof OutboundMessage.SerializedBytes serializedBytes) {
+            List<ReleasableBytesReference> components = serializedBytes.components();
+            serializedBytes.takeOwnership();
+            if (components.size() > 1) {
+                CompositeByteBuf composite = Unpooled.compositeBuffer(components.size());
+                for (ReleasableBytesReference component : components) {
+                    composite.addComponent(true, Netty4Utils.toReleasableByteBuf(component));
+                }
+                buf = composite;
             } else {
-                ctx.write(msg, promise);
+                ReleasableBytesReference component = components.get(0);
+                buf = Netty4Utils.toReleasableByteBuf(component);
             }
         } else {
-            queueWrite(buf, promise);
+            buf = (ByteBuf) msg;
+        }
+
+        if (ctx.channel().isWritable() && currentWrite == null && queuedWrites.isEmpty()) {
+            // nothing is queued for writing and the channel is writable, set to current write and write
+            currentWrite = new WriteOperation(buf, promise);
+            writeBytes(ctx);
+        } else {
+            final boolean queued = queuedWrites.offer(new WriteOperation(buf, promise));
+            assert queued;
         }
     }
 
-    /**
-     * Writes slices of up to the max write size until the channel stops being writable or the message has been written in full.
-     */
-    private void writeInSlices(ChannelHandlerContext ctx, ChannelPromise promise, ByteBuf buf) {
-        while (true) {
-            final int readableBytes = buf.readableBytes();
-            final int bufferSize = Math.min(readableBytes, MAX_BYTES_PER_WRITE);
-            if (readableBytes == bufferSize) {
-                // last write for this chunk we're done
-                ctx.write(buf).addListener(forwardResultListener(ctx, promise));
-                return;
-            }
-            final int readerIndex = buf.readerIndex();
-            final ByteBuf writeBuffer = buf.retainedSlice(readerIndex, bufferSize);
-            buf.readerIndex(readerIndex + bufferSize);
-            ctx.write(writeBuffer).addListener(forwardFailureListener(ctx, promise));
-            if (ctx.channel().isWritable() == false) {
-                // channel isn't writable any longer -> move to queuing
-                queueWrite(buf, promise);
-                return;
-            }
-        }
-    }
+    private boolean writeBytes(ChannelHandlerContext ctx) {
+        Channel channel = ctx.channel();
 
-    private void queueWrite(ByteBuf buf, ChannelPromise promise) {
-        final boolean queued = queuedWrites.offer(new WriteOperation(buf, promise));
-        assert queued;
-    }
-
-    @Override
-    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
-        if (ctx.channel().isWritable()) {
-            doFlush(ctx);
-        }
-        ctx.fireChannelWritabilityChanged();
-    }
-
-    @Override
-    public void flush(ChannelHandlerContext ctx) {
-        if (doFlush(ctx) == false) {
-            ctx.flush();
-        }
-    }
-
-    @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        doFlush(ctx);
-        super.channelInactive(ctx);
-    }
-
-    private boolean doFlush(ChannelHandlerContext ctx) {
-        assert ctx.executor().inEventLoop();
-        final Channel channel = ctx.channel();
-        if (channel.isActive() == false) {
-            failQueuedWrites();
-            return false;
-        }
-        boolean needsFlush = true;
+        boolean bytesWritten = false;
         while (channel.isWritable()) {
             if (currentWrite == null) {
                 currentWrite = queuedWrites.poll();
-            }
-            if (currentWrite == null) {
-                break;
+                if (currentWrite == null) {
+                    break;
+                }
             }
             final WriteOperation write = currentWrite;
             final int readableBytes = write.buf.readableBytes();
@@ -137,26 +103,47 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
                 writeBuffer = write.buf;
             }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
-            needsFlush = true;
+            bytesWritten = true;
+
             if (sliced == false) {
                 currentWrite = null;
                 writeFuture.addListener(forwardResultListener(ctx, write.promise));
             } else {
                 writeFuture.addListener(forwardFailureListener(ctx, write.promise));
             }
-            if (channel.isWritable() == false) {
-                // try flushing to make channel writable again, loop will only continue if channel becomes writable again
+        }
+        attemptToReleaseBytes();
+        return bytesWritten;
+    }
+
+    @Override
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+        if (ctx.channel().isWritable()) {
+            if (writeBytes(ctx)) {
                 ctx.flush();
-                needsFlush = false;
+                attemptToReleaseBytes();
             }
+
         }
-        if (needsFlush) {
-            ctx.flush();
+        ctx.fireChannelWritabilityChanged();
+    }
+
+    @Override
+    public void flush(ChannelHandlerContext ctx) throws Exception {
+        super.flush(ctx);
+        attemptToReleaseBytes();
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        failQueuedWrites();
+        super.channelInactive(ctx);
+    }
+
+    private void attemptToReleaseBytes() {
+        if (currentWrite != null && currentWrite.buf.refCnt() == 1) {
+            currentWrite.buf.discardSomeReadBytes();
         }
-        if (channel.isActive() == false) {
-            failQueuedWrites();
-        }
-        return true;
     }
 
     private static GenericFutureListener<Future<Void>> forwardFailureListener(ChannelHandlerContext ctx, ChannelPromise promise) {

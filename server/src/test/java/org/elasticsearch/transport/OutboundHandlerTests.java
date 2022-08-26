@@ -332,7 +332,7 @@ public class OutboundHandlerTests extends ESTestCase {
             final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
             handler.sendBytes(new FakeTcpChannel() {
                 @Override
-                public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+                public void sendMessage(OutboundMessage.SerializedBytes serializedBytes, ActionListener<Void> listener) {
                     try {
                         TimeUnit.SECONDS.sleep(1L);
                         listener.onResponse(null);

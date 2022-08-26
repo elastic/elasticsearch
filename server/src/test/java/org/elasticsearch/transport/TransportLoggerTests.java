@@ -78,7 +78,7 @@ public class TransportLoggerTests extends ESTestCase {
         appender.addExpectation(readExpectation);
         BytesReference bytesReference = buildRequest();
         TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
-        TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
+        TransportLogger.logOutboundMessage(mock(TcpChannel.class), OutboundMessage.SerializedBytes.fromBytesReference(bytesReference));
         appender.assertAllExpectationsMatched();
     }
 
@@ -95,7 +95,7 @@ public class TransportLoggerTests extends ESTestCase {
                 false,
                 compress
             );
-            return request.serialize(bytesStreamOutput);
+            return request.serialize(bytesStreamOutput).getBytesReference();
         }
     }
 }

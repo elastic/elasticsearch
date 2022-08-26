@@ -146,8 +146,11 @@ public class InboundPipelineTests extends ESTestCase {
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
-                    try (RecyclerBytesStreamOutput temporaryOutput = new RecyclerBytesStreamOutput(recycler)) {
-                        Streams.copy(message.serialize(temporaryOutput).streamInput(), streamOutput, false);
+                    try (
+                        RecyclerBytesStreamOutput temporaryOutput = new RecyclerBytesStreamOutput(recycler);
+                        OutboundMessage.SerializedBytes serializedBytes = message.serialize(temporaryOutput)
+                    ) {
+                        Streams.copy(serializedBytes.getBytesReference().streamInput(), streamOutput, false);
                     }
                 }
 
@@ -235,8 +238,10 @@ public class InboundPipelineTests extends ESTestCase {
                 message = new OutboundMessage.Response(threadContext, new TestResponse(value), invalidVersion, requestId, false, null);
             }
 
-            final BytesReference reference = message.serialize(streamOutput);
-            try (ReleasableBytesReference releasable = ReleasableBytesReference.wrap(reference)) {
+            try (
+                OutboundMessage.SerializedBytes serializedBytes = message.serialize(streamOutput);
+                ReleasableBytesReference releasable = ReleasableBytesReference.wrapOrInc(serializedBytes.getBytesReference())
+            ) {
                 expectThrows(IllegalStateException.class, () -> pipeline.handleBytes(new FakeTcpChannel(), releasable));
             }
 
@@ -246,6 +251,7 @@ public class InboundPipelineTests extends ESTestCase {
                 () -> pipeline.handleBytes(new FakeTcpChannel(), ReleasableBytesReference.wrap(BytesArray.EMPTY))
             );
             assertEquals("Pipeline state corrupted by uncaught exception", ise.getMessage());
+            pipeline.close();
         }
     }
 
@@ -272,13 +278,14 @@ public class InboundPipelineTests extends ESTestCase {
                 message = new OutboundMessage.Response(threadContext, new TestResponse(value), version, requestId, false, null);
             }
 
-            final BytesReference reference = message.serialize(streamOutput);
+            OutboundMessage.SerializedBytes serializedBytes = message.serialize(streamOutput);
+            final BytesReference reference = serializedBytes.getBytesReference();
             final int fixedHeaderSize = TcpHeader.headerSize(Version.CURRENT);
             final int variableHeaderSize = reference.getInt(fixedHeaderSize - 4);
             final int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
             final AtomicBoolean bodyReleased = new AtomicBoolean(false);
             for (int i = 0; i < totalHeaderSize - 1; ++i) {
-                try (ReleasableBytesReference slice = ReleasableBytesReference.wrap(reference.slice(i, 1))) {
+                try (ReleasableBytesReference slice = ReleasableBytesReference.wrapOrInc(reference.slice(i, 1))) {
                     pipeline.handleBytes(new FakeTcpChannel(), slice);
                 }
             }
@@ -294,6 +301,7 @@ public class InboundPipelineTests extends ESTestCase {
                 pipeline.handleBytes(new FakeTcpChannel(), slice);
             }
             assertTrue(bodyReleased.get());
+            serializedBytes.close();
         }
     }
 

@@ -46,8 +46,9 @@ public final class TransportLogger {
         }
     }
 
-    static void logOutboundMessage(TcpChannel channel, BytesReference message) {
+    static void logOutboundMessage(TcpChannel channel, OutboundMessage.SerializedBytes serializedBytes) {
         if (logger.isTraceEnabled()) {
+            BytesReference message = serializedBytes.getBytesReference();
             try {
                 if (message.get(0) != 'E') {
                     // This is not an Elasticsearch transport message.

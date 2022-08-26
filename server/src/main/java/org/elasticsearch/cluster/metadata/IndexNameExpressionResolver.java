@@ -1379,6 +1379,11 @@ public class IndexNameExpressionResolver {
             return indicesLookup.subMap(fromPrefix, toPrefix);
         }
 
+        /**
+         * Return the {@code Stream} of open and/or closed index names for the given {@param resources}.
+         * Datastreams and aliases are interpreted to refer to multiple indices,
+         * then all index resources are filtered by their open/closed status.
+         */
         private static Stream<String> expandToOpenClosed(Context context, Stream<IndexAbstraction> resources) {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
             return resources.flatMap(indexAbstraction -> {

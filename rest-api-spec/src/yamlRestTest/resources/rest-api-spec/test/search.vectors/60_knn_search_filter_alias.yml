@@ -2,6 +2,7 @@ setup:
   - skip:
       version: ' - 8.4.99'
       reason: 'filtered alias for kNN search added in 8.5'
+      
   - do:
       indices.create:
         index: test

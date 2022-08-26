@@ -227,15 +227,12 @@ public abstract class AbstractStreamTests extends ESTestCase {
         out.writeBigIntArray(testData);
 
         try (IntArray in = getStreamInput(out.bytes()).readBigIntArray()) {
-            assertBigIntArray(in);
             assertThat(in.size(), equalTo(testData.size()));
             for (int i = 0; i < size; i++) {
                 assertThat(in.get(i), equalTo(testData.get(i)));
             }
         }
     }
-
-    protected void assertBigIntArray(IntArray in) {}
 
     public void testCollection() throws IOException {
         class FooBar implements Writeable {

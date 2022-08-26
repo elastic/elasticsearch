@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class ReleasableBytesReferenceStreamTests extends AbstractStreamTests {
     private final List<ReleasableBytesReference> opened = new ArrayList<>();
@@ -62,11 +61,6 @@ public class ReleasableBytesReferenceStreamTests extends AbstractStreamTests {
         return counted.streamInput();
     }
 
-    @Override
-    protected void assertBigIntArray(IntArray in) {
-        assertThat(in, instanceOf(ReleasableIntArray.class));
-    }
-
     public void testBigIntArrayLivesAfterReleasableIsDecremented() throws IOException {
         IntArray testData = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(1, false);
         testData.set(0, 1);
@@ -80,7 +74,6 @@ public class ReleasableBytesReferenceStreamTests extends AbstractStreamTests {
             ref.decRef();
             assertThat(ref.hasReferences(), equalTo(true));
 
-            assertBigIntArray(in);
             assertThat(in.size(), equalTo(testData.size()));
             assertThat(in.get(0), equalTo(1));
         }

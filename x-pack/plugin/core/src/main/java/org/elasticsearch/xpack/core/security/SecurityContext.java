@@ -115,7 +115,7 @@ public class SecurityContext {
      */
     public void executeAsInternalUser(User internalUser, Version version, Consumer<StoredContext> consumer) {
         assert User.isInternal(internalUser);
-        final StoredContext original = threadContext.newStoredContext(true);
+        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setInternalUser(internalUser, version);
             consumer.accept(original);
@@ -135,7 +135,7 @@ public class SecurityContext {
      * returns, the original context is restored.
      */
     public <T> T executeWithAuthentication(Authentication authentication, Function<StoredContext, T> consumer) {
-        final StoredContext original = threadContext.newStoredContext(true);
+        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(authentication);
             return consumer.apply(original);
@@ -149,7 +149,7 @@ public class SecurityContext {
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
         // Preserve request headers other than authentication
         final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
-        final StoredContext original = threadContext.newStoredContext(true);
+        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(authentication.maybeRewriteForOlderVersion(version));

@@ -229,15 +229,14 @@ endif::[]
     of `scaling_factor` improve accuracy but also increase space requirements.
     This parameter is required.
 
-ifeval::["{release-state}"=="unreleased"]
 [[numeric-synthetic-source]]
-==== Synthetic source
+==== Synthetic source preview:[]
 All numeric fields except `unsigned_long` support <<synthetic-source,synthetic
 `_source`>> in their default configuration. Synthetic `_source` cannot be used
 together with <<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or
 with <<doc-values,`doc_values`>> disabled.
 
-Synthetic source always sorts numeric fields and removes duplicates. For example:
+Synthetic source always sorts numeric fields. For example:
 [source,console,id=synthetic-source-numeric-example]
 ----
 PUT idx
@@ -293,5 +292,3 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
-
-endif::[]

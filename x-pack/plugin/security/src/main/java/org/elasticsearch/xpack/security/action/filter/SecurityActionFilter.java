@@ -110,7 +110,7 @@ public class SecurityActionFilter implements ActionFilter {
                     (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); }
                 );
             } else {
-                try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
+                try (ThreadContext.StoredContext ignore = threadContext.newStoredContextPreservingResponseHeaders()) {
                     applyInternal(task, chain, action, request, contextPreservingListener);
                 }
             }

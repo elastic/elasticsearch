@@ -106,8 +106,18 @@ public interface SourceLoader {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            SyntheticFieldLoader.DocValuesLoader leaf = loader.docValuesLoader(reader, docIdsInLeaf);
-            return (fieldsVisitor, docId) -> {
+            return new SyntheticLeaf(loader.docValuesLoader(reader, docIdsInLeaf));
+        }
+
+        private class SyntheticLeaf implements Leaf {
+            private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
+
+            private SyntheticLeaf(SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+                this.docValuesLoader = docValuesLoader;
+            }
+
+            @Override
+            public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
                 if (fieldsVisitor != null) {
                     for (Map.Entry<String, List<Object>> e : fieldsVisitor.fields().entrySet()) {
                         SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
@@ -116,16 +126,19 @@ public interface SourceLoader {
                         }
                     }
                 }
+                if (docValuesLoader != null) {
+                    docValuesLoader.advanceToDoc(docId);
+                }
                 // TODO accept a requested xcontent type
                 try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                    if (leaf.advanceToDoc(docId)) {
+                    if (loader.hasValue()) {
                         loader.write(b);
                     } else {
                         b.startObject().endObject();
                     }
                     return BytesReference.bytes(b);
                 }
-            };
+            }
         }
     }
 
@@ -176,6 +189,11 @@ public interface SourceLoader {
             }
 
             @Override
+            public boolean hasValue() {
+                return false;
+            }
+
+            @Override
             public void write(XContentBuilder b) {}
         };
 
@@ -191,6 +209,8 @@ public interface SourceLoader {
          * load.
          */
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
+
+        boolean hasValue();
 
         /**
          * Write values for this document.

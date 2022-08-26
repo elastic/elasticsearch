@@ -307,9 +307,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
         else {
             if (fieldsToLoad.isEmpty()) {
-                return (ctx, docs) -> LeafStoredFieldLoader.empty();
+                return StoredFieldLoader.empty();
             }
         }
-        return (ctx, docs) -> LeafStoredFieldLoader.forContext(ctx, fetchSourceContext.fetchSource(), fieldsToLoad);
+        return StoredFieldLoader.create(fetchSourceContext.fetchSource(), fieldsToLoad);
     }
 }

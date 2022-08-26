@@ -110,8 +110,8 @@ public class FetchPhase {
 
         SourceLoader sourceLoader = context.newSourceLoader();
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        StoredFieldLoader documentLoader = createStoredFieldLoader(context, sourceLoader, storedToRequestedFields);
-        profiler.logFields(storedToRequestedFields.keySet());
+        StoredFieldLoader storedFieldLoader = createStoredFieldLoader(context, sourceLoader, storedToRequestedFields);
+        storedFieldLoader = profiler.storedFields(storedFieldLoader);
 
         FetchContext fetchContext = new FetchContext(context);
 
@@ -141,7 +141,7 @@ public class FetchPhase {
                         leafReaderContext = context.searcher().getIndexReader().leaves().get(leafIndex);
                         endReaderIdx = endReaderIdx(context, leafReaderContext, index, docs);
                         int[] docIdsInLeaf = docIdsInLeaf(index, endReaderIdx, docs, leafReaderContext.docBase);
-                        leafStoredFieldLoader = documentLoader.getLoader(leafReaderContext, docIdsInLeaf);
+                        leafStoredFieldLoader = storedFieldLoader.getLoader(leafReaderContext, docIdsInLeaf);
                         leafSourceLoader = fetchContext.sourceLoader().leaf(leafReaderContext.reader(), docIdsInLeaf);
                         for (FetchSubPhaseProcessor processor : processors) {
                             processor.setNextReader(leafReaderContext);
@@ -242,10 +242,10 @@ public class FetchPhase {
                 context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
-            return (ctx, docs) -> LeafStoredFieldLoader.forDocs(ctx, docs, loadSource, Collections.emptySet());
+            return StoredFieldLoader.create(loadSource, Collections.emptySet());
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
-            return (ctx, docs) -> LeafStoredFieldLoader.empty();
+            return StoredFieldLoader.empty();
         } else {
             for (String fieldNameOrPattern : context.storedFieldsContext().fieldNames()) {
                 if (fieldNameOrPattern.equals(SourceFieldMapper.NAME)) {
@@ -270,9 +270,9 @@ public class FetchPhase {
             }
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
-                return (ctx, docs) -> LeafStoredFieldLoader.forDocs(ctx, docs, loadSource, Collections.emptySet());
+                return StoredFieldLoader.create(loadSource, Collections.emptySet());
             } else {
-                return (ctx, docs) -> LeafStoredFieldLoader.forDocs(ctx, docs, loadSource, storedToRequestedFields.keySet());
+                return StoredFieldLoader.create(loadSource, storedToRequestedFields.keySet());
             }
         }
     }
@@ -332,9 +332,7 @@ public class FetchPhase {
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
-        profiler.startLoadingStoredFields();
         leafStoredFieldLoader.advanceTo(subDocId);
-        profiler.stopLoadingStoredFields();
 
         if (leafStoredFieldLoader.id() == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);
@@ -402,7 +400,6 @@ public class FetchPhase {
         Map<String, Object> rootSourceAsMap = null;
         XContentType rootSourceContentType = null;
 
-        SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         if (context instanceof InnerHitsContext.InnerHitSubContext innerHitsContext) {
             rootId = innerHitsContext.getRootId();
 
@@ -412,15 +409,14 @@ public class FetchPhase {
                 rootSourceContentType = rootLookup.sourceContentType();
             }
         } else {
-            LeafStoredFieldLoader rootLoader = LeafStoredFieldLoader.forContext(subReaderContext, needSource, Collections.emptySet());
-            profiler.startLoadingStoredFields();
-            rootLoader.advanceTo(nestedInfo.rootDoc());
-            profiler.stopLoadingStoredFields();
-            rootId = rootLoader.id();
+            StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(needSource, Collections.emptySet()));
+            LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(subReaderContext, null);
+            leafRootLoader.advanceTo(nestedInfo.rootDoc());
+            rootId = leafRootLoader.id();
 
             if (needSource) {
-                if (rootLoader.source() != null) {
-                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootLoader.source(), false);
+                if (leafRootLoader.source() != null) {
+                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(leafRootLoader.source(), false);
                     rootSourceAsMap = tuple.v2();
                     rootSourceContentType = tuple.v1();
                 } else {
@@ -432,9 +428,7 @@ public class FetchPhase {
         Map<String, DocumentField> docFields = emptyMap();
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && context.storedFieldsContext().fieldNames().isEmpty() == false) {
-            profiler.startLoadingStoredFields();
             childFieldLoader.advanceTo(nestedInfo.doc());
-            profiler.stopLoadingStoredFields();
             if (childFieldLoader.storedFields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -527,11 +521,7 @@ public class FetchPhase {
 
         FetchSubPhaseProcessor profile(String type, String description, FetchSubPhaseProcessor processor);
 
-        void logFields(Collection<String> fields);
-
-        void startLoadingStoredFields();
-
-        void stopLoadingStoredFields();
+        StoredFieldLoader storedFields(StoredFieldLoader storedFieldLoader);
 
         void startLoadingSource();
 
@@ -548,20 +538,14 @@ public class FetchPhase {
             }
 
             @Override
-            public void logFields(Collection<String> fields) {
-
+            public StoredFieldLoader storedFields(StoredFieldLoader storedFieldLoader) {
+                return storedFieldLoader;
             }
 
             @Override
             public FetchSubPhaseProcessor profile(String type, String description, FetchSubPhaseProcessor processor) {
                 return processor;
             }
-
-            @Override
-            public void startLoadingStoredFields() {}
-
-            @Override
-            public void stopLoadingStoredFields() {}
 
             @Override
             public void startLoadingSource() {}

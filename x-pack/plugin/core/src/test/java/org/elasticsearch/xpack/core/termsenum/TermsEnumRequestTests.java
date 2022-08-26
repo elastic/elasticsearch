@@ -91,7 +91,7 @@ public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnum
     @Override
     protected TermsEnumRequest mutateInstance(TermsEnumRequest instance) throws IOException {
         List<Consumer<TermsEnumRequest>> mutators = new ArrayList<>();
-        mutators.add(request -> { request.field(randomAlphaOfLengthBetween(3, 10)); });
+        mutators.add(request -> { request.field(randomValueOtherThan(request.field(), () -> randomAlphaOfLengthBetween(3, 10))); });
         mutators.add(request -> {
             String[] indices = ArrayUtils.concat(instance.indices(), generateRandomStringArray(5, 10, false, false));
             request.indices(indices);

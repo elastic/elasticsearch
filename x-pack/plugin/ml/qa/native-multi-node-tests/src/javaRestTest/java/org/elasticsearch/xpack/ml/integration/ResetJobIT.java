@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.junit.After;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
 
         List<String> auditMessages = fetchAllAuditMessages(job.getId());
         assertThat(auditMessages.isEmpty(), is(false));
-        assertThat(auditMessages.get(auditMessages.size() - 1), equalTo("Job has been reset"));
+        assertThat("Audit messages: " + auditMessages, auditMessages.get(auditMessages.size() - 1), equalTo("Job has been reset"));
     }
 
     private Job.Builder createJob(String jobId, TimeValue bucketSpan) {

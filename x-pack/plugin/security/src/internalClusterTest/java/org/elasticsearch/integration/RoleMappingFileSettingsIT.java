@@ -101,10 +101,14 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         long version = versionCounter.incrementAndGet();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
+        assertTrue(fileSettingsService.watching());
+
+        Files.deleteIfExists(fileSettingsService.operatorSettingsFile());
 
         Files.createDirectories(fileSettingsService.operatorSettingsDir());
         Path tempFilePath = createTempFile();
 
+        logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
     }

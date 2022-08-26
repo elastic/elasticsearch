@@ -75,9 +75,12 @@ public class RandomSamplerIT extends ESIntegTestCase {
             final double oldAvgNumeric = avgNumeric;
             avgMonotonic = (i * avgMonotonic + monotonicValue) / (i + 1);
             avgNumeric = (i * avgNumeric + numericValue) / (i + 1);
-            varMonotonic = (i * (varMonotonic + Math.pow(avgMonotonic - oldAvgMonotonic, 2.0)) + Math.pow(monotonicValue - avgMonotonic, 2.0)) / (i + 1);
-            varNumeric = (i * (varNumeric + Math.pow(avgNumeric - oldAvgNumeric, 2.0)) + Math.pow(numericValue - avgNumeric, 2.0)) / (i + 1);
-
+            final double avgMonotonicDiff = avgMonotonic - oldAvgMonotonic;
+            final double avgNumericDiff = avgNumeric - oldAvgNumeric;
+            final double resMonotonic = monotonicValue - avgMonotonic;
+            final double resNumeric = numericValue - avgNumeric;
+            varMonotonic = (i * (varMonotonic + Math.pow(avgMonotonicDiff, 2.0)) + Math.pow(resMonotonic, 2.0)) / (i + 1);
+            varNumeric = (i * (varNumeric + Math.pow(avgNumericDiff, 2.0)) + Math.pow(resNumeric, 2.0)) / (i + 1);
         }
         indexRandom(true, builders);
         ensureSearchable();

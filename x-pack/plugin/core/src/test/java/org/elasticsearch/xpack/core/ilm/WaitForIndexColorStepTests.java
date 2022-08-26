@@ -33,9 +33,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForIndexColorStep> {
 
     private static ClusterHealthStatus randomColor() {
-        String[] colors = new String[] { "green", "yellow", "red" };
-        int randomColor = randomIntBetween(0, colors.length - 1);
-        return ClusterHealthStatus.fromString(colors[randomColor]);
+        return randomFrom(ClusterHealthStatus.values());
     }
 
     @Override
@@ -51,17 +49,13 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
     protected WaitForIndexColorStep mutateInstance(WaitForIndexColorStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        ClusterHealthStatus color = instance.getColor(), newColor = randomColor();
+        ClusterHealthStatus color = instance.getColor();
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getIndexNameSupplier();
-
-        while (color.equals(newColor)) {
-            newColor = randomColor();
-        }
 
         switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 2 -> color = newColor;
+            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
+            case 2 -> color = randomValueOtherThan(color, WaitForIndexColorStepTests::randomColor);
         }
 
         return new WaitForIndexColorStep(key, nextKey, color, indexNameSupplier);

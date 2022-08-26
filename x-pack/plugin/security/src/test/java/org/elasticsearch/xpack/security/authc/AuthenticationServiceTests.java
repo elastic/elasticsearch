@@ -2217,7 +2217,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testCanAuthenticateServiceAccount() {
         Mockito.reset(serviceAccountService);
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
-        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
             if (requestIdAlreadyPresent) {
@@ -2246,7 +2246,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testServiceAccountFailureWillNotFallthrough() throws IOException {
         Mockito.reset(serviceAccountService);
         final ElasticsearchSecurityException bailOut = new ElasticsearchSecurityException("bail out", RestStatus.UNAUTHORIZED);
-        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
             if (requestIdAlreadyPresent) {

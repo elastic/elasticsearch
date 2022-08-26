@@ -891,7 +891,7 @@ public class MasterServiceTests extends ESTestCase {
             );
 
             for (int i = 0; i < taskCount; i++) {
-                try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+                try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
                     final String testContextHeaderValue = randomAlphaOfLength(10);
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
                     final var task = new Task(testContextHeaderValue);
@@ -975,7 +975,7 @@ public class MasterServiceTests extends ESTestCase {
             final CountDownLatch publishSuccessCountdown = new CountDownLatch(toSubmit);
 
             for (int i = 0; i < toSubmit; i++) {
-                try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+                try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
                     final var testContextHeaderValue = randomAlphaOfLength(10);
                     final var testResponseHeaderValue = randomAlphaOfLength(10);
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
@@ -1017,7 +1017,7 @@ public class MasterServiceTests extends ESTestCase {
             final CountDownLatch publishFailureCountdown = new CountDownLatch(toSubmit);
 
             for (int i = 0; i < toSubmit; i++) {
-                try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+                try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
                     final String testContextHeaderValue = randomAlphaOfLength(10);
                     final String testResponseHeaderValue = randomAlphaOfLength(10);
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);

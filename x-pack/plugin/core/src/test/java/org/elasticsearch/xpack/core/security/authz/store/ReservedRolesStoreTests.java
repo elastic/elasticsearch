@@ -218,6 +218,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SortedMap;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
@@ -1721,7 +1722,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     indexMonitoringActionName,
                     Sets.newHashSet(internalSecurityIndex, TestRestrictedIndices.SECURITY_MAIN_ALIAS, asyncSearchIndex),
                     metadata.getIndicesLookup(),
-                    fieldPermissionsCache
+                    fieldPermissionsCache,
+                    Optional.empty()
                 );
             assertThat(iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
             assertThat(iac.getIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS).isGranted(), is(true));
@@ -1839,16 +1841,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         IndicesAccessControl iac = superuserRole.indices()
-            .authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+            .authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache,
+                Optional.empty());
         assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
-        iac = superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        iac = superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache,
+            Optional.empty());
         assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
-        iac = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
+        iac = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache,
+            Optional.empty());
         assertThat(iac.getIndexPermissions("a2").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
-        iac = superuserRole.indices().authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
+        iac = superuserRole.indices().authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache,
+            Optional.empty());
         assertThat(iac.getIndexPermissions("aaaaaa").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
 
@@ -1858,7 +1864,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 randomFrom(SearchAction.NAME, GetIndexAction.NAME),
                 Sets.newHashSet(TestRestrictedIndices.SECURITY_MAIN_ALIAS),
                 lookup,
-                fieldPermissionsCache
+                fieldPermissionsCache,
+                Optional.empty()
             );
         assertThat("For " + iac, iac.getIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS).isGranted(), is(true));
         assertThat("For " + iac, iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
@@ -1869,7 +1876,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 randomFrom(IndexAction.NAME, DeleteIndexAction.NAME),
                 Sets.newHashSet(TestRestrictedIndices.SECURITY_MAIN_ALIAS),
                 lookup,
-                fieldPermissionsCache
+                fieldPermissionsCache,
+                Optional.empty()
             );
         assertThat("For " + iac, iac.getIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS).isGranted(), is(false));
         assertThat("For " + iac, iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(false));

@@ -40,4 +40,11 @@ public class Block {
     public long getLong(int position) {
         throw new UnsupportedOperationException(getClass().getName());
     }
+
+    /**
+     * Retrieves the value stored at the given position as a double, widening if necessary.
+     */
+    public double getDouble(int position) {
+        throw new UnsupportedOperationException(getClass().getName());
+    }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.health;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -30,11 +31,12 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
 
     private static final DiskHealthInfo GREEN = new DiskHealthInfo(HealthStatus.GREEN, null);
 
-    public void testHappyFlow() throws Exception {
+    public void testNodesReportingHealth() throws Exception {
         try (InternalTestCluster internalCluster = internalCluster()) {
             ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
             String[] nodeIds = state.getNodes().getNodes().keySet().toArray(new String[0]);
             DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
+            assertThat(healthNode, notNullValue());
             assertBusy(() -> {
                 Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, healthNode.getName())
                     .getDiskHealthInfo();
@@ -53,6 +55,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
             Collection<DiscoveryNode> nodes = state.getNodes().getNodes().values();
             DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
+            assertThat(healthNode, notNullValue());
             DiscoveryNode nodeToLeave = nodes.stream()
                 .filter(node -> node.getId().equals(healthNode.getId()) == false)
                 .findAny()
@@ -80,8 +83,10 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
             String[] nodeIds = state.getNodes().getNodes().keySet().toArray(new String[0]);
             DiscoveryNode healthNodeToBeShutDown = waitAndGetHealthNode(internalCluster);
+            assertThat(healthNodeToBeShutDown, notNullValue());
             internalCluster.restartNode(healthNodeToBeShutDown.getName());
             DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
+            assertThat(newHealthNode, notNullValue());
             assertBusy(() -> {
                 Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, newHealthNode.getName())
                     .getDiskHealthInfo();
@@ -95,6 +100,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         }
     }
 
+    @Nullable
     private static DiscoveryNode waitAndGetHealthNode(InternalTestCluster internalCluster) throws InterruptedException {
         DiscoveryNode[] healthNode = new DiscoveryNode[1];
         waitUntil(() -> {
@@ -110,7 +116,6 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             }
             return healthNode[0] != null;
         }, 2, TimeUnit.SECONDS);
-        assertThat(healthNode[0], notNullValue());
         return healthNode[0];
     }
 }

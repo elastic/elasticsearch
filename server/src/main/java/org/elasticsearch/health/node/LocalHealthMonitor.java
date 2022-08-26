@@ -177,7 +177,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                     if (Objects.equals(healthNodeId, lastSeenHealthNode.get())
                         && lastReportedDiskHealthInfo.compareAndSet(previousHealth, currentHealth)) {
                         logger.debug(
-                            "Health info [{}] successfully send, last reported value: {}.",
+                            "Health info [{}] successfully sent, last reported value: {}.",
                             currentHealth,
                             lastReportedDiskHealthInfo.get()
                         );

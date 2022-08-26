@@ -103,7 +103,7 @@ public class ReservedClusterStateService {
             stateChunk = stateChunkParser.apply(parser, null);
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
-            saveErrorState(errorState);
+            saveErrorState(clusterService.state(), errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
             errorListener.accept(
@@ -138,7 +138,7 @@ public class ReservedClusterStateService {
                 ReservedStateErrorMetadata.ErrorKind.PARSING
             );
 
-            saveErrorState(errorState);
+            saveErrorState(clusterService.state(), errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
             errorListener.accept(
@@ -157,7 +157,7 @@ public class ReservedClusterStateService {
                 reservedStateChunk,
                 handlers,
                 orderedHandlers,
-                (errorState) -> saveErrorState(errorState),
+                (clusterState, errorState) -> saveErrorState(clusterState, errorState),
                 new ActionListener<>() {
                     @Override
                     public void onResponse(ActionResponse.Empty empty) {
@@ -171,6 +171,8 @@ public class ReservedClusterStateService {
                         if (isNewError(existingMetadata, reservedStateVersion.version())) {
                             logger.debug("Failed to apply reserved cluster state", e);
                             errorListener.accept(e);
+                        } else {
+                            errorListener.accept(null);
                         }
                     }
                 }
@@ -187,8 +189,7 @@ public class ReservedClusterStateService {
             || existingMetadata.errorMetadata().version() < newStateVersion);
     }
 
-    private void saveErrorState(ErrorState errorState) {
-        ClusterState clusterState = clusterService.state();
+    private void saveErrorState(ClusterState clusterState, ErrorState errorState) {
         ReservedStateMetadata existingMetadata = clusterState.metadata().reservedStateMetadata().get(errorState.namespace());
 
         if (isNewError(existingMetadata, errorState.version()) == false) {

@@ -30,6 +30,7 @@ Java High Level REST Client::
 
 Machine Learning::
 * Improve trained model stats API performance {es-pull}87978[#87978]
+* Fix potential cause of classification and regression job failures {ml-pull}2385[#2385]
 
 Search::
 * Fix validation of `close_pit` request {es-pull}88702[#88702]
@@ -60,6 +61,9 @@ Infra/Core::
 
 Authorization::
 * Avoid loading authorized indices when requested indices are all concrete names {es-pull}81237[#81237]
+
+Machine Learning::
+* Improve accuracy of anomaly detection median estimation {ml-pull}2367[#2367] (issue: {ml-issue}2364[#2364])
 
 Packaging::
 * Change UBI docker user to `elasticsearch` {es-pull}88262[#88262] (issue: {es-issue}88218[#88218])

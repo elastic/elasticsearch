@@ -109,6 +109,7 @@ actions in the order listed.
   - <<ilm-migrate,Migrate>>
   <<ilm-rollup,Rollup>>
 * Frozen
+  - <<ilm-unfollow,Unfollow>>
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Delete
   - <<ilm-wait-for-snapshot,Wait For Snapshot>>

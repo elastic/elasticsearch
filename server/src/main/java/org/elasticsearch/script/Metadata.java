@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,10 +43,16 @@ public class Metadata {
     protected static final String ROUTING = "_routing";
     protected static final String VERSION_TYPE = "_version_type";
     protected static final String VERSION = "_version";
-    protected static final String TYPE = "_type"; // type is deprecated so it's supported in the map but not available as a getter
+    protected static final String TYPE = "_type"; // type is deprecated, so it's supported in the map but not available as a getter
+    protected static final String NOW = "_now";
+    protected static final String OP = "op";
     protected static final String IF_SEQ_NO = "_if_seq_no";
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";
     protected static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
+
+    public static FieldProperty<Object> ObjectField = new FieldProperty<>(Object.class);
+    public static FieldProperty<String> StringField = new FieldProperty<>(String.class);
+    public static FieldProperty<Number> LongField = new FieldProperty<>(Number.class).withValidation(FieldProperty.LONGABLE_NUMBER);
 
     protected final Map<String, Object> map;
     protected final Map<String, FieldProperty<?>> properties;
@@ -118,8 +126,16 @@ public class Metadata {
         put(VERSION, version);
     }
 
-    public ZonedDateTime getTimestamp() {
-        throw new UnsupportedOperationException("unimplemented");
+    public ZonedDateTime getNow() {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(getNumber(NOW).longValue()), ZoneOffset.UTC);
+    }
+
+    public String getOp() {
+        return getString(OP);
+    }
+
+    public void setOp(String op) {
+        put(OP, op);
     }
 
     // These are not available to scripts
@@ -268,6 +284,31 @@ public class Metadata {
      */
     public record FieldProperty<T> (Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
 
+        public FieldProperty(Class<T> type) {
+            this(type, false, false, null);
+        }
+
+        public FieldProperty<T> withNullable() {
+            if (nullable) {
+                return this;
+            }
+            return new FieldProperty<>(type, true, writable, extendedValidation);
+        }
+
+        public FieldProperty<T> withWritable() {
+            if (writable) {
+                return this;
+            }
+            return new FieldProperty<>(type, nullable, true, extendedValidation);
+        }
+
+        public FieldProperty<T> withValidation(BiConsumer<String, T> extendedValidation) {
+            if (this.extendedValidation == extendedValidation) {
+                return this;
+            }
+            return new FieldProperty<>(type, nullable, writable, extendedValidation);
+        }
+
         public static BiConsumer<String, Number> LONGABLE_NUMBER = (k, v) -> {
             long version = v.longValue();
             // did we round?
@@ -333,5 +374,15 @@ public class Metadata {
                 extendedValidation.accept(key, (T) value);
             }
         }
+    }
+
+    public static BiConsumer<String, String> stringSetValidator(Set<String> valid) {
+        return (k, v) -> {
+            if (valid.contains(v) == false) {
+                throw new IllegalArgumentException(
+                    "[" + k + "] must be one of " + valid.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + v + "]"
+                );
+            }
+        };
     }
 }

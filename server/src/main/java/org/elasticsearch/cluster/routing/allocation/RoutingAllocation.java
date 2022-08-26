@@ -26,7 +26,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -73,6 +72,11 @@ public class RoutingAllocation {
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
+    private final Map<String, SingleNodeShutdownMetadata> nodeShutdowns;
+
+    @Nullable
+    private final DesiredNodes desiredNodes;
+
     public RoutingAllocation(
         AllocationDeciders deciders,
         ClusterState clusterState,
@@ -106,13 +110,15 @@ public class RoutingAllocation {
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
+        this.nodeShutdowns = clusterState.metadata().nodeShutdowns();
         Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
-        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
+        for (SingleNodeShutdownMetadata shutdown : nodeShutdowns.values()) {
             if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
                 targetNameToShutdown.put(shutdown.getTargetNodeName(), shutdown);
             }
         }
-        this.nodeReplacementTargets = Collections.unmodifiableMap(targetNameToShutdown);
+        this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
+        this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -173,14 +179,14 @@ public class RoutingAllocation {
 
     @Nullable
     public DesiredNodes desiredNodes() {
-        return DesiredNodes.latestFromClusterState(clusterState);
+        return desiredNodes;
     }
 
     /**
      * Returns the map of node id to shutdown metadata currently in the cluster
      */
     public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return metadata().nodeShutdowns();
+        return nodeShutdowns;
     }
 
     /**

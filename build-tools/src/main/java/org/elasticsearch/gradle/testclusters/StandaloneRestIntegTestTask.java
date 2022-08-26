@@ -9,7 +9,6 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.GradleException;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
@@ -20,11 +19,8 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
 import org.gradle.internal.resources.SharedResource;
-import org.gradle.util.GradleVersion;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -94,30 +90,11 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
 
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
-            locks.add(getResourceLock(resource, nodeCount));
+            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {
+                locks.add(resource.getResourceLock());
+            }
         }
         return Collections.unmodifiableList(locks);
-    }
-
-    /**
-     * SharedResource#getResourceLock has changed its parameters with Gradle 7.5.
-     * We resolve this via reflection for now to be compatible with Gradle before and after 7.5.
-     * This makes migration easier and allows gradle benchmark tests across gradle versions easier.
-     * Likely will be removed in future version.
-     * */
-    private ResourceLock getResourceLock(SharedResource resource, int nodeCount) {
-        try {
-            Method getResourceLock = Arrays.stream(resource.getClass().getMethods())
-                .filter(p -> p.getName().equals("getResourceLock"))
-                .findFirst()
-                .get();
-            getResourceLock.setAccessible(true);
-            return (ResourceLock) (GradleVersion.current().compareTo(GradleVersion.version("7.5.0")) < 0
-                ? getResourceLock.invoke(resource, Math.min(nodeCount, resource.getMaxUsages()))
-                : getResourceLock.invoke(resource));
-        } catch (Exception e) {
-            throw new GradleException("Unable to get ResourceLock", e);
-        }
     }
 
     public WorkResult delete(Object... objects) {
@@ -127,7 +104,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     @Override
     public void beforeStart() {
         if (debugServer) {
-            enableDebug();
+            enableDebug(0);
         }
     }
 }

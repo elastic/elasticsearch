@@ -13,17 +13,14 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,12 +34,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringIT extends ESIntegTestCase {
-
-    @SuppressWarnings("deprecation")
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestGeoShapeFieldMapperPlugin.class);
-    }
 
     @Before
     public void setup() throws Exception {
@@ -156,7 +147,6 @@ public class QueryStringIT extends ESIntegTestCase {
         // binary doesn't match
         // suggest doesn't match
         // geo_point doesn't match
-        // geo_shape doesn't match
     }
 
     public void testKeywordWithWhitespace() throws Exception {

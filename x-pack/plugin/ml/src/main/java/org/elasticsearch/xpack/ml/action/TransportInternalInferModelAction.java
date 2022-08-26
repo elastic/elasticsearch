@@ -23,7 +23,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.InferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
@@ -96,9 +96,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
 
         Response.Builder responseBuilder = Response.builder();
-        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
-        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
+        if (MachineLearning.INFERENCE_AGG_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);
             doInfer(task, request, responseBuilder, parentTaskId, listener);
         } else {

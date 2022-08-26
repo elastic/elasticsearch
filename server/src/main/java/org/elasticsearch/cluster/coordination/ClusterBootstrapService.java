@@ -43,7 +43,7 @@ import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
-public class ClusterBootstrapService {
+public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
 
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.listSetting(
         "cluster.initial_master_nodes",
@@ -147,7 +147,8 @@ public class ClusterBootstrapService {
         }
     }
 
-    void onFoundPeersUpdated() {
+    @Override
+    public void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (bootstrappingPermitted.get()
             && transportService.getLocalNode().isMasterNode()

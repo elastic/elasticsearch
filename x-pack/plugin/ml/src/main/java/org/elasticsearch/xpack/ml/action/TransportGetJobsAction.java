@@ -69,7 +69,7 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
         ClusterState state,
         ActionListener<GetJobsAction.Response> listener
     ) {
-        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.debug("Get job '{}'", request.getJobId());
         jobManager.expandJobBuilders(
             request.getJobId(),

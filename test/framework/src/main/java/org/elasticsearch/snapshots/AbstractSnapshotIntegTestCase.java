@@ -36,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -197,7 +196,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void stopNode(final String node) throws IOException {
         logger.info("--> stopping node {}", node);
-        internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
+        internalCluster().stopNode(node);
     }
 
     protected static String startDataNodeWithLargeSnapshotPool() {
@@ -528,7 +527,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             SnapshotState.FAILED,
             Collections.emptyMap()
         );
-        PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(
+        PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
                     ShardGenerations.EMPTY,
@@ -536,7 +535,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
-                    f
+                    f,
+                    info -> {}
                 )
             )
         );

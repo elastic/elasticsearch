@@ -669,7 +669,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery());
                 FilterByFilterAggregator aggregator = createAggregator(builder, context);
                 aggregator.preCollection();
-                searcher.search(context.query(), aggregator);
+                searcher.search(context.query(), aggregator.asCollector());
                 aggregator.postCollection();
 
                 InternalAggregation result = aggregator.buildTopLevel();
@@ -746,7 +746,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), ft);
                 FilterByFilterAggregator aggregator = createAggregator(builder, context);
                 aggregator.preCollection();
-                searcher.search(context.query(), aggregator);
+                searcher.search(context.query(), aggregator.asCollector());
                 aggregator.postCollection();
 
                 InternalAggregation result = aggregator.buildTopLevel();
@@ -812,7 +812,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), ft);
                 FilterByFilterAggregator aggregator = createAggregator(builder, context);
                 aggregator.preCollection();
-                searcher.search(context.query(), aggregator);
+                searcher.search(context.query(), aggregator.asCollector());
                 aggregator.postCollection();
 
                 InternalAggregation result = aggregator.buildTopLevel();

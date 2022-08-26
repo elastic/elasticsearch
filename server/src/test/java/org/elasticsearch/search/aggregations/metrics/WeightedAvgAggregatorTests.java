@@ -531,7 +531,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("weight_field", fieldNumberType);
             WeightedAvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldType2);
             aggregator.preCollection();
-            indexSearcher.search(query, aggregator);
+            indexSearcher.search(query, aggregator.asCollector());
             aggregator.postCollection();
             verify.accept((InternalWeightedAvg) aggregator.buildAggregation(0L));
         } finally {

@@ -1100,6 +1100,11 @@ public class DockerTests extends PackagingTestCase {
      * Ensure that it is possible to apply CLI options when running the image.
      */
     public void test171AdditionalCliOptionsAreForwarded() throws Exception {
+        assumeTrue(
+            "Does not apply to Cloud images, because they don't use the default entrypoint",
+            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
+        );
+
         runContainer(distribution(), builder().runArgs("bin/elasticsearch", "-Ecluster.name=kimchy").envVar("ELASTIC_PASSWORD", PASSWORD));
         waitForElasticsearch(installation, "elastic", PASSWORD);
 

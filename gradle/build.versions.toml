@@ -20,20 +20,19 @@ hamcrest = "org.hamcrest:hamcrest:2.1"
 httpcore = "org.apache.httpcomponents:httpcore:4.4.12"
 httpclient = "org.apache.httpcomponents:httpclient:4.5.10"
 idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.4"
-json-schema-validator = "com.networknt:json-schema-validator:1.0.49"
+json-schema-validator = "com.networknt:json-schema-validator:1.0.72"
 json-assert = "org.skyscreamer:jsonassert:1.5.0"
 jackson-dataformat-yaml = { group = "com.fasterxml.jackson.dataformat", name="jackson-dataformat-yaml", version.ref="jackson" }
 jackson-platform = { group = "com.fasterxml.jackson", name="jackson-bom", version.ref="jackson" }
 jna = "net.java.dev.jna:jna:5.10.0"
-junit = "junit:junit:4.12"
+junit = "junit:junit:4.13.2"
 junit5-platform = { group = "org.junit", name="junit-bom", version.ref="junit5" }
 junit5-jupiter = { group = "org.junit.jupiter", name="junit-jupiter", version.ref="junit5" }
-junit5-platform-launcher = "org.junit.platform:junit-platform-launcher:1.8.0"
+junit5-platform-launcher = "org.junit.platform:junit-platform-launcher:1.8.1"
 junit5-vintage = { group = "org.junit.vintage", name="junit-vintage-engine", version.ref="junit5" }
 maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
-randomized-runner = "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.7.7"
 shadow-plugin = "gradle.plugin.com.github.johnrengelman:shadow:7.1.2"
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }

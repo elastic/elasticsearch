@@ -92,16 +92,16 @@ class org.elasticsearch.script.field.DateNanosDocValuesField @dynamic_type {
   ZonedDateTime get(int, ZonedDateTime)
 }
 
-class org.elasticsearch.script.field.AbstractKeywordDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.BaseKeywordDocValuesField @dynamic_type {
   String get(String)
   String get(int, String)
 }
 
-# subclass of AbstractKeywordDocValuesField
+# subclass of BaseKeywordDocValuesField
 class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
 }
 
-# subclass of AbstractKeywordDocValuesField
+# subclass of BaseKeywordDocValuesField
 class org.elasticsearch.script.field.FlattenedDocValuesField @dynamic_type {
 }
 

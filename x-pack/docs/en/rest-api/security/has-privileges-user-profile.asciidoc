@@ -68,14 +68,21 @@ Note that the `privileges` section above is identical to the
 ==== {api-response-body-title}
 
 A successful has privileges user profile API call returns a JSON structure that contains
-two list fields:
+two fields:
 
 `has_privilege_uids`:: (list) The subset of the requested profile IDs of the users that have
 **all** the requested privileges.
 
-`error_uids`:: (list) The subset of the requested profile IDs for which an error was
-encountered. It does **not** include the missing profile IDs or the profile IDs of
-the users that do not have all the requested privileges. This field is absent if empty.
+`errors`:: (object) Errors encountered while fulfilling the request. This field is absent if there is no error.
+It does **not** include the profile IDs of the users that do not have all the requested privileges.
++
+.Properties of objects in `errors`
+[%collapsible%open]
+====
+`count`:: (number) Total number of errors
+
+`details`:: (object) The detailed error report with keys being profile IDs and values being the exact errors.
+====
 
 [[security-api-has-privileges-user-profile-example]]
 ==== {api-examples-title}
@@ -87,7 +94,11 @@ requested set of cluster, index, and application privileges:
 --------------------------------------------------
 POST /_security/user/_has_privileges
 {
-  "uids": ["u_LQPnxDxEjIH0GOUoFkZr5Y57YUwSkL9Joiq-g4OCbPc_0", "u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1"],
+  "uids": [
+    "u_LQPnxDxEjIH0GOUoFkZr5Y57YUwSkL9Joiq-g4OCbPc_0",
+    "u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1",
+    "u_does-not-exist_0"
+  ],
   "cluster": [ "monitor", "create_snapshot", "manage_ml" ],
   "index" : [
     {
@@ -110,12 +121,22 @@ POST /_security/user/_has_privileges
 --------------------------------------------------
 // TEST[skip:TODO setup and tests will be possible once the profile uid is predictable]
 
-The following example output indicates that only one of the two users has all the privileges:
+The following example output indicates that only one of the three users has all the privileges
+and one of them is not found:
 
 [source,js]
 --------------------------------------------------
 {
-  "has_privilege_uids": ["u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1"]
+  "has_privilege_uids": ["u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1"],
+  "errors": {
+    "count": 1,
+    "details": {
+      "u_does-not-exist_0": {
+        "type": "resource_not_found_exception",
+        "reason": "profile document not found"
+      }
+    }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

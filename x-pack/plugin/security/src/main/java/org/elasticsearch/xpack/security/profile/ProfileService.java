@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -56,6 +56,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.common.ResultsAndErrors;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
@@ -79,8 +80,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
+import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
@@ -90,7 +92,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
-import static org.elasticsearch.xpack.core.security.support.Validation.VALID_NAME_CHARS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
@@ -126,28 +127,45 @@ public class ProfileService {
         this.threadPool = threadPool;
     }
 
-    public void getProfile(String uid, Set<String> dataKeys, ActionListener<Profile> listener) {
-        getVersionedDocument(
-            uid,
-            listener.map(versionedDocument -> versionedDocument != null ? versionedDocument.toProfile(dataKeys) : null)
-        );
+    public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {
+        getVersionedDocuments(uids, listener.map(resultsAndErrors -> {
+            if (resultsAndErrors != null) {
+                return new ResultsAndErrors<>(
+                    resultsAndErrors.results().stream().map(versionedDocument -> versionedDocument.toProfile(dataKeys)).toList(),
+                    resultsAndErrors.errors()
+                );
+            } else {
+                return new ResultsAndErrors<>(
+                    List.of(),
+                    uids.stream()
+                        .collect(
+                            Collectors.toUnmodifiableMap(
+                                Function.identity(),
+                                uid -> new ElasticsearchException("profile index does not exist")
+                            )
+                        )
+                );
+            }
+        }));
     }
 
-    public void getProfileSubjects(Collection<String> uids, ActionListener<MultiProfileSubjectResponse> listener) {
-        getVersionedDocuments(
-            uids,
-            listener.map(
-                docsAndException -> docsAndException != null
-                    ? new MultiProfileSubjectResponse(
-                        docsAndException.v1()
-                            .stream()
-                            .filter(doc -> doc.enabled())
-                            .collect(Collectors.toMap(profileDoc -> profileDoc.uid(), profileDoc -> profileDoc.user().toSubject())),
-                        docsAndException.v2()
-                    )
-                    : new MultiProfileSubjectResponse(Map.of(), Set.of())
-            )
-        );
+    public void getProfileSubjects(Collection<String> uids, ActionListener<ResultsAndErrors<Map.Entry<String, Subject>>> listener) {
+        getVersionedDocuments(uids, listener.map(resultsAndErrors -> {
+            if (resultsAndErrors != null) {
+                // convert the list of profile document to a list of "uid to subject" entries
+                return new ResultsAndErrors<>(
+                    resultsAndErrors.results()
+                        .stream()
+                        .map(VersionedDocument::doc)
+                        .filter(ProfileDocument::enabled)
+                        .map(doc -> Map.entry(doc.uid(), doc.user().toSubject()))
+                        .toList(),
+                    resultsAndErrors.errors()
+                );
+            } else {
+                return new ResultsAndErrors<>(List.of(), Map.of());
+            }
+        }));
     }
 
     // TODO: with request when we take request body for profile activation
@@ -352,9 +370,9 @@ public class ProfileService {
         });
     }
 
-    private void getVersionedDocuments(Collection<String> uids, ActionListener<Tuple<List<ProfileDocument>, Set<String>>> listener) {
+    private void getVersionedDocuments(Collection<String> uids, ActionListener<ResultsAndErrors<VersionedDocument>> listener) {
         if (uids.isEmpty()) {
-            listener.onResponse(new Tuple<>(List.of(), Set.of()));
+            listener.onResponse(ResultsAndErrors.empty());
             return;
         }
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
@@ -363,24 +381,26 @@ public class ProfileService {
                 () -> new OriginSettingClient(client, getActionOrigin()).prepareMultiGet()
                     .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
                     .execute(ActionListener.wrap(multiGetResponse -> {
-                        List<ProfileDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);
+                        List<VersionedDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);
                         // ordered for tests
-                        Set<String> failures = new TreeSet<>();
-                        Exception loggedException = null;
+                        final Map<String, Exception> errors = new TreeMap<>();
                         for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
+                            final String profileUid = docIdToUid(itemResponse.getId());
                             if (itemResponse.isFailed()) {
-                                failures.add(docIdToUid(itemResponse.getId()));
-                                if (logger.isDebugEnabled() && itemResponse.getFailure().getFailure() != null) {
-                                    loggedException = ExceptionsHelper.useOrSuppress(
-                                        loggedException,
-                                        itemResponse.getFailure().getFailure()
-                                    );
-                                }
+                                logger.debug("Failed to retrieve profile [{}]", profileUid);
+                                errors.put(profileUid, itemResponse.getFailure().getFailure());
                             } else if (itemResponse.getResponse() != null) {
                                 if (itemResponse.getResponse().isExists()) {
-                                    retrievedDocs.add(buildProfileDocument(itemResponse.getResponse().getSourceAsBytesRef()));
-                                } else if (logger.isDebugEnabled()) {
-                                    logger.debug("Profile [{}] not found", docIdToUid(itemResponse.getId()));
+                                    retrievedDocs.add(
+                                        new VersionedDocument(
+                                            buildProfileDocument(itemResponse.getResponse().getSourceAsBytesRef()),
+                                            itemResponse.getResponse().getPrimaryTerm(),
+                                            itemResponse.getResponse().getSeqNo()
+                                        )
+                                    );
+                                } else {
+                                    logger.debug("Profile [{}] not found", profileUid);
+                                    errors.put(profileUid, new ResourceNotFoundException("profile document not found"));
                                 }
                             } else {
                                 assert false
@@ -388,10 +408,8 @@ public class ProfileService {
                                 logger.error("Inconsistent mget item response [{}] [{}]", itemResponse.getIndex(), itemResponse.getId());
                             }
                         }
-                        if (loggedException != null) {
-                            logger.debug(() -> format("Failed to retrieve profiles %s", failures), loggedException);
-                        }
-                        listener.onResponse(new Tuple<>(retrievedDocs, failures));
+                        final ResultsAndErrors<VersionedDocument> resultsAndErrors = new ResultsAndErrors<>(retrievedDocs, errors);
+                        listener.onResponse(resultsAndErrors);
                     }, listener::onFailure))
             );
         });
@@ -486,10 +504,12 @@ public class ProfileService {
         });
     }
 
+    private static final Pattern VALID_LITERAL_USERNAME = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9-]{0,255}$");
+
     private static final String INVALID_USERNAME_MESSAGE = "Security domain [%s] is configured to use literal username. "
         + "As a result, creating new user profile requires the username to be at least 1 and no more than 256 characters. "
-        + "The username can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, "
-        + "and printable symbols in the Basic Latin (ASCII) block.";
+        + "The username must begin with an alphanumeric character (a-z, A-Z, 0-9) and followed by any alphanumeric "
+        + "or dash (-) characters.";
 
     private void validateUsername(Subject subject) {
         final RealmDomain realmDomain = subject.getRealm().getDomain();
@@ -500,14 +520,8 @@ public class ProfileService {
         final String username = subject.getUser().principal();
         assert username != null;
 
-        if (username.length() < 1 || username.length() > 256) {
+        if (false == VALID_LITERAL_USERNAME.matcher(username).matches()) {
             throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
-        }
-
-        for (char character : username.toCharArray()) {
-            if (VALID_NAME_CHARS.contains(character) == false) {
-                throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
-            }
         }
     }
 
@@ -842,7 +856,6 @@ public class ProfileService {
                 new Profile.VersionControl(primaryTerm, seqNo)
             );
         }
-    }
 
-    public record MultiProfileSubjectResponse(Map<String, Subject> profileUidToSubject, Set<String> failureProfileUids) {}
+    }
 }

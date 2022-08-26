@@ -66,7 +66,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     private static final String NODE_NO_LONGER_REFERENCED = "node no longer referenced in model routing table";
     private static final String ASSIGNMENT_NO_LONGER_EXISTS = "model assignment no longer exists";
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
-    private static final TimeValue UPDATE_NUMBER_OF_ALLOCATIONS_TIMEOUT = TimeValue.timeValueSeconds(60);
+    private static final TimeValue CONTROL_MESSAGE_TIMEOUT = TimeValue.timeValueSeconds(60);
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentNodeService.class);
     private final TrainedModelAssignmentService trainedModelAssignmentService;
     private final DeploymentManager deploymentManager;
@@ -225,14 +225,13 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             } catch (Exception ex) {
                 logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
-                    logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
+                    logger.debug(() -> "[" + modelId + "] Start deployment failed as model was not found", ex);
                     handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(modelId, ex));
                 } else if (ExceptionsHelper.unwrapCause(ex) instanceof SearchPhaseExecutionException) {
-                    logger.trace(() -> "[" + modelId + "] Start deployment failed, will retry", ex);
+                    logger.debug(() -> "[" + modelId + "] Start deployment failed, will retry", ex);
                     // A search phase execution failure should be retried, push task back to the queue
                     loadingToRetry.add(loadingTask);
                 } else {
-                    logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                     handleLoadFailure(loadingTask, ex);
                 }
             }
@@ -277,13 +276,18 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         Map<String, Object> doc,
         boolean skipQueue,
         TimeValue timeout,
+        Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
-        deploymentManager.infer(task, config, doc, skipQueue, timeout, listener);
+        deploymentManager.infer(task, config, doc, skipQueue, timeout, parentActionTask, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {
         return deploymentManager.getStats(task);
+    }
+
+    public void clearCache(TrainedModelDeploymentTask task, ActionListener<AcknowledgedResponse> listener) {
+        deploymentManager.clearCache(task, CONTROL_MESSAGE_TIMEOUT, listener);
     }
 
     private TaskAwareRequest taskAwareRequest(StartTrainedModelDeploymentAction.TaskParams params) {
@@ -357,7 +361,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                                 trainedModelAssignment.getTaskParams().getModelBytes(),
                                 trainedModelAssignment.getTaskParams().getThreadsPerAllocation(),
                                 routingInfo.getCurrentAllocations(),
-                                trainedModelAssignment.getTaskParams().getQueueCapacity()
+                                trainedModelAssignment.getTaskParams().getQueueCapacity(),
+                                trainedModelAssignment.getTaskParams().getCacheSize().orElse(null)
                             )
                         );
                     }
@@ -411,14 +416,14 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         for (TrainedModelAssignment assignment : modelsToUpdate) {
             TrainedModelDeploymentTask task = modelIdToTask.get(assignment.getModelId());
             if (task == null) {
-                logger.debug(() -> format("[%s] task was removed whilst updating number of allocations", task.getModelId()));
+                logger.debug(() -> format("[%s] task was removed whilst updating number of allocations", assignment.getModelId()));
                 continue;
             }
             RoutingInfo routingInfo = assignment.getNodeRoutingTable().get(nodeId);
             deploymentManager.updateNumAllocations(
                 task,
                 assignment.getNodeRoutingTable().get(nodeId).getTargetAllocations(),
-                UPDATE_NUMBER_OF_ALLOCATIONS_TIMEOUT,
+                CONTROL_MESSAGE_TIMEOUT,
                 ActionListener.wrap(threadSettings -> {
                     logger.debug("[{}] Updated number of allocations to [{}]", assignment.getModelId(), threadSettings.numAllocations());
                     task.updateNumberOfAllocations(threadSettings.numAllocations());
@@ -458,7 +463,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
             TRAINED_MODEL_ASSIGNMENT_TASK_TYPE,
             TRAINED_MODEL_ASSIGNMENT_TASK_ACTION,
-            taskAwareRequest(taskParams)
+            taskAwareRequest(taskParams),
+            false
         );
         // threadsafe check to verify we are not loading/loaded the model
         if (modelIdToTask.putIfAbsent(taskParams.getModelId(), task) == null) {

@@ -151,9 +151,8 @@ GET my-index-000001/_search
 }
 --------------------------------------------------
 
-ifeval::["{release-state}"=="unreleased"]
 [[ip-synthetic-source]]
-==== Synthetic source
+==== Synthetic source preview:[]
 `ip` fields support <<synthetic-source,synthetic `_source`>> in their default
 configuration. Synthetic `_source` cannot be used together with
 <<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or with
@@ -165,7 +164,7 @@ Synthetic source always sorts `ip` fields and removes duplicates. For example:
 PUT idx
 {
   "mappings": {
-    "_source": { "synthetic": true },
+    "_source": { "mode": "synthetic" },
     "properties": {
       "ip": { "type": "ip" }
     }
@@ -192,5 +191,3 @@ Will become:
 NOTE: IPv4 addresses are sorted as though they were IPv6 addresses prefixed by
       `::ffff:0:0:0/96` as specified by
       https://datatracker.ietf.org/doc/html/rfc6144[rfc6144].
-
-endif::[]

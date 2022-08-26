@@ -159,9 +159,8 @@ The following parameters are accepted by `text` fields:
 
     Metadata about the field.
 
-ifeval::["{release-state}"=="unreleased"]
 [[text-synthetic-source]]
-==== Synthetic source
+==== Synthetic source preview:[]
 `text` fields support <<synthetic-source,synthetic `_source`>> if they have
 a `keyword` sub-field that supports synthetic `_source` and *do not* have
 <<copy-to,`copy_to`>>.
@@ -173,7 +172,7 @@ Synthetic source always sorts `keyword` fields and removes duplicates, so
 PUT idx
 {
   "mappings": {
-    "_source": { "synthetic": true },
+    "_source": { "mode": "synthetic" },
     "properties": {
       "text": {
         "type": "text",
@@ -214,7 +213,6 @@ NOTE: Reordering text fields can have an effect on <<query-dsl-match-query-phras
       <<position-increment-gap,`position_increment_gap`>> for more detail. You
       can avoid this by making sure the `slop` parameter on the phrase queries
       is lower than the `position_increment_gap`. This is the default.
-endif::[]
 
 [[fielddata-mapping-param]]
 ==== `fielddata` mapping parameter

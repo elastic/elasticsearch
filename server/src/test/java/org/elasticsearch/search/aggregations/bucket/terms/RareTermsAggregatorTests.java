@@ -250,7 +250,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                         RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name").field(fieldNames[i]);
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
                         aggregator.preCollection();
-                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
                         aggregator.postCollection();
                         RareTerms result = (RareTerms) aggregator.buildTopLevel();
                         assertEquals("_name", result.getName());

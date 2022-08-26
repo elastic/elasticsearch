@@ -158,7 +158,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     protected void doPreCollection() throws IOException {
         deferredCollectors = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
-        collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
+        collectableSubAggregators = BucketCollector.NO_OP_BUCKET_COLLECTOR;
     }
 
     @Override
@@ -170,7 +170,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         // Composite aggregator must be at the top of the aggregation tree
         assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0L;
-        if (deferredCollectors != NO_OP_COLLECTOR) {
+        if (deferredCollectors != NO_OP_BUCKET_COLLECTOR) {
             // Replay all documents that contain at least one top bucket (collected during the first pass).
             runDeferredCollections();
         }
@@ -440,7 +440,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         finishLeaf();
 
-        boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR;
+        boolean fillDocIdSet = deferredCollectors != NO_OP_BUCKET_COLLECTOR;
 
         Sort indexSortPrefix = buildIndexSortPrefix(aggCtx.getLeafReaderContext());
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);

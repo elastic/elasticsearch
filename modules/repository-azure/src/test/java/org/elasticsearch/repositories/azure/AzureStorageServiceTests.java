@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -72,7 +73,7 @@ public class AzureStorageServiceTests extends ESTestCase {
     private AzureRepositoryPlugin pluginWithSettingsValidation(Settings settings) {
         final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings);
         new SettingsModule(settings, plugin.getSettings(), Collections.emptyList(), Collections.emptySet());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP);
         return plugin;
     }
 

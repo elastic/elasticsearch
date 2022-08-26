@@ -244,7 +244,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         // Can get its own info
         final GetApiKeyResponse getApiKeyResponse = clientKey1.execute(
             GetApiKeyAction.INSTANCE,
-            GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean())
+            GetApiKeyRequest.builder().apiKeyId(apiKeyId).ownedByAuthenticatedUser(randomBoolean()).build()
         ).actionGet();
         assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
         assertThat(getApiKeyResponse.getApiKeyInfos()[0].getId(), equalTo(apiKeyId));
@@ -252,7 +252,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         // Cannot get any other keys
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> clientKey1.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forAllApiKeys()).actionGet()
+            () -> clientKey1.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().build()).actionGet()
         );
         assertThat(e.getMessage(), containsString("unauthorized for API key id [" + apiKeyId + "]"));
     }

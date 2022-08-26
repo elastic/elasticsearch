@@ -9,8 +9,7 @@ new read-only index. For example, you can roll up hourly data into daily or
 weekly summaries.
 
 This action corresponds to the <<rollup-apis,rollup API>>. // For now, this
-links to the original Rollup APIs. I'm not sure if we'll need new Rollup API
-docs?
+links to the original Rollup APIs.
 
 The name of the resulting rollup index is
 `rollup-<original-index-name>-<random-uuid>`. If {ilm-init} performs the

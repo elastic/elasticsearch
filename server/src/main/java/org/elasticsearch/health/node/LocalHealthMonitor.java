@@ -149,9 +149,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
         if (prerequisitesFulfilled) {
             DiscoveryNode previous = HealthNode.findHealthNode(event.previousState());
             if (Objects.equals(previous, current) == false) {
-                lastSeenHealthNode.set(current.getId());
-                // The new health node (probably) does not have any information yet, so the last
+                // The new health node does not have any information yet, so the last
                 // reported health info gets reset to null.
+                lastSeenHealthNode.set(current.getId());
                 lastReportedDiskHealthInfo.set(null);
             }
         }
@@ -174,8 +174,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 String healthNodeId = lastSeenHealthNode.get();
                 ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
                     // Update the last reported value only if the health node hasn't changed.
-                    if (Objects.equals(healthNodeId, lastSeenHealthNode.get())) {
-                        lastReportedDiskHealthInfo.set(currentHealth);
+                    if (Objects.equals(healthNodeId, lastSeenHealthNode.get())
+                        && lastReportedDiskHealthInfo.compareAndSet(previousHealth, currentHealth)) {
                         logger.debug(
                             "Health info [{}] successfully send, last reported value: {}.",
                             currentHealth,

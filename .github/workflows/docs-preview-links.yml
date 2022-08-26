@@ -3,6 +3,8 @@ name: Docs Preview Links
 on:
   pull_request_target:
     types: [opened]
+    paths:
+      - '**.asciidoc'
 
 jobs:
   doc-preview:

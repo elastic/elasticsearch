@@ -33,7 +33,7 @@ public class WriteFieldTests extends ESTestCase {
 
         // { "abc.d.ef", "flat", "abc": { "d.ef": "mixed", "d": { "ef": "nested" } } }
         WriteField wf = new WriteField("abc.d.ef", () -> map);
-        assertTrue(wf.isExists());
+        assertTrue(wf.exists());
 
         assertEquals("nested", wf.get("missing"));
         // { "abc.d.ef", "flat", "abc": { "d.ef": "mixed", "d": { } } }
@@ -63,7 +63,7 @@ public class WriteFieldTests extends ESTestCase {
     public void testIsExists() {
         Map<String, Object> a = new HashMap<>();
         a.put("b.c", null);
-        assertTrue(new WriteField("a.b.c", () -> Map.of("a", a)).isExists());
+        assertTrue(new WriteField("a.b.c", () -> Map.of("a", a)).exists());
     }
 
     public void testMove() {
@@ -173,7 +173,7 @@ public class WriteFieldTests extends ESTestCase {
         b.put("c", List.of(1, 1, 1, 2, 2, 2));
         WriteField wf = new WriteField("a.b.c", () -> root);
         assertEquals(6, wf.size());
-        wf.dedupe();
+        wf.deduplicate();
         assertEquals(2, wf.size());
         List<Object> list = (List<Object>) wf.get(Collections.emptyList());
         assertTrue(list.contains(1));

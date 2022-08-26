@@ -47,7 +47,7 @@ public class WriteField implements Field<Object> {
     /**
      * Does the path exist?
      */
-    public boolean isExists() {
+    public boolean exists() {
         return leaf != null && container.containsKey(leaf);
     }
 
@@ -242,7 +242,7 @@ public class WriteField implements Field<Object> {
      * Remove all duplicate values from this path.  List order is not preserved.
      */
     @SuppressWarnings("unchecked")
-    public WriteField dedupe() {
+    public WriteField deduplicate() {
         if (leaf == null) {
             return this;
         }

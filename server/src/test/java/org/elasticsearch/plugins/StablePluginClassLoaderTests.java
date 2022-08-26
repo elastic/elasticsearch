@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESTestCase.WithoutSecurityManager
 public class StablePluginClassLoaderTests extends ESTestCase {
 
     /**
@@ -44,22 +45,19 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Path jar = topLevelDir.resolve("my-jar.jar");
         createMinimalJar(jar, "p.MyClass");
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
-            StablePluginClassLoaderTests.class.getClassLoader(),
-            List.of(jar)
-        );
+        try (StablePluginClassLoader loader = getLoader(jar)) {
+            {
+                Class<?> c = loader.loadClass("p.MyClass");
+                assertThat(c, notNullValue());
+                Object instance = c.getConstructor().newInstance();
+                assertThat(instance.toString(), equalTo("MyClass"));
+                assertThat(c.getModule().getName(), equalTo("synthetic"));
+            }
 
-        {
-            Class<?> c = loader.loadClass("p.MyClass");
-            assertThat(c, notNullValue());
-            Object instance = c.getConstructor().newInstance();
-            assertThat(instance.toString(), equalTo("MyClass"));
-            assertThat(c.getModule().getName(), equalTo("synthetic"));
-        }
-
-        {
-            ClassNotFoundException e = expectThrows(ClassNotFoundException.class, () -> loader.loadClass("p.DoesNotExist"));
-            assertThat(e.getMessage(), equalTo("p.DoesNotExist"));
+            {
+                ClassNotFoundException e = expectThrows(ClassNotFoundException.class, () -> loader.loadClass("p.DoesNotExist"));
+                assertThat(e.getMessage(), equalTo("p.DoesNotExist"));
+            }
         }
     }
 
@@ -73,29 +71,25 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar, "p.MyClass");
 
         {
-            StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
-                StablePluginClassLoaderTests.class.getClassLoader(),
-                List.of(jar)
-            );
-            Class<?> c = loader.findClass("p.MyClass");
-            assertThat(c, notNullValue());
-            c = loader.findClass("p.DoesNotExist");
-            assertThat(c, nullValue());
+            try (StablePluginClassLoader loader = getLoader(jar)) {
+                Class<?> c = loader.findClass("p.MyClass");
+                assertThat(c, notNullValue());
+                c = loader.findClass("p.DoesNotExist");
+                assertThat(c, nullValue());
+            }
         }
 
         {
-            StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
-                StablePluginClassLoaderTests.class.getClassLoader(),
-                List.of(jar)
-            );
-            Class<?> c = loader.findClass("synthetic", "p.MyClass");
-            assertThat(c, notNullValue());
-            c = loader.findClass("synthetic", "p.DoesNotExist");
-            assertThat(c, nullValue());
-            c = loader.findClass("does-not-exist", "p.MyClass");
-            assertThat(c, nullValue());
-            c = loader.findClass(null, "p.MyClass");
-            assertThat(c, nullValue());
+            try (StablePluginClassLoader loader = getLoader(jar)) {
+                Class<?> c = loader.findClass("synthetic", "p.MyClass");
+                assertThat(c, notNullValue());
+                c = loader.findClass("synthetic", "p.DoesNotExist");
+                assertThat(c, nullValue());
+                c = loader.findClass("does-not-exist", "p.MyClass");
+                assertThat(c, nullValue());
+                c = loader.findClass(null, "p.MyClass");
+                assertThat(c, nullValue());
+            }
         }
     }
 
@@ -112,42 +106,40 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         jarEntries.put("META-INF/resource.txt", "my resource".getBytes(StandardCharsets.UTF_8));
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
-            StablePluginClassLoaderTests.class.getClassLoader(),
-            List.of(jar)
-        );
+        try (StablePluginClassLoader loader = getLoader(jar)) {
 
-        {
-            URL location = loader.findResource("p/MyClass.class");
-            assertThat(location, notNullValue());
-            location = loader.findResource("p/DoesNotExist.class");
-            assertThat(location, nullValue());
-            location = loader.findResource("META-INF/resource.txt");
-            assertThat(location, notNullValue());
-            location = loader.findResource("META-INF/does_not_exist.txt");
-            assertThat(location, nullValue());
-        }
+            {
+                URL location = loader.findResource("p/MyClass.class");
+                assertThat(location, notNullValue());
+                location = loader.findResource("p/DoesNotExist.class");
+                assertThat(location, nullValue());
+                location = loader.findResource("META-INF/resource.txt");
+                assertThat(location, notNullValue());
+                location = loader.findResource("META-INF/does_not_exist.txt");
+                assertThat(location, nullValue());
+            }
 
-        {
-            URL location = loader.findResource("synthetic", "p/MyClass.class");
-            assertThat(location, notNullValue());
-            location = loader.findResource("synthetic", "p/DoesNotExist.class");
-            assertThat(location, nullValue());
-            location = loader.findResource("does-not-exist", "p/MyClass.class");
-            assertThat(location, nullValue());
-            location = loader.findResource(null, "p/MyClass.class");
-            assertThat(location, nullValue());
-        }
+            {
+                URL location = loader.findResource("synthetic", "p/MyClass.class");
+                assertThat(location, notNullValue());
+                location = loader.findResource("synthetic", "p/DoesNotExist.class");
+                assertThat(location, nullValue());
+                location = loader.findResource("does-not-exist", "p/MyClass.class");
+                assertThat(location, nullValue());
+                location = loader.findResource(null, "p/MyClass.class");
+                assertThat(location, nullValue());
+            }
 
-        {
-            Enumeration<URL> locations = loader.findResources("p/MyClass.class");
-            assertTrue(locations.hasMoreElements());
-            locations = loader.findResources("p/DoesNotExist.class");
-            assertFalse(locations.hasMoreElements());
-            locations = loader.findResources("META-INF/resource.txt");
-            assertTrue(locations.hasMoreElements());
-            locations = loader.findResources("META-INF/does_not_exist.txt");
-            assertFalse(locations.hasMoreElements());
+            {
+                Enumeration<URL> locations = loader.findResources("p/MyClass.class");
+                assertTrue(locations.hasMoreElements());
+                locations = loader.findResources("p/DoesNotExist.class");
+                assertFalse(locations.hasMoreElements());
+                locations = loader.findResources("META-INF/resource.txt");
+                assertTrue(locations.hasMoreElements());
+                locations = loader.findResources("META-INF/does_not_exist.txt");
+                assertFalse(locations.hasMoreElements());
+            }
         }
     }
 
@@ -164,26 +156,27 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         @SuppressWarnings("removal")
         URLClassLoader parent = AccessController.doPrivileged(pa);
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar));
+        try (StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar))) {
 
-        // stable plugin loader gives us the good class...
-        Class<?> c = loader.loadClass("p.MyClassInPackageP");
-        Object instance = c.getConstructor().newInstance();
-        assertThat(instance.toString(), equalTo("MyClassInPackageP"));
+            // stable plugin loader gives us the good class...
+            Class<?> c = loader.loadClass("p.MyClassInPackageP");
+            Object instance = c.getConstructor().newInstance();
+            assertThat(instance.toString(), equalTo("MyClassInPackageP"));
 
-        // but stable plugin loader can't find the class from the split package in the parent loader
-        ClassNotFoundException e = expectThrows(ClassNotFoundException.class, () -> loader.loadClass("p.ParentJarClassInPackageP"));
-        assertThat(e.getMessage(), equalTo("p.ParentJarClassInPackageP"));
+            // but stable plugin loader can't find the class from the split package in the parent loader
+            ClassNotFoundException e = expectThrows(ClassNotFoundException.class, () -> loader.loadClass("p.ParentJarClassInPackageP"));
+            assertThat(e.getMessage(), equalTo("p.ParentJarClassInPackageP"));
 
-        // we can get the "bad one" from the parent loader
-        Class<?> c2 = parent.loadClass("p.ParentJarClassInPackageP");
-        Object instance2 = c2.getConstructor().newInstance();
-        assertThat(instance2.toString(), containsString("ParentJarClassInPackageP"));
+            // we can get the "bad one" from the parent loader
+            Class<?> c2 = parent.loadClass("p.ParentJarClassInPackageP");
+            Object instance2 = c2.getConstructor().newInstance();
+            assertThat(instance2.toString(), containsString("ParentJarClassInPackageP"));
 
-        // stable plugin loader delegates to parent for other packages
-        Class<?> c3 = loader.loadClass("q.OtherClass");
-        Object instance3 = c3.getConstructor().newInstance();
-        assertThat(instance3.toString(), equalTo("OtherClass"));
+            // stable plugin loader delegates to parent for other packages
+            Class<?> c3 = loader.loadClass("q.OtherClass");
+            Object instance3 = c3.getConstructor().newInstance();
+            assertThat(instance3.toString(), equalTo("OtherClass"));
+        }
     }
 
     public void testNoParentFirstSearch() throws Exception {
@@ -200,22 +193,23 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         @SuppressWarnings("removal")
         URLClassLoader parent = AccessController.doPrivileged(pa);
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar));
+        try (StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar))) {
 
-        // stable plugin loader gives us the good class...
-        Class<?> c = loader.loadClass("p.MyClass");
-        Object instance = c.getConstructor().newInstance();
-        assertThat(instance.toString(), equalTo("MyClass"));
+            // stable plugin loader gives us the good class...
+            Class<?> c = loader.loadClass("p.MyClass");
+            Object instance = c.getConstructor().newInstance();
+            assertThat(instance.toString(), equalTo("MyClass"));
 
-        // we can get the "bad one" from the parent loader
-        Class<?> c2 = parent.loadClass("p.MyClass");
-        Object instance2 = c2.getConstructor().newInstance();
-        assertThat(instance2.toString(), equalTo("MyClass[From the two-class jar]"));
+            // we can get the "bad one" from the parent loader
+            Class<?> c2 = parent.loadClass("p.MyClass");
+            Object instance2 = c2.getConstructor().newInstance();
+            assertThat(instance2.toString(), equalTo("MyClass[From the two-class jar]"));
 
-        // stable plugin loader delegates to parent for other packages
-        Class<?> c3 = loader.loadClass("q.OtherClass");
-        Object instance3 = c3.getConstructor().newInstance();
-        assertThat(instance3.toString(), equalTo("OtherClass"));
+            // stable plugin loader delegates to parent for other packages
+            Class<?> c3 = loader.loadClass("q.OtherClass");
+            Object instance3 = c3.getConstructor().newInstance();
+            assertThat(instance3.toString(), equalTo("OtherClass"));
+        }
     }
 
     public void testMultipleJarSinglePackageLoadClass() throws Exception {
@@ -228,22 +222,19 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar2, "p.SecondClass");
         createMinimalJar(jar3, "p.ThirdClass");
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
-            StablePluginClassLoaderTests.class.getClassLoader(),
-            List.of(jar1, jar2, jar3)
-        );
+        try (StablePluginClassLoader loader = getLoader(List.of(jar1, jar2, jar3))) {
+            Class<?> c1 = loader.loadClass("p.FirstClass");
+            Object instance1 = c1.getConstructor().newInstance();
+            assertThat(instance1.toString(), equalTo("FirstClass"));
 
-        Class<?> c1 = loader.loadClass("p.FirstClass");
-        Object instance1 = c1.getConstructor().newInstance();
-        assertThat(instance1.toString(), equalTo("FirstClass"));
+            Class<?> c2 = loader.loadClass("p.SecondClass");
+            Object instance2 = c2.getConstructor().newInstance();
+            assertThat(instance2.toString(), equalTo("SecondClass"));
 
-        Class<?> c2 = loader.loadClass("p.SecondClass");
-        Object instance2 = c2.getConstructor().newInstance();
-        assertThat(instance2.toString(), equalTo("SecondClass"));
-
-        Class<?> c3 = loader.loadClass("p.ThirdClass");
-        Object instance3 = c3.getConstructor().newInstance();
-        assertThat(instance3.toString(), equalTo("ThirdClass"));
+            Class<?> c3 = loader.loadClass("p.ThirdClass");
+            Object instance3 = c3.getConstructor().newInstance();
+            assertThat(instance3.toString(), equalTo("ThirdClass"));
+        }
     }
 
     public void testSplitPackageJarLoadClass() throws Exception {
@@ -256,22 +247,19 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar2, "p.split.SecondClass");
         createMinimalJar(jar3, "p.split.ThirdClass");
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
-            StablePluginClassLoaderTests.class.getClassLoader(),
-            List.of(jar1, jar2, jar3)
-        );
+        try (StablePluginClassLoader loader = getLoader(List.of(jar1, jar2, jar3))) {
+            Class<?> c1 = loader.loadClass("p.a.FirstClass");
+            Object instance1 = c1.getConstructor().newInstance();
+            assertThat(instance1.toString(), equalTo("FirstClass"));
 
-        Class<?> c1 = loader.loadClass("p.a.FirstClass");
-        Object instance1 = c1.getConstructor().newInstance();
-        assertThat(instance1.toString(), equalTo("FirstClass"));
+            Class<?> c2 = loader.loadClass("p.split.SecondClass");
+            Object instance2 = c2.getConstructor().newInstance();
+            assertThat(instance2.toString(), equalTo("SecondClass"));
 
-        Class<?> c2 = loader.loadClass("p.split.SecondClass");
-        Object instance2 = c2.getConstructor().newInstance();
-        assertThat(instance2.toString(), equalTo("SecondClass"));
-
-        Class<?> c3 = loader.loadClass("p.split.ThirdClass");
-        Object instance3 = c3.getConstructor().newInstance();
-        assertThat(instance3.toString(), equalTo("ThirdClass"));
+            Class<?> c3 = loader.loadClass("p.split.ThirdClass");
+            Object instance3 = c3.getConstructor().newInstance();
+            assertThat(instance3.toString(), equalTo("ThirdClass"));
+        }
     }
 
     public void testPackagePerJarLoadClass() throws Exception {
@@ -284,22 +272,19 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar2, "p.b.SecondClass");
         createMinimalJar(jar3, "p.c.ThirdClass");
 
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
-            StablePluginClassLoaderTests.class.getClassLoader(),
-            List.of(jar1, jar2, jar3)
-        );
+        try (StablePluginClassLoader loader = getLoader(List.of(jar1, jar2, jar3))) {
+            Class<?> c1 = loader.loadClass("p.a.FirstClass");
+            Object instance1 = c1.getConstructor().newInstance();
+            assertThat(instance1.toString(), equalTo("FirstClass"));
 
-        Class<?> c1 = loader.loadClass("p.a.FirstClass");
-        Object instance1 = c1.getConstructor().newInstance();
-        assertThat(instance1.toString(), equalTo("FirstClass"));
+            Class<?> c2 = loader.loadClass("p.b.SecondClass");
+            Object instance2 = c2.getConstructor().newInstance();
+            assertThat(instance2.toString(), equalTo("SecondClass"));
 
-        Class<?> c2 = loader.loadClass("p.b.SecondClass");
-        Object instance2 = c2.getConstructor().newInstance();
-        assertThat(instance2.toString(), equalTo("SecondClass"));
-
-        Class<?> c3 = loader.loadClass("p.c.ThirdClass");
-        Object instance3 = c3.getConstructor().newInstance();
-        assertThat(instance3.toString(), equalTo("ThirdClass"));
+            Class<?> c3 = loader.loadClass("p.c.ThirdClass");
+            Object instance3 = c3.getConstructor().newInstance();
+            assertThat(instance3.toString(), equalTo("ThirdClass"));
+        }
     }
 
     public void testModuleDenyList() throws Exception {
@@ -317,25 +302,24 @@ public class StablePluginClassLoaderTests extends ESTestCase {
             }
             """);
 
-        StablePluginClassLoader denyListLoader = StablePluginClassLoader.getInstance(
+        try (StablePluginClassLoader denyListLoader = StablePluginClassLoader.getInstance(
             StablePluginClassLoaderTests.class.getClassLoader(),
             List.of(jar),
             Set.of("java.sql")
-        );
-        Class<?> denyListed = denyListLoader.loadClass("p.MyImportingClass");
-        assertThat(denyListed, notNullValue());
-        Object instance1 = denyListed.getConstructor().newInstance();
-        IllegalAccessError e = expectThrows(IllegalAccessError.class, instance1::toString);
-        assertThat(e.getMessage(), containsString("cannot access class java.sql.ResultSet (in module java.sql)"));
+        )) {
+            Class<?> denyListed = denyListLoader.loadClass("p.MyImportingClass");
+            assertThat(denyListed, notNullValue());
+            Object instance1 = denyListed.getConstructor().newInstance();
+            IllegalAccessError e = expectThrows(IllegalAccessError.class, instance1::toString);
+            assertThat(e.getMessage(), containsString("cannot access class java.sql.ResultSet (in module java.sql)"));
+        }
 
-        StablePluginClassLoader unrestrictedLoader = StablePluginClassLoader.getInstance(
-            StablePluginClassLoaderTests.class.getClassLoader(),
-            List.of(jar)
-        );
-        Class<?> unrestricted = unrestrictedLoader.loadClass("p.MyImportingClass");
-        assertThat(unrestricted, notNullValue());
-        Object instance2 = unrestricted.getConstructor().newInstance();
-        assertThat(instance2.toString(), containsString("MyImportingClass[imports ResultSet]"));
+        try (StablePluginClassLoader unrestrictedLoader = getLoader(jar)) {
+            Class<?> unrestricted = unrestrictedLoader.loadClass("p.MyImportingClass");
+            assertThat(unrestricted, notNullValue());
+            Object instance2 = unrestricted.getConstructor().newInstance();
+            assertThat(instance2.toString(), containsString("MyImportingClass[imports ResultSet]"));
+        }
     }
 
     // multi-release jar handling is delegated to the internal URLClassLoader
@@ -348,6 +332,17 @@ public class StablePluginClassLoaderTests extends ESTestCase {
 
         fooBar = newFooBar(true, 10_000);
         assertThat(fooBar.toString(), equalTo("FooBar 0"));
+    }
+
+    private static StablePluginClassLoader getLoader(Path jar) {
+        return getLoader(List.of(jar));
+    }
+
+    private static StablePluginClassLoader getLoader(List<Path> jars) {
+        return StablePluginClassLoader.getInstance(
+            StablePluginClassLoaderTests.class.getClassLoader(),
+            jars
+        );
     }
 
     /*
@@ -368,11 +363,10 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-jar.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
-        StablePluginClassLoader loader = StablePluginClassLoader.getInstance(
-            StablePluginClassLoaderTests.class.getClassLoader(),
-            List.of(jar)
-        );
-        Class<?> c = loader.loadClass("p.FooBar");
+        Class<?> c;
+        try (StablePluginClassLoader loader = getLoader(jar)) {
+            c = loader.loadClass("p.FooBar");
+        }
         return c.getConstructor().newInstance();
     }
 

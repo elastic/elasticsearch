@@ -71,7 +71,7 @@ import java.util.stream.Collectors;
  *   * ModularizingClassLoader
  *   * NamedModuleClassLoader, because it will always load into a named module (via module info, or via synthetic module)
  */
-public class StablePluginClassLoader extends SecureClassLoader {
+public class StablePluginClassLoader extends SecureClassLoader implements AutoCloseable {
 
     private final Module module;
     private final URLClassLoader internalLoader;
@@ -281,4 +281,16 @@ public class StablePluginClassLoader extends SecureClassLoader {
         return (pos < 0) ? "" : cn.substring(0, pos);
     }
 
+    @Override
+    public void close() throws Exception {
+        PrivilegedAction<Void> pa = () -> {
+            try {
+                internalLoader.close();
+            } catch (IOException e) {
+                throw new IllegalStateException("Could not close internal URLClassLoader");
+            }
+            return null;
+        };
+        AccessController.doPrivileged(pa);
+    }
 }

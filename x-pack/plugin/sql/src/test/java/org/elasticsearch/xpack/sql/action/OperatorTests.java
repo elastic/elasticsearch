@@ -18,18 +18,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.sql.action.compute.aggregation.Aggregator;
-import org.elasticsearch.xpack.sql.action.compute.aggregation.AggregatorFunction;
-import org.elasticsearch.xpack.sql.action.compute.aggregation.AggregatorMode;
-import org.elasticsearch.xpack.sql.action.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.xpack.sql.action.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.xpack.sql.action.compute.lucene.NumericDocValuesExtractor;
-import org.elasticsearch.xpack.sql.action.compute.operator.AggregationOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.Driver;
-import org.elasticsearch.xpack.sql.action.compute.operator.HashAggregationOperator;
+import org.elasticsearch.xpack.sql.action.compute.operator.LongAvgGroupingOperator;
+import org.elasticsearch.xpack.sql.action.compute.operator.LongAvgOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongGroupingOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongMaxOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongTransformerOperator;
@@ -52,7 +47,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.LongStream;
 
 public class OperatorTests extends ESTestCase {
 
@@ -323,28 +317,9 @@ public class OperatorTests extends ESTestCase {
 
         Driver driver = new Driver(
             List.of(
-                new ListLongBlockSourceOperator(LongStream.range(0, 100).boxed().toList()),
-                new AggregationOperator(
-                    List.of(
-                        new Aggregator(AggregatorFunction.avg, AggregatorMode.PARTIAL, 0),
-                        new Aggregator(AggregatorFunction.count, AggregatorMode.PARTIAL, 0),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.PARTIAL, 0)
-                    )
-                ),
-                new AggregationOperator(
-                    List.of(
-                        new Aggregator(AggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 0),
-                        new Aggregator(AggregatorFunction.count, AggregatorMode.INTERMEDIATE, 1),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.INTERMEDIATE, 2)
-                    )
-                ),
-                new AggregationOperator(
-                    List.of(
-                        new Aggregator(AggregatorFunction.avg, AggregatorMode.FINAL, 0),
-                        new Aggregator(AggregatorFunction.count, AggregatorMode.FINAL, 1),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.FINAL, 2)
-                    )
-                ),
+                new ListLongBlockSourceOperator(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L)),
+                new LongAvgOperator(0), // partial reduction
+                new LongAvgOperator(0, 1), // final reduction
                 new PageConsumerOperator(page -> {
                     logger.info("New page: {}", page);
                     pageCount.incrementAndGet();
@@ -357,12 +332,7 @@ public class OperatorTests extends ESTestCase {
         driver.run();
         assertEquals(1, pageCount.get());
         assertEquals(1, rowCount.get());
-        // assert average
-        assertEquals(49.5, lastPage.get().getBlock(0).getDouble(0), 0);
-        // assert count
-        assertEquals(100, lastPage.get().getBlock(1).getLong(0));
-        // assert max
-        assertEquals(99L, lastPage.get().getBlock(2).getLong(0));
+        assertEquals(5, lastPage.get().getBlock(0).getLong(0));
     }
 
     // Trivial test with small input
@@ -379,11 +349,8 @@ public class OperatorTests extends ESTestCase {
         Driver driver = new Driver(
             List.of(
                 source,
-                new HashAggregationOperator(
-                    0, // group by channel
-                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.SINGLE, 1)),
-                    BigArrays.NON_RECYCLING_INSTANCE
-                ),
+                new LongGroupingOperator(0, BigArrays.NON_RECYCLING_INSTANCE),
+                new LongAvgGroupingOperator(1, 0),
                 new PageConsumerOperator(page -> {
                     logger.info("New page: {}", page);
                     pageCount.incrementAndGet();
@@ -397,11 +364,11 @@ public class OperatorTests extends ESTestCase {
         assertEquals(1, pageCount.get());
         assertEquals(2, rowCount.get());
 
-        // expect [5 - avg 1.0 , 9 - avg 3.0] - groups (order agnostic)
-        assertEquals(9, lastPage.get().getBlock(0).getLong(0));  // expect [5, 9] - order agnostic
-        assertEquals(5, lastPage.get().getBlock(0).getLong(1));
-        assertEquals(3.0, lastPage.get().getBlock(1).getDouble(0), 0);
-        assertEquals(1.0, lastPage.get().getBlock(1).getDouble(1), 0);
+        // expect [5 - avg1 , 9 - avg3] - groups (order agnostic)
+        assertEquals(5, lastPage.get().getBlock(0).getLong(0));  // expect [5, 9] - order agnostic
+        assertEquals(9, lastPage.get().getBlock(0).getLong(1));
+        assertEquals(1, lastPage.get().getBlock(1).getLong(0));
+        assertEquals(3, lastPage.get().getBlock(1).getLong(1));
     }
 
     /**

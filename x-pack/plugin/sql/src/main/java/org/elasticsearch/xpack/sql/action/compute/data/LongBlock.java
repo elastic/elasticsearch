@@ -23,23 +23,11 @@ public class LongBlock extends Block {
 
     @Override
     public long getLong(int position) {
-        return values[checkPosition(position)];
-    }
-
-    @Override
-    public double getDouble(int position) {
-        return Double.longBitsToDouble(values[position]);
+        return values[position];
     }
 
     @Override
     public String toString() {
         return "LongBlock{" + "values=" + Arrays.toString(values) + '}';
-    }
-
-    private int checkPosition(int position) {
-        if (position < 0 || position > getPositionCount()) {
-            throw new IllegalArgumentException("illegal position, " + position + ", position count:" + getPositionCount());
-        }
-        return position;
     }
 }

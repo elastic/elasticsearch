@@ -1495,6 +1495,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final var updatedIndices = indexByIndexNameDiff.apply(part.indices);
             final var updatedStateByShard = shardsByShardIdDiff.apply(part.shards);
             if (part.source == null && updatedIndices == part.indices && updatedStateByShard == part.shards) {
+                // fast path for normal snapshots that avoid rebuilding the by-repo-id map if nothing changed about shard status
                 return new Entry(
                     part.snapshot,
                     part.includeGlobalState,

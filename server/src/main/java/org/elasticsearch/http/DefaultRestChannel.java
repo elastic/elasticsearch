@@ -101,9 +101,18 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         String opaque = null;
         String contentLength = null;
 
+        boolean isHeadRequest = false;
+        try {
+            if (request.method() == RestRequest.Method.HEAD) {
+                isHeadRequest = true;
+            }
+        } catch (IllegalArgumentException ignored) {
+            assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
+                : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+        }
         try {
             final HttpResponse httpResponse;
-            if (restResponse.isChunked()) {
+            if (isHeadRequest == false && restResponse.isChunked()) {
                 httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.chunkedContent());
             } else {
                 final BytesReference content = restResponse.content();
@@ -112,16 +121,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 }
                 toClose.add(this::releaseOutputBuffer);
 
-                BytesReference finalContent = content;
-                try {
-                    if (request.method() == RestRequest.Method.HEAD) {
-                        finalContent = BytesArray.EMPTY;
-                    }
-                } catch (IllegalArgumentException ignored) {
-                    assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
-                        : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
-                }
-
+                BytesReference finalContent = isHeadRequest ? BytesArray.EMPTY : content;
                 httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
             }
             corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);

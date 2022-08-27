@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -42,7 +43,10 @@ class AuthorizationDenialMessages {
             + authentication.getUser().principal()
             + "]";
 
-        return actionIsUnauthorizedMessage + rolesDescription(authentication, authorizationInfo) + ", " + unauthorizedToRunAsMessage;
+        return actionIsUnauthorizedMessage
+            + rolesDescription(authentication.getAuthenticatingSubject(), authorizationInfo.getAuthenticatedUserAuthorizationInfo())
+            + ", "
+            + unauthorizedToRunAsMessage;
     }
 
     static String actionDenied(
@@ -58,7 +62,7 @@ class AuthorizationDenialMessages {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
         }
 
-        userText += rolesDescription(authentication, authorizationInfo);
+        userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);
 
         String message = actionIsUnauthorizedMessage(action, userText);
         if (context != null) {
@@ -99,64 +103,58 @@ class AuthorizationDenialMessages {
         return userText;
     }
 
-    private static String rolesDescription(Authentication authentication, @Nullable AuthorizationInfo authorizationInfo) {
-        // The run-as user is always from a realm. So it must have roles that can be printed.
-        // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
-        // roles, but privileges)
-        if (false == authentication.isServiceAccount() && false == authentication.isApiKey()) {
-            final StringBuilder sb = new StringBuilder();
-            final boolean hasDeclaredRoleNames = authentication.getEffectiveSubject().getUser().roles().length > 0;
-            if (hasDeclaredRoleNames) {
-                sb.append(" with declared roles [")
-                    .append(Strings.arrayToCommaDelimitedString(authentication.getEffectiveSubject().getUser().roles()))
-                    .append("]");
-            } else {
-                sb.append(" with no declared roles");
-            }
-            if (authorizationInfo == null) {
-                return sb.toString();
-            }
-
-            final Set<String> resolvedRoleNames;
-            final Role role = RBACEngine.maybeGetRBACEngineRole(authorizationInfo);
-            if (role == Role.EMPTY) {
-                resolvedRoleNames = Set.of();
-            } else {
-                resolvedRoleNames = Set.of((String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
-            }
-            if (hasDeclaredRoleNames) {
-                sb.append(" (");
-                final Set<String> declaredRoleNames = Set.of(authentication.getEffectiveSubject().getUser().roles());
-                final Set<String> intersection = Sets.intersection(declaredRoleNames, resolvedRoleNames);
-                if (intersection.equals(declaredRoleNames)) {
-                    sb.append("all resolved");
-                } else {
-                    if (intersection.isEmpty()) {
-                        sb.append("none resolved");
-                    } else {
-                        sb.append("unresolved [")
-                            .append(Strings.collectionToCommaDelimitedString(Sets.sortedDifference(declaredRoleNames, intersection)))
-                            .append("]");
-                    }
-                }
-                final SortedSet<String> additionalRoleNames = Sets.sortedDifference(resolvedRoleNames, intersection);
-                if (false == additionalRoleNames.isEmpty()) {
-                    sb.append(", additionally resolved [")
-                        .append(Strings.collectionToCommaDelimitedString(additionalRoleNames))
-                        .append("]");
-                }
-                sb.append(")");
-            } else {
-                if (false == resolvedRoleNames.isEmpty()) {
-                    sb.append("(additionally resolved [")
-                        .append(Strings.collectionToCommaDelimitedString(resolvedRoleNames.stream().sorted().toList()));
-                    sb.append("])");
-                }
-            }
-            return sb.toString();
-        } else {
+    private static String rolesDescription(Subject subject, @Nullable AuthorizationInfo authorizationInfo) {
+        // We cannot print the roles if it's an API key or a service account (both do not have roles, but privileges)
+        if (subject.getType() != Subject.Type.USER) {
             return "";
         }
+
+        final StringBuilder sb = new StringBuilder();
+        final boolean hasDeclaredRoleNames = subject.getUser().roles().length > 0;
+        if (hasDeclaredRoleNames) {
+            sb.append(" with declared roles [").append(Strings.arrayToCommaDelimitedString(subject.getUser().roles())).append("]");
+        } else {
+            sb.append(" with no declared roles");
+        }
+        if (authorizationInfo == null) {
+            return sb.toString();
+        }
+
+        final Set<String> resolvedRoleNames;
+        final Role role = RBACEngine.maybeGetRBACEngineRole(authorizationInfo);
+        if (role == Role.EMPTY) {
+            resolvedRoleNames = Set.of();
+        } else {
+            resolvedRoleNames = Set.of((String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
+        }
+        if (hasDeclaredRoleNames) {
+            sb.append(" (");
+            final Set<String> declaredRoleNames = Set.of(subject.getUser().roles());
+            final Set<String> intersection = Sets.intersection(declaredRoleNames, resolvedRoleNames);
+            if (intersection.equals(declaredRoleNames)) {
+                sb.append("all resolved");
+            } else {
+                if (intersection.isEmpty()) {
+                    sb.append("none resolved");
+                } else {
+                    sb.append("unresolved [")
+                        .append(Strings.collectionToCommaDelimitedString(Sets.sortedDifference(declaredRoleNames, intersection)))
+                        .append("]");
+                }
+            }
+            final SortedSet<String> additionalRoleNames = Sets.sortedDifference(resolvedRoleNames, intersection);
+            if (false == additionalRoleNames.isEmpty()) {
+                sb.append(", additionally resolved [").append(Strings.collectionToCommaDelimitedString(additionalRoleNames)).append("]");
+            }
+            sb.append(")");
+        } else {
+            if (false == resolvedRoleNames.isEmpty()) {
+                sb.append(" (additionally resolved [")
+                    .append(Strings.collectionToCommaDelimitedString(resolvedRoleNames.stream().sorted().toList()));
+                sb.append("])");
+            }
+        }
+        return sb.toString();
     }
 
     private static String actionIsUnauthorizedMessage(String action, String userText) {

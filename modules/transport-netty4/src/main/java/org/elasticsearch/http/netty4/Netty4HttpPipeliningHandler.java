@@ -286,8 +286,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                 currentWrite = queuedWrites.poll();
             }
             if (currentWrite == null) {
-                // no write from a non-chunked message was found queued to be written, check if a chunked message might have become
-                // writable
+                // no bytes were found queued, check if a chunked message might have become writable
                 if (currentChunkedWrite != null) {
                     if (writeChunk(ctx, currentChunkedWrite.combiner, currentChunkedWrite.response.body())) {
                         finishChunkedWrite();

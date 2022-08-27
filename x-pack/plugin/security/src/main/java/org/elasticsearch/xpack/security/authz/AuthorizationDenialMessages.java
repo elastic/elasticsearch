@@ -103,7 +103,7 @@ class AuthorizationDenialMessages {
         return userText;
     }
 
-    private static String rolesDescription(Subject subject, @Nullable AuthorizationInfo authorizationInfo) {
+    static String rolesDescription(Subject subject, @Nullable AuthorizationInfo authorizationInfo) {
         // We cannot print the roles if it's an API key or a service account (both do not have roles, but privileges)
         if (subject.getType() != Subject.Type.USER) {
             return "";

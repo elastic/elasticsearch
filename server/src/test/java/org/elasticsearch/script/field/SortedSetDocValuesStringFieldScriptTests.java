@@ -19,6 +19,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ public class SortedSetDocValuesStringFieldScriptTests extends ESTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 SortedSetDocValuesStringFieldScript docValues = new SortedSetDocValuesStringFieldScript(
                     "test",
-                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
                     reader.leaves().get(0)
                 );
                 List<String> values = new ArrayList<>();

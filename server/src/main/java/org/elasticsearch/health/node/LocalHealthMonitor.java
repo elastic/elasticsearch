@@ -159,10 +159,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
     }
 
     private void resetOnHealthNodeChange(DiscoveryNode currentHealthNode, ClusterChangedEvent event) {
-        if (isNewHealthNode(currentHealthNode, event)) {
+        if (hasHealthNodeChanged(currentHealthNode, event)) {
             // The new health node might not have any information yet, so the last
             // reported health info gets reset to null.
-            lastSeenHealthNode.set(currentHealthNode.getId());
+            lastSeenHealthNode.set(currentHealthNode == null ? null : currentHealthNode.getId());
             lastReportedDiskHealthInfo.set(null);
         }
     }
@@ -170,7 +170,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // We compare the current health node against both the last seen health node from this node and the
     // health node reported in the previous cluster state to be safe that we do not miss any change due to
     // a flaky state.
-    private boolean isNewHealthNode(DiscoveryNode currentHealthNode, ClusterChangedEvent event) {
+    private boolean hasHealthNodeChanged(DiscoveryNode currentHealthNode, ClusterChangedEvent event) {
         DiscoveryNode previousHealthNode = HealthNode.findHealthNode(event.previousState());
         if (currentHealthNode == null) {
             return true;

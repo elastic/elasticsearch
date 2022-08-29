@@ -35,6 +35,19 @@ public class TransportDeletePipelineAction extends HandledTransportAction<Delete
 
     @Override
     protected void doExecute(Task task, DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
+        deletePipeline(client, request, listener);
+    }
+
+    private static void handleFailure(Exception e, ActionListener<DeletePipelineResponse> listener) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof IndexNotFoundException) {
+            listener.onResponse(new DeletePipelineResponse(false));
+        } else {
+            listener.onFailure(e);
+        }
+    }
+
+    static void deletePipeline(Client client, DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
         client.prepareDelete(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.id())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(
@@ -43,14 +56,5 @@ public class TransportDeletePipelineAction extends HandledTransportAction<Delete
                     e -> handleFailure(e, listener)
                 )
             );
-    }
-
-    private void handleFailure(Exception e, ActionListener<DeletePipelineResponse> listener) {
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        if (cause instanceof IndexNotFoundException) {
-            listener.onResponse(new DeletePipelineResponse(false));
-        } else {
-            listener.onFailure(e);
-        }
     }
 }

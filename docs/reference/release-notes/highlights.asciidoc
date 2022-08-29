@@ -17,13 +17,95 @@ Other versions:
 | {ref-bare}/8.1/release-highlights.html[8.1]
 | {ref-bare}/8.0/release-highlights.html[8.0]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+
+[discrete]
+[[speed_up_filters_range_date_histogram_aggs]]
+=== Speed up filters/range/date_histogram aggs
+This speeds up a few aggregations when they don't have child aggregations.
+That's super common, for example, the histogram at the top of Kibana's
+discover tab is a `date_histogram` without any child aggregations. That
+particular aggregation is sped up by about 85% in our rally tests, dropping
+from 250ms to 30ms.
+
+{es-pull}81322[#81322]
+
+[discrete]
+[[minimum_conditions_for_rollover_api_ilm_actions]]
+=== Minimum conditions for the rollover API and ILM actions
+The rollover API and ILM actions now support minimum conditions for rollover.
+
+Minimum conditions prevent rollover from occuring until they are met. That is, an index
+will rollover once one or more max conditions are satisfied and all min conditions are satisfied.
+
+As an example, the following ILM policy would roll an index over if it is at least 7 days old or
+at least 100 gigabytes, but only as long as the index is not empty.
+
+[source,console]
+----
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover" : {
+            "max_age": "7d",
+            "max_size": "100gb",
+            "min_docs": 1
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+{es-pull}83345[#83345]
+
+[discrete]
+[[infinite_adaptive_retries_for_transforms]]
+=== Infinite and adaptive retries for transforms
+Infinite and adaptive retries – available in 8.4 – makes it possible for 
+transforms to recover after a failure without any user intervention. Retries 
+can be configured per transform. The transform retries become less frequent 
+progressively. The interval between retries doubles after reaching a one-hour 
+threshold. This is because the possibility that retries solve the problem is 
+less likely after each failed retry.
+
+In the *Transforms* page in *{stack-manage-app}* in {kib}, the number of retries 
+can be configured when creating a new transform or editing an existing one.
+
+{es-pull}87361[#87361]
+
+[discrete]
+[[composite_aggregations_in_datafeeds_are_generally_available]]
+=== Composite aggregations in datafeeds are Generally Available
+The support for
+{ml-docs}/ml-configuring-aggregation.html#aggs-using-composite[composite aggregations]
+in datafeeds is now generally available.
+
+[discrete]
+[[early-stopping-dfa]]
+=== Optimizing speed of {dfanalytics}
+{dfanalytics-cap} is even faster in 8.4. The new function automatically
+stops the process of hyperparameter optimization early in case the
+accuracy gain for a different set of hyperparameter values would be
+insignificant. The early stopping of the optimization process results in a
+shorter runtime for the {dfanalytics-job}.
+
+{es-pull}88589[#88589]
+
+[discrete]
+[[integrate_ann_into_search_endpoint]]
+=== Integrate ANN into `_search` endpoint
+This change adds a `knn` option to the `_search` API to support ANN
+search. It's powered by the same Lucene ANN capabilities as the old
+`_knn_search` endpoint. The `knn` option can be combined with other
+search features like queries and aggregations.
+
+{es-pull}88694[#88694]
+
 // end::notable-highlights[]
 
 

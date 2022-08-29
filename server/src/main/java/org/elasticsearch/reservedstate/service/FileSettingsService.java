@@ -62,6 +62,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private volatile FileUpdateState fileUpdateState = null;
     private volatile WatchKey settingsDirWatchKey = null;
+    private volatile WatchKey configDirWatchKey = null;
 
     private volatile boolean active = false;
     private volatile boolean initialState = true;
@@ -206,6 +207,17 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return this.watchService != null;
     }
 
+    private void cleanupWatchKeys() {
+        if (settingsDirWatchKey != null) {
+            settingsDirWatchKey.cancel();
+            settingsDirWatchKey = null;
+        }
+        if (configDirWatchKey != null) {
+            configDirWatchKey.cancel();
+            configDirWatchKey = null;
+        }
+    }
+
     synchronized void startWatcher(ClusterState clusterState, boolean onStartup) {
         if (watching() || active == false) {
             refreshExistingFileStateIfNeeded(clusterState);
@@ -245,10 +257,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             // We watch the config directory always, even if initially we had an operator directory
             // it can be deleted and created later. The config directory never goes away, we only
             // register it once for watching.
-            enableSettingsWatcher(null, operatorSettingsDir().getParent());
+            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, operatorSettingsDir().getParent());
         } catch (Exception e) {
             if (watchService != null) {
                 try {
+                    cleanupWatchKeys();
                     this.watchService.close();
                 } catch (Exception ignore) {} finally {
                     this.watchService = null;
@@ -322,10 +335,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         logger.debug("stopping watcher ...");
         if (watching()) {
             try {
-                if (settingsDirWatchKey != null) {
-                    settingsDirWatchKey.cancel();
-                    settingsDirWatchKey = null;
-                }
+                cleanupWatchKeys();
                 fileUpdateState = null;
                 watchService.close();
                 if (watcherThreadLatch != null) {

@@ -40,6 +40,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -292,6 +293,23 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         }
     }
 
+    public void testSyntheticSourceAccess() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"));
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> {
+                        searcher.count(fieldType.termQuery("1-suffix", mockContext(true, null, new SourceLookup.NullSourceProvider())));
+                    }
+                );
+            }
+        }
+    }
+
     @Override
     protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx);
@@ -389,7 +407,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             case "read_foo" -> (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit(foo.toString());
                     }
                 }
@@ -397,7 +415,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             case "append_param" -> (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit(foo.toString() + getParams().get("param").toString());
                     }
                 }

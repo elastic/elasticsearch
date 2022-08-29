@@ -162,7 +162,6 @@ public class RunTask extends DefaultTestClustersTask {
         if (initOnly) {
             return;
         }
-        getClusters().forEach(ElasticsearchCluster::waitForAllConditions);
         List<BufferedReader> toRead = new ArrayList<>();
         List<BooleanSupplier> aliveChecks = new ArrayList<>();
 
@@ -172,6 +171,7 @@ public class RunTask extends DefaultTestClustersTask {
 
         try {
             for (ElasticsearchCluster cluster : getClusters()) {
+                cluster.writeUnicastHostsFiles();
                 for (ElasticsearchNode node : cluster.getNodes()) {
                     BufferedReader reader = Files.newBufferedReader(node.getEsOutputFile());
                     toRead.add(reader);

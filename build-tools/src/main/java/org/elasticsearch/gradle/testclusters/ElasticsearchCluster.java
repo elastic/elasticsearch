@@ -438,7 +438,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.all(node -> node.requiresFeature(feature, from, until));
     }
 
-    private void writeUnicastHostsFiles() {
+    public void writeUnicastHostsFiles() {
         String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
         nodes.forEach(node -> {
             try {

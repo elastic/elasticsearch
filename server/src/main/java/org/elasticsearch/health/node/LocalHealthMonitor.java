@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
@@ -142,16 +143,16 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        DiscoveryNode current = HealthNode.findHealthNode(event.state());
+        DiscoveryNode currentHealthNode = HealthNode.findHealthNode(event.state());
         prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
             && HealthMetadata.getFromClusterState(event.state()) != null
-            && current != null;
+            && currentHealthNode != null;
         if (prerequisitesFulfilled) {
-            DiscoveryNode previous = HealthNode.findHealthNode(event.previousState());
-            if (Objects.equals(previous, current) == false) {
+            DiscoveryNode previousHealthNode = HealthNode.findHealthNode(event.previousState());
+            if (Objects.equals(previousHealthNode, currentHealthNode) == false) {
                 // The new health node does not have any information yet, so the last
                 // reported health info gets reset to null.
-                lastSeenHealthNode.set(current.getId());
+                lastSeenHealthNode.set(currentHealthNode.getId());
                 lastReportedDiskHealthInfo.set(null);
             }
         }
@@ -202,6 +203,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         }
     }
 
+    @Nullable
     DiskHealthInfo getLastReportedDiskHealthInfo() {
         return lastReportedDiskHealthInfo.get();
     }

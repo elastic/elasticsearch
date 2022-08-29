@@ -1,0 +1,5 @@
+pr: 89005
+summary: Preemptively compute `RoutingNodes` and the indices lookup during publication
+area: Cluster Coordination
+type: enhancement
+issues: []

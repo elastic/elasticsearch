@@ -28,6 +28,7 @@ tasks.named("dependencyLicenses").configure {
 
 dependencies {
   compileOnly project(":server")
+  api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-ssl-config")
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"

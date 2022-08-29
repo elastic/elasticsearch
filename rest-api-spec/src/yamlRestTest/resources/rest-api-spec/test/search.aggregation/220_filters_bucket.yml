@@ -250,6 +250,32 @@ setup:
   - match: { aggregations.the_filter.meta.foo: "bar" }
 
 ---
+"Unexpected metadata test":
+  - skip:
+      version: " - 8.4.99"
+      reason: "Fixed in 8.5"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters:
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_filter.buckets.first_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.second_filter.doc_count: 1 }
+  - is_false: aggregations.the_filter.meta
+
+---
 "Bad params":
   - skip:
       version: " - 7.1.99"

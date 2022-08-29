@@ -222,7 +222,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private final String[] allClosedIndices;
     private final String[] visibleClosedIndices;
 
-    private SortedMap<String, IndexAbstraction> indicesLookup;
+    private volatile SortedMap<String, IndexAbstraction> indicesLookup;
     private final Map<String, MappingMetadata> mappingsByHash;
 
     private final Version oldestIndexVersion;
@@ -509,11 +509,26 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return true;
     }
 
+    public boolean indicesLookupInitialized() {
+        return indicesLookup != null;
+    }
+
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
-        if (indicesLookup == null) {
-            indicesLookup = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        SortedMap<String, IndexAbstraction> lookup = indicesLookup;
+        if (lookup == null) {
+            lookup = buildIndicesLookup();
         }
-        return indicesLookup;
+        return lookup;
+    }
+
+    private synchronized SortedMap<String, IndexAbstraction> buildIndicesLookup() {
+        SortedMap<String, IndexAbstraction> i = indicesLookup;
+        if (i != null) {
+            return i;
+        }
+        i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        indicesLookup = i;
+        return i;
     }
 
     public boolean sameIndicesLookup(Metadata other) {
@@ -1009,9 +1024,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return Optional.ofNullable((NodesShutdownMetadata) this.custom(NodesShutdownMetadata.TYPE))
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .orElse(Collections.emptyMap());
+        return this.custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY).getAllNodeMetadataMap();
     }
 
     public Map<String, Custom> customs() {
@@ -1111,26 +1124,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return false;
         }
         return true;
-    }
-
-    /**
-     * Reconciles the cluster state metadata taken at the end of a snapshot with the data streams and indices
-     * contained in the snapshot. Certain actions taken during a snapshot such as rolling over a data stream
-     * or deleting a backing index may result in situations where some reconciliation is required.
-     *
-     * @return Reconciled {@link Metadata} instance
-     */
-    public static Metadata snapshot(Metadata metadata, List<String> dataStreams, List<String> indices) {
-        var builder = Metadata.builder(metadata);
-        for (var dsName : dataStreams) {
-            var dataStream = metadata.dataStreams().get(dsName);
-            if (dataStream == null) {
-                // should never occur since data streams cannot be deleted while they have snapshots underway
-                throw new IllegalArgumentException("unable to find data stream [" + dsName + "]");
-            }
-            builder.put(dataStream.snapshot(indices));
-        }
-        return builder.build();
     }
 
     @Override
@@ -1755,7 +1748,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder removeCustomIf(BiPredicate<String, Custom> p) {
-            customs.removeAll(p::test);
+            customs.removeAll(p);
             return this;
         }
 
@@ -1777,11 +1770,21 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         /**
          * Adds a {@link ReservedStateMetadata} for a given namespace to the metadata builder
-         * @param metadata an {@link ReservedStateMetadata}
+         * @param metadata a {@link ReservedStateMetadata}
          * @return {@link Builder}
          */
         public Builder put(ReservedStateMetadata metadata) {
             reservedStateMetadata.put(metadata.namespace(), metadata);
+            return this;
+        }
+
+        /**
+         * Removes a {@link ReservedStateMetadata} for a given namespace
+         * @param metadata a {@link ReservedStateMetadata}
+         * @return {@link Builder}
+         */
+        public Builder removeReservedState(ReservedStateMetadata metadata) {
+            reservedStateMetadata.remove(metadata.namespace());
             return this;
         }
 

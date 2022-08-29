@@ -135,7 +135,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
         assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
-        localHealthMonitor.maybeScheduleNow();
+        localHealthMonitor.maybeStartScheduleNow();
         assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
         // Ensure the run has been completed
         assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
@@ -156,7 +156,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         simulateHealthDiskSpace();
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
         assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
-        localHealthMonitor.maybeScheduleNow();
+        localHealthMonitor.maybeStartScheduleNow();
         assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, null);
         assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
     }
@@ -183,7 +183,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         when(clusterService.state()).thenReturn(previous);
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        localHealthMonitor.maybeScheduleNow();
+        localHealthMonitor.maybeStartScheduleNow();
         assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
         assertThat(localHealthMonitor.isInProgress(), equalTo(false));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));

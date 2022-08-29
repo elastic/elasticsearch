@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
@@ -173,47 +174,57 @@ public class LocalHealthMonitor implements ClusterStateListener {
     }
 
     private void monitorHealth() {
-        if (inProgress.compareAndSet(false, true) && prerequisitesFulfilled) {
-            ClusterState clusterState = clusterService.state();
-            HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
-            if (healthMetadata == null) {
-                logger.debug("Couldn't retrieve health metadata.");
+        if (prerequisitesFulfilled && inProgress.compareAndSet(false, true)) {
+            boolean healthNodeSuccessfullyUpdated = false;
+            final Runnable release = new RunOnce(() -> {
                 inProgress.set(false);
-                return;
-            }
-            DiskHealthInfo previousHealth = this.lastReportedDiskHealthInfo.get();
-            DiskHealthInfo currentHealth = diskCheck.getHealth(healthMetadata, clusterState);
-            if (currentHealth.equals(previousHealth) == false) {
-                String nodeId = clusterService.localNode().getId();
-                String healthNodeId = lastSeenHealthNode.get();
-                ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
-                    // Update the last reported value only if the health node hasn't changed.
-                    if (Objects.equals(healthNodeId, lastSeenHealthNode.get())
-                        && lastReportedDiskHealthInfo.compareAndSet(previousHealth, currentHealth)) {
-                        logger.debug(
-                            "Health info [{}] successfully sent, last reported value: {}.",
-                            currentHealth,
-                            lastReportedDiskHealthInfo.get()
-                        );
-                    }
-                }, e -> logger.error(() -> format("Failed to send health info [%s] to health node, will try again.", currentHealth), e));
-                client.execute(
-                    UpdateHealthInfoCacheAction.INSTANCE,
-                    new UpdateHealthInfoCacheAction.Request(nodeId, currentHealth),
-                    ActionListener.runAfter(listener, () -> {
-                        inProgress.set(false);
-                        // Scheduling happens after the flag inProgress is false, this ensures that
-                        // if the feature is enabled after the following schedule statement, the setEnabled
-                        // method will be able to schedule the next run, and it will not be a no-op.
-                        // We prefer to err towards an extra scheduling than miss the enabling of this feature alltogether.
-                        maybeScheduleNextRun(monitorInterval);
-                    })
-                );
-            } else {
-                inProgress.set(false);
+                // Scheduling happens after the flag inProgress is false, this ensures that
+                // if the feature is enabled after the following schedule statement, the setEnabled
+                // method will be able to schedule the next run, and it will not be a no-op.
+                // We prefer to err towards an extra scheduling than miss the enabling of this feature alltogether.
                 maybeScheduleNextRun(monitorInterval);
+            });
+            try {
+                healthNodeSuccessfullyUpdated = updateIfHealthChanged(release);
+            } finally {
+                if (healthNodeSuccessfullyUpdated == false) {
+                    release.run();
+                }
             }
         }
+    }
+
+    private boolean updateIfHealthChanged(Runnable release) {
+        ClusterState clusterState = clusterService.state();
+        HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
+        if (healthMetadata == null) {
+            logger.debug("Couldn't retrieve health metadata.");
+            return false;
+        }
+        DiskHealthInfo previousHealth = this.lastReportedDiskHealthInfo.get();
+        DiskHealthInfo currentHealth = diskCheck.getHealth(healthMetadata, clusterState);
+        if (currentHealth.equals(previousHealth) == false) {
+            String nodeId = clusterService.localNode().getId();
+            String healthNodeId = lastSeenHealthNode.get();
+            ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
+                // Update the last reported value only if the health node hasn't changed.
+                if (Objects.equals(healthNodeId, lastSeenHealthNode.get())
+                    && lastReportedDiskHealthInfo.compareAndSet(previousHealth, currentHealth)) {
+                    logger.debug(
+                        "Health info [{}] successfully sent, last reported value: {}.",
+                        currentHealth,
+                        lastReportedDiskHealthInfo.get()
+                    );
+                }
+            }, e -> logger.error(() -> format("Failed to send health info [%s] to health node, will try again.", currentHealth), e));
+            client.execute(
+                UpdateHealthInfoCacheAction.INSTANCE,
+                new UpdateHealthInfoCacheAction.Request(nodeId, currentHealth),
+                ActionListener.runAfter(listener, release)
+            );
+            return true;
+        }
+        return false;
     }
 
     @Nullable

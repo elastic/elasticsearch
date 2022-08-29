@@ -11,10 +11,8 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -213,17 +211,4 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return delegate.arrayOffset();
     }
 
-    private static final class RefCountedReleasable extends AbstractRefCounted {
-
-        private final Releasable releasable;
-
-        RefCountedReleasable(Releasable releasable) {
-            this.releasable = releasable;
-        }
-
-        @Override
-        protected void closeInternal() {
-            Releasables.closeExpectNoException(releasable);
-        }
-    }
 }

@@ -830,7 +830,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             sb.append(", routing[").append(routing).append("]");
         }
         if (preference != null) {
-            sb.append(", preference]").append(preference).append("]");
+            sb.append(", preference[").append(preference).append("]");
         }
         return sb.toString();
     }

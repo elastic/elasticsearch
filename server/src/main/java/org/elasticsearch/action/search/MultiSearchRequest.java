@@ -381,8 +381,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             public String getDescription() {
                 return "requests["
                     + requests.size()
-                    + "]"
-                    + requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining("|"));
+                    + "]: "
+                    + requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(" | "));
             }
         };
     }

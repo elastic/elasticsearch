@@ -7,20 +7,18 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.MultiPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
-public abstract class AbstractLeafGeoPointFieldData extends LeafPointFieldData<GeoPoint> {
+public abstract class LeafGeoPointFieldData extends LeafPointFieldData<MultiGeoPointValues> {
 
-    protected final ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory;
 
-    public AbstractLeafGeoPointFieldData(ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory) {
+    public LeafGeoPointFieldData(ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory) {
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 

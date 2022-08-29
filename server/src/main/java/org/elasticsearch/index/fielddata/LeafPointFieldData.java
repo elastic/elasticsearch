@@ -8,17 +8,16 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.geo.ElasticPoint;
 
 /**
  * {@link LeafFieldData} specialization for geo points and points.
  */
-public abstract class LeafPointFieldData<T extends ElasticPoint> implements LeafFieldData {
+public abstract class LeafPointFieldData<T extends MultiPointValues<?>> implements LeafFieldData {
 
     /**
      * Return geo-point or point values.
      */
-    public abstract MultiPointValues<T> getPointValues();
+    public abstract T getPointValues();
 
     /**
      * Return the internal representation of geo_point or point doc values as a {@link SortedNumericDocValues}.

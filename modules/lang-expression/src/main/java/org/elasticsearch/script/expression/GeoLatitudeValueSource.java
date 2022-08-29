@@ -10,10 +10,9 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.MultiPointValues;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.plain.LeafGeoPointFieldData;
 
 import java.io.IOException;
 
@@ -28,8 +27,8 @@ final class GeoLatitudeValueSource extends FieldDataBasedDoubleValuesSource {
 
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
-        AbstractLeafGeoPointFieldData leafData = (AbstractLeafGeoPointFieldData) fieldData.load(leaf);
-        final MultiPointValues<GeoPoint> values = leafData.getPointValues();
+        LeafGeoPointFieldData leafData = (LeafGeoPointFieldData) fieldData.load(leaf);
+        final MultiGeoPointValues values = leafData.getPointValues();
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {

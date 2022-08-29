@@ -8,9 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.geo.ElasticPoint;
-
 /**
  * Specialization of {@link IndexFieldData} for geo points and points.
  */
-public interface IndexPointFieldData<T extends ElasticPoint> extends IndexFieldData<LeafPointFieldData<T>> {}
+public interface IndexPointFieldData<T extends MultiPointValues<?>> extends IndexFieldData<LeafPointFieldData<T>> {}

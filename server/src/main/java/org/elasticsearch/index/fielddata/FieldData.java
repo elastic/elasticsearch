@@ -217,7 +217,7 @@ public enum FieldData {
      * Returns a single-valued view of the {@link MultiGeoPointValues},
      * if the wrapped {@link SortedNumericDocValues} is a singleton.
      */
-    public static PointValues<?> unwrapSingleton(MultiPointValues<? extends ElasticPoint> values) {
+    public static GeoPointValues unwrapSingleton(MultiGeoPointValues values) {
         return values.getPointValues();
     }
 

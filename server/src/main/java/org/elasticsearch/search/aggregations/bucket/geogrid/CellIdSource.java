@@ -53,7 +53,7 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
     @Override
     public final SortedNumericDocValues longValues(LeafReaderContext ctx) {
         final MultiGeoPointValues multiGeoPointValues = valuesSource.geoPointValues(ctx);
-        final GeoPointValues values = (GeoPointValues) org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(multiGeoPointValues);
+        final GeoPointValues values = org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(multiGeoPointValues);
         if (geoBoundingBox.isUnbounded()) {
             return values == null ? unboundedCellMultiValues(multiGeoPointValues) : DocValues.singleton(unboundedCellSingleValue(values));
         } else {

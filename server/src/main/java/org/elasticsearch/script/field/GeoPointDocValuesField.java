@@ -11,14 +11,14 @@ package org.elasticsearch.script.field;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.index.fielddata.MultiPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 public class GeoPointDocValuesField extends PointDocValuesField<GeoPoint> {
     // maintain bwc by making centroid and bounding box available to ScriptDocValues.GeoPoints
     private ScriptDocValues.GeoPoints geoPoints = null;
 
-    public GeoPointDocValuesField(MultiPointValues<GeoPoint> input, String name) {
+    public GeoPointDocValuesField(MultiGeoPointValues input, String name) {
         super(input, name, GeoPoint::new, new GeoBoundingBox(new GeoPoint(), new GeoPoint()), new GeoPoint[0]);
     }
 

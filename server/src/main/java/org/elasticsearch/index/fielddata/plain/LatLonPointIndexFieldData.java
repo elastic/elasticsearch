@@ -13,27 +13,26 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.LeafPointFieldData;
-import org.elasticsearch.index.fielddata.MultiPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-public class LatLonPointIndexFieldData extends AbstractPointIndexFieldData<GeoPoint> implements IndexGeoPointFieldData {
+public final class LatLonPointIndexFieldData extends AbstractPointIndexFieldData<MultiGeoPointValues> implements IndexGeoPointFieldData {
     public LatLonPointIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory
+        ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, toScriptFieldFactory);
     }
 
     @Override
-    public LeafPointFieldData<GeoPoint> load(LeafReaderContext context) {
+    public LeafPointFieldData<MultiGeoPointValues> load(LeafReaderContext context) {
         LeafReader reader = context.reader();
         FieldInfo info = reader.getFieldInfos().fieldInfo(fieldName);
         if (info != null) {
@@ -43,7 +42,7 @@ public class LatLonPointIndexFieldData extends AbstractPointIndexFieldData<GeoPo
     }
 
     @Override
-    public LeafPointFieldData<GeoPoint> loadDirect(LeafReaderContext context) throws Exception {
+    public LeafPointFieldData<MultiGeoPointValues> loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 
@@ -67,13 +66,9 @@ public class LatLonPointIndexFieldData extends AbstractPointIndexFieldData<GeoPo
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;
-        private final ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory;
+        private final ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory;
 
-        public Builder(
-            String name,
-            ValuesSourceType valuesSourceType,
-            ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory
-        ) {
+        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;

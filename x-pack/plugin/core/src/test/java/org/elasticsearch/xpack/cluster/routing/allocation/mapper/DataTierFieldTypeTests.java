@@ -88,7 +88,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testFetchValue() throws IOException {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        SourceLookup lookup = new SourceLookup();
+        SourceLookup lookup = new SourceLookup(new SourceLookup.NullSourceProvider());
 
         List<Object> ignoredValues = new ArrayList<>();
         ValueFetcher valueFetcher = ft.valueFetcher(createContext(), null);

@@ -17,6 +17,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.IOUtils;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_DN;
@@ -41,7 +43,6 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.sear
 class LdapUserSearchSessionFactory extends PoolingSessionFactory {
 
     static final String SEARCH_PREFIX = "user_search.";
-
     private final String userSearchBaseDn;
     private final LdapSearchScope scope;
     private final String searchFilter;
@@ -66,14 +67,14 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
         logger.info("Realm [{}] is in user-search mode - base_dn=[{}], search filter=[{}]", config.name(), userSearchBaseDn, searchFilter);
     }
 
-    static boolean hasUserSearchSettings(RealmConfig config) {
+    static List<? extends Setting.AffixSetting<?>> configuredUserSearchSettings(RealmConfig config) {
         return Stream.of(
             LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN,
             LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE,
             LdapUserSearchSessionFactorySettings.SEARCH_SCOPE,
             LdapUserSearchSessionFactorySettings.SEARCH_FILTER,
             LdapUserSearchSessionFactorySettings.POOL_ENABLED
-        ).anyMatch(config::hasSetting);
+        ).filter(config::hasSetting).toList();
     }
 
     /**

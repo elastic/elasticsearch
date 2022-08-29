@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingResponse;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
+import java.util.Optional;
 import java.util.Set;
 
 public class TransportDeleteRoleMappingAction extends ReservedStateAwareHandledTransportAction<
@@ -46,12 +47,12 @@ public class TransportDeleteRoleMappingAction extends ReservedStateAwareHandledT
     }
 
     @Override
-    protected String reservedStateHandlerName() {
-        return ReservedRoleMappingAction.NAME;
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedRoleMappingAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(DeleteRoleMappingRequest request) {
+    public Set<String> modifiedKeys(DeleteRoleMappingRequest request) {
         return Set.of(request.getName());
     }
 }

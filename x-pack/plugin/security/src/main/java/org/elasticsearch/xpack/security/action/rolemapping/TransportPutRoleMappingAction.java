@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
+import java.util.Optional;
 import java.util.Set;
 
 public class TransportPutRoleMappingAction extends ReservedStateAwareHandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
@@ -48,12 +49,12 @@ public class TransportPutRoleMappingAction extends ReservedStateAwareHandledTran
     }
 
     @Override
-    protected String reservedStateHandlerName() {
-        return ReservedRoleMappingAction.NAME;
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedRoleMappingAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(PutRoleMappingRequest request) {
+    public Set<String> modifiedKeys(PutRoleMappingRequest request) {
         return Set.of(request.getName());
     }
 }

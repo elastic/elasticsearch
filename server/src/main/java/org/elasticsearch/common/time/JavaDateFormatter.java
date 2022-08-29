@@ -40,16 +40,17 @@ class JavaDateFormatter implements DateFormatter {
     * without this logic, the rounding would result in a conflict as HOUR_OF_DAY would be missing, but CLOCK_HOUR_OF_AMPM would be provided
     */
     private static final BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> DEFAULT_ROUND_UP = (builder, parser) -> {
-        if (parser.toString().contains(ChronoField.DAY_OF_YEAR.toString())) {
+        String parserAsString = parser.toString();
+        if (parserAsString.contains(ChronoField.DAY_OF_YEAR.toString())) {
             builder.parseDefaulting(ChronoField.DAY_OF_YEAR, 1L);
         } else {
             builder.parseDefaulting(ChronoField.MONTH_OF_YEAR, 1L);
             builder.parseDefaulting(ChronoField.DAY_OF_MONTH, 1L);
         }
-        if (parser.toString().contains(ChronoField.CLOCK_HOUR_OF_AMPM.toString())) {
+        if (parserAsString.contains(ChronoField.CLOCK_HOUR_OF_AMPM.toString())) {
             builder.parseDefaulting(ChronoField.CLOCK_HOUR_OF_AMPM, 11L);
             builder.parseDefaulting(ChronoField.AMPM_OF_DAY, 1L);
-        } else if (parser.toString().contains(ChronoField.HOUR_OF_AMPM.toString())) {
+        } else if (parserAsString.contains(ChronoField.HOUR_OF_AMPM.toString())) {
             builder.parseDefaulting(ChronoField.HOUR_OF_AMPM, 11L);
             builder.parseDefaulting(ChronoField.AMPM_OF_DAY, 1L);
         } else {

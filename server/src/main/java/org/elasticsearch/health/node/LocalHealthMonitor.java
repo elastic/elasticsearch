@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
@@ -35,13 +35,10 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.node.NodeService;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -50,7 +47,7 @@ import static org.elasticsearch.core.Strings.format;
  * Currently, it only checks for available disk space. Furthermore, it informs the health
  * node about the local health upon change or when a new node is detected.
  */
-public class LocalHealthMonitor implements ClusterStateListener {
+public class LocalHealthMonitor extends AbstractAsyncTask implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(LocalHealthMonitor.class);
 
@@ -63,27 +60,19 @@ public class LocalHealthMonitor implements ClusterStateListener {
     );
 
     private final ClusterService clusterService;
-    private final ThreadPool threadPool;
     private final DiskCheck diskCheck;
     private final Client client;
 
-    private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
 
     // Signals that all the prerequisites have been fulfilled and the monitoring task can be scheduled.
     private volatile boolean prerequisitesFulfilled;
-
-    // Ensures that only one monitoring task will be in progress at any moment in time.
-    // It removes the need to synchronize scheduling since at the event that there are two
-    // monitoring tasks scheduled, one of them will be no-op.
-    private final AtomicBoolean inProgress = new AtomicBoolean();
 
     // Keeps the latest health state that was successfully reported to the current health node.
     private final AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo = new AtomicReference<>();
     // Keeps the last seen health node. We use this variable to ensure that there wasn't a health node
     // change between the time we send an update until the time we update the lastReportedDiskHealthInfo.
     private final AtomicReference<String> lastSeenHealthNode = new AtomicReference<>();
-    private volatile Scheduler.ScheduledCancellable scheduled;
 
     private LocalHealthMonitor(
         Settings settings,
@@ -92,8 +81,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         ThreadPool threadPool,
         Client client
     ) {
-        this.threadPool = threadPool;
-        this.monitorInterval = POLL_INTERVAL_SETTING.get(settings);
+        super(logger, threadPool, POLL_INTERVAL_SETTING.get(settings), true);
         this.enabled = HealthNodeTaskExecutor.ENABLED_SETTING.get(settings);
         this.clusterService = clusterService;
         this.client = client;
@@ -114,66 +102,32 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     private void registerListeners() {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setMonitorInterval);
+        clusterSettings.addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setInterval);
         clusterSettings.addSettingsUpdateConsumer(HealthNodeTaskExecutor.ENABLED_SETTING, this::setEnabled);
         clusterService.addListener(this);
     }
 
-    void setMonitorInterval(TimeValue monitorInterval) {
-        this.monitorInterval = monitorInterval;
-        maybeStartScheduleNow();
-    }
-
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        maybeStartScheduleNow();
-    }
-
-    /**
-     * This method schedules a monitoring tasks to be executed after the given delay and ensures that there will
-     * be only a single motoring task in progress at any given time. We always check if the prerequisites are fulfilled
-     * and if the health node is enabled before we schedule a monitoring task.
-     */
-    private synchronized void maybeStartSchedule(TimeValue time) {
-        // This will override the schedule, so we cancel anything that is already scheduled.
-        // If the task is already running it will not interrupt it.
-        if (scheduled != null) {
-            scheduled.cancel();
-            scheduled = null;
-        }
-        // If a task is already in progress, that task will schedule the next run
-        if (isInProgress() == false) {
-            return;
-        }
-        if (prerequisitesFulfilled && enabled) {
-            if (threadPool.scheduler().isShutdown() == false) {
-                scheduled = threadPool.schedule(() -> ensureSingleRunAndReschedule(this::monitorHealth), time, ThreadPool.Names.MANAGEMENT);
-            }
-        }
-    }
-
-    // Helper method that starts the monitoring without a delay if it's not in progress already.
-    // Visible for testing
-    void maybeStartScheduleNow() {
-        maybeStartSchedule(TimeValue.ZERO);
+        rescheduleIfNecessaryNow();
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         DiscoveryNode currentHealthNode = HealthNode.findHealthNode(event.state());
-        resetOnHealthNodeChange(currentHealthNode, event);
         prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
             && HealthMetadata.getFromClusterState(event.state()) != null
             && currentHealthNode != null;
-        maybeStartScheduleNow();
-    }
+        boolean healthNodeChanged = hasHealthNodeChanged(currentHealthNode, event);
 
-    private void resetOnHealthNodeChange(DiscoveryNode currentHealthNode, ClusterChangedEvent event) {
-        if (hasHealthNodeChanged(currentHealthNode, event)) {
+        if (healthNodeChanged) {
             // The new health node might not have any information yet, so the last
             // reported health info gets reset to null.
             lastSeenHealthNode.set(currentHealthNode == null ? null : currentHealthNode.getId());
             lastReportedDiskHealthInfo.set(null);
+        }
+        if (prerequisitesFulfilled && (healthNodeChanged || isScheduled() == false)) {
+            rescheduleIfNecessaryNow();
         }
     }
 
@@ -189,12 +143,23 @@ public class LocalHealthMonitor implements ClusterStateListener {
             || Objects.equals(previousHealthNode, currentHealthNode) == false;
     }
 
-    /**
-     * This method evaluates the health info of this node and if there is a change it updates the health node
-     * @param release, the runnable to always execute after the health node request was sent.
-     * @return true, if the release steps were scheduled, false otherwise.
-     */
-    private boolean monitorHealth(Runnable release) {
+    @Nullable
+    DiskHealthInfo getLastReportedDiskHealthInfo() {
+        return lastReportedDiskHealthInfo.get();
+    }
+
+    @Override
+    protected boolean mustReschedule() {
+        return prerequisitesFulfilled && enabled;
+    }
+
+    @Override
+    protected void runInternal() {
+        assert false : "Local health monitor extends runInternalAsync not runInternal";
+    }
+
+    @Override
+    protected boolean runInternalAsync(Runnable rescheduleIfNecessary) {
         if (prerequisitesFulfilled == false) {
             return false;
         }
@@ -223,47 +188,16 @@ public class LocalHealthMonitor implements ClusterStateListener {
             client.execute(
                 UpdateHealthInfoCacheAction.INSTANCE,
                 new UpdateHealthInfoCacheAction.Request(nodeId, currentHealth),
-                ActionListener.runAfter(listener, release)
+                ActionListener.runAfter(listener, rescheduleIfNecessary)
             );
             return true;
         }
         return false;
     }
 
-    /**
-     * This method ensures that the monitoring given will not be executed in parallel at any given point in time and that it will
-     * be rescheduled after it's finished. To enable an action to have async code, we provide the release steps as an argument.
-     * We require that the action returns if the release code has been scheduled or not.
-     */
-    private void ensureSingleRunAndReschedule(Function<Runnable, Boolean> monitoringAction) {
-        if (inProgress.compareAndSet(false, true)) {
-            final Runnable release = new RunOnce(() -> {
-                inProgress.set(false);
-                // Scheduling happens after the flag inProgress is false, this ensures that
-                // if the feature is enabled after the following schedule statement, the setEnabled
-                // method will be able to schedule the next run, and it will not be a no-op.
-                // We prefer to err towards an extra scheduling than miss the enabling of this feature alltogether.
-                maybeStartSchedule(monitorInterval);
-            });
-            boolean released = false;
-            try {
-                released = monitoringAction.apply(release);
-            } finally {
-                if (released == false) {
-                    release.run();
-                }
-            }
-        }
-    }
-
-    @Nullable
-    DiskHealthInfo getLastReportedDiskHealthInfo() {
-        return lastReportedDiskHealthInfo.get();
-    }
-
-    // Visible for testing
-    boolean isInProgress() {
-        return inProgress.get();
+    @Override
+    protected String getThreadPool() {
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     /**

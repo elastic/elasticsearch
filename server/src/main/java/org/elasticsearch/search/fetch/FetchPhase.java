@@ -383,11 +383,12 @@ public class FetchPhase {
             if (source != null) {
                 // Store the loaded source on the hit context so that fetch subphases can access it.
                 // Also make it available to scripts by storing it on the shared SearchLookup instance.
-                hitContext.sourceLookup().setSource(source);
+                SourceLookup.BytesSourceProvider sourceBytes = new SourceLookup.BytesSourceProvider(source);
+                hitContext.sourceLookup().setSourceProvider(sourceBytes);
 
                 SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
                 scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
-                scriptSourceLookup.setSource(source);
+                scriptSourceLookup.setSourceProvider(sourceBytes);
             }
             return hitContext;
         }
@@ -486,8 +487,7 @@ public class FetchPhase {
                 }
             }
 
-            hitContext.sourceLookup().setSource(nestedSourceAsMap);
-            hitContext.sourceLookup().setSourceContentType(rootSourceContentType);
+            hitContext.sourceLookup().setSourceProvider(new SourceLookup.MapSourceProvider(nestedSourceAsMap, rootSourceContentType));
         }
         return hitContext;
     }

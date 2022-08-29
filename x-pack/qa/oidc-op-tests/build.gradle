@@ -21,7 +21,4 @@ tasks.named("processJavaRestTestResources").configure {
 tasks.named("javaRestTest").configure {
   // OpenID Connect fixture does not support aarm64
   onlyIf { Architecture.current() == Architecture.X64 }
-
-  // AwaitsFix: https://github.com/elastic/elasticsearch/issues/89477
-  enabled = false
 }

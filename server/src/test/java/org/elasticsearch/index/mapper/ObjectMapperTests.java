@@ -23,6 +23,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ObjectMapperTests extends MapperServiceTestCase {
 
@@ -515,5 +516,44 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
+    }
+
+    /**
+     * Makes sure that an empty object mapper returns {@code null} from
+     * {@link SourceLoader.SyntheticFieldLoader#docValuesLoader}. This
+     * is important because it allows us to skip whole chains of empty
+     * fields when loading synthetic {@code _source}.
+     */
+    public void testSyntheticSourceDocValuesEmpty() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("o").field("type", "object").endObject()));
+        ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+    }
+
+    /**
+     * Makes sure that an object mapper containing only fields without
+     * doc values returns {@code null} from
+     * {@link SourceLoader.SyntheticFieldLoader#docValuesLoader}. This
+     * is important because it allows us to skip whole chains of empty
+     * fields when loading synthetic {@code _source}.
+     */
+    public void testSyntheticSourceDocValuesFieldWithout() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("o").startObject("properties");
+            {
+                b.startObject("kwd");
+                {
+                    b.field("type", "keyword");
+                    b.field("doc_values", false);
+                    b.field("store", true);
+                }
+                b.endObject();
+            }
+            b.endObject().endObject();
+        }));
+        ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
     }
 }

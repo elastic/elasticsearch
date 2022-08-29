@@ -109,8 +109,9 @@ public class FetchPhase {
         // make sure that we iterate in doc id order
         Arrays.sort(docs);
 
+        SourceLoader sourceLoader = context.newSourceLoader();
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields, sourceLoader);
         profiler.visitor(fieldsVisitor);
 
         FetchContext fetchContext = new FetchContext(context);
@@ -241,7 +242,11 @@ public class FetchPhase {
         }
     }
 
-    private static FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
+    private static FieldsVisitor createStoredFieldsVisitor(
+        SearchContext context,
+        Map<String, Set<String>> storedToRequestedFields,
+        SourceLoader sourceLoader
+    ) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -250,6 +255,11 @@ public class FetchPhase {
                 context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
+            if (loadSource) {
+                if (false == sourceLoader.requiredStoredFields().isEmpty()) {
+                    return new CustomFieldsVisitor(sourceLoader.requiredStoredFields(), true);
+                }
+            }
             return new FieldsVisitor(loadSource);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
@@ -273,6 +283,9 @@ public class FetchPhase {
                 }
             }
             boolean loadSource = sourceRequired(context);
+            if (loadSource) {
+                sourceLoader.requiredStoredFields().forEach(fieldName -> storedToRequestedFields.putIfAbsent(fieldName, Set.of()));
+            }
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 return new FieldsVisitor(loadSource);
@@ -370,11 +383,12 @@ public class FetchPhase {
             if (source != null) {
                 // Store the loaded source on the hit context so that fetch subphases can access it.
                 // Also make it available to scripts by storing it on the shared SearchLookup instance.
-                hitContext.sourceLookup().setSource(source);
+                SourceLookup.BytesSourceProvider sourceBytes = new SourceLookup.BytesSourceProvider(source);
+                hitContext.sourceLookup().setSourceProvider(sourceBytes);
 
                 SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
                 scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
-                scriptSourceLookup.setSource(source);
+                scriptSourceLookup.setSourceProvider(sourceBytes);
             }
             return hitContext;
         }
@@ -473,8 +487,7 @@ public class FetchPhase {
                 }
             }
 
-            hitContext.sourceLookup().setSource(nestedSourceAsMap);
-            hitContext.sourceLookup().setSourceContentType(rootSourceContentType);
+            hitContext.sourceLookup().setSourceProvider(new SourceLookup.MapSourceProvider(nestedSourceAsMap, rootSourceContentType));
         }
         return hitContext;
     }

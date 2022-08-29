@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.TransformState;
@@ -266,9 +267,14 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
                 public void onFailure(Exception failure) {
                     fail("Shouldn't fail here");
                 }
+
+                @Override
+                public Releasable captureResponseHeaders() {
+                    return null;
+                }
             };
 
-            task.execute(state, List.of(context));
+            task.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(context), () -> null));
 
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(), any());

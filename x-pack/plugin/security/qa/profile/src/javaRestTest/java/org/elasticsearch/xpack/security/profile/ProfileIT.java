@@ -115,8 +115,19 @@ public class ProfileIT extends ESRestTestCase {
         final Response profileHasPrivilegesResponse = adminClient().performRequest(profileHasPrivilegesRequest);
         assertOK(profileHasPrivilegesResponse);
         Map<String, Object> profileHasPrivilegesResponseMap = responseAsMap(profileHasPrivilegesResponse);
-        assertThat(profileHasPrivilegesResponseMap.keySet(), contains("has_privilege_uids"));
+        assertThat(profileHasPrivilegesResponseMap.keySet(), contains("has_privilege_uids", "errors"));
         assertThat(((List<String>) profileHasPrivilegesResponseMap.get("has_privilege_uids")), contains(profileUid));
+        assertThat(
+            profileHasPrivilegesResponseMap.get("errors"),
+            equalTo(
+                Map.of(
+                    "count",
+                    1,
+                    "details",
+                    Map.of("some_missing_profile", Map.of("type", "resource_not_found_exception", "reason", "profile document not found"))
+                )
+            )
+        );
     }
 
     public void testGetProfiles() throws IOException {

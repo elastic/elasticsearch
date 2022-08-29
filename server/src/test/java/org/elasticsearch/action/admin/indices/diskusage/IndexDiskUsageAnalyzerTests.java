@@ -13,8 +13,8 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
-import org.apache.lucene.codecs.lucene92.Lucene92Codec;
-import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene94.Lucene94Codec;
+import org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
@@ -262,7 +262,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             logger.info("--> stats {}", stats);
 
             int dataBytes = numDocs * dimension * Float.BYTES; // size of flat vector data
-            int indexBytesEstimate = numDocs * Integer.BYTES * Lucene92HnswVectorsFormat.DEFAULT_MAX_CONN * 2; // rough size of HNSW graph
+            int indexBytesEstimate = numDocs * Integer.BYTES * Lucene94HnswVectorsFormat.DEFAULT_MAX_CONN * 2; // rough size of HNSW graph
             assertTrue(stats.total().getKnnVectorsBytes() > dataBytes + indexBytesEstimate);
         }
     }
@@ -323,7 +323,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     public void testCompletionField() throws Exception {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(false)
-            .setCodec(new Lucene92Codec(Lucene92Codec.Mode.BEST_SPEED) {
+            .setCodec(new Lucene94Codec(Lucene94Codec.Mode.BEST_SPEED) {
                 @Override
                 public PostingsFormat getPostingsFormatForField(String field) {
                     if (field.startsWith("suggest_")) {
@@ -410,25 +410,25 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     enum CodecMode {
         BEST_SPEED {
             @Override
-            Lucene92Codec.Mode mode() {
-                return Lucene92Codec.Mode.BEST_SPEED;
+            Lucene94Codec.Mode mode() {
+                return Lucene94Codec.Mode.BEST_SPEED;
             }
         },
 
         BEST_COMPRESSION {
             @Override
-            Lucene92Codec.Mode mode() {
-                return Lucene92Codec.Mode.BEST_COMPRESSION;
+            Lucene94Codec.Mode mode() {
+                return Lucene94Codec.Mode.BEST_COMPRESSION;
             }
         };
 
-        abstract Lucene92Codec.Mode mode();
+        abstract Lucene94Codec.Mode mode();
     }
 
     static void indexRandomly(Directory directory, CodecMode codecMode, int numDocs, Consumer<Document> addFields) throws IOException {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(randomBoolean())
-            .setCodec(new Lucene92Codec(codecMode.mode()));
+            .setCodec(new Lucene94Codec(codecMode.mode()));
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < numDocs; i++) {
                 final Document doc = new Document();
@@ -636,7 +636,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         try (DirectoryReader reader = DirectoryReader.open(source)) {
             IndexWriterConfig config = new IndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setUseCompoundFile(randomBoolean())
-                .setCodec(new Lucene92Codec(mode.mode()) {
+                .setCodec(new Lucene94Codec(mode.mode()) {
                     @Override
                     public PostingsFormat getPostingsFormatForField(String field) {
                         return new Lucene90PostingsFormat();
@@ -649,7 +649,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
                     @Override
                     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                        return new Lucene92HnswVectorsFormat();
+                        return new Lucene94HnswVectorsFormat();
                     }
 
                     @Override

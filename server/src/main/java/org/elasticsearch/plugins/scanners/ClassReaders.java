@@ -97,7 +97,7 @@ public class ClassReaders {
                     }
                 });
         } catch (IOException e) {
-            e.printStackTrace();
+//            e.printStackTrace();
         }
         return Stream.empty();
     }

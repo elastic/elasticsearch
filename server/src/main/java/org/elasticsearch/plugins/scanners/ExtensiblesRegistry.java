@@ -23,7 +23,7 @@ public class ExtensiblesRegistry {
         try {
             INSTANCE.visit(ClassReaders.ofModuleAndClassPaths());
         } catch (IOException e) {
-            e.printStackTrace();
+//            e.printStackTrace();
         }
     }
 

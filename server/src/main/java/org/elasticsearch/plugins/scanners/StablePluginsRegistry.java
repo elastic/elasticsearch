@@ -8,32 +8,30 @@
 
 package org.elasticsearch.plugins.scanners;
 
-
-import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugins.PluginBundle;
-import org.objectweb.asm.AnnotationVisitor;
-import org.objectweb.asm.Opcodes;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toUnmodifiableMap;
-
 public class StablePluginsRegistry {
 
-    private Map<String /*Extensible */, NamedPlugins> namedComponents = new HashMap<>();
+    /*
+    A map of an interface/class name marked (effectively) with @Extensible to NameToPluginInfo map
+    effectively means that an interface which extends another interface marked with @Extensible is also extensible
+    NameToPluginInfo map is a map of Name to PluginInfo
+    i.e.
+    org.elasticsearch.analysis.plugin.api.TokenFilterFactory ->
+        {"nori" -> {nori, org.elasticserach.plugin.analysis.new_nori.NoriReadingFormFilterFactory, classloaderInstance}
+     */
+    private final Map<String /*Extensible */, NameToPluginInfo> namedComponents = new HashMap<>();
+    private final NamedComponentScanner namedComponentsScanner = new NamedComponentScanner();
 
-    public Map<String /*Extensible */, NamedPlugins> scanBundleForStablePlugins(PluginBundle bundle, ClassLoader pluginClassLoader) {
-
-        NamedComponentScanner namedComponentsScanner = new NamedComponentScanner();
-
-        return namedComponentsScanner.findNamedComponents2(bundle, pluginClassLoader);
+    public void scanBundleForStablePlugins(PluginBundle bundle, ClassLoader pluginClassLoader) {
+        Map<String, NameToPluginInfo> namedComponentsFromPlugin = namedComponentsScanner.findNamedComponents(bundle, pluginClassLoader);
+        namedComponents.putAll(namedComponentsFromPlugin);
     }
 
-
-    public Map<String, NamedPlugins> getNamedComponents() {
+    public Map<String, NameToPluginInfo> getNamedComponents() {
         return namedComponents;
     }
 

@@ -9,10 +9,10 @@
 package org.elasticsearch.plugins.scanners;
 
 import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugins.scanners.testclasses.DirectlyAnnotatedExtensible;
-import org.elasticsearch.plugins.scanners.testclasses.ExtensibleInterface;
-import org.elasticsearch.plugins.scanners.testclasses.ImplementingExtensible;
-import org.elasticsearch.plugins.scanners.testclasses.SubClass;
+import org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass;
+import org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface;
+import org.elasticsearch.plugins.scanners.extensible_test_classes.ImplementingExtensible;
+import org.elasticsearch.plugins.scanners.extensible_test_classes.SubClass;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.objectweb.asm.ClassReader;
@@ -40,21 +40,21 @@ public class AnnotatedHierarchyVisitorTests extends ESTestCase {
         assertThat(foundClasses, Matchers.emptyCollectionOf(String.class));
     }
 
-
     public void testAnnotatedClass() throws IOException {
-        performScan(visitor, DirectlyAnnotatedExtensible.class);
+        performScan(visitor, ExtensibleClass.class);
 
-        assertThat(foundClasses, contains(classNameToPath(DirectlyAnnotatedExtensible.class
-           )));
+        assertThat(foundClasses, contains(classNameToPath(ExtensibleClass.class)));
     }
 
     public void testClassHierarchy() throws IOException {
-        performScan(visitor, DirectlyAnnotatedExtensible.class, SubClass.class);
+        performScan(visitor, ExtensibleClass.class, SubClass.class);
 
-        assertThat(foundClasses, contains(classNameToPath(DirectlyAnnotatedExtensible.class)));
+        assertThat(foundClasses, contains(classNameToPath(ExtensibleClass.class)));
 
-        assertThat(visitor.getClassHierarchy(),
-            equalTo(Map.of(classNameToPath(DirectlyAnnotatedExtensible.class), Set.of(classNameToPath(SubClass.class)))));
+        assertThat(
+            visitor.getClassHierarchy(),
+            equalTo(Map.of(classNameToPath(ExtensibleClass.class), Set.of(classNameToPath(SubClass.class))))
+        );
     }
 
     public void testInterfaceHierarchy() throws IOException {
@@ -62,19 +62,18 @@ public class AnnotatedHierarchyVisitorTests extends ESTestCase {
 
         assertThat(foundClasses, contains(classNameToPath(ExtensibleInterface.class)));
 
-        assertThat(visitor.getClassHierarchy(),
-            equalTo(Map.of(classNameToPath(ExtensibleInterface.class), Set.of(classNameToPath(ImplementingExtensible.class)))));
+        assertThat(
+            visitor.getClassHierarchy(),
+            equalTo(Map.of(classNameToPath(ExtensibleInterface.class), Set.of(classNameToPath(ImplementingExtensible.class))))
+        );
     }
 
     private String classNameToPath(Class<?> clazz) {
         return clazz.getCanonicalName().replace(".", "/");
     }
 
-
     private void performScan(AnnotatedHierarchyVisitor classVisitor, Class<?>... classes) throws IOException {
-        String mainPath = AnnotatedHierarchyVisitorTests.class.getProtectionDomain()
-            .getCodeSource().getLocation().getPath();
-
+        String mainPath = AnnotatedHierarchyVisitorTests.class.getProtectionDomain().getCodeSource().getLocation().getPath();
 
         for (Class<?> clazz : classes) {
             String className = classNameToPath(clazz) + ".class";

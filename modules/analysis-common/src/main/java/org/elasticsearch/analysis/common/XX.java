@@ -12,7 +12,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.analysis.plugin.api.TokenFilterFactory;
 import org.elasticsearch.plugin.api.NamedComponent;
 
-@NamedComponent(name="xx")
+@NamedComponent(name = "xx")//TODO to be removed. test class to see this being picked up by server on startup.
 public class XX implements TokenFilterFactory {
     @Override
     public String name() {

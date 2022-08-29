@@ -14,8 +14,10 @@ import java.io.IOException;
 import java.util.Map;
 
 public class ExtensiblesRegistry {
-    public static final ClassScanner INSTANCE = new ClassScanner(Extensible.class,
-        (classname, map) -> {map.put(classname, classname); return null; });
+    public static final ClassScanner INSTANCE = new ClassScanner(Extensible.class, (classname, map) -> {
+        map.put(classname, classname);
+        return null;
+    });
 
     static {
         try {
@@ -26,7 +28,7 @@ public class ExtensiblesRegistry {
     }
 
     public static Map<String, String> getScannedExtensibles() {
-        return INSTANCE.getExtensibleClasses();
+        return null;// NSTANCE.getExtensibleClasses();
     }
 
 }

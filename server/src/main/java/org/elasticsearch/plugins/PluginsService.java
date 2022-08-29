@@ -28,7 +28,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.plugins.scanners.NamedPlugins;
+import org.elasticsearch.plugins.scanners.NameToPluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
@@ -67,8 +67,6 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService implements ReportingService<PluginsAndModules> {
 
-
-
     /**
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
      * @param descriptor Metadata about the plugin, usually loaded from plugin properties
@@ -94,8 +92,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-
-
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PluginsService.class);
 
@@ -107,7 +103,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
-
 
     private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
 
@@ -467,10 +462,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
             stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
-            Map<String, NamedPlugins> namedComponents = stablePluginsRegistry.getNamedComponents();
-            System.out.println(bundle.pluginDescriptor().getName() + " " +namedComponents);
+            Map<String, NameToPluginInfo> namedComponents = stablePluginsRegistry.getNamedComponents();
 
-            if(bundle.pluginDescriptor().isStable() == false) {
+            if (bundle.pluginDescriptor().isStable() == false) {
                 Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
                 if (pluginClassLoader != pluginClass.getClassLoader()) {
                     throw new IllegalStateException(
@@ -485,7 +479,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 }
                 Plugin plugin = loadPlugin(pluginClass, settings, configPath);
                 loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
-              //  return plugin;
+                // return plugin;
             }
         } finally {
             privilegedSetContextClassLoader(cl);

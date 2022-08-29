@@ -13,8 +13,6 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -30,7 +28,7 @@ public class AnnotatedHierarchyVisitor extends ClassVisitor {
     // a function taking the current class name the target annotation appeared on, and returning an AnnotationVisitor
     // that can be used to capture annotation specific args
     private final Function<String, AnnotationVisitor> visitor;
-    private final Map<String,String> visitedAnnotations = new HashMap<>();
+    private final Map<String, String> visitedAnnotations = new HashMap<>();
     private final Map<String, Set<String>> classToSubclasses = new HashMap<>();
 
     AnnotatedHierarchyVisitor(Class<?> targetAnnotation, Function<String, AnnotationVisitor> annotationVisitor) {
@@ -42,8 +40,7 @@ public class AnnotatedHierarchyVisitor extends ClassVisitor {
     @Override
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
         currentClassName = name;
-        if (superName== null ) System.out.println(name);
-        if (superName.equals(Object.class.getCanonicalName().replace('.','/')) == false) {
+        if (superName.equals(Object.class.getCanonicalName().replace('.', '/')) == false) {
             classToSubclasses.computeIfAbsent(superName, k -> new HashSet<>()).add(name);
         }
 

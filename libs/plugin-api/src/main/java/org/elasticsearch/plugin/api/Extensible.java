@@ -18,6 +18,6 @@ import static java.lang.annotation.ElementType.TYPE;
  * Marker for things that can be loaded by component loader.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(value={TYPE})
+@Target(value = { TYPE })
 public @interface Extensible {
 }

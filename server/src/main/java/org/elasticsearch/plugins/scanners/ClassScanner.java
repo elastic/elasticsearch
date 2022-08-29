@@ -20,36 +20,33 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
-public class ClassScanner {//rename to registry?
-    private final Map<String, String> extensibleClasses;
+public class ClassScanner {// rename to registry?
+    private final Map<String, String> foundClasses;
     private final AnnotatedHierarchyVisitor annotatedHierarchyVisitor;
-/*
-   private final AnnotatedHierarchyVisitor visitor = new AnnotatedHierarchyVisitor(Extensible.class, classname -> {
-        extensibleClasses.put(classname, classname);
-        return null;
-    });
 
- */
-    //copying
-    public ClassScanner(ClassScanner classScanner){
+    // copying
+    public ClassScanner(ClassScanner classScanner) {
         this.annotatedHierarchyVisitor = classScanner.annotatedHierarchyVisitor;
-        this.extensibleClasses = classScanner.extensibleClasses;
+        this.foundClasses = classScanner.foundClasses;
     }
 
-    public ClassScanner(Class<?> targetAnnotation, BiFunction<String, Map<String,String>, AnnotationVisitor> biConsumer) {
-        this.extensibleClasses =  new HashMap<>();
-        this.annotatedHierarchyVisitor = new AnnotatedHierarchyVisitor(targetAnnotation, classname -> biConsumer.apply(classname, extensibleClasses));
+    public ClassScanner(Class<?> targetAnnotation, BiFunction<String, Map<String, String>, AnnotationVisitor> biConsumer) {
+        this.foundClasses = new HashMap<>();
+        this.annotatedHierarchyVisitor = new AnnotatedHierarchyVisitor(
+            targetAnnotation,
+            classname -> biConsumer.apply(classname, foundClasses)
+        );
     }
 
     public void visit(Stream<ClassReader> classReaderStream) {
         try (classReaderStream) {
             classReaderStream.forEach(classReader -> classReader.accept(annotatedHierarchyVisitor, ClassReader.SKIP_CODE));
         }
-        addExtensibleDescendants( annotatedHierarchyVisitor.getClassHierarchy());
+        addExtensibleDescendants(annotatedHierarchyVisitor.getClassHierarchy());
     }
 
-    public void addExtensibleDescendants( Map<String, Set<String>> classToSubclasses) {
-        Deque<Map.Entry<String, String>> toCheckDescendants = new ArrayDeque<>(extensibleClasses.entrySet());
+    public void addExtensibleDescendants(Map<String, Set<String>> classToSubclasses) {
+        Deque<Map.Entry<String, String>> toCheckDescendants = new ArrayDeque<>(foundClasses.entrySet());
         Set<String> processed = new HashSet<>();
         while (toCheckDescendants.isEmpty() == false) {
             var e = toCheckDescendants.removeFirst();
@@ -63,15 +60,15 @@ public class ClassScanner {//rename to registry?
             }
 
             for (String subclass : subclasses) {
-                extensibleClasses.put(subclass, e.getValue());
+                foundClasses.put(subclass, e.getValue());
                 toCheckDescendants.addLast(Map.entry(subclass, e.getValue()));
             }
             processed.add(classname);
         }
     }
 
-    public Map<String, String> getExtensibleClasses() {
-        return extensibleClasses;
+    public Map<String, String> getFoundClasses() {
+        return foundClasses;
     }
 
     public Map<String, Set<String>> getClassHierarchy() {

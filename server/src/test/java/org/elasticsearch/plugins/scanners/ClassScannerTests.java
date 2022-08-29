@@ -18,18 +18,29 @@ import java.util.Map;
 public class ClassScannerTests extends ESTestCase {
 
     public void testExtensibleInHierarchy() throws IOException {
-        ClassScanner reader = new ClassScanner(Extensible.class,
-            (classname, map) -> map.put(classname, classname));
+        ClassScanner reader = new ClassScanner(Extensible.class, (classname, map) -> {
+            map.put(classname, classname);
+            return null;
+        });
         reader.visit(ClassReaders.ofClassPath());
-        Map<String, String> extensibleClasses = reader.getExtensibleClasses();
+        Map<String, String> extensibleClasses = reader.getFoundClasses();
 
-        assertThat(extensibleClasses, Matchers.allOf(Matchers.hasEntry(
-                "org/elasticsearch/plugins/scanners/testclasses/DirectlyAnnotatedExtensible",
-                "org/elasticsearch/plugins/scanners/testclasses/DirectlyAnnotatedExtensible"),
-            Matchers.hasEntry(
-                "org/elasticsearch/plugins/scanners/testclasses/ImplementingExtensible",
-                "org/elasticsearch/plugins/scanners/testclasses/ExtensibleInterface"),
-            Matchers.hasEntry("org/elasticsearch/plugins/scanners/testclasses/SubClass",
-                "org/elasticsearch/plugins/scanners/testclasses/DirectlyAnnotatedExtensible")));
+        assertThat(
+            extensibleClasses,
+            Matchers.allOf(
+                Matchers.hasEntry(
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass",
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass"
+                ),
+                Matchers.hasEntry(
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ImplementingExtensible",
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleInterface"
+                ),
+                Matchers.hasEntry(
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/SubClass",
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass"
+                )
+            )
+        );
     }
 }

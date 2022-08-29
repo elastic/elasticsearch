@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.scanners.testclasses;
+package org.elasticsearch.plugins.scanners.extensible_test_classes;
 
-public class SubClass extends DirectlyAnnotatedExtensible{
-}
+import org.elasticsearch.plugin.api.Extensible;
+
+@Extensible
+public interface ExtensibleInterface {}

@@ -8,40 +8,110 @@
 
 package org.elasticsearch.plugins.scanners;
 
-import junit.framework.TestCase;
-
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 import org.hamcrest.Matchers;
 import org.objectweb.asm.ClassReader;
 
 import java.io.IOException;
-import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ClassReadersTests extends ESTestCase {
 
-    public void testOfModulePath() throws IOException {
-        String path = ClassReadersTests.class.getClassLoader().getResource("api-jars/api.jar").getPath();
-        String dirWithJar = path.substring(0, path.length() - "api.jar".length());
+    public void testStreamFromJar() throws IOException {
+        final Path tmp = createTempDir();
+        final Path dirWithJar = tmp.resolve("jars-dir");
+        Files.createDirectories(dirWithJar);
+        Path jar = dirWithJar.resolve("api.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            public class A {}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            public class B {}
+            """)));
 
-        Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar);
+        Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString());
 
         List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-        assertThat(collect,
-            Matchers.contains(
-                "org/elasticsearch/component/Component",
-                "org/elasticsearch/component/ExtensibleComponent",
-                "org/elasticsearch/component/NamedComponent",
-                "org/elasticsearch/component/Nameable",
-                "org/elasticsearch/test/Super",
-                "org/elasticsearch/test/Super2",
-                "org/elasticsearch/test/Mid",
-                "org/elasticsearch/analysis/TokenizerFactory",
-                "org/elasticsearch/analysis/AnalysisBase",
-                "org/elasticsearch/analysis/Tokenizer",
-                 "org/elasticsearch/analysis/TokenFilterFactory"
-            ));
+        assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B"));
+    }
+
+    public void testStreamFromDirWithJars() throws IOException {
+        final Path tmp = createTempDir();
+        final Path dirWithJar = tmp.resolve("jars-dir");
+        Files.createDirectories(dirWithJar);
+
+        // System.setProperty("jdk.module.path", dirWithJar.toString());
+
+        Path jar = dirWithJar.resolve("a_b.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            public class A {}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            public class B {}
+            """)));
+
+        Path jar2 = dirWithJar.resolve("c_d.jar");
+        JarUtils.createJarWithEntries(jar2, Map.of("p/C.class", InMemoryJavaCompiler.compile("p.C", """
+            package p;
+            public class C {}
+            """), "p/D.class", InMemoryJavaCompiler.compile("p.D", """
+            package p;
+            public class D {}
+            """)));
+
+        // Stream<ClassReader> classReaderStream = ClassReaders.ofModulePath();
+        Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString());
+
+        List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
+        assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"));
+    }
+
+    public void testStreamOfClassPath() throws IOException {
+        final Path tmp = createTempDir();
+        final Path dirWithJar = tmp.resolve("jars-dir");
+        Files.createDirectories(dirWithJar);
+
+        Path jar = dirWithJar.resolve("a_b.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            public class A {}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            public class B {}
+            """)));
+
+        Path jar2 = dirWithJar.resolve("c_d.jar");
+        JarUtils.createJarWithEntries(jar2, Map.of("p/C.class", InMemoryJavaCompiler.compile("p.C", """
+            package p;
+            public class C {}
+            """), "p/D.class", InMemoryJavaCompiler.compile("p.D", """
+            package p;
+            public class D {}
+            """)));
+
+        InMemoryJavaCompiler.compile("p.E", """
+            package p;
+            public class E {}
+            """);
+        Files.write(tmp.resolve("E.class"), InMemoryJavaCompiler.compile("p.E", """
+            package p;
+            public class E {}
+            """));
+
+        String classPath = Files.walk(tmp).filter(Files::isRegularFile).map(Path::toString).collect(Collectors.joining(":"));
+        System.out.println(classPath);
+        Stream<ClassReader> classReaderStream = ClassReaders.ofClassPath(classPath);
+
+        List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
+        assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D", "p/E"));
     }
 }

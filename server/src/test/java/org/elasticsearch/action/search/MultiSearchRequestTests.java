@@ -510,9 +510,9 @@ public class MultiSearchRequestTests extends ESTestCase {
             description,
             equalTo(
                 "requests[3]: "
-                    + "indices[], search_type[QUERY_THEN_FETCH], source[], preference[abc] | "
-                    + "indices[], search_type[QUERY_THEN_FETCH], source[], routing[r], preference[xyz] | "
-                    + "indices[index-1], search_type[QUERY_THEN_FETCH], source[]"
+                    + "indices[], types[], search_type[QUERY_THEN_FETCH], source[], preference[abc] | "
+                    + "indices[], types[], search_type[QUERY_THEN_FETCH], source[], routing[r], preference[xyz] | "
+                    + "indices[index-1], types[], search_type[QUERY_THEN_FETCH], source[]"
             )
         );
     }

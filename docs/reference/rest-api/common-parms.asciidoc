@@ -999,7 +999,8 @@ end::transform-metadata[]
 
 tag::transform-retention[]
 Defines a retention policy for the {transform}. Data that meets the defined
-criteria is deleted from the destination index.
+criteria is deleted from the destination index. Data is deleted if `time.field` 
+for the retention policy exists and contains data older than `max.age`.
 end::transform-retention[]
 
 tag::transform-retention-time[]
@@ -1007,7 +1008,8 @@ Specifies that the {transform} uses a time field to set the retention policy.
 end::transform-retention-time[]
 
 tag::transform-retention-time-field[]
-The date field that is used to calculate the age of the document.
+The date field that is used to calculate the age of the document. Set 
+`time.field` to an existing date field.
 end::transform-retention-time-field[]
 
 tag::transform-retention-time-max-age[]

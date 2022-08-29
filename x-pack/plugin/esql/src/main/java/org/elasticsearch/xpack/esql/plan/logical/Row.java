@@ -51,7 +51,7 @@ public class Row extends LeafPlan implements Executable {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return null;
+        return NodeInfo.create(this, Row::new, fields);
     }
 
     @Override

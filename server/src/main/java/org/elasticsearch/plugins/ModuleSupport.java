@@ -29,7 +29,14 @@ import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.zip.ZipFile;
 
+/**
+ * Support methods for creating a synthetic module.
+ */
 public class ModuleSupport {
+
+    private ModuleSupport() {
+        throw new AssertionError("Utility class, should not be instantiated");
+    }
 
     static ModuleFinder ofSyntheticPluginModule(String name, Path[] jarPaths, Set<String> requires) {
         try {
@@ -57,7 +64,7 @@ public class ModuleSupport {
             }
         }
         builder.packages(pkgs);
-        // TODO: provides and uses
+        // TODO: provides and uses - it is possible that one plugin could define a service and another could provide it
         return builder.build();
     }
 
@@ -134,10 +141,6 @@ public class ModuleSupport {
     }
 
     static boolean isPackageName(String name) {
-        return isTypeName(name);
-    }
-
-    static boolean isClassName(String name) {
         return isTypeName(name);
     }
 

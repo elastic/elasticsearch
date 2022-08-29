@@ -50,26 +50,10 @@ import java.util.stream.Collectors;
  * against a list of packages in this synthetic module, and load a class
  * directly if it's part of this synthetic module. This will keep libraries from
  * clashing.
- *
- * Resources:
- *   * {@link java.lang.ClassLoader}
- *   * {/@link jdk.internal.loader.BuiltinClassLoader} - boot, platform, and app loaders inherit from this
- *   * {/@link jdk.internal.loader.ClassLoaders.BootClassLoader} - see also {/@link jdk.internal.loader.BootLoader}
- *   * {/@link jdk.internal.loader.ClassLoaders.PlatformClassLoader}
- *   * {/@link jdk.internal.loader.ClassLoaders.AppClassLoader}
- *   * {@link java.security.SecureClassLoader} - user-facing classloaders inherit from this
- *   * {@link java.net.URLClassLoader} - loads classes from classpath jars
- *   * {/@link jdk.internal.loader.Loader} - loads classes from modules
- *   * {/@link org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader} - one of our custom classloaders
- *   * {@link java.lang.module.ModuleDescriptor} - how you build a module (for an ubermodule)
- *   * <a href="https://github.com/elastic/elasticsearch/pull/88216/files">WIP PR for ubermodule classloader</a>
- *
+ * <p>
  * Alternate name ideas
- *   * CrateClassLoader, because we may use the crate metaphor with our plugins
- *   * UberModuleClassLoader, but this only describes one of the code paths
- *   * UberModuleURLClassLoader
+ *   * UberModuleClassLoader
  *   * ModularizingClassLoader
- *   * NamedModuleClassLoader, because it will always load into a named module (via module info, or via synthetic module)
  */
 public class StablePluginClassLoader extends SecureClassLoader implements AutoCloseable {
 
@@ -91,10 +75,6 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
 
     /**
      * Constructor
-     *
-     * The constructors for URLClassLoader and jdk.internal.loader.Loader take or construct an object that does the
-     * heavy lifting. jdk.internal.loader.Loader takes ResolvedModules for its argument, while URLClassLoader constructs
-     * a URLClassPath object. The AppClassLoader, on the other hand, loads modules as it goes.
      *
      * TODO: consider a factory pattern for more specific exception handling for scan, etc.
      */
@@ -135,8 +115,6 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
             .filter(m -> moduleDenyList.contains(m.getName()) == false)
             .forEach(m -> moduleController.addReads(module, m));
 
-        // open this as versioned jar - most recent version of class file
-        // TODO: verify behavior w/ versioned jar, c.f. EmbeddedImplClassLoader
         this.packageNames = new HashSet<>();
         for (Path jar : jarPaths) {
             try (JarFile jarFile = new JarFile(jar.toFile())) {
@@ -185,10 +163,6 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
 
         try (InputStream in = internalLoader.getResourceAsStream(rn)) {
             if (in == null) {
-                // TODO: we can check package name to know whether or not the resource
-                // should definitely be in this module's packages or not
-                // i.e. we can throw class not found if the resource's package is owned by this
-                // classloader's module
                 return null;
             }
             byte[] bytes = in.readAllBytes();
@@ -262,7 +236,9 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
                 }
             }
 
-            if (c == null) throw new ClassNotFoundException(cn);
+            if (c == null) {
+                throw new ClassNotFoundException(cn);
+            }
 
             if (resolve) {
                 resolveClass(c);
@@ -282,6 +258,7 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
     }
 
     @Override
+    @SuppressWarnings("removal")
     public void close() throws Exception {
         PrivilegedAction<Void> pa = () -> {
             try {

@@ -102,7 +102,6 @@ public class SampleIterator implements Executable {
             stack.clear();
             samples.clear();
             clearCircuitBreaker();
-            samplesDiscarded = 0;
             client.close(listener.delegateFailure((l, r) -> {}));
         }));
     }

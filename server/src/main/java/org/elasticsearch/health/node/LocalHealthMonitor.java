@@ -185,7 +185,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
      * @return true, if the release steps were scheduled, false otherwise.
      */
     private boolean monitorHealth(Runnable release) {
-        if (prerequisitesFulfilled) {
+        if (prerequisitesFulfilled == false) {
             return false;
         }
         ClusterState clusterState = clusterService.state();

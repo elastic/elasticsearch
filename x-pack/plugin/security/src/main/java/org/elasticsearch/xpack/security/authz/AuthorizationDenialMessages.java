@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 
@@ -125,7 +126,11 @@ class AuthorizationDenialMessages {
         if (role == Role.EMPTY) {
             resolvedRoleNames = Set.of();
         } else {
-            resolvedRoleNames = Set.of((String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
+            final Map<String, Object> info = authorizationInfo.asMap();
+            if (false == info.containsKey(PRINCIPAL_ROLES_FIELD_NAME)) {
+                return sb.toString();
+            }
+            resolvedRoleNames = Set.of((String[]) info.get(PRINCIPAL_ROLES_FIELD_NAME));
         }
         if (hasDeclaredRoleNames) {
             sb.append(" (");

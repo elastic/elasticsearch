@@ -61,6 +61,30 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         }
     }
 
+    public void testRolesDescriptionWithNullRolesField() {
+        // random 0 - 3 uniquely named roles
+        final List<String> declaredRoleNames = IntStream.range(0, randomIntBetween(0, 3))
+            .mapToObj(i -> randomAlphaOfLengthBetween(3, 8) + i)
+            .toList();
+        final Subject subject = AuthenticationTestHelper.builder()
+            .realm()
+            .user(new User(randomAlphaOfLengthBetween(3, 8), declaredRoleNames.toArray(String[]::new)))
+            .build(false)
+            .getEffectiveSubject();
+        final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        when(authorizationInfo.asMap()).thenReturn(Map.of());
+        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, authorizationInfo);
+
+        if (declaredRoleNames.isEmpty()) {
+            assertThat(rolesDescription, equalTo(" with no declared roles"));
+        } else {
+            assertThat(
+                rolesDescription,
+                equalTo(" with declared roles [" + Strings.collectionToCommaDelimitedString(declaredRoleNames) + "]")
+            );
+        }
+    }
+
     public void testRoleDescriptionWithEmptyResolvedRole() {
         // random 0 - 3 uniquely named roles
         final List<String> declaredRoleNames = IntStream.range(0, randomIntBetween(0, 3))

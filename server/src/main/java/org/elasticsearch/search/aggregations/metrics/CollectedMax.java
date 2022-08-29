@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -31,11 +32,12 @@ public class CollectedMax extends CollectedAggregator {
 
     public CollectedMax(StreamInput in) throws IOException {
         super(in);
+        // TODO: Read the buffer backed big array here
     }
 
     @Override
     public void close() {
-
+        Releasables.close(maxes);
     }
 
     @Override
@@ -45,11 +47,13 @@ public class CollectedMax extends CollectedAggregator {
 
     @Override
     public Version getMinimalSupportedVersion() {
+        // NOCOMMIT: put a real version number here
         return null;
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
     }
 
     @Override

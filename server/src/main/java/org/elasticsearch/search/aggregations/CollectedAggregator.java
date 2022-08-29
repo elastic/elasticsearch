@@ -74,13 +74,10 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
     }
 
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metadata);
-        doWriteTo(out);
     }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     public String getName() {
         return name;

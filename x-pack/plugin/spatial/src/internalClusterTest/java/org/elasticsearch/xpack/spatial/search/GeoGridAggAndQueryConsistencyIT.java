@@ -76,6 +76,10 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         doTestGeohexGrid(GeoPointFieldMapper.CONTENT_TYPE, GeometryTestUtils::randomPoint);
     }
 
+    public void testGeoShapeGeoHex() throws IOException {
+        doTestGeohexGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
+    }
+
     public void testGeoShapeGeoHash() throws IOException {
         doTestGeohashGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
     }

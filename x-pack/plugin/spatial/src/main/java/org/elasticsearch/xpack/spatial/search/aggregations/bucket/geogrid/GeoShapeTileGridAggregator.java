@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import java.io.IOException;
 import java.util.Map;
 
+// TODO make for H3
 public class GeoShapeTileGridAggregator extends GeoTileGridAggregator {
     public GeoShapeTileGridAggregator(
         String name,

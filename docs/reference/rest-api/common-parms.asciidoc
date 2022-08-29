@@ -1059,6 +1059,13 @@ The minimum value is `0` and the maximum is `100`.
 The default value is the cluster-level setting `num_transform_failure_retries`.
 end::transform-settings-num-failure-retries[]
 
+tag::transform-settings-unattended[]
+If `true`, the {transform} runs in unattended mode. In unattended mode, the 
+{transform} retries indefinitely in case of an error which means the {transform} 
+never fails. Setting the number of retries other than infinite fails in 
+validation. Defaults to `false`.
+end::transform-settings-unattended[]
+
 tag::transform-sort[]
 Specifies the date field that is used to identify the latest documents.
 end::transform-sort[]

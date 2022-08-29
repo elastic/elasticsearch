@@ -1,0 +1,6 @@
+pr: 89472
+summary: Fixing the conditions for fetching remote master history
+area: Health
+type: bug
+issues:
+ - 89431

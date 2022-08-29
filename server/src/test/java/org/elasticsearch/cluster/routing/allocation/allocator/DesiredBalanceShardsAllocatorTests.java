@@ -83,9 +83,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         @Override
         public void reroute(String reason, Priority priority, ActionListener<ClusterState> listener) {
+            fail("Should not be called");
+        }
+
+        @Override
+        public void reconcile(long index) {
             assertTrue("unexpected reroute", expectReroute);
             expectReroute = false;
-            listener.onResponse(null);
         }
 
         public void setExpectReroute() {
@@ -290,21 +294,29 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             @Override
             public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
         }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
-        rerouteServiceSupplier.set((r, p, l) -> {
-            clusterService.submitUnbatchedStateUpdateTask("test-desired-balance-reroute", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    for (IndexRoutingTable indexRoutingTable : currentState.getRoutingTable()) {
-                        reroutedIndexes.add(indexRoutingTable.getIndex().getName());
-                    }
-                    return allocationService.reroute(currentState, "test-desired-balance-reroute", l.map(ignore -> null));
-                }
+        rerouteServiceSupplier.set(new RerouteService() {
+            @Override
+            public void reroute(String reason, Priority priority, ActionListener<ClusterState> listener) {
+                fail("Should not be called");
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail("Should not happen in test");
-                }
-            });
+            @Override
+            public void reconcile(long index) {
+                clusterService.submitUnbatchedStateUpdateTask("test-desired-balance-reroute", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        for (IndexRoutingTable indexRoutingTable : currentState.getRoutingTable()) {
+                            reroutedIndexes.add(indexRoutingTable.getIndex().getName());
+                        }
+                        return allocationService.reconcile(currentState, index);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("Should not happen in test");
+                    }
+                });
+            }
         });
 
         clusterService.submitUnbatchedStateUpdateTask("test-create-index", new ClusterStateUpdateTask() {
@@ -356,6 +368,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testFailListenersOnNoLongerMasterException() throws Exception {
 
         var node1 = createDiscoveryNode("node-1");
@@ -390,9 +403,17 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         };
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(allocator, threadPool, rerouteServiceSupplier::get);
         var rerouteIsCalled = new CountDownLatch(1);
-        rerouteServiceSupplier.set((r, p, l) -> {
-            rerouteIsCalled.countDown();
-            desiredBalanceShardsAllocator.clusterChanged(new ClusterChangedEvent("reroute", noLongerMasterState, noLongerMasterState));
+        rerouteServiceSupplier.set(new RerouteService() {
+            @Override
+            public void reroute(String reason, Priority priority, ActionListener<ClusterState> listener) {
+                fail("Should not be called");
+            }
+
+            @Override
+            public void reconcile(long index) {
+                rerouteIsCalled.countDown();
+                desiredBalanceShardsAllocator.clusterChanged(new ClusterChangedEvent("reroute", noLongerMasterState, noLongerMasterState));
+            }
         });
 
         var allocationListenerIsCalled = new CountDownLatch(1);
@@ -479,7 +500,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
         }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
 
-        rerouteServiceSupplier.set(new BatchedRerouteService(clusterService, allocationService::reroute));
+        rerouteServiceSupplier.set(
+            new BatchedRerouteService(clusterService, new BatchedRerouteService.DefaultRerouteAction(allocationService))
+        );
 
         var indexNameGenerator = new AtomicInteger();
 

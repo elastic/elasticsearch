@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,7 +84,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 if (isFresh) {
                     if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
                         logger.trace("Current desired balance is different from applied one, scheduling a reroute");
-                        rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
+                        // rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
+                        rerouteServiceSupplier.get().reconcile(currentDesiredBalance.lastConvergedIndex());
                     } else {
                         var lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
                         logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
@@ -134,13 +134,40 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
         new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
 
-        queue.complete(appliedDesiredBalance.lastConvergedIndex());
         if (allocation.routingNodesChanged()) {
             logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
             // Execute listeners after cluster state is applied
         } else {
             logger.trace("Executing listeners up to [{}] as routing nodes have not changed", queue.getCompletedIndex());
             queue.resume();
+        }
+    }
+
+    public void reconcile(RoutingAllocation allocation, long index) {
+        queue.pause();
+        appliedDesiredBalance = currentDesiredBalance;
+        logger.trace("Reconciling using balance [{}]", appliedDesiredBalance);
+        new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
+
+        if (allocation.routingNodesChanged()) {
+            logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
+            // Execute listeners after cluster state is applied
+        } else {
+            logger.trace("Executing listeners up to [{}] as routing nodes have not changed", queue.getCompletedIndex());
+            queue.resume();
+        }
+        queue.complete(appliedDesiredBalance.lastConvergedIndex());
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().nodes().isLocalNodeElectedMaster()) {
+            logger.trace("Executing listeners up to [{}] after cluster state was committed", queue.getCompletedIndex());
+            queue.resume();
+        } else {
+            reset();
+            queue.completeAllAsNotMaster();
+            pendingDesiredBalanceMoves.clear();
         }
     }
 
@@ -167,18 +194,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             }
         }
         return moves;
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().nodes().isLocalNodeElectedMaster()) {
-            logger.trace("Executing listeners up to [{}] after cluster state was committed", queue.getCompletedIndex());
-            queue.resume();
-        } else {
-            reset();
-            queue.completeAllAsNotMaster();
-            pendingDesiredBalanceMoves.clear();
-        }
     }
 
     @Override

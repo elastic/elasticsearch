@@ -50,6 +50,8 @@ public interface ShardsAllocator {
         listener.onResponse(null);
     }
 
+    default void reconcile(RoutingAllocation allocation, long index) {}
+
     /**
      * Execute allocation commands
      */

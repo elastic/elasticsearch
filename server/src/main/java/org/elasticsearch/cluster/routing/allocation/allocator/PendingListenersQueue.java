@@ -73,13 +73,13 @@ public class PendingListenersQueue {
     private void executeListeners(long convergedIndex, boolean isMaster) {
         var listeners = pollListeners(convergedIndex);
         if (listeners.isEmpty() == false) {
-            threadPool.generic().execute(() -> {
-                if (isMaster) {
-                    ActionListener.onResponse(listeners, null);
-                } else {
-                    ActionListener.onFailure(listeners, new NotMasterException("no longer master"));
-                }
-            });
+            // threadPool.generic().execute(() -> {
+            if (isMaster) {
+                ActionListener.onResponse(listeners, null);
+            } else {
+                ActionListener.onFailure(listeners, new NotMasterException("no longer master"));
+            }
+            // });
         }
     }
 

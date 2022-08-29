@@ -1285,7 +1285,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,
-                    new BatchedRerouteService(clusterService, allocationService::reroute),
+                    new BatchedRerouteService(clusterService, new BatchedRerouteService.DefaultRerouteAction(allocationService)),
                     clusterService,
                     threadPool
                 );

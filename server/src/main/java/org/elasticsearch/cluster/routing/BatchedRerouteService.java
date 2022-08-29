@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -48,6 +49,28 @@ public class BatchedRerouteService implements RerouteService {
 
     public interface RerouteAction {
         ClusterState reroute(ClusterState state, String reason, ActionListener<Void> listener);
+
+        default ClusterState reconcile(ClusterState state, long index) {
+            return state;
+        }
+    }
+
+    public static class DefaultRerouteAction implements RerouteAction {
+        private final AllocationService allocationService;
+
+        public DefaultRerouteAction(AllocationService allocationService) {
+            this.allocationService = allocationService;
+        }
+
+        @Override
+        public ClusterState reroute(ClusterState state, String reason, ActionListener<Void> listener) {
+            return allocationService.reroute(state, reason, listener);
+        }
+
+        @Override
+        public ClusterState reconcile(ClusterState state, long index) {
+            return allocationService.reconcile(state, index);
+        }
     }
 
     /**
@@ -169,6 +192,21 @@ public class BatchedRerouteService implements RerouteService {
                 new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e)
             );
         }
+    }
+
+    @Override
+    public void reconcile(long index) {
+        submitUnbatchedTask(CLUSTER_UPDATE_TASK_SOURCE + "(reconcile)", new ClusterStateUpdateTask(Priority.NORMAL) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return reroute.reconcile(currentState, index);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Failed to reconcile", e);
+            }
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here

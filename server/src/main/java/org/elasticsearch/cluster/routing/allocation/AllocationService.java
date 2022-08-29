@@ -418,6 +418,25 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
     }
 
+    public ClusterState reconcile(ClusterState clusterState, long index) {
+        ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
+        RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
+        assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
+        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
+            : "auto-expand replicas out of sync with number of nodes in the cluster";
+        assert assertInitialized();
+
+        removeDelayMarkers(allocation);
+
+        allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
+        shardsAllocator.reconcile(allocation, index);
+        assert RoutingNodes.assertShardStats(allocation.routingNodes());
+        if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
+            return clusterState;
+        }
+        return buildResultAndLogHealthChange(clusterState, allocation, "reconcile");
+    }
+
     private static void logClusterHealthStateChange(final ClusterState previousState, final ClusterState newState, String reason) {
         ClusterHealthStatus previousHealth = getHealthStatus(previousState);
         ClusterHealthStatus currentHealth = getHealthStatus(newState);

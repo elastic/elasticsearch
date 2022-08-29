@@ -1747,7 +1747,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     rerouteServiceSetOnce::get
                 );
                 allocationService = ESAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
-                rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
+                rerouteService = new BatchedRerouteService(
+                    clusterService,
+                    new BatchedRerouteService.DefaultRerouteAction(allocationService)
+                );
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(
                     settings,

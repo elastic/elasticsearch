@@ -14,7 +14,6 @@ import org.elasticsearch.common.Priority;
 /**
  * Asynchronously performs a cluster reroute, updating any shard states and rebalancing the cluster if appropriate.
  */
-@FunctionalInterface
 public interface RerouteService {
 
     /**
@@ -24,4 +23,6 @@ public interface RerouteService {
      *                 the priority of the pending batch is raised to the given priority.
      */
     void reroute(String reason, Priority priority, ActionListener<ClusterState> listener);
+
+    default void reconcile(long index) {};
 }

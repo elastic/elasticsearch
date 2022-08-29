@@ -632,7 +632,10 @@ public class Node implements Closeable {
                 clusterService.addListener(new SystemIndexManager(systemIndices, client));
             }
 
-            final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
+            final RerouteService rerouteService = new BatchedRerouteService(
+                clusterService,
+                new BatchedRerouteService.DefaultRerouteAction(clusterModule.getAllocationService())
+            );
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
 

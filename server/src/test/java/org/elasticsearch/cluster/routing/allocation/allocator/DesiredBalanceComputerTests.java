@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -247,7 +248,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var allocateCalled = new AtomicBoolean();
         var desiredBalanceComputer = new DesiredBalanceComputer(new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 assertTrue(allocateCalled.compareAndSet(false, true));
                 // whatever the allocation in the current cluster state, the desired balance service should start by moving all the
                 // known shards to their desired locations before delegating to the inner allocator
@@ -261,6 +262,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                         assertTrue(shardRouting.toString(), shardRouting.started());
                     }
                 }
+                listener.onResponse(null);
             }
 
             @Override
@@ -595,7 +597,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     private static DesiredBalanceComputer createDesiredBalanceComputer() {
         return new DesiredBalanceComputer(new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     final var shardRouting = unassignedIterator.next();
@@ -607,6 +609,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                         unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
                     }
                 }
+                listener.onResponse(null);
             }
 
             private static boolean isCorrespondingPrimaryStarted(ShardRouting shardRouting, RoutingAllocation allocation) {

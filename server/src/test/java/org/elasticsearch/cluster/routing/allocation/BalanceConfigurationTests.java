@@ -348,7 +348,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                     --------[test][3], node[3], [P], s[STARTED]
                     ---- unassigned
                 */
-                public void allocate(RoutingAllocation allocation) {
+                public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                     RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
                     ShardRouting[] drain = unassigned.drain();
                     ArrayUtil.timSort(drain, (a, b) -> { return a.primary() ? -1 : 1; }); // we have to allocate primaries first
@@ -392,6 +392,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                         }
 
                     }
+                    listener.onResponse(null);
                 }
 
                 @Override

@@ -105,11 +105,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     }
 
     @Override
-    public void allocate(RoutingAllocation allocation) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
         assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
             : Thread.currentThread().getName();

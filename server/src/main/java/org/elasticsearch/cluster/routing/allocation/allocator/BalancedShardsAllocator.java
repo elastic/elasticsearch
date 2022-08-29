@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -117,7 +118,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.threshold = threshold;
     }
 
-    @Override
     public void allocate(RoutingAllocation allocation) {
         assert allocation.ignoreDisable() == false;
 
@@ -129,6 +129,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
+    }
+
+    @Override
+    public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+        allocate(allocation);
+        listener.onResponse(null);
     }
 
     @Override

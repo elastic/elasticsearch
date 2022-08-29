@@ -971,8 +971,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     ) {
         final var allocationService = new AllocationService(new AllocationDeciders(List.of(allocationDeciders)), new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 allocationConsumer.accept(allocation);
+                listener.onResponse(null);
             }
 
             @Override

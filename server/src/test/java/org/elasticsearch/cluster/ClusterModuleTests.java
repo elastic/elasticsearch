@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -99,8 +100,9 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     static class FakeShardsAllocator implements ShardsAllocator {
         @Override
-        public void allocate(RoutingAllocation allocation) {
+        public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
             // noop
+            listener.onResponse(null);
         }
 
         @Override

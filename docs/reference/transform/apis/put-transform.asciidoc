@@ -218,6 +218,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max
 `num_failure_retries`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-num-failure-retries]
+`unattended`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-unattended]
 ====
 //End settings
 

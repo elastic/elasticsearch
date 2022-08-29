@@ -35,6 +35,7 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
@@ -82,6 +83,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // Keeps the last seen health node. We use this variable to ensure that there wasn't a health node
     // change between the time we send an update until the time we update the lastReportedDiskHealthInfo.
     private final AtomicReference<String> lastSeenHealthNode = new AtomicReference<>();
+    private volatile Scheduler.ScheduledCancellable scheduled;
 
     private LocalHealthMonitor(
         Settings settings,
@@ -132,17 +134,25 @@ public class LocalHealthMonitor implements ClusterStateListener {
      * be only a single motoring task in progress at any given time. We always check if the prerequisites are fulfilled
      * and if the health node is enabled before we schedule a monitoring task.
      */
-    private void maybeStartSchedule(TimeValue time) {
+    private synchronized void maybeStartSchedule(TimeValue time) {
+        // This will override the schedule, so we cancel anything that is already scheduled.
+        // If the task is already running it will not interrupt it.
+        if (scheduled != null) {
+            scheduled.cancel();
+            scheduled = null;
+        }
+        // If a task is already in progress, that task will schedule the next run
+        if (isInProgress() == false) {
+            return;
+        }
         if (prerequisitesFulfilled && enabled) {
-            threadPool.scheduleUnlessShuttingDown(
-                time,
-                ThreadPool.Names.MANAGEMENT,
-                () -> ensureSingleRunAndReschedule(this::monitorHealth)
-            );
+            if (threadPool.scheduler().isShutdown() == false) {
+                scheduled = threadPool.schedule(() -> ensureSingleRunAndReschedule(this::monitorHealth), time, ThreadPool.Names.MANAGEMENT);
+            }
         }
     }
 
-    // Helper method that starts the monitoring without a delay.
+    // Helper method that starts the monitoring without a delay if it's not in progress already.
     // Visible for testing
     void maybeStartScheduleNow() {
         maybeStartSchedule(TimeValue.ZERO);

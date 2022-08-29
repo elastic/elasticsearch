@@ -48,6 +48,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -366,25 +367,41 @@ public class OperatorTests extends ESTestCase {
         assertEquals(99_999L, lastPage.get().getBlock(2).getLong(0));
     }
 
-    // Tests avg aggregators with multiple intermediate partial blocks
+    // Tests avg aggregators with multiple intermediate partial blocks.
     public void testIntermediateAvgOperators() {
         Operator source = new ListLongBlockSourceOperator(LongStream.range(0, 100_000).boxed().toList());
-        List<Page> pages = new ArrayList<>();
+        List<Page> rawPages = new ArrayList<>();
         Page page;
         while ((page = source.getOutput()) != null) {
-            pages.add(page);
+            rawPages.add(page);
         }
-        List<Block> intermediateBlocks = new ArrayList<>();
-        for (Page inputPage : pages) {
-            var aggregator = new Aggregator(AggregatorFunction.avg, AggregatorMode.PARTIAL, 0);
-            aggregator.processPage(inputPage);
-            intermediateBlocks.add(aggregator.evaluate());
+        assert rawPages.size() > 0;
+        Collections.shuffle(rawPages, random());
+
+        Aggregator partialAggregator = null;
+        List<Aggregator> partialAggregators = new ArrayList<>();
+        for (Page inputPage : rawPages) {
+            if (partialAggregator == null || random().nextBoolean()) {
+                partialAggregator = new Aggregator(AggregatorFunction.avg, AggregatorMode.PARTIAL, 0);
+                partialAggregators.add(partialAggregator);
+            }
+            partialAggregator.processPage(inputPage);
         }
+        List<Block> partialBlocks = partialAggregators.stream().map(Aggregator::evaluate).toList();
+
+        Aggregator interAggregator = null;
+        List<Aggregator> intermediateAggregators = new ArrayList<>();
+        for (Block block : partialBlocks) {
+            if (interAggregator == null || random().nextBoolean()) {
+                interAggregator = new Aggregator(AggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 0);
+                intermediateAggregators.add(interAggregator);
+            }
+            interAggregator.processPage(new Page(block));
+        }
+        List<Block> intermediateBlocks = intermediateAggregators.stream().map(Aggregator::evaluate).toList();
 
         var finalAggregator = new Aggregator(AggregatorFunction.avg, AggregatorMode.FINAL, 0);
-        for (var block : intermediateBlocks) {
-            finalAggregator.processPage(new Page(block));
-        }
+        intermediateBlocks.stream().forEach(b -> finalAggregator.processPage(new Page(b)));
         Block resultBlock = finalAggregator.evaluate();
         assertEquals(49_999.5, resultBlock.getDouble(0), 0);
     }
@@ -502,7 +519,6 @@ public class OperatorTests extends ESTestCase {
             if (finished) {
                 return null;
             }
-            // all in one page, for now
             if (position >= values.length) {
                 finish();
                 return null;

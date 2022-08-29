@@ -1,5 +1,5 @@
 pr: 89706
 summary: "Synthetic _source: support version field type"
-area: "Mapping, TSDB"
+area: "TSDB"
 type: enhancement
 issues: []

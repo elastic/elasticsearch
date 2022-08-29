@@ -102,7 +102,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             if (ctx.pipe().size() > 0) {
                 throw new ParsingException(source(ctx.pipe().get(0)), "Samples do not support pipes yet");
             }
-            return plan;
+            return new LimitWithOffset(plan.source(), new Literal(Source.EMPTY, params.size(), DataTypes.INTEGER), 0, plan);
         }
         //
         // Add implicit blocks

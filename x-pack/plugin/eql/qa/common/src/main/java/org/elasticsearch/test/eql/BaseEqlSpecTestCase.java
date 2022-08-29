@@ -47,6 +47,11 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
      */
     private final String[] joinKeys;
 
+    /**
+     * any negative value means undefined (ie. no "size" will be passed to the query)
+     */
+    private final int size;
+
     @Before
     public void setup() throws Exception {
         RestClient provisioningClient = provisioningClient();
@@ -97,19 +102,20 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 name = "" + (counter);
             }
 
-            results.add(new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys() });
+            results.add(new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys(), spec.size() });
         }
 
         return results;
     }
 
-    BaseEqlSpecTestCase(String index, String query, String name, List<long[]> eventIds, String[] joinKeys) {
+    BaseEqlSpecTestCase(String index, String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
         this.index = index;
 
         this.query = query;
         this.name = name;
         this.eventIds = eventIds;
         this.joinKeys = joinKeys;
+        this.size = size == null ? -1 : size;
     }
 
     public void test() throws Exception {
@@ -139,7 +145,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (tiebreaker != null) {
             builder.field("tiebreaker_field", tiebreaker);
         }
-        builder.field("size", requestSize());
+        builder.field("size", this.size < 0 ? requestSize() : this.size);
         builder.field("fetch_size", requestFetchSize());
         builder.field("result_position", requestResultPosition());
         builder.endObject();

@@ -286,3 +286,61 @@ expected_event_ids  = [18,11]
 join_keys = ["doom","win10"]
 
 
+[[queries]]
+name = "size0"
+size = 0
+query = '''
+  sample by host, ?os
+    [success where true]
+    [alert where true and id == 21 or id == 24 or id == 11]
+'''
+expected_event_ids  = []
+join_keys = []
+
+
+[[queries]]
+name = "size2"
+size = 2
+query = '''
+  sample by host, ?os
+    [success where true]
+    [alert where true and id == 21 or id == 24 or id == 11]
+'''
+expected_event_ids  = [29,24,
+    28,21]
+join_keys = ["GTA","null",
+    "doom","null"]
+
+
+[[queries]]
+name = "size3"
+size = 3
+query = '''
+  sample by host, ?os
+    [success where true]
+    [alert where true and id == 21 or id == 24 or id == 11]
+'''
+expected_event_ids  = [29,24,
+    28,21,
+    18,11]
+join_keys = ["GTA","null",
+    "doom","null",
+    "doom","win10"]
+
+
+[[queries]]
+name = "sizeBig"
+size = 500
+query = '''
+  sample by host, ?os
+    [success where true]
+    [alert where true and id == 21 or id == 24 or id == 11]
+'''
+expected_event_ids  = [29,24,
+    28,21,
+    18,11]
+join_keys = ["GTA","null",
+    "doom","null",
+    "doom","win10"]
+
+

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleCriterion;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
+import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
@@ -84,7 +85,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
             @Override
             public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {}
-        }, mockCriteria(), randomIntBetween(10, 500), CIRCUIT_BREAKER);
+        }, mockCriteria(), randomIntBetween(10, 500), new Limit(1000, 0), CIRCUIT_BREAKER);
 
         CIRCUIT_BREAKER.startBreaking();
         iterator.pushToStack(new SampleIterator.Page(CB_STACK_SIZE_PRECISION - 1));
@@ -131,7 +132,13 @@ public class CircuitBreakerTests extends ESTestCase {
                 }
             };
 
-            SampleIterator iterator = new SampleIterator(eqlClient, mockCriteria(), randomIntBetween(10, 500), eqlCircuitBreaker);
+            SampleIterator iterator = new SampleIterator(
+                eqlClient,
+                mockCriteria(),
+                randomIntBetween(10, 500),
+                new Limit(1000, 0),
+                eqlCircuitBreaker
+            );
 
             // unfortunately, mocking an actual result set it extremely complicated
             // so we have to simulate some execution steps manually

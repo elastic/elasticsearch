@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleCriterion;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
+import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
@@ -55,7 +56,7 @@ public class SampleIterator implements Executable {
     private final int maxCriteria;
     final List<Sample> samples;
     private final int fetchSize;
-
+    private final Limit limit;
     private long startTime;
 
     // ---------- CIRCUIT BREAKER -----------
@@ -83,12 +84,13 @@ public class SampleIterator implements Executable {
      */
     private long previousTotalPageSize = 0;
 
-    public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize, CircuitBreaker circuitBreaker) {
+    public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize, Limit limit, CircuitBreaker circuitBreaker) {
         this.client = client;
         this.criteria = criteria;
         this.maxCriteria = criteria.size();
         this.fetchSize = fetchSize;
         this.samples = new ArrayList<>();
+        this.limit = limit;
         this.circuitBreaker = circuitBreaker;
     }
 
@@ -213,7 +215,13 @@ public class SampleIterator implements Executable {
                 if (docGroupsCounter == maxCriteria) {
                     List<SearchHit> match = matchSample(sample, maxCriteria);
                     if (match != null) {
-                        samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
+                        if (samples.size() < limit.limit()) {
+                            samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
+                        }
+                        if (samples.size() == limit.limit()) {
+                            payload(listener);
+                            return;
+                        }
                     }
                     docGroupsCounter = 1;
                     sample = new ArrayList<>(maxCriteria);

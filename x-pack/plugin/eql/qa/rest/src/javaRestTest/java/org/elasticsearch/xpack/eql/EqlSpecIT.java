@@ -13,7 +13,7 @@ import java.util.List;
 
 public class EqlSpecIT extends EqlSpecTestCase {
 
-    public EqlSpecIT(String query, String name, List<long[]> eventIds, String[] joinKeys) {
-        super(query, name, eventIds, joinKeys);
+    public EqlSpecIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
+        super(query, name, eventIds, joinKeys, size);
     }
 }

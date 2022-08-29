@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.action.compute.aggregation;
 
 import org.elasticsearch.xpack.sql.action.compute.data.AggregatorStateBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Block;
-import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
 import java.lang.invoke.MethodHandles;
@@ -82,11 +82,11 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
     public Block evaluateFinal() {  // assume block positions == groupIds
         GroupingAvgState s = state;
         int positions = s.counts.length;
-        long[] result = new long[positions];
+        double[] result = new double[positions];
         for (int i = 0; i < positions; i++) {
-            result[i] = Double.doubleToLongBits(s.values[i] / s.counts[i]);
+            result[i] = s.values[i] / s.counts[i];
         }
-        return new LongBlock(result, positions);
+        return new DoubleBlock(result, positions);
     }
 
     static class GroupingAvgState implements AggregatorState<GroupingAvgState> {

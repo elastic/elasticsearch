@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.action.compute.aggregation;
 
 import org.elasticsearch.xpack.sql.action.compute.data.AggregatorStateBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Block;
-import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
 import java.lang.invoke.MethodHandles;
@@ -80,7 +80,7 @@ class AvgAggregator implements AggregatorFunction {
     public Block evaluateFinal() {
         AvgState s = state;
         double result = s.value / s.count;
-        return new LongBlock(new long[] { Double.doubleToLongBits(result) }, 1);
+        return new DoubleBlock(new double[] { result }, 1);
     }
 
     // @SerializedSize(value = Double.BYTES + Double.BYTES + Long.BYTES)

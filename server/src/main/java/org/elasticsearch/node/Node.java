@@ -565,6 +565,7 @@ public class Node implements Closeable {
                 systemIndices
             );
             modules.add(clusterModule);
+            clusterService.setAllocationService(clusterModule.getAllocationService());
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
 

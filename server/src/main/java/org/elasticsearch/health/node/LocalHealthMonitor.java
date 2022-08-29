@@ -144,19 +144,32 @@ public class LocalHealthMonitor implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         DiscoveryNode currentHealthNode = HealthNode.findHealthNode(event.state());
+        resetOnHealthNodeChange(currentHealthNode, event);
         prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
             && HealthMetadata.getFromClusterState(event.state()) != null
             && currentHealthNode != null;
-        if (prerequisitesFulfilled) {
-            DiscoveryNode previousHealthNode = HealthNode.findHealthNode(event.previousState());
-            if (Objects.equals(previousHealthNode, currentHealthNode) == false) {
-                // The new health node does not have any information yet, so the last
-                // reported health info gets reset to null.
-                lastSeenHealthNode.set(currentHealthNode.getId());
-                lastReportedDiskHealthInfo.set(null);
-            }
-        }
         maybeScheduleNow();
+    }
+
+    private void resetOnHealthNodeChange(DiscoveryNode currentHealthNode, ClusterChangedEvent event) {
+        if (isNewHealthNode(currentHealthNode, event)) {
+            // The new health node might not have any information yet, so the last
+            // reported health info gets reset to null.
+            lastSeenHealthNode.set(currentHealthNode.getId());
+            lastReportedDiskHealthInfo.set(null);
+        }
+    }
+
+    // We compare the current health node against both the last seen health node from this node and the
+    // health node reported in the previous cluster state to be safe that we do not miss any change due to
+    // a flaky state.
+    private boolean isNewHealthNode(DiscoveryNode currentHealthNode, ClusterChangedEvent event) {
+        DiscoveryNode previousHealthNode = HealthNode.findHealthNode(event.previousState());
+        if (currentHealthNode == null) {
+            return true;
+        }
+        return Objects.equals(lastSeenHealthNode.get(), currentHealthNode.getId()) == false
+            || Objects.equals(previousHealthNode, currentHealthNode) == false;
     }
 
     private void monitorHealth() {

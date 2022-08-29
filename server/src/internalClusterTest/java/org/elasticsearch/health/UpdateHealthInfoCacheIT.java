@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.HealthInfoCache;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
@@ -100,17 +100,35 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         }
     }
 
+    public void testMasterFailure() throws Exception {
+        try (InternalTestCluster internalCluster = internalCluster()) {
+            ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
+            String[] nodeIds = state.getNodes().getNodes().keySet().toArray(new String[0]);
+            DiscoveryNode healthNodeBeforeIncident = waitAndGetHealthNode(internalCluster);
+            assertThat(healthNodeBeforeIncident, notNullValue());
+            internalCluster.restartNode(internalCluster.getMasterName());
+            DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
+            assertThat(newHealthNode, notNullValue());
+            assertBusy(() -> {
+                Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, newHealthNode.getName())
+                    .getDiskHealthInfo();
+                assertThat(healthInfoCache.size(), equalTo(nodeIds.length));
+                for (String nodeId : nodeIds) {
+                    assertThat(healthInfoCache.get(nodeId), equalTo(GREEN));
+                }
+            });
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
+        }
+    }
+
     @Nullable
     private static DiscoveryNode waitAndGetHealthNode(InternalTestCluster internalCluster) throws InterruptedException {
         DiscoveryNode[] healthNode = new DiscoveryNode[1];
         waitUntil(() -> {
             try (Client client = internalCluster.client()) {
                 ClusterState state = client.admin().cluster().prepareState().clear().setMetadata(true).setNodes(true).get().getState();
-                PersistentTasksCustomMetadata taskMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-                PersistentTasksCustomMetadata.PersistentTask<?> task = taskMetadata.getTask("health-node");
-                healthNode[0] = task != null && task.isAssigned()
-                    ? state.nodes().getDataNodes().get(task.getAssignment().getExecutorNode())
-                    : null;
+                healthNode[0] = HealthNode.findHealthNode(state);
             } catch (Exception e) {
                 throw new RuntimeException("Can't get the health node " + e.getMessage(), e);
             }

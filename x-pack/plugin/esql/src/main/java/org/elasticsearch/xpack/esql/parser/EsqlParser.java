@@ -30,7 +30,7 @@ public class EsqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", eql);
         }
-        return invokeParser(eql, EsqlBaseParser::statement, AstBuilder::plan);
+        return invokeParser(eql, EsqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     public Expression createExpression(String expression) {
@@ -38,7 +38,15 @@ public class EsqlParser {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser(expression, EsqlBaseParser::expression, AstBuilder::expression);
+        return invokeParser(expression, EsqlBaseParser::singleExpression, AstBuilder::expression);
+    }
+
+    public LogicalPlan createWhereCommand(String expression) {
+        if (log.isDebugEnabled()) {
+            log.debug("Parsing as a 'where' command: {}", expression);
+        }
+
+        return invokeParser(expression, EsqlBaseParser::whereCommand, AstBuilder::plan);
     }
 
     private <T> T invokeParser(

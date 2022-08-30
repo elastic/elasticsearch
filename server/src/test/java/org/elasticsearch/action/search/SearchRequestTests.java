@@ -338,6 +338,17 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
     }
 
+    public void testDescriptionIncludePreferenceAndRouting() {
+        assertThat(
+            toDescription(new SearchRequest().preference("abc")),
+            equalTo("indices[], types[], search_type[QUERY_THEN_FETCH], source[], preference[abc]")
+        );
+        assertThat(
+            toDescription(new SearchRequest().preference("abc").routing("xyz")),
+            equalTo("indices[], types[], search_type[QUERY_THEN_FETCH], source[], routing[xyz], preference[abc]")
+        );
+    }
+
     private String toDescription(SearchRequest request) {
         return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
     }

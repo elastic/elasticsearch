@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -496,6 +497,24 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
+    }
+
+    public void testTaskDescription() {
+        MultiSearchRequest request = new MultiSearchRequest();
+        request.add(new SearchRequest().preference("abc"));
+        request.add(new SearchRequest().routing("r").preference("xyz"));
+        request.add(new SearchRequest().indices("index-1"));
+
+        String description = request.createTask(0, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap()).getDescription();
+        assertThat(
+            description,
+            equalTo(
+                "requests[3]: "
+                    + "indices[], types[], search_type[QUERY_THEN_FETCH], source[], preference[abc] | "
+                    + "indices[], types[], search_type[QUERY_THEN_FETCH], source[], routing[r], preference[xyz] | "
+                    + "indices[index-1], types[], search_type[QUERY_THEN_FETCH], source[]"
+            )
+        );
     }
 
     private static MultiSearchRequest mutate(MultiSearchRequest searchRequest) throws IOException {

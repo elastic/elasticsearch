@@ -40,17 +40,6 @@ public abstract class StoredFieldLoader {
      */
     public abstract List<String> fieldsToLoad();
 
-    private static List<String> fieldsToLoad(boolean loadSource, Set<String> fields) {
-        Set<String> fieldsToLoad = new HashSet<>();
-        fieldsToLoad.add("_id");
-        fieldsToLoad.add("_routing");
-        if (loadSource) {
-            fieldsToLoad.add("_source");
-        }
-        fieldsToLoad.addAll(fields);
-        return fieldsToLoad.stream().sorted().toList();
-    }
-
     /**
      * Creates a new StoredFieldLoader
      * @param loadSource should this loader load the _source field
@@ -97,6 +86,17 @@ public abstract class StoredFieldLoader {
             return lf.getSequentialStoredFieldsReader()::visitDocument;
         }
         return leafReader::document;
+    }
+
+    private static List<String> fieldsToLoad(boolean loadSource, Set<String> fields) {
+        Set<String> fieldsToLoad = new HashSet<>();
+        fieldsToLoad.add("_id");
+        fieldsToLoad.add("_routing");
+        if (loadSource) {
+            fieldsToLoad.add("_source");
+        }
+        fieldsToLoad.addAll(fields);
+        return fieldsToLoad.stream().sorted().toList();
     }
 
     private static boolean hasSequentialDocs(int[] docs) {

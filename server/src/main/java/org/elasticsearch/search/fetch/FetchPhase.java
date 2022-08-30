@@ -242,7 +242,7 @@ public class FetchPhase {
                 context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
-            return StoredFieldLoader.create(loadSource, Collections.emptySet());
+            return StoredFieldLoader.create(loadSource, sourceLoader.requiredStoredFields());
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
             return StoredFieldLoader.empty();
@@ -270,7 +270,7 @@ public class FetchPhase {
             }
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
-                return StoredFieldLoader.create(loadSource, Collections.emptySet());
+                return StoredFieldLoader.create(loadSource, sourceLoader.requiredStoredFields());
             } else {
                 return StoredFieldLoader.create(loadSource, storedToRequestedFields.keySet());
             }

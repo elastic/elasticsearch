@@ -108,7 +108,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         // initRealms will add default file and native realm config if they are not explicitly configured
         final List<Realm> initialRealms = initRealms(realmConfigs);
         realmRefs = calculateRealmRefs(realmConfigs, realmToDomainConfig);
-        initialRealms.forEach(realm -> realm.initRealmRef(realmRefs.get(new RealmConfig.RealmIdentifier(realm.type(), realm.name()))));
+        initialRealms.forEach(realm -> realm.initRealmRef(realmRefs));
 
         this.allConfiguredRealms = initialRealms;
         this.allConfiguredRealms.forEach(r -> r.initialize(this.allConfiguredRealms, licenseState));

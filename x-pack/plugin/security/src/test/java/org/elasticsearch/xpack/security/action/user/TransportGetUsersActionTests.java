@@ -110,7 +110,12 @@ public class TransportGetUsersActionTests extends ESTestCase {
         when(securityIndex.isAvailable()).thenReturn(true);
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
-        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
+        reservedRealm.initRealmRef(
+            Map.of(
+                new RealmConfig.RealmIdentifier(ReservedRealm.TYPE, ReservedRealm.NAME),
+                new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node")
+            )
+        );
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -185,7 +190,12 @@ public class TransportGetUsersActionTests extends ESTestCase {
             new AnonymousUser(settings),
             threadPool
         );
-        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
+        reservedRealm.initRealmRef(
+            Map.of(
+                new RealmConfig.RealmIdentifier(ReservedRealm.TYPE, ReservedRealm.NAME),
+                new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node")
+            )
+        );
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         final Collection<User> allReservedUsers = userFuture.actionGet();
@@ -268,7 +278,12 @@ public class TransportGetUsersActionTests extends ESTestCase {
             new AnonymousUser(settings),
             threadPool
         );
-        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
+        reservedRealm.initRealmRef(
+            Map.of(
+                new RealmConfig.RealmIdentifier(ReservedRealm.TYPE, ReservedRealm.NAME),
+                new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node")
+            )
+        );
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -368,7 +383,12 @@ public class TransportGetUsersActionTests extends ESTestCase {
             new AnonymousUser(settings),
             threadPool
         );
-        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
+        reservedRealm.initRealmRef(
+            Map.of(
+                new RealmConfig.RealmIdentifier(ReservedRealm.TYPE, ReservedRealm.NAME),
+                new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node")
+            )
+        );
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -416,7 +436,12 @@ public class TransportGetUsersActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
-        reservedRealm.initRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
+        reservedRealm.initRealmRef(
+            Map.of(
+                new RealmConfig.RealmIdentifier(ReservedRealm.TYPE, ReservedRealm.NAME),
+                new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node")
+            )
+        );
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),

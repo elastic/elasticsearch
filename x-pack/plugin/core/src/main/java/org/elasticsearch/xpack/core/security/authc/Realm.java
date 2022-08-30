@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -21,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An authentication mechanism to which the default authentication org.elasticsearch.xpack.security.authc.AuthenticationService
@@ -143,7 +145,8 @@ public abstract class Realm implements Comparable<Realm> {
         listener.onResponse(stats);
     }
 
-    public void initRealmRef(RealmRef realmRef) {
+    public void initRealmRef(Map<RealmIdentifier, RealmRef> realmRefs) {
+        final RealmRef realmRef = Objects.requireNonNull(realmRefs.get(new RealmIdentifier(type(), name())), "realmRef must not be null");
         this.realmRef.set(realmRef);
     }
 

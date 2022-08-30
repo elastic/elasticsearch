@@ -22,6 +22,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -42,7 +43,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.VersionType;
@@ -303,7 +303,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     )
                 );
                 future.actionGet();
-                final PlainActionFuture<Tuple<RepositoryData, SnapshotInfo>> finFuture = PlainActionFuture.newFuture();
+                final PlainActionFuture<SnapshotInfo> finFuture = PlainActionFuture.newFuture();
                 final ShardGenerations shardGenerations = ShardGenerations.builder()
                     .put(indexId, 0, indexShardSnapshotStatus.generation())
                     .build();
@@ -327,7 +327,18 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         Version.CURRENT,
-                        finFuture
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(RepositoryData repositoryData) {
+                                // nothing will resolve in the onDone callback below
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                finFuture.onFailure(e);
+                            }
+                        },
+                        finFuture::onResponse
                     )
                 );
                 finFuture.actionGet();

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -35,7 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -92,33 +92,36 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
-    private CountDownLatch setupClusterStateListener(String node) {
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
-                    if (handlerMetadata == null) {
-                        fail("Should've found cluster settings in this metadata");
+                    if (handlerMetadata != null && handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec")) {
+                        clusterService.removeListener(this);
+                        metadataVersion.set(event.state().metadata().version());
+                        savedClusterState.countDown();
                     }
-                    assertThat(handlerMetadata.keys(), contains("indices.recovery.max_bytes_per_sec"));
-                    clusterService.removeListener(this);
-                    savedClusterState.countDown();
                 }
             }
         });
 
-        return savedClusterState;
+        return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    private void assertClusterStateSaveOK(CountDownLatch savedClusterState) throws Exception {
+    private void assertClusterStateSaveOK(CountDownLatch savedClusterState, AtomicLong metadataVersion) throws Exception {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
+        final ClusterStateResponse clusterStateResponse = client().admin()
+            .cluster()
+            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
+            .actionGet();
 
         assertThat(
             clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
@@ -155,10 +158,9 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertFalse(dataFileSettingsService.watching());
 
         writeJSONFile(masterNode, testJSON);
-        assertClusterStateSaveOK(savedClusterState);
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89464")
     public void testSettingsAppliedOnStart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
@@ -181,17 +183,18 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertTrue(masterFileSettingsService.watching());
         assertFalse(dataFileSettingsService.watching());
 
-        assertClusterStateSaveOK(savedClusterState);
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
     }
 
-    private CountDownLatch setupClusterStateListenerForError(String node) {
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null) {
+                if (reservedState != null && reservedState.errorMetadata() != null) {
                     assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, reservedState.errorMetadata().errorKind());
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
                     assertThat(
@@ -199,19 +202,23 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                         containsString("Missing handler definition for content key [not_cluster_settings]")
                     );
                     clusterService.removeListener(this);
+                    metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
                 }
             }
         });
 
-        return savedClusterState;
+        return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    private void assertClusterStateNotSaved(CountDownLatch savedClusterState) throws Exception {
+    private void assertClusterStateNotSaved(CountDownLatch savedClusterState, AtomicLong metadataVersion) throws Exception {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
+        final ClusterStateResponse clusterStateResponse = client().admin()
+            .cluster()
+            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
+            .actionGet();
 
         assertThat(clusterStateResponse.getState().metadata().persistentSettings().get("search.allow_expensive_queries"), nullValue());
 
@@ -241,6 +248,6 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertFalse(dataFileSettingsService.watching());
 
         writeJSONFile(masterNode, testErrorJSON);
-        assertClusterStateNotSaved(savedClusterState);
+        assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
 }

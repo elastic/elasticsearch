@@ -1,0 +1,6 @@
+pr: 89650
+summary: Copy `isHidden` during ILM alias swap
+area: ILM+SLM
+type: bug
+issues:
+ - 89604

@@ -13,7 +13,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene92.Lucene92Codec;
+import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * per index in real time via the mapping API. If no specific postings format or vector format is
  * configured for a specific field the default postings or vector format is used.
  */
-public class PerFieldMapperCodec extends Lucene92Codec {
+public class PerFieldMapperCodec extends Lucene94Codec {
     private final MapperService mapperService;
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();

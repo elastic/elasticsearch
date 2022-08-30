@@ -1,5 +1,0 @@
-pr: 88807
-summary: Add inference cache hit count to inference node stats
-area: Machine Learning
-type: enhancement
-issues: []

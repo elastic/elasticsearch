@@ -417,9 +417,28 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
+
+        if (context.getIndexSettings().getIndexMetadata().isRollupIndex()
+            && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
+            throw new IllegalArgumentException(
+                config.getDescription()
+                    + " is not supported for aggregation ["
+                    + getName()
+                    + "] with interval type ["
+                    + dateHistogramIntervalType.getPreferredName()
+                    + "]"
+            );
+        }
 
         final ZoneId tz = timeZone();
+        if (context.getIndexSettings().getIndexMetadata().isRollupIndex() && tz != null && ZoneId.of("UTC").equals(tz) == false) {
+            throw new IllegalArgumentException(
+                config.getDescription() + " is not supported for aggregation [" + getName() + "] with timezone [" + tz + "]"
+            );
+        }
+
+        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
 
         LongBounds roundedBounds = null;

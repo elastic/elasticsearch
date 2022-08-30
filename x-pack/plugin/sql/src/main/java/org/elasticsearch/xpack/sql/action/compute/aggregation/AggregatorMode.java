@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.sql.action.compute.aggregation;
 
 public enum AggregatorMode {
 
-    INITIAL(true, true),
+    INITIAL(false, true),
 
-    INTERMEDIATE(false, true),
+    INTERMEDIATE(true, true),
 
-    FINAL(false, false),
+    FINAL(true, false),
 
     // most useful for testing
-    SINGLE(true, false);
+    SINGLE(false, false);
 
     private final boolean inputPartial;
 

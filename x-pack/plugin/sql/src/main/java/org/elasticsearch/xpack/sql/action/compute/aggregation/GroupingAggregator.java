@@ -26,18 +26,14 @@ public class GroupingAggregator {
     ) {
         this.aggregatorFunction = aggCreationFunc.apply(mode, inputChannel);
         this.mode = mode;
-        if (mode.isInputPartial()) {
-            intermediateChannel = -1;
-        } else {
-            this.intermediateChannel = inputChannel;
-        }
+        this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
     }
 
     public void processPage(Block groupIdBlock, Page page) {
         if (mode.isInputPartial()) {
-            aggregatorFunction.addRawInput(groupIdBlock, page);
-        } else {
             aggregatorFunction.addIntermediateInput(groupIdBlock, page.getBlock(intermediateChannel));
+        } else {
+            aggregatorFunction.addRawInput(groupIdBlock, page);
         }
     }
 

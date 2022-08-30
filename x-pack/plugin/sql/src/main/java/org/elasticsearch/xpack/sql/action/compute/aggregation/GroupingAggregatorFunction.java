@@ -24,9 +24,9 @@ public interface GroupingAggregatorFunction {
 
     BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> avg = (AggregatorMode mode, Integer inputChannel) -> {
         if (mode.isInputPartial()) {
-            return GroupingAvgAggregator.create(inputChannel);
-        } else {
             return GroupingAvgAggregator.createIntermediate();
+        } else {
+            return GroupingAvgAggregator.create(inputChannel);
         }
     };
 }

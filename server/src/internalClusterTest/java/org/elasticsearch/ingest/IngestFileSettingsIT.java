@@ -172,8 +172,8 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         // Try using the REST API to update the my_autoscaling_policy policy
         // This should fail, we have reserved certain autoscaling policies in operator mode
         assertEquals(
-            "Failed to process request [org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction$Request/unset] "
-                + "with errors: [[my_autoscaling_policy] set as read-only by [file_settings]]",
+            "Failed to process request [org.elasticsearch.action.ingest.PutPipelineRequest/unset] with errors: " +
+                "[[my_ingest_pipeline] set as read-only by [file_settings]]",
             expectThrows(
                 IllegalArgumentException.class,
                 () -> client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline")).actionGet()

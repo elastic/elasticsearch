@@ -34,7 +34,7 @@ and running both Elasticsearch and Kibana.
 For other installation options, see the
 https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation documentation].
 
-====Install and run Elasticsearch====
+**Install and run Elasticsearch**
 
 . Install and start https://www.docker.com/products/docker-desktop[Docker
 Desktop].
@@ -47,7 +47,7 @@ docker pull {docker-repo}:{version}
 docker run --name es01-test --net elastic -p 127.0.0.1:9200:9200 -p 127.0.0.1:9300:9300 -e "discovery.type=single-node" {docker-image}
 ----
 
-====Install and run Kibana====
+**Install and run Kibana**
 
 To easily send requests to Elasticsearch and analyze, visualize, and manage data 
 interactively, install Kibana.
@@ -61,7 +61,7 @@ docker run --name kib01-test --net elastic -p 127.0.0.1:5601:5601 -e "ELASTICSEA
 
 . To access {kib}, go to http://localhost:5601[http://localhost:5601]
 
-====Send requests to Elasticsarch====
+**Send requests to Elasticsarch**
 
 You send data and other requests to Elasticsearch through REST APIs. 
 You can interact with Elasticsearch using any client that sends HTTP requests, 
@@ -69,7 +69,7 @@ such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elas
 language clients] and https://curl.se[curl]. 
 Kibana's developer tools console provides an easy way to experiment and test requests. 
 
-====Add data====
+**Add data**
 
 You index data into Elasticsearch by sending JSON objects (documents) through the REST APIs.  
 Whether you have structured or unstructured text, numerical data, or geospatial data, 
@@ -117,7 +117,7 @@ PUT customer/_bulk
 { "firstname": "Jennifer","lastname":"Takeda"}
 ----
 
-====Search====
+**Search**
 
 Indexed documents are available for search in near real-time. 
 The following search matches all customers with a first name of _Jennifer_ 
@@ -132,7 +132,7 @@ GET customer/_search
 }
 ----
 
-====Explore====
+**Explore**
 
 You can use Discover in Kibana to interactively search and filter your data.
 From there, you can start creating visualizations and building and sharing dashboards.
@@ -145,7 +145,7 @@ data streams, or index aliases.
 . Enter a name that matches one or more indices, for example _customers_. 
 . Select **Create data view**.  
 
-To start exploring, select **Discover** from the main menu. 
+To start exploring, select **Discover** from the main menu.  d
 
 [[upgrade]]
 == Upgrade

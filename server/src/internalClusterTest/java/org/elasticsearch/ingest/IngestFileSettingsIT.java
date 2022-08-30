@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -36,16 +35,18 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xcontent.XContentType.JSON;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestFileSettingsIT extends ESIntegTestCase {
 
@@ -172,8 +173,8 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         // Try using the REST API to update the my_autoscaling_policy policy
         // This should fail, we have reserved certain autoscaling policies in operator mode
         assertEquals(
-            "Failed to process request [org.elasticsearch.action.ingest.PutPipelineRequest/unset] with errors: " +
-                "[[my_ingest_pipeline] set as read-only by [file_settings]]",
+            "Failed to process request [org.elasticsearch.action.ingest.PutPipelineRequest/unset] with errors: "
+                + "[[my_ingest_pipeline] set as read-only by [file_settings]]",
             expectThrows(
                 IllegalArgumentException.class,
                 () -> client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline")).actionGet()
@@ -248,7 +249,8 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         try (
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis);
-            var builder = XContentFactory.contentBuilder(JSON)) {
+            var builder = XContentFactory.contentBuilder(JSON)
+        ) {
             builder.map(parser.map());
             return new PutPipelineRequest(id, BytesReference.bytes(builder), JSON);
         }

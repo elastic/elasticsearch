@@ -40,6 +40,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -135,7 +136,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             searchLookupSetOnce.set(fdc.lookupSupplier());
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
-        SearchLookup searchLookup = new SearchLookup(null, null);
+        SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
         ifdService.getForField(ft, new FieldDataContext("qualified", () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH));
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }

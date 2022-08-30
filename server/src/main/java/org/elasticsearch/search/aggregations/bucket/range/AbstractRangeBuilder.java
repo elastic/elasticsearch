@@ -83,7 +83,10 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         return ranges;
     }
 
-    private static void sortRanges(final Range[] ranges) {
+    /**
+     * Sort the provided ranges in place.
+     */
+    static void sortRanges(final Range[] ranges) {
         new InPlaceMergeSorter() {
 
             @Override

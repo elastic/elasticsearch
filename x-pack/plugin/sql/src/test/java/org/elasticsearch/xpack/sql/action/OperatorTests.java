@@ -328,9 +328,9 @@ public class OperatorTests extends ESTestCase {
                 new ListLongBlockSourceOperator(LongStream.range(0, 100_000).boxed().toList()),
                 new AggregationOperator(
                     List.of(
-                        new Aggregator(AggregatorFunction.avg, AggregatorMode.PARTIAL, 0),
-                        new Aggregator(AggregatorFunction.count, AggregatorMode.PARTIAL, 0),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.PARTIAL, 0)
+                        new Aggregator(AggregatorFunction.avg, AggregatorMode.INITIAL, 0),
+                        new Aggregator(AggregatorFunction.count, AggregatorMode.INITIAL, 0),
+                        new Aggregator(AggregatorFunction.max, AggregatorMode.INITIAL, 0)
                     )
                 ),
                 new AggregationOperator(
@@ -382,7 +382,7 @@ public class OperatorTests extends ESTestCase {
         List<Aggregator> partialAggregators = new ArrayList<>();
         for (Page inputPage : rawPages) {
             if (partialAggregator == null || random().nextBoolean()) {
-                partialAggregator = new Aggregator(AggregatorFunction.avg, AggregatorMode.PARTIAL, 0);
+                partialAggregator = new Aggregator(AggregatorFunction.avg, AggregatorMode.INITIAL, 0);
                 partialAggregators.add(partialAggregator);
             }
             partialAggregator.processPage(inputPage);

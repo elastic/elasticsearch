@@ -26,7 +26,7 @@ public class GroupingAggregator {
     ) {
         this.aggregatorFunction = aggCreationFunc.apply(mode, inputChannel);
         this.mode = mode;
-        if (mode.isInputRaw()) {
+        if (mode.isInputPartial()) {
             intermediateChannel = -1;
         } else {
             this.intermediateChannel = inputChannel;
@@ -34,7 +34,7 @@ public class GroupingAggregator {
     }
 
     public void processPage(Block groupIdBlock, Page page) {
-        if (mode.isInputRaw()) {
+        if (mode.isInputPartial()) {
             aggregatorFunction.addRawInput(groupIdBlock, page);
         } else {
             aggregatorFunction.addIntermediateInput(groupIdBlock, page.getBlock(intermediateChannel));

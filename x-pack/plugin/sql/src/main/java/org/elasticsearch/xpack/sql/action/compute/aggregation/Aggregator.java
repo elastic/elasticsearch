@@ -22,7 +22,7 @@ public class Aggregator {
     public Aggregator(BiFunction<AggregatorMode, Integer, AggregatorFunction> aggCreationFunc, AggregatorMode mode, int inputChannel) {
         this.aggregatorFunction = aggCreationFunc.apply(mode, inputChannel);
         this.mode = mode;
-        if (mode.isInputRaw()) {
+        if (mode.isInputPartial()) {
             intermediateChannel = -1;
         } else {
             this.intermediateChannel = inputChannel;
@@ -30,7 +30,7 @@ public class Aggregator {
     }
 
     public void processPage(Page page) {
-        if (mode.isInputRaw()) {
+        if (mode.isInputPartial()) {
             aggregatorFunction.addRawInput(page);
         } else {
             aggregatorFunction.addIntermediateInput(page.getBlock(intermediateChannel));

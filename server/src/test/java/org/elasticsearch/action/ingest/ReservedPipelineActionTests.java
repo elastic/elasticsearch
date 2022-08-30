@@ -211,7 +211,8 @@ public class ReservedPipelineActionTests extends ESTestCase {
             null,
             new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
             null,
-            null);
+            null
+        );
         NodesInfoResponse response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
 
         doReturn(response).when(action).getNodeInfos();

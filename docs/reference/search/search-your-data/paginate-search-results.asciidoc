@@ -88,8 +88,48 @@ GET twitter/_search
 
 <1> A copy of the `_id` field with `doc_values` enabled
 
-The search response includes an array of `sort` values for each hit. To retrieve
-the next page of results, repeat the request, take the `sort` values from the
+The search response includes an array of `sort` values for each hit:
+
+[source,console-result]
+----
+{
+  "took" : 17,
+  "timed_out" : false,
+  "_shards" : ...,
+  "hits" : {
+    "total" : ...,
+    "max_score" : null,
+    "hits" : [
+      ...
+      {
+        "_index" : "twitter",
+        "_id" : "654322",
+        "_score" : null,
+        "_source" : ...,
+        "sort" : [               
+          1463538855,
+          "654322"                           
+        ]
+      },
+      {
+        "_index" : "twitter",
+        "_id" : "654323",
+        "_score" : null,
+        "_source" : ...,
+        "sort" : [                                <1>
+          1463538857,
+          "654323"                        
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[skip: demo of where the sort values are]
+
+<1> Sort values for the last returned hit.
+
+To retrieve the next page of results, repeat the request, take the `sort` values from the
 last hit, and insert those into the `search_after` array:
 
 [source,console]

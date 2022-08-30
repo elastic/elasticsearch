@@ -1,0 +1,5 @@
+pr: 89676
+summary: Prototype of dense aggregations object
+area: Aggregations
+type: tech debt
+issues: []

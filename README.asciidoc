@@ -30,6 +30,14 @@ For more installation options, see the
 https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation
 documentation].
 
+# tag::set-up-dev[] 
+
+=== Set up a local dev deployment
+
+TODO: Provide Docker compose instructions.
+
+# end::set-up-dev[]
+
 [[upgrade]]
 == Upgrade
 

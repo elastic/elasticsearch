@@ -30,6 +30,7 @@ https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearc
 
 To try out Elasticsearch on your dev machine, we recommend using Docker
 and running both Elasticsearch and Kibana.
+Docker images are available from the https://www.docker.elastic.co[Elastic Docker registry].
 
 For other installation options, see the
 https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation documentation].
@@ -37,29 +38,53 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elastics
 **Install and run Elasticsearch**
 
 . Install and start https://www.docker.com/products/docker-desktop[Docker
-Desktop].
+Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at least 4GB.
 
-. Run:
+. Start an Elasticsearch container:
 +
 ----
 docker network create elastic
-docker pull {docker-repo}:{version}
-docker run --name es01-test --net elastic -p 127.0.0.1:9200:9200 -p 127.0.0.1:9300:9300 -e "discovery.type=single-node" {docker-image}
+docker pull docker.elastic.co/elasticsearch/elasticsearch:{version}
+docker run --name es-node1 --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
 ----
++
+When you start Elasticsearch for the first time, the following security configuration 
+occurs automatically:
++
+* https://www.elastic.co/guide/en/elasticsearch/reference/current/configuring-stack-security.html#stack-security-certificates[Certificates and keys] 
+are generated for the transport and HTTP layers.
+* The Transport Layer Security (TLS) configuration settings are written to
+`elasticsearch.yml`.
+* A password is generated for the `elastic` user.
+* An enrollment token is generated for Kibana.
++
+NOTE: You might need to scroll back a bit in the terminal to view the password 
+and enrollment token.
+
+. Copy the generated password and enrollment token and save them in a secure 
+location. These values are shown only when you start Elasticsearch for the first time.
+You'll use these to enroll Kibana with your Elasticsearch cluster and log in.
 
 **Install and run Kibana**
 
-To easily send requests to Elasticsearch and analyze, visualize, and manage data 
-interactively, install Kibana.
+Kibana enables you to easily send requests to Elasticsearch and analyze, visualize, and manage data interactively.
 
-. In a new terminal session, run:
+. In a new terminal session, start Kibana and connect it to your Elasticsearch container:
 +
 ----
 docker pull docker.elastic.co/kibana/kibana:{version}
-docker run --name kib01-test --net elastic -p 127.0.0.1:5601:5601 -e "ELASTICSEARCH_HOSTS=http://es01-test:9200" docker.elastic.co/kibana/kibana:{version}
+docker run --name kib-01 --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
 ----
++
+When you start Kibana, a unique link is output to your terminal.
 
-. To access {kib}, go to http://localhost:5601[http://localhost:5601]
+. To access Kibana, open the generated link in your browser.
+
+  .. Paste the enrollment token that you copied when starting
+  Elasticsearch and click the button to connect your Kibana instance with Elasticsearch.
+
+  .. Log in to Kibana as the `elastic` user with the password that was generated
+  when you started Elasticsearch.
 
 **Send requests to Elasticsarch**
 
@@ -67,7 +92,8 @@ You send data and other requests to Elasticsearch through REST APIs.
 You can interact with Elasticsearch using any client that sends HTTP requests, 
 such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
 language clients] and https://curl.se[curl]. 
-Kibana's developer tools console provides an easy way to experiment and test requests. 
+Kibana's developer console provides an easy way to experiment and test requests. 
+To access the console, go to **Managment > Dev Tools**.
 
 **Add data**
 
@@ -75,7 +101,7 @@ You index data into Elasticsearch by sending JSON objects (documents) through th
 Whether you have structured or unstructured text, numerical data, or geospatial data, 
 Elasticsearch efficiently stores and indexes it in a way that supports fast searches. 
 
-For time series data, such as logs and metrics, you typically add documents to a
+For timestamped data such as logs and metrics, you typically add documents to a
 data stream made up of multiple auto-generated backing indices.
 
 To add a single document to an index, submit an HTTP post request that targets the index. 
@@ -88,14 +114,13 @@ POST /customer/_doc/1
 }
 ----
 
-This request automatically creates the `customer` index if it doesn't already exist, 
+This request automatically creates the `customer` index if it doesn't exist, 
 adds a new document that has an ID of 1, and 
 stores and indexes the `firstname` and `lastname` fields.
 
 The new document is available immediately from any node in the cluster. 
 You can retrieve it with a GET request that specifies its document ID:
 
-[source,console]
 ----
 GET /customer/_doc/1
 ----
@@ -104,7 +129,6 @@ To add multiple documents in one request, use the `_bulk` API.
 Bulk data must be newline-delimited JSON (NDJSON). 
 Each line must end in a newline character (`\n`), including the last line.
 
-[source,console]
 ----
 PUT customer/_bulk
 { "create": { } }
@@ -140,12 +164,12 @@ From there, you can start creating visualizations and building and sharing dashb
 To get started, create a _data view_ that connects to one or more Elasticsearch indices,
 data streams, or index aliases.
 
-. Go to **Stack Management > Kibana > Data Views**.
+. Go to **Management > Stack Management > Kibana > Data Views**.
 . Select **Create data view**.
 . Enter a name that matches one or more indices, for example _customers_. 
-. Select **Create data view**.  
+. Select **Save data view to Kibana**.  
 
-To start exploring, select **Discover** from the main menu.
+To start exploring, go to **Analytics > Discover**.
 
 [[upgrade]]
 == Upgrade

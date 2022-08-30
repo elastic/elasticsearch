@@ -1,4 +1,3 @@
-ifeval::["{release-state}"=="unreleased"]
 [[tsds]]
 == Time series data stream (TSDS)
 
@@ -305,4 +304,3 @@ Now that you know the basics, you're ready to <<set-up-tsds,create a TSDS>> or
 
 include::set-up-tsds.asciidoc[]
 include::tsds-index-settings.asciidoc[]
-endif::[]

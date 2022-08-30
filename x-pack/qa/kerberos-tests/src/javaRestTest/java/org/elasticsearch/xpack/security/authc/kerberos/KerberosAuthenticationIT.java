@@ -103,6 +103,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         assumeFalse("Cannot run on JDK 8u[262, 271)", IntStream.range(262, 271).mapToObj(i -> "1.8.0_" + i).anyMatch(javaVersion::equals));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89324")
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
         testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
@@ -116,6 +117,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89324")
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
         testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
@@ -129,6 +131,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89324")
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
         testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);

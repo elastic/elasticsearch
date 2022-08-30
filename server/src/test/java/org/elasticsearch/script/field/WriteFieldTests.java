@@ -16,6 +16,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.hamcrest.Matchers.contains;
 
 public class WriteFieldTests extends ESTestCase {
 
@@ -90,6 +93,7 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals("unimplemented", err.getMessage());
     }
 
+    @SuppressWarnings("unchecked")
     public void testSet() {
         Map<String, Object> root = new HashMap<>();
         root.put("a.b.c", "foo");
@@ -105,6 +109,25 @@ public class WriteFieldTests extends ESTestCase {
         wf = new WriteField("a.b.c", () -> root);
         wf.set("bar");
         assertEquals("bar", b.get("c"));
+
+        a.clear();
+        wf = new WriteField("a.b.c", () -> root);
+        wf.set("bar");
+        assertEquals("bar", ((Map<String, Object>) a.get("b")).get("c"));
+
+        a.clear();
+        a.put("b", "foo");
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> new WriteField("a.b.c", () -> root).set("bar"));
+        assertEquals("Segment [1:'b'] has value [foo] of type [java.lang.String]", err.getMessage());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSetCreate() {
+        Map<String, Object> root = new HashMap<>();
+        WriteField wf = new WriteField("a.b", () -> root);
+        wf.set("foo");
+        assertThat(root.keySet(), contains("a"));
+        assertThat(((Map<String, Object>) root.get("a")).keySet(), contains("b"));
     }
 
     public void testAppend() {
@@ -121,7 +144,7 @@ public class WriteFieldTests extends ESTestCase {
         root.put("a", a);
         wf = new WriteField("a.b.c", () -> root);
         wf.append("bar");
-        assertEquals(List.of("bar"), b.get("c"));
+        assertEquals(new ArrayList<>(List.of("bar")), b.get("c"));
     }
 
     public void testSizeIsEmpty() {
@@ -134,6 +157,15 @@ public class WriteFieldTests extends ESTestCase {
         wf = new WriteField("a.b.c", () -> root);
         assertFalse(wf.isEmpty());
         assertEquals(2, wf.size());
+
+        Map<String, Object> d = new HashMap<>();
+        root.put("d", d);
+        wf = new WriteField("d.e", () -> root);
+        assertTrue(wf.isEmpty());
+        assertEquals(0, wf.size());
+        d.put("e", "foo");
+        assertFalse(wf.isEmpty());
+        assertEquals(1, wf.size());
     }
 
     public void testIterator() {
@@ -161,16 +193,18 @@ public class WriteFieldTests extends ESTestCase {
         assertTrue(it.hasNext());
         assertEquals(3, it.next());
         assertFalse(it.hasNext());
+
+        assertFalse(new WriteField("dne.dne", () -> root).iterator().hasNext());
     }
 
     @SuppressWarnings("unchecked")
-    public void testDedupe() {
+    public void testDeduplicate() {
         Map<String, Object> root = new HashMap<>();
         Map<String, Object> a = new HashMap<>();
         Map<String, Object> b = new HashMap<>();
         a.put("b", b);
         root.put("a", a);
-        b.put("c", List.of(1, 1, 1, 2, 2, 2));
+        b.put("c", new ArrayList<>(List.of(1, 1, 1, 2, 2, 2)));
         WriteField wf = new WriteField("a.b.c", () -> root);
         assertEquals(6, wf.size());
         wf.deduplicate();
@@ -178,6 +212,9 @@ public class WriteFieldTests extends ESTestCase {
         List<Object> list = (List<Object>) wf.get(Collections.emptyList());
         assertTrue(list.contains(1));
         assertTrue(list.contains(2));
+
+        assertEquals("missing", new WriteField("d.e", () -> root).deduplicate().get("missing"));
+        assertEquals("missing", new WriteField("a.b.d", () -> root).deduplicate().get("missing"));
     }
 
     @SuppressWarnings("unchecked")
@@ -188,13 +225,18 @@ public class WriteFieldTests extends ESTestCase {
         a.put("b", b);
         root.put("a", a);
         b.put("c", new ArrayList<>(List.of(1, 1, 1, 2, 2, 2)));
+        b.put("x", "Doctor");
         WriteField wf = new WriteField("a.b.c", () -> root);
         wf.transform(v -> ((Integer) v) + 10);
         List<Object> list = (List<Object>) wf.get(Collections.emptyList());
         assertEquals(List.of(11, 11, 11, 12, 12, 12), list);
+
+        assertTrue(new WriteField("d.e", () -> root).transform(x -> x + ", I presume").isEmpty());
+        assertTrue(new WriteField("a.b.d", () -> root).transform(x -> x + ", I presume").isEmpty());
+        assertEquals("Doctor, I presume", new WriteField("a.b.x", () -> root).transform(x -> x + ", I presume").get(null));
     }
 
-    public void testRemoveValues() {
+    public void testRemoveValuesIf() {
         Map<String, Object> root = new HashMap<>();
         Map<String, Object> a = new HashMap<>();
         Map<String, Object> b = new HashMap<>();
@@ -208,6 +250,33 @@ public class WriteFieldTests extends ESTestCase {
         wf.removeValuesIf(v -> (Integer) v > 10);
         assertEquals(2, wf.size());
         assertEquals(List.of(10, 10), wf.get(null));
+
+        b.clear();
+        wf = new WriteField("a.b.c", () -> root);
+        wf.removeValuesIf(v -> (Integer) v > 10);
+        assertNull(wf.get(null));
+        wf.removeValue(10);
+        assertNull(wf.get(null));
+
+        b.put("c", 11);
+        wf = new WriteField("a.b.c", () -> root);
+        wf.removeValuesIf(v -> (Integer) v > 10);
+        assertNull(wf.get(null));
+
+        b.put("c", 5);
+        wf.removeValuesIf(v -> (Integer) v > 10);
+        assertEquals(5, wf.get(null));
+        wf.removeValue(1);
+        assertEquals(5, wf.get(null));
+        wf.removeValue(0);
+        assertNull(wf.get(null));
+
+        root.clear();
+        wf = new WriteField("a.b.c", () -> root);
+        wf.removeValuesIf(v -> (Integer) v > 10);
+        assertNull(wf.get(null));
+        wf.removeValue(10);
+        assertNull(wf.get(null));
     }
 
     public void testHasValue() {
@@ -222,5 +291,27 @@ public class WriteFieldTests extends ESTestCase {
         assertTrue(wf.hasValue(v -> (Integer) v <= 10));
         wf.append(9);
         assertTrue(wf.hasValue(v -> (Integer) v < 10));
+
+        root.clear();
+        a.clear();
+        a.put("null", null);
+        a.put("b", List.of(1, 2, 3, 4));
+        root.put("a", a);
+        wf = new WriteField("a.b", () -> root);
+        assertTrue(wf.hasValue(x -> (Integer) x % 2 == 0));
+        assertFalse(wf.hasValue(x -> (Integer) x > 4));
+        assertFalse(new WriteField("d.e", () -> root).hasValue(Objects::isNull));
+        assertTrue(new WriteField("a.null", () -> root).hasValue(Objects::isNull));
+        assertFalse(new WriteField("a.null2", () -> root).hasValue(Objects::isNull));
+    }
+
+    public void testGetIndex() {
+        Map<String, Object> root = new HashMap<>();
+        root.put("a", Map.of("b", List.of(1, 2, 3, 5), "c", "foo"));
+        WriteField wf = new WriteField("a.b", () -> root);
+        assertEquals(5, wf.get(3, 100));
+        assertEquals(100, new WriteField("c.d", () -> root).get(3, 100));
+        assertEquals("bar", new WriteField("a.c", () -> root).get(1, "bar"));
+        assertEquals("foo", new WriteField("a.c", () -> root).get(0, "bar"));
     }
 }

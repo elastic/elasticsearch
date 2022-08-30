@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -89,7 +90,8 @@ public class WriteField implements Field<Object> {
      * Sets the value for this path.  Creates nested path if necessary.
      */
     public WriteField set(Object value) {
-        container.put(getOrCreateLeaf(), value);
+        setLeaf();
+        container.put(leaf, value);
         return this;
     }
 
@@ -98,7 +100,7 @@ public class WriteField implements Field<Object> {
      */
     @SuppressWarnings("unchecked")
     public WriteField append(Object value) {
-        getOrCreateLeaf();
+        setLeaf();
 
         container.compute(leaf, (k, v) -> {
             List<Object> values;
@@ -139,6 +141,7 @@ public class WriteField implements Field<Object> {
         if (value == MISSING) {
             return 0;
         }
+
         if (value instanceof List<?> list) {
             return list.size();
         }
@@ -159,6 +162,7 @@ public class WriteField implements Field<Object> {
         if (value == MISSING) {
             return Collections.emptyIterator();
         }
+
         if (value instanceof List<?> list) {
             return (Iterator<Object>) list.iterator();
         }
@@ -192,6 +196,7 @@ public class WriteField implements Field<Object> {
         } else if (value != MISSING && index == 0) {
             return value;
         }
+
         return defaultValue;
     }
 
@@ -207,9 +212,11 @@ public class WriteField implements Field<Object> {
         if (value == MISSING) {
             return false;
         }
+
         if (value instanceof List<?> list) {
             return list.stream().anyMatch(predicate);
         }
+
         return predicate.test(value);
     }
 
@@ -228,11 +235,13 @@ public class WriteField implements Field<Object> {
         if (value == MISSING) {
             return this;
         }
+
         if (value instanceof List<?> list) {
             ((List<Object>) list).replaceAll(transformer::apply);
         } else {
             container.put(leaf, transformer.apply(value));
         }
+
         return this;
     }
 
@@ -251,9 +260,14 @@ public class WriteField implements Field<Object> {
         if (value == MISSING) {
             return this;
         }
+
         if (value instanceof List<?> list) {
-            container.put(leaf, new HashSet<>((List<Object>) list).stream().toList());
+            // Assume modifiable list
+            Set<Object> set = new HashSet<>(list);
+            list.clear();
+            ((List<Object>) list).addAll(set);
         }
+
         return this;
     }
 
@@ -270,11 +284,13 @@ public class WriteField implements Field<Object> {
         if (value == MISSING) {
             return this;
         }
+
         if (value instanceof List<?> list) {
             list.removeIf(filter);
         } else if (filter.test(value)) {
             container.remove(leaf);
         }
+
         return this;
     }
 
@@ -291,6 +307,7 @@ public class WriteField implements Field<Object> {
         if (value == MISSING) {
             return this;
         }
+
         if (value instanceof List<?> list) {
             if (index < list.size()) {
                 list.remove(index);
@@ -298,20 +315,20 @@ public class WriteField implements Field<Object> {
         } else if (index == 0) {
             container.remove(leaf);
         }
+
         return this;
     }
 
     /**
      * Get the path to a leaf or create it if one does not exist.
      */
-    protected String getOrCreateLeaf() {
+    protected void setLeaf() {
         if (leaf == null) {
             resolveDepthFlat();
         }
         if (leaf == null) {
             createDepth();
         }
-        return leaf;
     }
 
     /**

@@ -10,11 +10,13 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -67,43 +69,71 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
         return getInstance(parent, jarPaths, Set.of());
     }
 
+    @SuppressForbidden(reason = "need access to the jar file")
     @SuppressWarnings("removal")
     static StablePluginClassLoader getInstance(ClassLoader parent, List<Path> jarPaths, Set<String> moduleDenyList) {
-        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(parent, jarPaths, moduleDenyList);
-        return AccessController.doPrivileged(pa);
-    }
-
-    /**
-     * Constructor
-     *
-     * TODO: consider a factory pattern for more specific exception handling for scan, etc.
-     */
-    @SuppressForbidden(reason = "need access to the jar file")
-    public StablePluginClassLoader(ClassLoader parent, List<Path> jarPaths, Set<String> moduleDenyList) {
-        super(parent);
-
         // TODO: module name should be derived from plugin descriptor (plugin names should be distinct, might
         // need to munge the characters a little)
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", jarPaths.toArray(new Path[0]), Set.of());
+        List<URL> jarURLs = new ArrayList<>();
         try {
-            List<URL> jarURLs = new ArrayList<>();
             for (Path jarPath : jarPaths) {
                 URI toUri = jarPath.toUri();
                 URL toURL = toUri.toURL();
                 jarURLs.add(toURL);
             }
-            this.internalLoader = new URLClassLoader(jarURLs.toArray(new URL[0]));
-            // we'll need to make up a code source for multiple jar files
-            this.codeSource = new CodeSource(jarURLs.get(0), (CodeSigner[]) null);
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
-
-        // we need a module layer to bind our module to this classloader
         ModuleLayer mparent = ModuleLayer.boot();
         Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of("synthetic"));
-        this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
 
+        Set<String> packageNames = new HashSet<>();
+        for (URL url : jarURLs) {
+            try (JarFile jarFile = new JarFile(new File(url.toURI()))) {
+                Set<String> jarPackages = ModuleSupport.scan(jarFile)
+                    .classFiles()
+                    .stream()
+                    .map(e -> ModuleSupport.toPackageName(e, "/"))
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+
+                packageNames.addAll(jarPackages);
+            } catch (IOException | URISyntaxException e) {
+                throw new IllegalArgumentException(e);
+            }
+        }
+
+        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(
+            parent,
+            jarURLs.toArray(new URL[0]),
+            cf,
+            mparent,
+            moduleDenyList,
+            packageNames
+        );
+        return AccessController.doPrivileged(pa);
+    }
+
+    /**
+     * Constructor
+     */
+    private StablePluginClassLoader(
+        ClassLoader parent,
+        URL[] jarURLs,
+        Configuration cf,
+        ModuleLayer mparent,
+        Set<String> moduleDenyList,
+        Set<String> packageNames
+    ) {
+        super(parent);
+
+        this.internalLoader = new URLClassLoader(jarURLs);
+        // code source is always the first jar on the list
+        this.codeSource = new CodeSource(jarURLs[0], (CodeSigner[]) null);
+        // we need a module layer to bind our module to this classloader
+        this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
         this.module = this.moduleController.layer().findModule("synthetic").orElseThrow();
 
         // Every module reads java.base by default, but we can add all other modules
@@ -115,22 +145,7 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
             .filter(m -> moduleDenyList.contains(m.getName()) == false)
             .forEach(m -> moduleController.addReads(module, m));
 
-        this.packageNames = new HashSet<>();
-        for (Path jar : jarPaths) {
-            try (JarFile jarFile = new JarFile(jar.toFile())) {
-                Set<String> jarPackages = ModuleSupport.scan(jarFile)
-                    .classFiles()
-                    .stream()
-                    .map(e -> ModuleSupport.toPackageName(e, "/"))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toSet());
-
-                this.packageNames.addAll(jarPackages);
-            } catch (IOException e) {
-                throw new IllegalArgumentException(e);
-            }
-        }
+        this.packageNames = packageNames;
     }
 
     /**

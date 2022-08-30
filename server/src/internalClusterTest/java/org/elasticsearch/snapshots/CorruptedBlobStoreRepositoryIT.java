@@ -90,7 +90,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         assertRepositoryBlocked(client(), repoName, snapshot);
 
-        logger.info("--> recreate repository to reset corrupted state");
+        logger.info("--> recreate repository with same settings in order to reset corrupted state");
         assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(settings));
 
         startDeleteSnapshot(repoName, snapshot).get();

@@ -31,7 +31,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -80,6 +82,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 setCurrentDesiredBalance(
                     desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, this::isFresh)
                 );
+                desiredBalanceInput.complete().countDown();
                 var isFresh = isFresh(desiredBalanceInput);
 
                 if (isFresh) {
@@ -124,11 +127,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         var index = indexGenerator.incrementAndGet();
         logger.trace("Executing allocate for [{}]", index);
         queue.add(index, listener);
-        desiredBalanceComputation.onNewInput(
-            new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
+        var input = new DesiredBalanceInput(
+            index,
+            allocation.immutableClone(),
+            Set.copyOf(allocation.routingNodes().unassigned().ignored())
         );
+        desiredBalanceComputation.onNewInput(input);
 
-        maybeAwaitBalance();
+        maybeAwaitBalance(input);
 
         appliedDesiredBalance = currentDesiredBalance;
         logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
@@ -144,9 +150,18 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         }
     }
 
-    protected void maybeAwaitBalance() {
-        // TODO possibly add a bounded wait for the computation to complete?
-        // Otherwise we will have to do a second cluster state update straight away.
+    protected void maybeAwaitBalance(DesiredBalanceInput input) {
+        try {
+            // TODO make configurable or auto-adjusting
+            var awaitTimeMs = 10;
+            var before = System.nanoTime();
+            var result = input.complete().await(awaitTimeMs, TimeUnit.MILLISECONDS);
+            var after = System.nanoTime();
+            logger.trace("Desired balance is {} after {}ms", result ? "computed" : "still computing", (after - before) / 1_000_000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.info("Reconciliation is interrupted");
+        }
     }
 
     @Override

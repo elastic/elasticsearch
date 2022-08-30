@@ -511,7 +511,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var iteration = new AtomicInteger(0);
 
-        var input = new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState), List.of());
+        var input = new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState), Set.of());
         var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(Settings.EMPTY)).compute(
             DesiredBalance.INITIAL,
             input,
@@ -625,7 +625,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     }
 
     private static DesiredBalanceInput createInput(ClusterState clusterState, ShardRouting... ignored) {
-        return new DesiredBalanceInput(randomInt(), routingAllocationOf(clusterState), List.of(ignored));
+        return new DesiredBalanceInput(randomInt(), routingAllocationOf(clusterState), Set.of(ignored));
     }
 
     private static RoutingAllocation routingAllocationOf(ClusterState clusterState) {

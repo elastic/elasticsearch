@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceInput;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -117,7 +118,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
 
             @Override
-            protected void maybeAwaitBalance() {
+            protected void maybeAwaitBalance(DesiredBalanceInput input) {
                 queue.runAllTasks();
             }
         };

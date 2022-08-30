@@ -403,7 +403,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
                 equalTo(
                     new AutoscalingNodeInfo(
                         response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes(),
-                        new Processors(infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getAllocatedProcessors())
+                        new Processors(infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getFractionalAllocatedProcessors())
                     )
                 )
             );

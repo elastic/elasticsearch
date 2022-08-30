@@ -113,7 +113,7 @@ password: `elastic-password`.
 You may need to customize the cluster configuration for the ./gradlew run task.
 You can simply find the task in the source code and configure it there.
 (The task is currently defined in build-tools-internal/src/main/groovy/elasticsearch.run.gradle)
-However, this requires modifying a source controlled file and subject to accidental commits.
+However, this requires modifying a source controlled file and is subject to accidental commits.
 Alternatively, you can use a Gradle init script to inject custom build logic with the -I flag to configure this task locally.
 
 For example:
@@ -141,6 +141,31 @@ Now tell Gradle to use this init script:
 Now the http.p12 file will be placed in the config directory of the running cluster and available for use.
 Assuming you have the http.ssl.keystore setup correctly, you can now use HTTPS with ./gradlew run without the risk
 of accidentally committing your local configurations.
+
+==== Multiple nodes in the test cluster for ./gradlew run
+
+Another desired customization for ./gradlew run might be to run multiple
+nodes with different setting for each node. For example, you may want to debug a coordinating only node that fans out
+to one or more data nodes. To do this, increase the numberOfNodes and add specific configuration for each
+of the nodes.  For example, the following will instruct the first node (:9200) to be a coordinating only node,
+and all other nodes to be master, data_hot, data_content nodes.
+-------------------------------------
+testClusters.register("runTask") {
+     ...
+    numberOfNodes = 2
+    def cluster = testClusters.named("runTask").get()
+    cluster.getNodes().each { node ->
+      node.setting('cluster.initial_master_nodes', cluster.getLastNode().getName())
+      node.setting('node.roles', '[master,data_hot,data_content]')
+    }
+    cluster.getFirstNode().setting('node.roles', '[]')
+   ...
+}
+-------------------------------------
+
+You can also place this config in custom init script (see above) to avoid accidental commits.
+If you are passing in the --debug-jvm flag with multiple nodes, you will need multiple remote debuggers running. One
+for each node listening at port 5007, 5008, 5009, and so on. Ensure that each remote debugger has auto restart enabled.
 
 === Test case filtering.
 

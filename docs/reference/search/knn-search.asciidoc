@@ -87,10 +87,6 @@ will return the top `k` documents that also match the filter query.
 to search. Supports wildcards (`*`). To search all data streams and indices,
 use `*` or `_all`.
 
-WARNING: kNN search does not yet work with <<filter-alias,filtered aliases>>.
-Running a kNN search against a filtered alias may incorrectly result in fewer
-than _k_ hits.
-
 [role="child_attributes"]
 [[knn-search-api-query-params]]
 ==== {api-query-parms-title}

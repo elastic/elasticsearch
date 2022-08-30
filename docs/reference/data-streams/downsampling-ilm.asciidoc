@@ -34,9 +34,10 @@ Create an ILM policy for your time series data. While not required, an ILM
 policy is recommended to automate the management of your time series data stream
 indices.
 
-For this simple example, an ILM policy is configired only for the `hot` data
+For this example, an ILM policy is configired only for the `hot` data
 tier. A rollup process runs after the first document is inserted into the index,
-and then repeats on an hourly interval.
+and then repeats hourly, based on the 
+<<ilm-rollup-options,`fixed_interval`>> option.
 
 ////
 [source,console]

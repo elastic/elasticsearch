@@ -10,13 +10,11 @@ package org.elasticsearch.reservedstate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
 
 /**
  * Base interface used for implementing 'operator mode' cluster state updates.
@@ -61,25 +59,6 @@ public interface ReservedClusterStateHandler<T> {
      * @throws Exception
      */
     TransformState transform(Object source, TransformState prevState) throws Exception;
-
-    /**
-     * A transformation method for handlers that need to perform transformations outside of the cluster state
-     *
-     * <p>
-     * All changes to the cluster state should be done now, but if the handlers need to perform other state modifications,
-     * like role mappings or ingest pipelines, they should implement the modification logic in this method.
-     *
-     * We loop through the postTransform method calls after all transform methods are called.
-     *
-     * @param source The parsed information specific to this handler from the combined cluster state content
-     * @param clusterState The final cluster state from all handler calls to transform
-     * @param previousKeys The previous keys saved for this handler
-     * @return The current keys set by this handler
-     * @throws Exception
-     */
-    default Set<String> postTransform(Object source, ClusterState clusterState, Set<String> previousKeys) throws Exception {
-        return previousKeys;
-    }
 
     /**
      * List of dependent handler names for this handler.

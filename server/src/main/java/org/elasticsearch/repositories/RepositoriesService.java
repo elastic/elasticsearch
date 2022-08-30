@@ -213,8 +213,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         assert existing != null : "repository [" + newRepositoryMetadata.name() + "] must exist";
                         assert existing.getMetadata() == repositoryMetadata;
                         final RepositoryMetadata updatedMetadata;
-                        logger.warn("current repository metadata: " + existing.getMetadata().toString());
-                        logger.warn("new repository metadata: " + newRepositoryMetadata.toString());
                         if (canUpdateInPlace(newRepositoryMetadata, existing)) {
                             if (repositoryMetadata.settings().equals(newRepositoryMetadata.settings())) {
                                 if (repositoryMetadata.generation() == RepositoryData.CORRUPTED_REPO_GEN) {

@@ -48,36 +48,8 @@ and go to **Stack Management > Snapshot and Restore > Repositories**.
 [role="screenshot"]
 image::images/repositories.png[{kib} Console,align="center"]
 
-. Get the details for the repository we'll recreate later by clicking on the repository
-name in the repositories table and making note of all the repository configurations
-that are displayed on the repository details page (we'll use them when we recreate
-the repository). Close the details page using the link at
-the bottom left of the page.
-+
-[role="screenshot"]
-image::images/repo_details.png[{kib} Console,align="center"]
-
-. With all the details above noted, next delete the repository. Select the 
-checkbox at the left of the repository and hit the "Remove repository" red button
-at the top left of the page.
-
-. Recreate the repository by clicking the "Register Repository" button
-at the top right corner of the repositories table. 
-+
-[role="screenshot"]
-image::images/register_repo.png[{kib} Console,align="center"]
-
-. Fill in the repository name, select the type and click "Next".
-+
-[role="screenshot"]
-image::images/register_repo_details.png[{kib} Console,align="center"]
-
-. Fill in the repository details (client, bucket, base path etc) with the values
-you noted down before deleting the repository and click the "Register" button
-at the bottom.
-
-. Select "Verify repository" to confirm that your settings are correct and the 
-deployment can connect to your repository. 
+. Click on the pencil icon at the right side of the repository. On the Edit page that opened
+scroll down and click "Save", without making any changes to the existing settings.
 //end::kibana-api-ex[]
 // end::cloud[]
 

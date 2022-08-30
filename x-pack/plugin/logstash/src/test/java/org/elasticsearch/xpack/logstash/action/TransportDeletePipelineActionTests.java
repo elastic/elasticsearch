@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -30,13 +29,12 @@ public class TransportDeletePipelineActionTests extends ESTestCase {
         try (Client client = getFailureClient(new IndexNotFoundException("missing .logstash"))) {
             final TransportDeletePipelineAction action = new TransportDeletePipelineAction(
                 mock(TransportService.class),
-                mock(ClusterService.class),
                 mock(ActionFilters.class),
                 client
             );
             final DeletePipelineRequest request = new DeletePipelineRequest(randomAlphaOfLength(4));
             final PlainActionFuture<DeletePipelineResponse> future = new PlainActionFuture<>();
-            action.doExecuteProtected(null, request, future);
+            action.doExecute(null, request, future);
             assertThat(future.get().isDeleted(), is(false));
         }
     }

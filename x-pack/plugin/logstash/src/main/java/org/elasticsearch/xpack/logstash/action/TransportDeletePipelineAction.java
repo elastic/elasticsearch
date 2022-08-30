@@ -12,11 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.ReservedStateAwareHandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
@@ -25,36 +23,18 @@ import org.elasticsearch.xpack.logstash.Logstash;
 
 import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
 
-public class TransportDeletePipelineAction extends ReservedStateAwareHandledTransportAction<DeletePipelineRequest, DeletePipelineResponse> {
+public class TransportDeletePipelineAction extends HandledTransportAction<DeletePipelineRequest, DeletePipelineResponse> {
 
     private final Client client;
 
     @Inject
-    public TransportDeletePipelineAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
-        super(DeletePipelineAction.NAME, clusterService, transportService, actionFilters, DeletePipelineRequest::new);
+    public TransportDeletePipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(DeletePipelineAction.NAME, transportService, actionFilters, DeletePipelineRequest::new);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 
     @Override
-    protected void doExecuteProtected(Task task, DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
-        deletePipeline(client, request, listener);
-    }
-
-    private static void handleFailure(Exception e, ActionListener<DeletePipelineResponse> listener) {
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        if (cause instanceof IndexNotFoundException) {
-            listener.onResponse(new DeletePipelineResponse(false));
-        } else {
-            listener.onFailure(e);
-        }
-    }
-
-    static void deletePipeline(Client client, DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
+    protected void doExecute(Task task, DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
         client.prepareDelete(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.id())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(
@@ -63,5 +43,14 @@ public class TransportDeletePipelineAction extends ReservedStateAwareHandledTran
                     e -> handleFailure(e, listener)
                 )
             );
+    }
+
+    private void handleFailure(Exception e, ActionListener<DeletePipelineResponse> listener) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof IndexNotFoundException) {
+            listener.onResponse(new DeletePipelineResponse(false));
+        } else {
+            listener.onFailure(e);
+        }
     }
 }

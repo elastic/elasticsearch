@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -48,13 +48,12 @@ public interface SourceLoader {
     interface Leaf {
         /**
          * Load the {@code _source} for a document.
-         * @param fieldsVisitor field visitor populated with {@code _source} if it
-         *                      has been saved
+         * @param storedFields a loader for stored fields
          * @param docId the doc to load
          */
-        BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
+        BytesReference source(LeafStoredFieldLoader storedFields, int docId) throws IOException;
 
-        Leaf EMPTY_OBJECT = (fieldsVisitor, docId) -> {
+        Leaf EMPTY_OBJECT = (storedFields, docId) -> {
             // TODO accept a requested xcontent type
             try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
                 return BytesReference.bytes(b.startObject().endObject());
@@ -73,7 +72,7 @@ public interface SourceLoader {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
-            return (fieldsVisitor, docId) -> fieldsVisitor.source();
+            return (storedFieldLoader, docId) -> storedFieldLoader.source();
         }
 
         @Override
@@ -117,13 +116,11 @@ public interface SourceLoader {
             }
 
             @Override
-            public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                if (fieldsVisitor != null) {
-                    for (Map.Entry<String, List<Object>> e : fieldsVisitor.fields().entrySet()) {
-                        SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
-                        if (loader != null) {
-                            loader.load(e.getValue());
-                        }
+            public BytesReference source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
+                for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
+                    SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
+                    if (loader != null) {
+                        loader.load(e.getValue());
                     }
                 }
                 if (docValuesLoader != null) {

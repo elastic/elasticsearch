@@ -86,6 +86,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89721")
     public void testRandomSampler() {
         double sampleMonotonicValue = 0.0;
         double sampleNumericValue = 0.0;

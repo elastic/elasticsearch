@@ -97,7 +97,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
         }
     }
 
-    public void testValidation() {
+    public void testValidation() throws Exception {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedPipelineAction action = makeSpiedAction();
@@ -186,7 +186,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
         assertThat(updatedState.keys(), empty());
     }
 
-    private ReservedPipelineAction makeSpiedAction() {
+    private ReservedPipelineAction makeSpiedAction() throws Exception {
         ReservedPipelineAction action = spy(new ReservedPipelineAction(ingestService, mock(NodeClient.class)));
 
         DiscoveryNode discoveryNode = new DiscoveryNode(

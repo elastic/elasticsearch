@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -718,6 +719,7 @@ public class Node implements Closeable {
 
             // add all reserved state handlers from server
             reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
+            reservedStateHandlers.add(new ReservedPipelineAction(ingestService, client));
 
             // add all reserved state handlers from plugins
             List<? extends ReservedClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(

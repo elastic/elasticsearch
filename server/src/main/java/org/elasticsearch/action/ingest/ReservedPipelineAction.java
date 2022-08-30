@@ -32,6 +32,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -82,11 +84,28 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
     }
 
     // package private for testing
-    NodesInfoResponse getNodeInfos() {
+    NodesInfoResponse getNodeInfos() throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear();
         nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
-        return nodeClient.admin().cluster().nodesInfo(nodesInfoRequest).actionGet();
+        AtomicReference<NodesInfoResponse> nodesInfoHolder = new AtomicReference<>();
+        CountDownLatch completeLatch = new CountDownLatch(1);
+        nodeClient.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(NodesInfoResponse nodesInfoResponse) {
+                nodesInfoHolder.set(nodesInfoResponse);
+                completeLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                completeLatch.countDown();
+                throw new IllegalStateException(e);
+            }
+        });
+
+        completeLatch.await();
+        return nodesInfoHolder.get();
     }
 
     private ClusterState wrapIngestTaskExecute(IngestService.PipelineClusterStateUpdateTask task, ClusterState state) {
@@ -99,11 +118,7 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
 
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
-        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-        nodesInfoRequest.clear();
-        nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
         var nodeInfos = getNodeInfos();
-
         var requests = prepare(nodeInfos, source);
 
         ClusterState state = prevState.state();

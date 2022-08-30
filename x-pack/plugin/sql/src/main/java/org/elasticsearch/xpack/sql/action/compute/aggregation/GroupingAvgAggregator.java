@@ -46,7 +46,7 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
         GroupingAvgState state = this.state;
         for (int i = 0; i < valuesBlock.getPositionCount(); i++) {
             int groupId = (int) groupIdBlock.getLong(i);
-            state.add(valuesBlock.getLong(i), groupId);
+            state.add(valuesBlock.getDouble(i), groupId);
             state.counts[groupId]++;
         }
     }

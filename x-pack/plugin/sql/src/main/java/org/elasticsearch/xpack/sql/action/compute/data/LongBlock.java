@@ -27,6 +27,11 @@ public class LongBlock extends Block {
     }
 
     @Override
+    public double getDouble(int position) {
+        return getLong(position);  // Widening primitive conversions, possible loss of precision
+    }
+
+    @Override
     public String toString() {
         return "LongBlock{" + "values=" + Arrays.toString(values) + '}';
     }

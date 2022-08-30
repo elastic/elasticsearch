@@ -108,7 +108,6 @@ public class ClassReadersTests extends ESTestCase {
             """));
 
         String classPath = Files.walk(tmp).filter(Files::isRegularFile).map(Path::toString).collect(Collectors.joining(":"));
-        System.out.println(classPath);
         Stream<ClassReader> classReaderStream = ClassReaders.ofClassPath(classPath);
 
         List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());

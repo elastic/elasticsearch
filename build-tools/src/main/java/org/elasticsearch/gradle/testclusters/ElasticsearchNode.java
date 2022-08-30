@@ -62,6 +62,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.LineNumberReader;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -111,7 +113,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
         "discovery.seed_providers",
-        "cluster.deprecation_indexing.enabled"
+        "cluster.deprecation_indexing.enabled",
+        "cluster.initial_master_nodes"
 
     );
 
@@ -489,6 +492,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         configurationFrozen.set(true);
     }
 
+    private static String throwableToString(Throwable t) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        t.printStackTrace(pw);
+        return sw.toString();
+    }
+
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
@@ -505,11 +515,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
                     if (preserveDataDir) {
-                        Files.list(workingDir)
-                            .filter(path -> path.equals(confPathData) == false)
-                            .forEach(path -> fileSystemOperations.delete(d -> d.delete(path)));
+                        Files.list(workingDir).filter(path -> path.equals(confPathData) == false).forEach(this::uncheckedDeleteWithRetry);
                     } else {
-                        fileSystemOperations.delete(d -> d.delete(workingDir));
+                        deleteWithRetry(workingDir);
                     }
                 }
                 isWorkingDirConfigured = true;
@@ -517,7 +525,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             setupNodeDistribution(getExtractedDistributionDir());
             createWorkingDir();
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to create working directory for " + this, e);
+            String msg = "Failed to create working directory for " + this + ", with: " + e + throwableToString(e);
+            logToProcessStdout(msg);
+            throw new UncheckedIOException(msg, e);
+        } catch (org.gradle.api.UncheckedIOException e) {
+            String msg = "Failed to create working directory for " + this + ", with: " + e + throwableToString(e);
+            logToProcessStdout(msg);
+            throw e;
         }
 
         copyExtraJars();
@@ -1192,9 +1206,75 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
+    private static final int RETRY_DELETE_MILLIS = OS.current() == OS.WINDOWS ? 500 : 0;
+    private static final int MAX_RETRY_DELETE_TIMES = OS.current() == OS.WINDOWS ? 15 : 0;
+
+    /**
+     * Deletes a path, retrying if necessary.
+     *
+     * @param path  the path to delete
+     * @throws IOException
+     *         if an I/O error occurs
+     */
+    void deleteWithRetry(Path path) throws IOException {
+        try {
+            deleteWithRetry0(path);
+        } catch (InterruptedException x) {
+            throw new IOException("Interrupted while deleting.", x);
+        }
+    }
+
+    /** Unchecked variant of deleteWithRetry. */
+    void uncheckedDeleteWithRetry(Path path) {
+        try {
+            deleteWithRetry0(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (InterruptedException x) {
+            throw new UncheckedIOException("Interrupted while deleting.", new IOException());
+        }
+    }
+
+    // The exception handling here is loathsome, but necessary!
+    private void deleteWithRetry0(Path path) throws IOException, InterruptedException {
+        int times = 0;
+        IOException ioe = null;
+        while (true) {
+            try {
+                fileSystemOperations.delete(d -> d.delete(path));
+                times++;
+                // Checks for absence of the file. Semantics of Files.exists() is not the same.
+                while (Files.notExists(path) == false) {
+                    if (times > MAX_RETRY_DELETE_TIMES) {
+                        throw new IOException("File still exists after " + times + " waits.");
+                    }
+                    Thread.sleep(RETRY_DELETE_MILLIS);
+                    // retry
+                    fileSystemOperations.delete(d -> d.delete(path));
+                    times++;
+                }
+                break;
+            } catch (NoSuchFileException ignore) {
+                // already deleted, ignore
+                break;
+            } catch (org.gradle.api.UncheckedIOException | IOException x) {
+                if (x.getCause() instanceof NoSuchFileException) {
+                    // already deleted, ignore
+                    break;
+                }
+                // Backoff/retry in case another process is accessing the file
+                times++;
+                if (ioe == null) ioe = new IOException();
+                ioe.addSuppressed(x);
+                if (times > MAX_RETRY_DELETE_TIMES) throw ioe;
+                Thread.sleep(RETRY_DELETE_MILLIS);
+            }
+        }
+    }
+
     private void createWorkingDir() throws IOException {
         // Start configuration from scratch in case of a restart
-        fileSystemOperations.delete(d -> d.delete(configFile.getParent()));
+        deleteWithRetry(configFile.getParent());
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);

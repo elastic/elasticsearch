@@ -34,6 +34,8 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.Script;
@@ -253,6 +255,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
+    /**
+     * Override to disable testing {@code copy_to} in fields that don't support it.
+     */
+    protected boolean supportsCopyTo() {
+        return true;
+    }
+
     protected void metaMapping(XContentBuilder b) throws IOException {
         minimalMapping(b);
     }
@@ -324,7 +333,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw -> {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths)
+                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                    new SourceLookup.ReaderSourceProvider()
                 );
                 ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
                 IndexSearcher searcher = newSearcher(iw);
@@ -596,7 +606,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            SourceLookup sourceLookup = new SourceLookup();
+            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
             sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
@@ -705,7 +715,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SourceToParse source = source(this::writeField);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
 
-        SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s, t) -> { throw new UnsupportedOperationException(); });
+        SearchLookup lookup = new SearchLookup(
+            f -> fieldType,
+            (f, s, t) -> { throw new UnsupportedOperationException(); },
+            new SourceLookup.ReaderSourceProvider()
+        );
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
 
@@ -836,11 +850,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int i = 0;
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+                FieldsVisitor visitor = loader.requiredStoredFields().isEmpty()
+                    ? null
+                    : new CustomFieldsVisitor(loader.requiredStoredFields(), false);
                 for (LeafReaderContext leaf : reader.leaves()) {
                     int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                     SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
                     for (int docId : docIds) {
-                        assertThat("doc " + docId, sourceLoaderLeaf.source(null, docId).utf8ToString(), equalTo(expected[i++]));
+                        if (visitor != null) {
+                            visitor.reset();
+                            leaf.reader().document(docId, visitor);
+                            visitor.postProcess(mapper.mappers().fieldTypesLookup()::get);
+                        }
+                        assertThat("doc " + docId, sourceLoaderLeaf.source(visitor, docId).utf8ToString(), equalTo(expected[i++]));
                     }
                 }
             }
@@ -893,15 +915,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInvalid() throws IOException {
         List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceSupport().invalidExample());
-        examples.add(
-            new SyntheticSourceInvalidExample(
-                matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
-                b -> {
-                    syntheticSourceSupport().example(5).mapping().accept(b);
-                    b.field("copy_to", "bar");
-                }
-            )
-        );
+        if (supportsCopyTo()) {
+            examples.add(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
+                    b -> {
+                        syntheticSourceSupport().example(5).mapping().accept(b);
+                        b.field("copy_to", "bar");
+                    }
+                )
+            );
+        }
         for (SyntheticSourceInvalidExample example : examples) {
             Exception e = expectThrows(
                 IllegalArgumentException.class,

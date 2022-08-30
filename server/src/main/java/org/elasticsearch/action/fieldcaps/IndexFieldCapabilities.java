@@ -52,7 +52,6 @@ public class IndexFieldCapabilities implements Writeable {
         TimeSeriesParams.MetricType metricType,
         Map<String, String> meta
     ) {
-
         this.name = name;
         this.type = type;
         this.isMetadatafield = isMetadatafield;

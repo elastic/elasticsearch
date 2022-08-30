@@ -20,7 +20,7 @@ public class StablePluginsRegistry {
     effectively means that an interface which extends another interface marked with @Extensible is also extensible
     NameToPluginInfo map is a map of Name to PluginInfo
     i.e.
-    org.elasticsearch.analysis.plugin.api.TokenFilterFactory ->
+    org.elasticsearch.plugin.analysis.api.TokenFilterFactory ->
         {"nori" -> {nori, org.elasticserach.plugin.analysis.new_nori.NoriReadingFormFilterFactory, classloaderInstance}
      */
     private final Map<String /*Extensible */, NameToPluginInfo> namedComponents = new HashMap<>();

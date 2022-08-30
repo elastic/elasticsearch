@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins.scanners;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.plugin.api.Extensible;
 import org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass;
 import org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface;
@@ -17,8 +18,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.objectweb.asm.ClassReader;
 
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
@@ -34,19 +37,19 @@ public class AnnotatedHierarchyVisitorTests extends ESTestCase {
         return null;
     });
 
-    public void testNotAnnotatedClass() throws IOException {
+    public void testNotAnnotatedClass() throws IOException, URISyntaxException {
         performScan(visitor, AnnotatedHierarchyVisitorTests.class);
 
         assertThat(foundClasses, Matchers.emptyCollectionOf(String.class));
     }
 
-    public void testAnnotatedClass() throws IOException {
+    public void testAnnotatedClass() throws IOException, URISyntaxException {
         performScan(visitor, ExtensibleClass.class);
 
         assertThat(foundClasses, contains(classNameToPath(ExtensibleClass.class)));
     }
 
-    public void testClassHierarchy() throws IOException {
+    public void testClassHierarchy() throws IOException, URISyntaxException {
         performScan(visitor, ExtensibleClass.class, SubClass.class);
 
         assertThat(foundClasses, contains(classNameToPath(ExtensibleClass.class)));
@@ -57,7 +60,7 @@ public class AnnotatedHierarchyVisitorTests extends ESTestCase {
         );
     }
 
-    public void testInterfaceHierarchy() throws IOException {
+    public void testInterfaceHierarchy() throws IOException, URISyntaxException {
         performScan(visitor, ImplementingExtensible.class, ExtensibleInterface.class);
 
         assertThat(foundClasses, contains(classNameToPath(ExtensibleInterface.class)));
@@ -72,13 +75,13 @@ public class AnnotatedHierarchyVisitorTests extends ESTestCase {
         return clazz.getCanonicalName().replace(".", "/");
     }
 
-    private void performScan(AnnotatedHierarchyVisitor classVisitor, Class<?>... classes) throws IOException {
-        String mainPath = AnnotatedHierarchyVisitorTests.class.getProtectionDomain().getCodeSource().getLocation().getPath();
+    private void performScan(AnnotatedHierarchyVisitor classVisitor, Class<?>... classes) throws IOException, URISyntaxException {
+        Path mainPath = PathUtils.get(AnnotatedHierarchyVisitorTests.class.getProtectionDomain().getCodeSource().getLocation().toURI());
 
         for (Class<?> clazz : classes) {
             String className = classNameToPath(clazz) + ".class";
-            Path path = Path.of(mainPath, className);
-            FileInputStream fileInputStream = new FileInputStream(path.toFile());
+            Path path = mainPath.resolve(className);
+            InputStream fileInputStream = Files.newInputStream(path);
             ClassReader cr = new ClassReader(fileInputStream);
             cr.accept(classVisitor, 0);
         }

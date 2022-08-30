@@ -19,5 +19,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.TYPE })
 public @interface NamedComponent {
+    /**
+     * A name used for registration and lookup
+     * @return a name
+     */
     String name();
 }

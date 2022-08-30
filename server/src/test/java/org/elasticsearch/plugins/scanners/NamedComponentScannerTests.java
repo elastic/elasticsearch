@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins.scanners;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass;
 import org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface;
 import org.elasticsearch.plugins.scanners.named_components_test_classes.TestNamedComponent;
@@ -16,8 +17,9 @@ import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.objectweb.asm.ClassReader;
 
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -30,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class NamedComponentScannerTests extends ESTestCase {
     NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
 
-    public void testFindNamedComponentInSingleClass() {
+    public void testFindNamedComponentInSingleClass() throws URISyntaxException {
         Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(
             classReaderStream(TestNamedComponent.class),
             NamedComponentScannerTests.class.getClassLoader()
@@ -148,17 +150,17 @@ public class NamedComponentScannerTests extends ESTestCase {
     }
 
     // duplication
-    private Stream<ClassReader> classReaderStream(Class<?>... classes) {
-        String mainPath = NamedComponentScannerTests.class.getProtectionDomain().getCodeSource().getLocation().getPath();
+    private Stream<ClassReader> classReaderStream(Class<?>... classes) throws URISyntaxException {
+        Path mainPath = PathUtils.get(NamedComponentScannerTests.class.getProtectionDomain().getCodeSource().getLocation().toURI());
 
         return Arrays.stream(classes).map(clazz -> {
             String className = classNameToPath(clazz) + ".class";
-            Path path = Path.of(mainPath, className);
+            Path path = mainPath.resolve(className);
             try {
-                FileInputStream fileInputStream = new FileInputStream(path.toFile());
+                InputStream fileInputStream = Files.newInputStream(path);
                 return new ClassReader(fileInputStream);
             } catch (IOException e) {
-                e.printStackTrace();
+                // e.printStackTrace();
             }
             return null;
         }).filter(cr -> cr != null);

@@ -14,6 +14,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
+import org.elasticsearch.common.util.Maps;
+
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
@@ -127,45 +129,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         return (es = entrySet) == null ? (entrySet = new EntrySet<>(map)) : es;
     }
 
-    private static final class ImmutableEntry<KType, VType> implements Map.Entry<KType, VType> {
-        private final KType key;
-        private final VType value;
-
-        ImmutableEntry(KType key, VType value) {
-            this.key = key;
-            this.value = value;
-        }
-
-        @Override
-        public KType getKey() {
-            return key;
-        }
-
-        @Override
-        public VType getValue() {
-            return value;
-        }
-
-        @Override
-        public VType setValue(VType value) {
-            throw new UnsupportedOperationException("collection is immutable");
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Map.Entry) == false) return false;
-            Map.Entry that = (Map.Entry) o;
-            return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(key) ^ Objects.hashCode(value);
-        }
-    }
-
     private static final class ConversionIterator<KType, VType> implements Iterator<Map.Entry<KType, VType>> {
 
         private final Iterator<ObjectObjectCursor<KType, VType>> original;
@@ -185,7 +148,7 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             if (obj == null) {
                 return null;
             }
-            return new ImmutableEntry<>(obj.key, obj.value);
+            return new Maps.ImmutableEntry<>(obj.key, obj.value);
         }
 
         @Override
@@ -244,7 +207,7 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         @Override
         public void forEach(Consumer<? super Map.Entry<KType, VType>> action) {
             map.forEach((Consumer<? super ObjectObjectCursor<KType, VType>>) ooCursor -> {
-                ImmutableEntry<KType, VType> entry = new ImmutableEntry<>(ooCursor.key, ooCursor.value);
+                Maps.ImmutableEntry<KType, VType> entry = new Maps.ImmutableEntry<>(ooCursor.key, ooCursor.value);
                 action.accept(entry);
             });
         }

@@ -77,7 +77,7 @@ public class ClassReaders {
             Path root = jarFs.getPath("/");
             return classesInPath(root);
         } catch (IOException e) {
-            e.printStackTrace();
+            // e.printStackTrace();
         }
         return Stream.empty();
 
@@ -97,7 +97,7 @@ public class ClassReaders {
                     }
                 });
         } catch (IOException e) {
-//            e.printStackTrace();
+            // e.printStackTrace();
         }
         return Stream.empty();
     }

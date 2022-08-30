@@ -60,9 +60,7 @@ org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
 @defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
 java.util.concurrent.Future#cancel(boolean)
 
-@defaultMessage Don't try reading from paths that are not configured in Environment, resolve from Environment instead
-org.elasticsearch.core.PathUtils#get(java.lang.String, java.lang.String[])
-org.elasticsearch.core.PathUtils#get(java.net.URI)
+
 
 @defaultMessage Local times may be ambiguous or nonexistent in a specific time zones. Use ZoneRules#getValidOffsets() instead.
 java.time.LocalDateTime#atZone(java.time.ZoneId)

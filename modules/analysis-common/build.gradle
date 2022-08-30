@@ -23,7 +23,7 @@ restResources {
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  compileOnly project(':libs:elasticsearch-analysis-plugin-api')
+  compileOnly project(':libs:elasticsearch-plugin-analysis-api')
   compileOnly project(':libs:elasticsearch-plugin-api')
 }
 

@@ -146,6 +146,7 @@ public class RollupActionIT extends ESRestTestCase {
         String phaseName = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, phaseName, new RollupILMAction(ConfigTestHelpers.randomInterval()));
         updatePolicy(client(), index, policy);
+        updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
 
         String rollupIndex = waitAndGetRollupIndexName(client(), index);
         assertNotNull("Cannot retrieve rollup index name", rollupIndex);

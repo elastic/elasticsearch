@@ -15,6 +15,10 @@ package org.elasticsearch.plugin.api;
  */
 public interface Nameable {
 
+    /**
+     * Returns a name from NamedComponent annotation.
+     * @return a name used on NamedComponent annotation or null when a class implementing this interface is not annotated
+     */
     default String name() {
         NamedComponent[] annotationsByType = this.getClass().getAnnotationsByType(NamedComponent.class);
         if (annotationsByType.length == 1) {
@@ -22,5 +26,4 @@ public interface Nameable {
         }
         return null;
     }
-
 }

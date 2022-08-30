@@ -45,7 +45,7 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+    public final void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final var authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));

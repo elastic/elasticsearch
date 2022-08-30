@@ -35,11 +35,15 @@ public class RunTask extends DefaultTestClustersTask {
 
     private Boolean debug = false;
 
+    private Boolean initOnly = false;
+
     private Boolean preserveData = false;
 
     private Path dataDir = null;
 
     private String keystorePassword = "";
+
+    private Integer offset = 0;
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
@@ -86,10 +90,36 @@ public class RunTask extends DefaultTestClustersTask {
         return dataDir.toString();
     }
 
+    @Input
+    @Optional
+    Boolean getInitOnly() {
+        return initOnly;
+    }
+
+    /**
+     * Only initialize, but don't actually run. This is useful for multi-cluster run tasks.
+     */
+    public void setInitOnly(Boolean initOnly) {
+        this.initOnly = initOnly;
+    }
+
+    @Input
+    @Optional
+    public Integer getPortOffset() {
+        return offset;
+    }
+
+    /**
+     * Manually increase the port offset. This is useful for multi-cluster run tasks.
+     */
+    public void setPortOffset(Integer offset) {
+        this.offset = offset;
+    }
+
     @Override
     public void beforeStart() {
-        int httpPort = 9200;
-        int transportPort = 9300;
+        int httpPort = 9200 + offset;
+        int transportPort = 9300 + offset;
         Map<String, String> additionalSettings = System.getProperties()
             .entrySet()
             .stream()
@@ -109,12 +139,10 @@ public class RunTask extends DefaultTestClustersTask {
         }
 
         for (ElasticsearchCluster cluster : getClusters()) {
-            cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
-            httpPort++;
-            cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
-            transportPort++;
             cluster.setPreserveDataDir(preserveData);
             for (ElasticsearchNode node : cluster.getNodes()) {
+                node.setHttpPort(String.valueOf(httpPort++));
+                node.setTransportPort(String.valueOf(transportPort++));
                 additionalSettings.forEach(node::setting);
                 if (dataDir != null) {
                     node.setDataPath(getDataPath.apply(node));
@@ -124,14 +152,16 @@ public class RunTask extends DefaultTestClustersTask {
                 }
             }
         }
-
         if (debug) {
-            enableDebug();
+            enableDebug(getPortOffset());
         }
     }
 
     @TaskAction
     public void runAndWait() throws IOException {
+        if (initOnly) {
+            return;
+        }
         List<BufferedReader> toRead = new ArrayList<>();
         List<BooleanSupplier> aliveChecks = new ArrayList<>();
 
@@ -141,6 +171,7 @@ public class RunTask extends DefaultTestClustersTask {
 
         try {
             for (ElasticsearchCluster cluster : getClusters()) {
+                cluster.writeUnicastHostsFiles();
                 for (ElasticsearchNode node : cluster.getNodes()) {
                     BufferedReader reader = Files.newBufferedReader(node.getEsOutputFile());
                     toRead.add(reader);

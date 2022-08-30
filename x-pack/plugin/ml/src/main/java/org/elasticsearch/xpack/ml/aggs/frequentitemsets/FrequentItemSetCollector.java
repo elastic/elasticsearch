@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,11 +19,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopItemIds;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -159,7 +158,8 @@ public final class FrequentItemSetCollector {
      */
     class FrequentItemSetCandidate {
 
-        private LongsRef items;
+        private static final int STARTBITS = 64;
+        private ItemSetBitSet items;
         private long docCount;
 
         // every set has a unique id, required for the outer logic
@@ -167,15 +167,16 @@ public final class FrequentItemSetCollector {
 
         private FrequentItemSetCandidate() {
             this.id = -1;
-            this.items = new LongsRef(10);
+            this.items = new ItemSetBitSet(STARTBITS);
             this.docCount = -1;
         }
 
         FrequentItemSet toFrequentItemSet(List<Field> fields) throws IOException {
             Map<String, List<Object>> frequentItemsKeyValues = new HashMap<>();
 
-            for (int i = 0; i < items.length; ++i) {
-                Tuple<Integer, Object> item = transactionStore.getItem(items.longs[i]);
+            int pos = items.nextSetBit(0);
+            while (pos > 0) {
+                Tuple<Integer, Object> item = transactionStore.getItem(topItemIds.getItemIdAt(pos - 1));
                 final Field field = fields.get(item.v1());
                 Object formattedValue = field.formatValue(item.v2());
                 String fieldName = fields.get(item.v1()).getName();
@@ -187,6 +188,8 @@ public final class FrequentItemSetCollector {
                     l.add(formattedValue);
                     frequentItemsKeyValues.put(fieldName, l);
                 }
+
+                pos = items.nextSetBit(++pos);
             }
 
             return new FrequentItemSet(frequentItemsKeyValues, docCount, (double) docCount / transactionStore.getTotalTransactionCount());
@@ -196,7 +199,7 @@ public final class FrequentItemSetCollector {
             return docCount;
         }
 
-        LongsRef getItems() {
+        ItemSetBitSet getItems() {
             return items;
         }
 
@@ -205,17 +208,11 @@ public final class FrequentItemSetCollector {
         }
 
         int size() {
-            return items.length;
+            return items.cardinality();
         }
 
-        private void reset(int id, LongsRef items, long docCount) {
-            if (items.length > this.items.length) {
-                this.items = new LongsRef(items.length);
-            }
-
-            System.arraycopy(items.longs, 0, this.items.longs, 0, items.length);
-
-            this.items.length = items.length;
+        private void reset(int id, ItemSetBitSet items, long docCount) {
+            this.items.reset(items);
             this.docCount = docCount;
             this.id = id;
         }
@@ -229,10 +226,7 @@ public final class FrequentItemSetCollector {
         @Override
         protected boolean lessThan(FrequentItemSetCandidate a, FrequentItemSetCandidate b) {
             if (a.docCount == b.docCount) {
-                if (a.size() == b.size()) {
-                    return Arrays.compare(a.items.longs, 0, a.items.length, b.items.longs, 0, b.items.length) < 0;
-                }
-                return a.size() < b.size();
+                return ItemSetBitSet.compare(a.items, b.items) < 0;
             }
 
             return a.docCount < b.docCount;
@@ -240,6 +234,7 @@ public final class FrequentItemSetCollector {
     }
 
     private final TransactionStore transactionStore;
+    private final TopItemIds topItemIds;
     private final FrequentItemSetPriorityQueue queue;
 
     // index for closed item set de-duplication
@@ -251,8 +246,9 @@ public final class FrequentItemSetCollector {
     private int count = 0;
     private FrequentItemSetCandidate spareSet = new FrequentItemSetCandidate();
 
-    public FrequentItemSetCollector(TransactionStore transactionStore, int size, long min) {
+    public FrequentItemSetCollector(TransactionStore transactionStore, TopItemIds topItemIds, int size, long min) {
         this.transactionStore = transactionStore;
+        this.topItemIds = topItemIds;
         this.size = size;
         this.min = min;
         queue = new FrequentItemSetPriorityQueue(size);
@@ -276,18 +272,19 @@ public final class FrequentItemSetCollector {
      * minimum count and other criteria like the closed set criteria are met.
      *
      * Note: If added to the collector the given item set is not reused but deep copied
-     *
      * @param itemSet the itemSet
      * @param docCount the doc count for this set
+     *
      * @return the new minimum doc count necessary to enter the collector
      */
-    public long add(LongsRef itemSet, long docCount) {
-        logger.trace("add itemset [{}] count: {} size: {}, queue size: {}", itemSet, docCount, size, queue.size());
+    public long add(ItemSetBitSet itemSet, long docCount) {
+        logger.trace("add itemset with {} items, doc_count {}", itemSet.cardinality(), docCount);
 
         // if the queue is full, shortcut if itemset has a lower count or fewer items than the last set in the queue
         if (queue.top() != null
             && queue.size() == size
-            && (docCount < queue.top().getDocCount() || (docCount == queue.top().getDocCount() && itemSet.length <= queue.top().size()))) {
+            && (docCount < queue.top().getDocCount()
+                || (docCount == queue.top().getDocCount() && itemSet.cardinality() <= queue.top().size()))) {
             return queue.top().getDocCount();
         }
 
@@ -348,34 +345,17 @@ public final class FrequentItemSetCollector {
      * [cat, dog, crocodile] gets skipped, because [cat, dog, crocodile, river] has the same support.
      *
      */
-    private boolean hasSuperSet(LongsRef itemSet, long docCount) {
-        List<FrequentItemSetCandidate> setsThatShareSameDocCount = frequentItemsByCount.get(docCount);
-        if (setsThatShareSameDocCount != null) {
-            for (FrequentItemSetCandidate otherSet : setsThatShareSameDocCount) {
-                if (otherSet.size() < itemSet.length) {
-                    continue;
-                }
+    private boolean hasSuperSet(ItemSetBitSet itemSetBitSet, long docCount) {
+        List<FrequentItemSetCandidate> setsThatShareSameDocCountBits = frequentItemsByCount.get(docCount);
 
-                // quick, intrinsic optimized prefix matching
-                int commonPrefix = Arrays.mismatch(otherSet.items.longs, 0, otherSet.items.longs.length, itemSet.longs, 0, itemSet.length);
-
-                if (commonPrefix == -1 || commonPrefix == itemSet.length) {
+        if (setsThatShareSameDocCountBits != null) {
+            for (FrequentItemSetCandidate otherSet : setsThatShareSameDocCountBits) {
+                if (itemSetBitSet.isSubset(otherSet.getItems())) {
                     return true;
-                }
-
-                int pos = commonPrefix;
-                int posOther = commonPrefix;
-
-                while (otherSet.size() - posOther >= itemSet.length - pos) {
-                    if (otherSet.items.longs[posOther++] == itemSet.longs[pos]) {
-                        pos++;
-                        if (pos == itemSet.length) {
-                            return true;
-                        }
-                    }
                 }
             }
         }
+
         return false;
     }
 

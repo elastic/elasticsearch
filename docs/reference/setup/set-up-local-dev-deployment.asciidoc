@@ -1,0 +1,12 @@
+[[set-up-local-dev-deployment]]
+=== Set up a local dev deployment
+
+//// 
+IMPORTANT: This content is replicated in the Elasticsearch repo 
+README.ascidoc file. If you make changes, you must also update the 
+Elasticsearch README.
+
+GitHub renders the tagged region directives when you view the README, 
+so it's not possible to just include the content from the README. Darn.
+////
+

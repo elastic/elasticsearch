@@ -156,7 +156,7 @@ public class AutoscalingNodeInfoService {
                                         : "unexpected missing node when setting processors [" + nodeInfo.getNode().getEphemeralId() + "]";
                                     builderBuilder.computeIfPresent(
                                         nodeInfo.getNode().getEphemeralId(),
-                                        (n, b) -> b.setProcessors(nodeInfo.getInfo(OsInfo.class).getAllocatedProcessors())
+                                        (n, b) -> b.setProcessors(nodeInfo.getInfo(OsInfo.class).getFractionalAllocatedProcessors())
                                     );
                                 });
                                 synchronized (mutex) {

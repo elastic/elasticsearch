@@ -77,6 +77,10 @@ public class EsExecutors {
         return NODE_PROCESSORS_SETTING.get(settings).roundUp();
     }
 
+    public static Processors nodeProcessors(final Settings settings) {
+        return NODE_PROCESSORS_SETTING.get(settings);
+    }
+
     public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(
         String name,
         ThreadFactory threadFactory,

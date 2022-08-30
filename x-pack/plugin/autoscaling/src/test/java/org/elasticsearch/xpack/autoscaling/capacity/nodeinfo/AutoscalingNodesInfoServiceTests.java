@@ -446,7 +446,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private static org.elasticsearch.action.admin.cluster.node.info.NodeInfo infoForNode(DiscoveryNode node, int processors) {
-        OsInfo osInfo = new OsInfo(randomLong(), processors, processors, null, null, null, null);
+        OsInfo osInfo = new OsInfo(randomLong(), processors, new Processors(processors), null, null, null, null);
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Version.CURRENT,
             Build.CURRENT,

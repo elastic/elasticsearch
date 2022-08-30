@@ -23,7 +23,7 @@ public interface AggregatorFunction {
     Block evaluateFinal();
 
     BiFunction<AggregatorMode, Integer, AggregatorFunction> avg = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputRaw()) {
+        if (mode.isInputPartial()) {
             return AvgAggregator.create(inputChannel);
         } else {
             return AvgAggregator.createIntermediate();
@@ -31,7 +31,7 @@ public interface AggregatorFunction {
     };
 
     BiFunction<AggregatorMode, Integer, AggregatorFunction> count = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputRaw()) {
+        if (mode.isInputPartial()) {
             return CountRowsAggregator.create(inputChannel);
         } else {
             return CountRowsAggregator.createIntermediate();
@@ -39,7 +39,7 @@ public interface AggregatorFunction {
     };
 
     BiFunction<AggregatorMode, Integer, AggregatorFunction> max = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputRaw()) {
+        if (mode.isInputPartial()) {
             return MaxAggregator.create(inputChannel);
         } else {
             return MaxAggregator.createIntermediate();

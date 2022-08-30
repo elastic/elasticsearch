@@ -23,7 +23,7 @@ public interface GroupingAggregatorFunction {
     Block evaluateFinal();
 
     BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> avg = (AggregatorMode mode, Integer inputChannel) -> {
-        if (mode.isInputRaw()) {
+        if (mode.isInputPartial()) {
             return GroupingAvgAggregator.create(inputChannel);
         } else {
             return GroupingAvgAggregator.createIntermediate();

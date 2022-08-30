@@ -9,43 +9,29 @@ package org.elasticsearch.xpack.sql.action.compute.aggregation;
 
 public enum AggregatorMode {
 
-    PARTIAL(true, true),
-
-    FINAL(false, false),
+    INITIAL(true, true),
 
     INTERMEDIATE(false, true),
 
+    FINAL(false, false),
+
+    // most useful for testing
     SINGLE(true, false);
 
-    //
-    // createIntermediate - intermediate input
-    // FINAL(false, false),
-    // INTERMEDIATE(false, true),
-
-    // create - raw input
-    // SINGLE(true, false);
-    // PARTIAL(true, true),
-
-    // process path - input
-    // raw / intermediate
-    // evaluate - output
-    // final / intermediate
-
-    private final boolean inputRaw;
+    private final boolean inputPartial;
 
     private final boolean outputPartial;
 
-    AggregatorMode(boolean inputRaw, boolean outputPartial) {
-        this.inputRaw = inputRaw;
+    AggregatorMode(boolean inputPartial, boolean outputPartial) {
+        this.inputPartial = inputPartial;
         this.outputPartial = outputPartial;
     }
 
-    public boolean isInputRaw() {
-        return inputRaw;
+    public boolean isInputPartial() {
+        return inputPartial;
     }
 
     public boolean isOutputPartial() {
         return outputPartial;
     }
-
 }

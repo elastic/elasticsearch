@@ -116,7 +116,8 @@ GET .../_search
 * When you use a `term` aggregation to gather influencer or partition field 
 information, consider using a `composite` aggregation. It performs better than a 
 `date_histogram` with a nested `term` aggregation and also includes all the 
-values of the field instead of the top values per bucket.
+values of the field instead of the top values per bucket. For more information 
+on influencers, refer to <<ml-ad-influencers>>.
 
 
 [discrete]

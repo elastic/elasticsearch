@@ -247,9 +247,11 @@ public class CompoundProcessor implements Processor {
         if (processorTag != null) {
             exception.addHeader("processor_tag", processorTag);
         }
-        List<String> pipelineStack = document.getPipelineStack();
-        if (pipelineStack.size() > 1) {
-            exception.addHeader("pipeline_origin", pipelineStack);
+        if (document != null) {
+            List<String> pipelineStack = document.getPipelineStack();
+            if (pipelineStack.isEmpty() == false) {
+                exception.addHeader("pipeline_origin", pipelineStack);
+            }
         }
 
         return exception;

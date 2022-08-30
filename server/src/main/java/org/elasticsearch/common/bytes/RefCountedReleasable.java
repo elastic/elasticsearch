@@ -20,7 +20,7 @@ public final class RefCountedReleasable extends AbstractRefCounted {
 
     private final Releasable releasable;
 
-    RefCountedReleasable(Releasable releasable) {
+    public RefCountedReleasable(Releasable releasable) {
         this.releasable = releasable;
     }
 

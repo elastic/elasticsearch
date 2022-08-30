@@ -11,16 +11,19 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.RefCountedReleasable;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.CollectedAggregator;
+import org.elasticsearch.search.aggregations.CollectedAggregators;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -50,7 +53,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * them until just before we need them.
      */
     private DelayableWriteable<InternalAggregations> aggregations;
-    private List<CollectedAggregator> newAggregations;
+    private final CollectedAggregators newAggregations;
+    private final RefCounted refCounted;
     private boolean hasAggs;
     // Adding a new flag for the new aggs format - parallel world plan
     private boolean hasNewAggs;
@@ -85,9 +89,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
             isNull = false;
         }
         if (isNull == false) {
+            newAggregations = new CollectedAggregators();
             ShardSearchContextId id = new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
+        } else {
+            newAggregations = null;
         }
+        refCounted = newAggregations == null ? null : new RefCountedReleasable(newAggregations);
     }
 
     public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -95,10 +103,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
+        newAggregations = new CollectedAggregators();
+        refCounted = new RefCountedReleasable(newAggregations);
     }
 
     private QuerySearchResult(boolean isNull) {
         this.isNull = isNull;
+        newAggregations = null;
+        refCounted = null;
     }
 
     /**
@@ -230,17 +242,16 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     public void releaseNewAggs() {
         if (newAggregations != null) {
-            for (CollectedAggregator aggregator : newAggregations) {
-                aggregator.close();
-            }
+            newAggregations.close();
         }
     }
 
     // this almost definitely needs to be something smarter than a plain list, but for now.
     public void addNewAggregations(List<CollectedAggregator> collectedAggregators) {
-        assert this.newAggregations == null : "aggregations already set to [" + this.newAggregations + "]";
-        this.newAggregations = collectedAggregators;
-        hasNewAggs= collectedAggregators != null;
+        hasNewAggs = collectedAggregators.isEmpty() == false;
+        for (CollectedAggregator agg : collectedAggregators) {
+            newAggregations.add(agg);
+        }
     }
 
     /**
@@ -384,7 +395,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             hasNewAggs = in.readBoolean();
             if (hasNewAggs) {
                 assert hasAggs == false : "Deserialized both new and old aggregations";
-                newAggregations = in.readNamedWriteableList(CollectedAggregator.class);
+                newAggregations.readFrom(in);
             }
             if (in.readBoolean()) {
                 suggest = new Suggest(in);
@@ -403,12 +414,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         } finally {
             if (success == false) {
                 // in case we were not able to deserialize the full message we must release the aggregation buffer
-                Releasables.close(aggregations);
-                if (newAggregations != null) {
-                    for (CollectedAggregator agg : newAggregations) {
-                        agg.close();
-                    }
-                }
+                Releasables.close(aggregations, newAggregations);
             }
         }
     }
@@ -448,7 +454,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeNamedWriteableList(newAggregations);
+            newAggregations.writeTo(out);
         }
         if (suggest == null) {
             out.writeBoolean(false);
@@ -473,5 +479,38 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
+    }
+
+    @Override
+    public void incRef() {
+        if (refCounted != null) {
+            refCounted.incRef();
+        } else {
+            super.incRef();
+        }
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        if (refCounted != null) {
+            return refCounted.tryIncRef();
+        }
+        return super.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted != null) {
+            return refCounted.decRef();
+        }
+        return super.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        if (refCounted != null) {
+            return refCounted.hasReferences();
+        }
+        return super.hasReferences();
     }
 }

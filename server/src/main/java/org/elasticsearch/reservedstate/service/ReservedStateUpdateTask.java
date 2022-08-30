@@ -88,6 +88,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         List<String> errors = new ArrayList<>();
 
         ClusterState state = currentState;
+        // Transform the cluster state first
         for (var handlerName : orderedHandlers) {
             ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
             try {
@@ -100,6 +101,36 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             }
         }
 
+        checkAndThrowOnError(errors, currentState, reservedStateVersion);
+
+        // Run the postTransform loop for any handlers that need to perform updates to other things than the cluster state
+        for (var handlerName : orderedHandlers) {
+            ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
+            try {
+                // We first try to fetch the existing keys from what we have in the builder if transform saved any keys
+                Set<String> existingKeys = keysForHandler(reservedMetadataBuilder.getHandler(handlerName), existingMetadata, handlerName);
+                // postTransform doesn't modify the cluster state
+                Set<String> newKeys = handler.postTransform(reservedState.get(handlerName), state, existingKeys);
+                reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, newKeys));
+            } catch (Exception e) {
+                errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
+            }
+        }
+
+        // Most error should be caught in the transform phase, however we check if the post transform encountered any
+        checkAndThrowOnError(errors, currentState, reservedStateVersion);
+
+        // remove the last error if we had previously encountered any
+        reservedMetadataBuilder.errorMetadata(null);
+
+        ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
+        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(reservedMetadataBuilder.build());
+
+        return stateBuilder.metadata(metadataBuilder).build();
+    }
+
+    private void checkAndThrowOnError(List<String> errors, ClusterState currentState, ReservedStateVersion reservedStateVersion) {
+        // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             // Check if we had previous error metadata with version information, don't spam with cluster state updates, if the
             // version hasn't been updated.
@@ -116,14 +147,18 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
             throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState);
         }
+    }
 
-        // remove the last error if we had previously encountered any
-        reservedMetadataBuilder.errorMetadata(null);
+    private Set<String> keysForHandler(
+        ReservedStateHandlerMetadata currentHandlerData,
+        ReservedStateMetadata reservedStateMetadata,
+        String handlerName
+    ) {
+        if (currentHandlerData != null) {
+            return currentHandlerData.keys();
+        }
 
-        ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
-        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(reservedMetadataBuilder.build());
-
-        return stateBuilder.metadata(metadataBuilder).build();
+        return keysForHandler(reservedStateMetadata, handlerName);
     }
 
     private Set<String> keysForHandler(ReservedStateMetadata reservedStateMetadata, String handlerName) {

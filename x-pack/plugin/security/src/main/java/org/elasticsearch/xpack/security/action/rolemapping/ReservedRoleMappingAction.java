@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,11 +60,16 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         List<ExpressionRoleMapping> roleMappings = (List<ExpressionRoleMapping>) input;
         List<PutRoleMappingRequest> requests = roleMappings.stream().map(rm -> PutRoleMappingRequest.fromMapping(rm)).toList();
 
+        var exceptions = new ArrayList<String>();
         for (var request : requests) {
             var exception = request.validate();
             if (exception != null) {
-                throw exception;
+                exceptions.add(exception.getMessage());
             }
+        }
+
+        if (exceptions.isEmpty() == false) {
+            throw new IllegalStateException(String.join(", ", exceptions));
         }
 
         return requests;
@@ -71,9 +77,14 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
 
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
-        var requests = prepare(source);
+        // We execute the prepare() call to catch any errors in the transform phase
+        prepare(source);
+        return prevState;
+    }
 
-        ClusterState state = prevState.state();
+    @Override
+    public Set<String> postTransform(Object source, ClusterState clusterState, Set<String> previousKeys) {
+        var requests = prepare(source);
 
         for (var request : requests) {
             roleMappingStore.putRoleMapping(request, new ActionListener<>() {
@@ -89,7 +100,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
 
         Set<String> entities = requests.stream().map(r -> r.getName()).collect(Collectors.toSet());
 
-        Set<String> toDelete = new HashSet<>(prevState.keys());
+        Set<String> toDelete = new HashSet<>(previousKeys);
         toDelete.removeAll(entities);
 
         for (var mappingToDelete : toDelete) {
@@ -107,7 +118,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             });
         }
 
-        return new TransformState(state, entities);
+        return Collections.unmodifiableSet(entities);
     }
 
     @Override

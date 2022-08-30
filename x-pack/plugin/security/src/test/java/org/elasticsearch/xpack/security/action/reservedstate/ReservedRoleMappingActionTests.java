@@ -36,7 +36,11 @@ import static org.mockito.Mockito.spy;
 public class ReservedRoleMappingActionTests extends ESTestCase {
     private TransformState processJSON(ReservedRoleMappingAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            return action.transform(action.fromXContent(parser), prevState);
+            var content = action.fromXContent(parser);
+            var state = action.transform(content, prevState);
+            var modifiedKeys = action.postTransform(content, state.state(), state.keys());
+
+            return new TransformState(state.state(), modifiedKeys);
         }
     }
 
@@ -69,7 +73,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
 
         assertEquals(
             "Validation Failed: 1: metadata keys may not start with [_];",
-            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+            expectThrows(IllegalStateException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
         );
     }
 

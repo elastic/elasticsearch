@@ -154,8 +154,8 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
                 listener.onResponse(profileUidLookup);
             } else {
                 final ElasticsearchStatusException exception = new ElasticsearchStatusException(
-                    "failed to retrieve profile for users. please retry without fetching profile uid",
-                    RestStatus.BAD_REQUEST
+                    "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
+                    RestStatus.INTERNAL_SERVER_ERROR
                 );
                 resultsAndErrors.errors().values().forEach(exception::addSuppressed);
                 listener.onFailure(exception);

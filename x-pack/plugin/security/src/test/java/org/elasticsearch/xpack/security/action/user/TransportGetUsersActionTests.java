@@ -17,6 +17,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -424,6 +425,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         final ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, future::actionGet);
 
+        assertThat(e.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(e.getSuppressed().length, greaterThan(0));
         Arrays.stream(e.getSuppressed()).forEach(suppressed -> {
             assertThat(suppressed, instanceOf(ElasticsearchException.class));

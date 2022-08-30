@@ -21,6 +21,11 @@ setup:
               name:
                 type: keyword
                 store: true
+          aliases:
+            test-alias:
+              filter:
+                term:
+                  name: v1
 
   - do:
       index:
@@ -63,15 +68,6 @@ setup:
           test_vector: [0.5, 0.5, 0.5, 0.4]
 
   - do:
-      indices.put_alias:
-        index: test
-        name: test-alias
-        body:
-          filter:
-            term:
-              name: v1
-
-  - do:
      indices.refresh: {}
 
 ---
@@ -85,7 +81,7 @@ setup:
           fields: [ name ]
           knn:
             field: test_vector
-            query_vector: [ 230.0, 300.33, -34.8988, 15.555 ]
+            query_vector: [ 230.0, 300.33, -34.8988, -1.0 ]
             k: 2
             num_candidates: 100
 
@@ -94,8 +90,8 @@ setup:
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0.fields.name.0: v1 }
 
-  - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.1.fields.name.0: v2 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: v1 }
 
   # test knn search w/ a prefilter of term v1
   - do:
@@ -105,7 +101,7 @@ setup:
           fields: [ name ]
           knn:
             field: test_vector
-            query_vector: [ 230.0, 300.33, -34.8988, 15.555 ]
+            query_vector: [ 230.0, 300.33, -34.8988, -1.0 ]
             k: 2
             num_candidates: 100
             filter:
@@ -128,7 +124,7 @@ setup:
           fields: [ name ]
           knn:
             field: test_vector
-            query_vector: [ 230.0, 300.33, -34.8988, 15.555 ]
+            query_vector: [ 230.0, 300.33, -34.8988, -1.0 ]
             k: 2
             num_candidates: 100
 

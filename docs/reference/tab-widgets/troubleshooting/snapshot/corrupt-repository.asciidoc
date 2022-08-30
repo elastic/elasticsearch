@@ -143,24 +143,6 @@ to recreate the repository:
 GET _snapshot/my-repo
 ----
 // TEST[skip:we're not setting up repos in these tests]
-. (Optional) Delete the repository.
-+
-[source,console]
-----
-DELETE _snapshot/my-repo
-----
-// TEST[skip:we're not setting up repos in these tests]
-+
-The response will look like this:
-+
-[source,console-result]
-------------------------------------------------------------------------------
-{
-  "acknowledged": true
-}
-------------------------------------------------------------------------------
-// TESTRESPONSE[skip:the result is for illustrating purposes only]
-
 . Using the configuration we obtained above, let's recreate the repository:
 +
 [source,console]

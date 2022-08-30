@@ -145,7 +145,7 @@ data streams, or index aliases.
 . Enter a name that matches one or more indices, for example _customers_. 
 . Select **Create data view**.  
 
-To start exploring, select **Discover** from the main menu.  d
+To start exploring, select **Discover** from the main menu.
 
 [[upgrade]]
 == Upgrade

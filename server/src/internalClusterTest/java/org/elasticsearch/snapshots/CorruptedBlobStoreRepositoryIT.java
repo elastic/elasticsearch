@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.is;
 
 public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCase {
 
-    public void testRecreateBlockedRepositoryUnblocksIt() throws Exception {
+    public void testRecreateCorruptedRepositoryUnblocksIt() throws Exception {
         Path repo = randomRepoPath();
         final String repoName = "test-repo";
         Settings.Builder settings = Settings.builder()

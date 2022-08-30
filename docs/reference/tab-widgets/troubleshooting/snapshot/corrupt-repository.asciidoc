@@ -130,10 +130,8 @@ The response will look like this:
 
 At this point, it's only the primary (current) cluster that has the repository marked
 as writeable.
-{es} sees it as corrupt though so let's remove the repository and recreate it so that 
-{es} can resume using it:
-
-Note that now we're configuring the primary (current) cluster.
+{es} sees it as corrupt though so let's recreate it so that {es} can resume using it.
+Note that now we're configuring the primary (current) cluster:
 
 . Get the configuration of the repository and save its configuration as we'll use it
 to recreate the repository:

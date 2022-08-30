@@ -24,25 +24,25 @@ public interface AggregatorFunction {
 
     BiFunction<AggregatorMode, Integer, AggregatorFunction> avg = (AggregatorMode mode, Integer inputChannel) -> {
         if (mode.isInputPartial()) {
-            return AvgAggregator.create(inputChannel);
-        } else {
             return AvgAggregator.createIntermediate();
+        } else {
+            return AvgAggregator.create(inputChannel);
         }
     };
 
     BiFunction<AggregatorMode, Integer, AggregatorFunction> count = (AggregatorMode mode, Integer inputChannel) -> {
         if (mode.isInputPartial()) {
-            return CountRowsAggregator.create(inputChannel);
-        } else {
             return CountRowsAggregator.createIntermediate();
+        } else {
+            return CountRowsAggregator.create(inputChannel);
         }
     };
 
     BiFunction<AggregatorMode, Integer, AggregatorFunction> max = (AggregatorMode mode, Integer inputChannel) -> {
         if (mode.isInputPartial()) {
-            return MaxAggregator.create(inputChannel);
-        } else {
             return MaxAggregator.createIntermediate();
+        } else {
+            return MaxAggregator.create(inputChannel);
         }
     };
 }

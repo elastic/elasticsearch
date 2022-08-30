@@ -56,6 +56,52 @@ import static org.hamcrest.Matchers.is;
 
 public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCase {
 
+    public void testRecreateBlockedRepositoryUnblocksIt() throws Exception {
+        Path repo = randomRepoPath();
+        final String repoName = "test-repo";
+        Settings.Builder settings = Settings.builder()
+            .put("location", repo)
+            // Don't cache repository data because the test manually modifies the repository data
+            .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false);
+        createRepository(repoName, "fs", settings);
+
+        createIndex("test-idx-1");
+        logger.info("--> indexing some data");
+        indexRandom(true, client().prepareIndex("test-idx-1").setSource("foo", "bar"));
+
+        final String snapshot = "test-snap";
+
+        logger.info("--> creating snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshot)
+            .setWaitForCompletion(true)
+            .setIndices("test-idx-1")
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
+
+        logger.info("--> move index-N blob to next generation");
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        Files.move(repo.resolve("index-" + repositoryData.getGenId()), repo.resolve("index-" + (repositoryData.getGenId() + 1)));
+
+        assertRepositoryBlocked(client(), repoName, snapshot);
+
+        logger.info("--> recreate repository to reset corrupted state");
+        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(settings));
+
+        startDeleteSnapshot(repoName, snapshot).get();
+
+        logger.info("--> make sure snapshot doesn't exist");
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client().admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get()
+        );
+    }
+
     public void testConcurrentlyChangeRepositoryContents() throws Exception {
         Client client = client();
 

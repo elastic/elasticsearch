@@ -171,7 +171,7 @@ to recreate the repository:
 GET _snapshot/my-repo
 ----
 // TEST[skip:we're not setting up repos in these tests]
-. Delete the repository:
+. (Optional) Delete the repository.
 +
 [source,console]
 ----

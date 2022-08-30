@@ -131,12 +131,12 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
     }
 
     @Override
-    public Optional<String> reservedStateHandlerName() {
+    protected Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedClusterSettingsAction.NAME);
     }
 
     @Override
-    public Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
+    protected Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
         Settings allSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
         return allSettings.keySet();
     }

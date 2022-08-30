@@ -266,7 +266,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        public Optional<String> reservedStateHandlerName() {
+        protected Optional<String> reservedStateHandlerName() {
             return Optional.of("test_reserved_state_action");
         }
     }
@@ -306,12 +306,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        public Optional<String> reservedStateHandlerName() {
+        protected Optional<String> reservedStateHandlerName() {
             return Optional.of(ReservedClusterSettingsAction.NAME);
         }
 
         @Override
-        public Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
+        protected Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
             Settings allSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
             return allSettings.keySet();
         }
@@ -771,14 +771,14 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         Action noHandler = new Action("internal:testAction", transportService, clusterService, threadPool, ThreadPool.Names.SAME);
 
-        assertFalse(noHandler.supportsReservedState());
+        assertFalse(noHandler.supportsImmutableState());
 
         noHandler = new ReservedStateAction("internal:testOpAction", transportService, clusterService, threadPool);
 
-        assertTrue(noHandler.supportsReservedState());
+        assertTrue(noHandler.supportsImmutableState());
 
         // nothing should happen here, since the request doesn't touch any of the immutable state keys
-        noHandler.validateForReservedState(new Request(), clusterState);
+        noHandler.validateForImmutableState(new Request(), clusterState);
 
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put("a", "a value").build()
@@ -792,10 +792,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             ThreadPool.Names.SAME
         );
 
-        assertTrue(action.supportsReservedState());
+        assertTrue(action.supportsImmutableState());
 
         assertTrue(
-            expectThrows(IllegalArgumentException.class, () -> action.validateForReservedState(request, clusterState)).getMessage()
+            expectThrows(IllegalArgumentException.class, () -> action.validateForImmutableState(request, clusterState)).getMessage()
                 .contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]")
         );
 
@@ -804,7 +804,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         ).transientSettings(Settings.builder().put("n", "n value").build());
 
         // this should just work, no conflicts
-        action.validateForReservedState(okRequest, clusterState);
+        action.validateForImmutableState(okRequest, clusterState);
     }
 
     private Runnable blockAllThreads(String executorName) throws Exception {

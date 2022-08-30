@@ -120,12 +120,12 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    public Optional<String> reservedStateHandlerName() {
+    protected Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedLifecycleAction.NAME);
     }
 
     @Override
-    public Set<String> modifiedKeys(Request request) {
+    protected Set<String> modifiedKeys(Request request) {
         return Set.of(request.getPolicyName());
     }
 }

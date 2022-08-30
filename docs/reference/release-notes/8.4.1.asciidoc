@@ -1,0 +1,15 @@
+[[release-notes-8.4.1]]
+== {es} version 8.4.1
+
+coming[8.4.1]
+
+Also see <<breaking-changes-8.4,Breaking changes in 8.4>>.
+
+[[bug-8.4.1]]
+[float]
+=== Bug fixes
+
+Machine Learning::
+* [ML] Validate trained model deployment `queue_capacity` limit {es-pull}89611[#89611] (issue: {es-issue}89555[#89555])
+
+

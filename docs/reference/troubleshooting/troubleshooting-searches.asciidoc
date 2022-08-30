@@ -78,8 +78,8 @@ configured with the correct time field.
 
 Querying a field that does not exist or has no data will not return any results.
 Use the <<query-dsl-exists-query,`exists` query>> to check whether there are
-documents that contain an indexed value for a field. Check that `count` in the
-response is not 0.
+documents that have a value for a field. Check that `count` in the response is
+not 0.
 
 [source,console]
 ----
@@ -144,9 +144,9 @@ GET /my-index-000001/_mappings
 ----
 //TEST[continued]
 
-For `text` fields, pay attention to the analyzer that may have been configured.
-You can use the <<indices-analyze,analyze API>> to check how a field's analyzer
-processes values and query terms:
+If you query a `text` field, pay attention to the analyzer that may have been
+configured. You can use the <<indices-analyze,analyze API>> to check how a
+field's analyzer processes values and query terms:
 
 [source,console]
 ----
@@ -158,11 +158,8 @@ GET /my-index-000001/_analyze
 ----
 //TEST[continued]
 
-<<updating-field-mappings,Changing the mapping of a field>> generally requires
-creating a new index with the correct mappings. Next, reindex the data into that
-index. For data streams, refer to
-<<data-streams-change-mappings-and-settings,Change mappings and settings for a
-data stream>>.
+To change the mapping of an existing field, refer to
+<<updating-field-mappings,Changing the mapping of a field>>.
 
 [discrete]
 [[troubleshooting-searches-settings]]

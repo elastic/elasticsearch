@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -560,7 +561,7 @@ public class ProfileService {
                     );
                     listener.onResponse(versionedDocument.toProfile(Set.of()));
                 }, e -> {
-                    if (e instanceof VersionConflictEngineException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // Document already exists with the specified ID, get the document with the ID
                         // and check whether it is the right profile for the subject
                         getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
@@ -692,49 +693,63 @@ public class ProfileService {
     }
 
     // package private for testing
-    void updateProfileForActivate(Subject subject, VersionedDocument currentVersionedDocumentBySearch, ActionListener<Profile> listener) {
+    void updateProfileForActivate(Subject subject, VersionedDocument currentVersionedDocumentBySearch, ActionListener<Profile> listener)
+        throws IOException {
         final ProfileDocument newProfileDocument = updateWithSubject(currentVersionedDocumentBySearch.doc, subject);
 
         if (shouldSkipUpdateForActivate(currentVersionedDocumentBySearch.doc, newProfileDocument)) {
+            logger.debug(
+                "skip user profile activate update because last_synchronized [{}] is within grace period",
+                currentVersionedDocumentBySearch.doc.lastSynchronized()
+            );
             listener.onResponse(currentVersionedDocumentBySearch.toProfile(Set.of()));
             return;
         }
 
-        // The current document by search may not be up-to-date, using GET to retrieve it again to double check whether
-        // update is truly necessary. Note the document by GET is only used as an optimisation technique for skipping the update.
-        // It does not affect the result of update when the update does need to happen.
-        getVersionedDocument(currentVersionedDocumentBySearch.doc.uid(), ActionListener.wrap(currentVersionedDocumentByGet -> {
-            if (shouldSkipUpdateForActivate(currentVersionedDocumentByGet.doc, newProfileDocument)) {
-                listener.onResponse(currentVersionedDocumentByGet.toProfile(Set.of()));
-            } else {
-                doUpdate(
-                    buildUpdateRequest(
-                        newProfileDocument.uid(),
-                        wrapProfileDocumentWithoutApplicationData(newProfileDocument),
-                        RefreshPolicy.WAIT_UNTIL
-                    ),
-                    listener.map(
-                        updateResponse -> new VersionedDocument(
-                            newProfileDocument,
-                            updateResponse.getPrimaryTerm(),
-                            updateResponse.getSeqNo()
-                        ).toProfile(Set.of())
+        doUpdate(
+            buildUpdateRequest(
+                newProfileDocument.uid(),
+                wrapProfileDocumentWithoutApplicationData(newProfileDocument),
+                RefreshPolicy.WAIT_UNTIL
+            ),
+            ActionListener.wrap(updateResponse -> {
+                listener.onResponse(
+                    new VersionedDocument(newProfileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo()).toProfile(
+                        Set.of()
                     )
                 );
-            }
-        }, listener::onFailure));
+            }, updateException -> {
+                // The document may have been updated concurrently by another thread. Get it and check whether the updated content
+                // already has what is required by this thread. If so, simply return the updated profile.
+                if (ExceptionsHelper.unwrapCause(updateException) instanceof VersionConflictEngineException) {
+                    getVersionedDocument(currentVersionedDocumentBySearch.doc.uid(), ActionListener.wrap(versionedDocumentByGet -> {
+                        if (shouldSkipUpdateForActivate(versionedDocumentByGet.doc, newProfileDocument)) {
+                            logger.debug(
+                                "suppress version conflict for activate update because last_synchronized [{}] is within grace period",
+                                versionedDocumentByGet.doc.lastSynchronized()
+                            );
+                            listener.onResponse(versionedDocumentByGet.toProfile(Set.of()));
+                        } else {
+                            listener.onFailure(updateException);
+                        }
+                    }, getException -> {
+                        getException.addSuppressed(updateException);
+                        listener.onFailure(getException);
+                    }));
+                } else {
+                    listener.onFailure(updateException);
+                }
+            })
+        );
     }
 
     // If the profile content does not change and it is recently updated within last 30 seconds, do not update it again
     // to avoid potential excessive version conflicts
-    private boolean shouldSkipUpdateForActivate(ProfileDocument currentProfileDocument, ProfileDocument newProfileDocument) {
+    boolean shouldSkipUpdateForActivate(ProfileDocument currentProfileDocument, ProfileDocument newProfileDocument) {
+        assert newProfileDocument.enabled() : "new profile document must be enabled";
         if (newProfileDocument.user().equals(currentProfileDocument.user())
             && currentProfileDocument.enabled()
             && newProfileDocument.lastSynchronized() - currentProfileDocument.lastSynchronized() < ACTIVATE_INTERVAL_IN_MS) {
-            logger.debug(
-                "skip user profile activate update because last_synchronized [{}] is within grace period",
-                currentProfileDocument.lastSynchronized()
-            );
             return true;
         }
         return false;

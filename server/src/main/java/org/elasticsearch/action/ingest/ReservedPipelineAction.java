@@ -16,7 +16,14 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
@@ -28,8 +35,11 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * This Action is the reserved state save version of RestPutPipelineAction/RestDeletePipelineAction
@@ -41,14 +51,16 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
     public static final String NAME = "ingest_pipelines";
 
     private final IngestService ingestService;
+    private final NodeClient nodeClient;
 
     /**
      * Creates a ReservedPipelineAction
      *
      * @param ingestService requires {@link IngestService} for storing/deleting the pipelines
      */
-    public ReservedPipelineAction(IngestService ingestService) {
+    public ReservedPipelineAction(IngestService ingestService, NodeClient nodeClient) {
         this.ingestService = ingestService;
+        this.nodeClient = nodeClient;
     }
 
     @Override
@@ -57,14 +69,15 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
     }
 
     @SuppressWarnings("unchecked")
-    public Collection<PutPipelineRequest> prepare(Object input) {
+    public Collection<PutPipelineRequest> prepare(NodesInfoResponse nodeInfos, Object input) {
         List<PutPipelineRequest> pipelines = (List<PutPipelineRequest>) input;
 
         var exceptions = new ArrayList<String>();
         for (var pipeline : pipelines) {
-            var exception = pipeline.validate();
-            if (exception != null) {
-                exceptions.add(exception.getMessage());
+            try {
+                ingestService.validatePipelineRequest(pipeline, nodeInfos);
+            } catch (Exception e) {
+                exceptions.add(e.getMessage());
             }
         }
 
@@ -75,10 +88,63 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
         return pipelines;
     }
 
+    // package private for testing
+    NodesInfoResponse getNodeInfos() {
+        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+        nodesInfoRequest.clear();
+        nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+        return nodeClient.admin().cluster().nodesInfo(nodesInfoRequest).actionGet();
+    }
+
+    private ClusterState wrapIngestTaskExecute(IngestService.PipelineClusterStateUpdateTask task, ClusterState state) {
+        final var allIndexMetadata = state.metadata().indices().values();
+        final IngestMetadata currentIndexMetadata = state.metadata().custom(IngestMetadata.TYPE);
+
+        var updatedIngestMetadata = task.execute(currentIndexMetadata, allIndexMetadata);
+        return state.copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, updatedIngestMetadata));
+    }
+
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
-        prepare(source);
-        return prevState;
+        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+        nodesInfoRequest.clear();
+        nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+        var nodeInfos = getNodeInfos();
+
+        var requests = prepare(nodeInfos, source);
+
+        ClusterState state = prevState.state();
+
+        for (var request : requests) {
+            var nopUpdate = ingestService.isNoOpPipelineUpdate(state, request, new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new IllegalStateException(e.getMessage(), e);
+                }
+            });
+
+            if (nopUpdate) {
+                continue;
+            }
+
+            var task = new IngestService.PutPipelineClusterStateUpdateTask(request);
+            state = wrapIngestTaskExecute(task, state);
+        }
+
+        Set<String> entities = requests.stream().map(r -> r.getId()).collect(Collectors.toSet());
+
+        Set<String> toDelete = new HashSet<>(prevState.keys());
+        toDelete.removeAll(entities);
+
+        for (var pipelineToDelete : toDelete) {
+            var task = new IngestService.DeletePipelineClusterStateUpdateTask(pipelineToDelete);
+            state = wrapIngestTaskExecute(task, state);
+        }
+
+        return new TransformState(state, entities);
     }
 
     @Override

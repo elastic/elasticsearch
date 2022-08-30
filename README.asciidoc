@@ -26,46 +26,126 @@ If you prefer to install and manage Elasticsearch yourself, you can download
 the latest version from 
 https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
 
-For more installation options, see the
-https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation
-documentation].
-
-# tag::set-up-dev[] 
-
 === Set up a local dev deployment
 
-To try out Elasticsearch on your dev machine, we recommend using Docker and 
-running both Elasticsearch and Kibana.
+To try out Elasticsearch on your dev machine, we recommend using Docker
+and running both Elasticsearch and Kibana.
 
-**Install and run Elasticsearch**
+For other installation options, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation documentation].
+
+====Install and run Elasticsearch====
 
 . Install and start https://www.docker.com/products/docker-desktop[Docker
 Desktop].
 
 . Run:
 +
-[source,sh,subs="attributes"]
 ----
 docker network create elastic
 docker pull {docker-repo}:{version}
 docker run --name es01-test --net elastic -p 127.0.0.1:9200:9200 -p 127.0.0.1:9300:9300 -e "discovery.type=single-node" {docker-image}
 ----
 
-**Install and run Kibana**
+====Install and run Kibana====
 
-To analyze, visualize, and manage {es} data using an intuitive UI, install
-Kibana.
+To easily send requests to Elasticsearch and analyze, visualize, and manage data 
+interactively, install Kibana.
 
 . In a new terminal session, run:
 +
-["source","txt",subs="attributes"]
 ----
 docker pull docker.elastic.co/kibana/kibana:{version}
 docker run --name kib01-test --net elastic -p 127.0.0.1:5601:5601 -e "ELASTICSEARCH_HOSTS=http://es01-test:9200" docker.elastic.co/kibana/kibana:{version}
 ----
 
 . To access {kib}, go to http://localhost:5601[http://localhost:5601]
-# end::set-up-dev[]
+
+====Send requests to Elasticsarch====
+
+You send data and other requests to Elasticsearch through REST APIs. 
+You can interact with Elasticsearch using any client that sends HTTP requests, 
+such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
+language clients] and https://curl.se[curl]. 
+Kibana's developer tools console provides an easy way to experiment and test requests. 
+
+====Add data====
+
+You index data into Elasticsearch by sending JSON objects (documents) through the REST APIs.  
+Whether you have structured or unstructured text, numerical data, or geospatial data, 
+Elasticsearch efficiently stores and indexes it in a way that supports fast searches. 
+
+For time series data, such as logs and metrics, you typically add documents to a
+data stream made up of multiple auto-generated backing indices.
+
+To add a single document to an index, submit an HTTP post request that targets the index. 
+
+----
+POST /customer/_doc/1
+{
+  "firstname": "Jennifer",
+  "lastname": "Walters"
+}
+----
+
+This request automatically creates the `customer` index if it doesn't already exist, 
+adds a new document that has an ID of 1, and 
+stores and indexes the `firstname` and `lastname` fields.
+
+The new document is available immediately from any node in the cluster. 
+You can retrieve it with a GET request that specifies its document ID:
+
+[source,console]
+----
+GET /customer/_doc/1
+----
+
+To add multiple documents in one request, use the `_bulk` API.
+Bulk data must be newline-delimited JSON (NDJSON). 
+Each line must end in a newline character (`\n`), including the last line.
+
+[source,console]
+----
+PUT customer/_bulk
+{ "create": { } }
+{ "firstname": "Monica","lastname":"Rambeau"}
+{ "create": { } }
+{ "firstname": "Carol","lastname":"Danvers"}
+{ "create": { } }
+{ "firstname": "Wanda","lastname":"Maximoff"}
+{ "create": { } }
+{ "firstname": "Jennifer","lastname":"Takeda"}
+----
+
+====Search====
+
+Indexed documents are available for search in near real-time. 
+The following search matches all customers with a first name of _Jennifer_ 
+in the `customer` index.
+
+----
+GET customer/_search
+{
+  "query" : {
+    "match" : { "firstname": "Jennifer" }  
+  }
+}
+----
+
+====Explore====
+
+You can use Discover in Kibana to interactively search and filter your data.
+From there, you can start creating visualizations and building and sharing dashboards.
+
+To get started, create a _data view_ that connects to one or more Elasticsearch indices,
+data streams, or index aliases.
+
+. Go to **Stack Management > Kibana > Data Views**.
+. Select **Create data view**.
+. Enter a name that matches one or more indices, for example _customers_. 
+. Select **Create data view**.  
+
+To start exploring, select **Discover** from the main menu. 
 
 [[upgrade]]
 == Upgrade

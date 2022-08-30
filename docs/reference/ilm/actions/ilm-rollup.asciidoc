@@ -8,8 +8,7 @@ Aggregates a <<tsds,time series data stream>> index and stores the results in a
 new read-only index. For example, you can roll up hourly data into daily or
 weekly summaries.
 
-This action corresponds to the <<rollup-apis,rollup API>>. // For now, this
-links to the original Rollup APIs.
+This action corresponds to the <<rollup-apis,rollup API>>.
 
 The name of the resulting rollup index is
 `rollup-<original-index-name>-<random-uuid>`. If {ilm-init} performs the

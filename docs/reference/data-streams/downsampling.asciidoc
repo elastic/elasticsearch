@@ -4,11 +4,11 @@ ifeval::["{release-state}"=="unreleased"]
 
 preview::[]
 
-Metrics solutions collect large amounts of time series data that grow over time. As that time series data ages, it becomes less relevant to the current state of the system.
+Downsampling provides a method to reduce the footprint of your <<tsds,time series data>> by storing it at reduced granularity.
 
-Downsampling, in conjunction with a <<tsds,time series data stream>>, provides a method to reduce your metrics storage volume by replacing older time series data with data of a higher sampling time interval. The higher interval, lower granularity data is stored in a rollup index together with statistical representations of the original data, the `min`, `max`, `sum`, `value_count`, and `average` for each metric. <<time-series-dimension,Time series dimensions>> are stored unchanged.
+Metrics solutions collect large amounts of time series data that grow over time. As that data ages, it becomes less relevant to the current state of the system. The downsampling process rolls up documents within a fixed time interval into a single summary document. Each summary document includes statistical representations of the original data: the `min`, `max`, `sum`, `value_count`, and `average` for each metric. Data stream <<time-series-dimension,time series dimensions>> are stored unchanged.
 
-In effect, downsampling enables you to trade data resolution for storage size. Using downsampling with an <<index-lifecycle-management,{ilm} ({ilm-init})>> policy ensures that your older, less relevant, less frequently queried data is stored efficiently, allowing for a much lower metrics data volume and, as a result, a greatly reduced TCO.
+Downsampling, in effect, lets you to trade data resolution and precision for storage size. You can include it in an <<index-lifecycle-management,{ilm} ({ilm-init})>> policy to automatically manage the volume and associated cost of your metrics data at it ages.
 
 [discrete]
 [[how-downsampling-works]]
@@ -43,19 +43,20 @@ Note the following restrictions and limitations for downsampling:
 * Only indices in a <<tsds,time series data stream>> are supported.
 * Data is rolled up on the time dimension only. All other dimensions are copied to the rollup index without any modification.
 * Within a data stream, a downsampled rollup index replaces the original index and the original index is deleted. Only one index can exist for a given time period.
-* Downsampling data for the same period many times (rollups of rollups) is supported.
+* A source index must be in read-only mode for the downsampling rollup process to succeed. Check the <<downsampling-manual,Run downsampling manually>> example for details.
+* Downsampling data for the same period many times (rollups of rollups) is supported. The downsampling interval must be a multiple of the interval of the rollup index.
 * Downsampling is provided as an ILM action. See <<ilm-rollup,Rollup>>.
 * The rollup index is created on the data tier of the original index and it inherits its settings (for example, the number of shards and replicas).
-* The Observability `gauge` and `counter` metric types are supported.
-* The downsampling configuration is extracted from the time series data stream index mapping. The only additional required setting is the rollup `time_interval`.
+* The numeric `gauge` and `counter` <<mapping-field-meta,metric types>> are supported.
+* The downsampling configuration is extracted from the time series data stream <<tsds-create-mappings-component-template,index mapping>>. The only additional required setting is the rollup `time_interval`.
 * You can use either the <<search-search,`_search`>> or <<async-search,`_async_search`>> endpoint to query a downsampled index.
 
 [discrete]
 [[try-out-downsampling]]
 === Try it out
 
-To take downsampling for a test run, try our example of <<downsampling-example-manual,running downsampling manually>>.
+To take downsampling for a test run, try our example of <<downsampling-manual,running downsampling manually>>.
 
-Downsampling can easily be added to your ILM policy. To learn how, try our <<downsampling-example-ilm,Configure downsampling with ILM>> example.
+Downsampling can easily be added to your ILM policy. To learn how, try our <<downsampling-ilm,Run downsampling with ILM>> example.
 
 endif::[]

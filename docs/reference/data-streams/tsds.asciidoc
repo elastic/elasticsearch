@@ -306,6 +306,6 @@ Now that you know the basics, you're ready to <<set-up-tsds,create a TSDS>> or
 include::set-up-tsds.asciidoc[]
 include::tsds-index-settings.asciidoc[]
 include::downsampling.asciidoc[]
-include::downsampling-example-manual.asciidoc[]
-include::downsampling-example-ilm.asciidoc[]
+include::downsampling-manual.asciidoc[]
+include::downsampling-ilm.asciidoc[]
 endif::[]

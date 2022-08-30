@@ -1,5 +1,0 @@
-pr: 88187
-summary: Add deployed native models to `inference_stats` in trained model stats response
-area: Machine Learning
-type: enhancement
-issues: []

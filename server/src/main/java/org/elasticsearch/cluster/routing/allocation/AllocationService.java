@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -59,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * This service manages the node allocation of a cluster. For this reason the
@@ -241,7 +241,7 @@ public class AllocationService {
             allocator.applyFailedShards(failedShards, allocation);
         }
 
-        reroute(allocation, DesiredBalanceShardsAllocator.REMOVE_ME);
+        reroute(allocation, rerouteCompletionIsNotRequired());// this is not triggered by a user request
         String failedShardsAsString = firstListElementsToCommaDelimitedString(
             failedShards,
             s -> s.routingEntry().shardId().toString(),
@@ -264,7 +264,7 @@ public class AllocationService {
             clusterState = buildResultAndLogHealthChange(clusterState, allocation, reason);
         }
         if (reroute) {
-            return reroute(clusterState, reason);
+            return reroute(clusterState, reason, rerouteCompletionIsNotRequired());// this is not triggered by a user request
         } else {
             return clusterState;
         }
@@ -355,33 +355,6 @@ public class AllocationService {
     }
 
     /**
-     * Reset failed allocation counter for unassigned shards
-     */
-    private void resetFailedAllocationCounter(RoutingAllocation allocation) {
-        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-        while (unassignedIterator.hasNext()) {
-            ShardRouting shardRouting = unassignedIterator.next();
-            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            unassignedIterator.updateUnassigned(
-                new UnassignedInfo(
-                    unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
-                    unassignedInfo.getMessage(),
-                    unassignedInfo.getFailure(),
-                    0,
-                    unassignedInfo.getUnassignedTimeInNanos(),
-                    unassignedInfo.getUnassignedTimeInMillis(),
-                    unassignedInfo.isDelayed(),
-                    unassignedInfo.getLastAllocationStatus(),
-                    Collections.emptySet(),
-                    unassignedInfo.getLastAllocatedNodeId()
-                ),
-                shardRouting.recoverySource(),
-                allocation.changes()
-            );
-        }
-    }
-
-    /**
      * Internal helper to cap the number of elements in a potentially long list for logging.
      *
      * @param elements  The elements to log. May be any non-null list. Must not be null.
@@ -405,26 +378,23 @@ public class AllocationService {
         }
     }
 
-    public CommandsResult reroute(final ClusterState clusterState, AllocationCommands commands, boolean explain, boolean retryFailed) {
-        // we don't shuffle the unassigned shards here, to try and get as close as possible to
-        // a consistent result of the effect the commands have on the routing
-        // this allows systems to dry run the commands, see the resulting cluster state, and act on it
+    public CommandsResult reroute(
+        ClusterState clusterState,
+        AllocationCommands commands,
+        boolean explain,
+        boolean retryFailed,
+        boolean dryRun,
+        ActionListener<Void> reroute
+    ) {
         RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
-        // don't short circuit deciders, we want a full explanation
-        allocation.debugDecision(true);
-        // we ignore disable allocation, because commands are explicit
-        allocation.ignoreDisable(true);
-
-        if (retryFailed) {
-            resetFailedAllocationCounter(allocation);
-        }
-
-        RoutingExplanations explanations = commands.execute(allocation, explain);
-        // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
-        allocation.ignoreDisable(false);
+        var explanations = shardsAllocator.execute(allocation, commands, explain, retryFailed);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
-        reroute(allocation, DesiredBalanceShardsAllocator.REMOVE_ME);
+        if (dryRun == false) {
+            reroute(allocation, reroute);
+        } else {
+            reroute.onResponse(null);
+        }
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 
@@ -438,17 +408,9 @@ public class AllocationService {
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
-    public ClusterState reroute(ClusterState clusterState, String reason) {
-        logger.warn("Executing legacy reroute [{}], async result is ignored", reason);
-        return reroute(clusterState, reason, DesiredBalanceShardsAllocator.REMOVE_ME);
-    }
-
     public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<Void> listener) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
         RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
-        if (listener == DesiredBalanceShardsAllocator.REMOVE_ME) {
-            logger.warn("Executing reroute [{}] using [REMOVE_ME] listener, async result is ignored", reason);
-        }
         reroute(allocation, listener);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;

@@ -16,7 +16,11 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -25,7 +29,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -37,29 +43,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
-    public static final ActionListener<Void> REMOVE_ME = new ActionListener<>() {
-
-        @Override
-        public void onResponse(Void unused) {
-            // TODO this is a noop listener stub that need so be replaced with a real implementation eventually
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-
-        }
-
-        @Override
-        public String toString() {
-            return "REMOVE_ME";
-        }
-    };
-
     private final ShardsAllocator delegateAllocator;
     private final DesiredBalanceComputer desiredBalanceComputer;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
+    private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
+    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
+    private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
 
     public static DesiredBalanceShardsAllocator create(
         ShardsAllocator delegateAllocator,
@@ -71,9 +62,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         clusterService.addListener(allocator);
         return allocator;
     }
-
-    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
-    private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
 
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
@@ -89,7 +77,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                 logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
 
-                setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, this::isFresh));
+                setCurrentDesiredBalance(
+                    desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, this::isFresh)
+                );
                 var isFresh = isFresh(desiredBalanceInput);
 
                 if (isFresh) {
@@ -138,8 +128,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
 
-        // TODO possibly add a bounded wait for the computation to complete?
-        // Otherwise we will have to do a second cluster state update straight away.
+        maybeAwaitBalance();
 
         appliedDesiredBalance = currentDesiredBalance;
         logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
@@ -155,6 +144,31 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         }
     }
 
+    protected void maybeAwaitBalance() {
+        // TODO possibly add a bounded wait for the computation to complete?
+        // Otherwise we will have to do a second cluster state update straight away.
+    }
+
+    @Override
+    public RoutingExplanations execute(RoutingAllocation allocation, AllocationCommands commands, boolean explain, boolean retryFailed) {
+        var explanations = ShardsAllocator.super.execute(allocation, commands, explain, retryFailed);
+        var moves = getMoveCommands(commands);
+        if (moves.isEmpty() == false) {
+            pendingDesiredBalanceMoves.add(moves);
+        }
+        return explanations;
+    }
+
+    private static List<MoveAllocationCommand> getMoveCommands(AllocationCommands commands) {
+        var moves = new ArrayList<MoveAllocationCommand>();
+        for (AllocationCommand command : commands.commands()) {
+            if (command instanceof MoveAllocationCommand move) {
+                moves.add(move);
+            }
+        }
+        return moves;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().nodes().isLocalNodeElectedMaster()) {
@@ -163,6 +177,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         } else {
             reset();
             queue.completeAllAsNotMaster();
+            pendingDesiredBalanceMoves.clear();
         }
     }
 

@@ -1743,7 +1743,6 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testRunAsRequestWithoutLookedUpBy() throws IOException {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        AuthenticateRequest request = new AuthenticateRequest("run as me");
         roleMap.put("superuser", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         final User authUser = new User("test user", "superuser");
         Authentication authentication = AuthenticationTestHelper.builder()
@@ -1755,7 +1754,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authentication.writeToContext(threadContext);
         assertNotEquals(authUser, authentication.getUser());
         assertThrowsAuthorizationExceptionRunAsDenied(
-            () -> authorize(authentication, AuthenticateAction.NAME, request),
+            () -> authorize(authentication, AuthenticateAction.NAME, AuthenticateRequest.INSTANCE),
             AuthenticateAction.NAME,
             "test user",
             "run as me"
@@ -1764,7 +1763,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(requestId),
             eq(authentication),
             eq(AuthenticateAction.NAME),
-            eq(request),
+            eq(AuthenticateRequest.INSTANCE),
             authzInfoRoles(new String[] { ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
@@ -2137,7 +2136,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (final Tuple<String, TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();
             final TransportRequest request = requestTuple.v2();
-            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
                 final Authentication authentication = createAuthentication(superuser);
                 authorize(authentication, action, request);
                 verify(auditTrail).accessGranted(
@@ -2207,7 +2206,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (final Tuple<String, TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();
             final TransportRequest request = requestTuple.v2();
-            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
                 final Authentication authentication = createAuthentication(superuser);
                 assertThrowsAuthorizationException(
                     "authentication=[" + authentication + "], action=[" + action + "], request=[" + request + "]",
@@ -2373,7 +2372,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         mockEmptyMetadata();
-        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
             authorize(createAuthentication(userAllowed), action, request);
         }
         assertThrowsAuthorizationException(() -> authorize(createAuthentication(userDenied), action, request), action, "userDenied");

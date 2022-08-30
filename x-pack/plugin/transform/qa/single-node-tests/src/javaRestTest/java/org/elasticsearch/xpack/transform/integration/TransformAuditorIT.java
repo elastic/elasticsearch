@@ -94,7 +94,6 @@ public class TransformAuditorIT extends TransformRestTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testAliasCreatedforBWCIndexes() throws Exception {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)

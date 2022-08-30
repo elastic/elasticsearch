@@ -109,20 +109,21 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            this.executor = (currentState, taskContexts) -> {
-                var listener = new AllocationActionMultiListener<CreateIndexResponse>(threadPool.getThreadContext());
-                ClusterState state = currentState;
-                final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
+            this.executor = batchExecutionContext -> {
+                final var listener = new AllocationActionMultiListener<CreateIndexResponse>(threadPool.getThreadContext());
+                final var taskContexts = batchExecutionContext.taskContexts();
+                final var successfulRequests = Maps.<CreateIndexRequest, String>newMapWithExpectedSize(taskContexts.size());
+                var state = batchExecutionContext.initialState();
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
-                    try {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
                         state = task.execute(state, successfulRequests, taskContext, listener);
                         assert successfulRequests.containsKey(task.request);
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }
                 }
-                if (state != currentState) {
+                if (state != batchExecutionContext.initialState()) {
                     state = allocationService.reroute(state, "auto-create", listener.reroute());
                 } else {
                     listener.noRerouteNeeded();
@@ -163,11 +164,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             @Override
             public void onFailure(Exception e) {
                 listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                assert false : "should not be called";
             }
 
             private ClusterStateAckListener getAckListener(

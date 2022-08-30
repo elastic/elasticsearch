@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.query.QueryShardException;
@@ -72,6 +73,7 @@ import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnRollupIndex;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -829,6 +831,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(163, RepositoryConflictException.class);
         ids.put(164, VersionConflictException.class);
         ids.put(165, SnapshotNameAlreadyInUseException.class);
+        ids.put(166, HealthNodeNotDiscoveredException.class);
+        ids.put(167, UnsupportedAggregationOnRollupIndex.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

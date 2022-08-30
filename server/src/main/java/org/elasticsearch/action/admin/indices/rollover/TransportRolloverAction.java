@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -90,7 +90,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         this.rolloverTaskExecutor = new RolloverExecutor(
             allocationService,
             rolloverService,
-            new ActiveShardsObserver(clusterService, threadPool)
+            new ActiveShardsObserver(clusterService, threadPool),
+            threadPool
         );
     }
 
@@ -242,36 +243,32 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         RolloverResponse trialRolloverResponse,
         ActionListener<RolloverResponse> listener
     ) implements ClusterStateTaskListener {
-
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
         }
     }
 
     record RolloverExecutor(
         AllocationService allocationService,
         MetadataRolloverService rolloverService,
-        ActiveShardsObserver activeShardsObserver
+        ActiveShardsObserver activeShardsObserver,
+        ThreadPool threadPool
     ) implements ClusterStateTaskExecutor<RolloverTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<RolloverTask>> taskContexts) throws Exception {
-            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(taskContexts.size());
-            var state = currentState;
-            for (final var taskContext : taskContexts) {
-                try {
-                    state = executeTask(state, results, taskContext);
+        public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) {
+            final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());
+            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    state = executeTask(state, results, taskContext, listener);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
             }
 
-            if (state != currentState) {
+            if (state != batchExecutionContext.initialState()) {
                 var reason = new StringBuilder();
                 Strings.collectionToDelimitedStringWithLimit(
                     (Iterable<String>) () -> results.stream().map(t -> t.sourceIndexName() + "->" + t.rolloverIndexName()).iterator(),
@@ -281,7 +278,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     1024,
                     reason
                 );
-                state = allocationService.reroute(state, reason.toString());
+                try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                    state = allocationService.reroute(state, reason.toString(), listener.reroute());
+                }
+            } else {
+                listener.noRerouteNeeded();
             }
             return state;
         }
@@ -289,7 +290,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         public ClusterState executeTask(
             ClusterState currentState,
             List<MetadataRolloverService.RolloverResult> results,
-            TaskContext<RolloverTask> rolloverTaskContext
+            TaskContext<RolloverTask> rolloverTaskContext,
+            AllocationActionMultiListener<RolloverResponse> allocationActionMultiListener
         ) throws Exception {
             final var rolloverTask = rolloverTaskContext.getTask();
             final var rolloverRequest = rolloverTask.rolloverRequest();
@@ -325,8 +327,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     metConditions,
                     Instant.now(),
                     false,
-                    false,
-                    DesiredBalanceShardsAllocator.REMOVE_ME
+                    false
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);
@@ -338,7 +339,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         new String[] { rolloverResult.rolloverIndexName() },
                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                         rolloverRequest.masterNodeTimeout(),
-                        isShardsAcknowledged -> rolloverTask.listener()
+                        isShardsAcknowledged -> allocationActionMultiListener.delay(rolloverTask.listener())
                             .onResponse(
                                 new RolloverResponse(
                                     // Note that we use the actual rollover result for these, because even though we're single threaded,
@@ -353,7 +354,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     isShardsAcknowledged
                                 )
                             ),
-                        rolloverTask.listener()::onFailure
+                        allocationActionMultiListener.delay(rolloverTask.listener())::onFailure
                     );
                 });
 

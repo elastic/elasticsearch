@@ -13,7 +13,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 
 /**
  * <p>
@@ -46,6 +48,27 @@ public interface ShardsAllocator {
     default void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
         allocate(allocation);
         listener.onResponse(null);
+    }
+
+    /**
+     * Execute allocation commands
+     */
+    default RoutingExplanations execute(RoutingAllocation allocation, AllocationCommands commands, boolean explain, boolean retryFailed) {
+        var originalDebugMode = allocation.getDebugMode();
+        allocation.debugDecision(true);
+        // we ignore disable allocation, because commands are explicit
+        allocation.ignoreDisable(true);
+
+        try {
+            if (retryFailed) {
+                allocation.routingNodes().unassigned().resetFailedAllocationCounter(allocation.changes());
+            }
+            return commands.execute(allocation, explain);
+        } finally {
+            // revert the ignore disable flag, since when rerouting, we want the original setting to take place
+            allocation.ignoreDisable(false);
+            allocation.setDebugMode(originalDebugMode);
+        }
     }
 
     /**

@@ -61,6 +61,7 @@ import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.TransportAddressConnector;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
@@ -197,7 +198,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         Random random,
         RerouteService rerouteService,
         ElectionStrategy electionStrategy,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -217,7 +219,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             this::joinLeaderInTerm,
             rerouteService,
             nodeHealthService,
-            joinReasonService
+            joinReasonService,
+            circuitBreakerService
         );
         this.joinValidationService = new JoinValidationService(
             settings,

@@ -1,0 +1,174 @@
+setup:
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              total_memory_used:
+                type: aggregate_metric_double
+                metrics: [ min, max ]
+                default_metric: min
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "001", "total_memory_used": { "min": 99198, "max": 106780 } }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "002", "total_memory_used": { "min": 102334, "max": 110450 } }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "003", "total_memory_used": { "min": 98012, "max": 109009 } }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "004", "total_memory_used": { "min": 101990, "max": 120770 } }'
+
+---
+"Histogram aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            total_memory_used_histogram:
+              histogram:
+                field: total_memory_used
+                interval: 100000
+
+
+  - match: { status: 400 }
+  # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
+  # errors while running aggregations on rollup indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [histogram]" }
+
+---
+"Range aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tx_range:
+              range:
+                field: total_memory_used
+                ranges:
+                  -
+                    from: 0.0
+                    to: 200.0
+                  -
+                    from: 201.0
+                    to: 400.0
+                  -
+                    from: 401.0
+
+  - match: { status: 400 }
+  # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
+  # errors while running aggregations on rollup indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [range]" }
+
+---
+"Cardinality aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tx_cardinality:
+              cardinality:
+                field: total_memory_used
+
+  - match: { status: 400 }
+  # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
+  # errors while running aggregations on rollup indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [cardinality]" }
+
+---
+"Percentiles aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tx_percentile:
+              percentiles:
+                field: total_memory_used
+                percents: [90, 95, 99]
+
+  - match: { status: 400 }
+  # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
+  # errors while running aggregations on rollup indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [percentiles]" }
+
+---
+"Top-metrics aggregation on aggregate_metric_double field":
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            top_total_memory_used:
+              top_metrics:
+                metrics:
+                  field: total_memory_used
+                sort:
+                  uid: desc
+                size: 2
+
+
+  - match: { status: 400 }
+  # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
+  # errors while running aggregations on rollup indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [top_metrics]" }

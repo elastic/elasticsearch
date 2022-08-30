@@ -6,7 +6,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'enrich'
+    include '_common', 'bulk', 'indices', 'index', 'ingest.delete_pipeline', 'ingest.put_pipeline', 'enrich', 'get'
   }
   restTests {
     includeXpack 'enrich'

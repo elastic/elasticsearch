@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
@@ -610,7 +611,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             new ReplicaAfterPrimaryActiveAllocationDecider()
         );
 
-        final var reroutedState = allocationService.reroute(clusterState, "test");
+        final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
 
         final var existingShard = reroutedState.routingTable().shardRoutingTable("index-existing", 0).primaryShard();
         assertTrue(existingShard.initializing());
@@ -806,19 +807,20 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                 .build()
         );
 
-        assertSame(clusterState, allocationService.reroute(clusterState, "test")); // all still on desired nodes, no movement needed
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop())); // all still on desired nodes, no
+                                                                                                          // movement needed
 
         desiredBalance.set(desiredBalance(clusterState, (shardId, nodeId) -> nodeId.equals("node-2") || nodeId.equals("node-3")));
 
         // The next reroute starts moving shards to node-2 and node-3, but interleaves the decisions between node-0 and node-1 for fairness.
         // There's an inbound throttle of 1 but no outbound throttle, so without the interleaving one node would relocate 2 shards.
-        final var reroutedState = allocationService.reroute(clusterState, "test");
+        final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
         assertThat(reroutedState.getRoutingNodes().node("node-0").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
         assertThat(reroutedState.getRoutingNodes().node("node-1").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
 
         // Ensuring that we check the shortcut two-param canAllocate() method up front
         canAllocateRef.set(Decision.NO);
-        assertSame(clusterState, allocationService.reroute(clusterState, "test"));
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         canAllocateRef.set(Decision.YES);
 
         // Restore filter to default
@@ -852,7 +854,8 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                     )
                 )
             ),
-            "test"
+            "test",
+            ActionListener.noop()
         );
         assertThat(shuttingDownState.getRoutingNodes().node("node-2").shardsWithState(ShardRoutingState.INITIALIZING), hasSize(1));
     }
@@ -917,25 +920,29 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             assertThat(shardRouting.currentNodeId(), oneOf("node-0", "node-1"));
         }
 
-        assertSame(clusterState, allocationService.reroute(clusterState, "test")); // all still on desired nodes, no movement needed
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop())); // all still on desired nodes, no
+                                                                                                          // movement needed
 
         desiredBalance.set(desiredBalance(clusterState, (shardId, nodeId) -> nodeId.equals("node-2") || nodeId.equals("node-3")));
 
         canRebalanceGlobalRef.set(Decision.NO);
-        assertSame(clusterState, allocationService.reroute(clusterState, "test")); // rebalancing forbidden on all shards, no movement
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop())); // rebalancing forbidden on all
+                                                                                                          // shards, no movement
         canRebalanceGlobalRef.set(Decision.YES);
 
         canRebalanceShardRef.set(Decision.NO);
-        assertSame(clusterState, allocationService.reroute(clusterState, "test")); // rebalancing forbidden on specific shards, no movement
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop())); // rebalancing forbidden on
+                                                                                                          // specific shards, no movement
         canRebalanceShardRef.set(Decision.YES);
 
         canAllocateShardRef.set(Decision.NO);
-        assertSame(clusterState, allocationService.reroute(clusterState, "test")); // allocation not possible, no movement
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop())); // allocation not possible, no
+                                                                                                          // movement
         canAllocateShardRef.set(Decision.YES);
 
         // The next reroute starts moving shards to node-2 and node-3, but interleaves the decisions between node-0 and node-1 for fairness.
         // There's an inbound throttle of 1 but no outbound throttle, so without the interleaving one node would relocate 2 shards.
-        final var reroutedState = allocationService.reroute(clusterState, "test");
+        final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
         assertThat(reroutedState.getRoutingNodes().node("node-0").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
         assertThat(reroutedState.getRoutingNodes().node("node-1").shardsWithState(ShardRoutingState.RELOCATING), hasSize(1));
     }

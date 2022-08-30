@@ -503,7 +503,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         Loggers.removeAppender(actionLogger, allocateMockLog);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testClusterRerouteWithBlocks() {
         List<String> nodesIds = internalCluster().startNodes(2);
 

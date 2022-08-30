@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -80,7 +81,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1", Version.CURRENT)).add(newNode("node2", Version.CURRENT)))
             .build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertEquals(prevRoutingTable.index("source").size(), 2);

@@ -1,4 +1,3 @@
-ifeval::["{release-state}"=="unreleased"]
 [[tsds]]
 == Time series data stream (TSDS)
 
@@ -308,4 +307,3 @@ include::tsds-index-settings.asciidoc[]
 include::downsampling.asciidoc[]
 include::downsampling-manual.asciidoc[]
 include::downsampling-ilm.asciidoc[]
-endif::[]

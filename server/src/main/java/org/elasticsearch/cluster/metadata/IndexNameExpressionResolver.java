@@ -1333,13 +1333,14 @@ public class IndexNameExpressionResolver {
                 matchesStream = filterIndicesLookupForSuffixWildcard(indicesLookup, wildcardExpression).values().stream();
             } else {
                 matchesStream = indicesLookup.values().stream();
+                if (Regex.isMatchAllPattern(wildcardExpression) == false) {
+                    matchesStream = matchesStream.filter(
+                        indexAbstraction -> Regex.simpleMatch(wildcardExpression, indexAbstraction.getName())
+                    );
+                }
             }
             if (context.getOptions().ignoreAliases()) {
                 matchesStream = matchesStream.filter(indexAbstraction -> indexAbstraction.getType() != Type.ALIAS);
-            }
-            if (Regex.isMatchAllPattern(wildcardExpression) == false && Regex.isSuffixMatchPattern(wildcardExpression) == false) {
-                // filters matches based on the wildcard expression, note that the suffix wildcard filtering is already handled above
-                matchesStream = matchesStream.filter(indexAbstraction -> Regex.simpleMatch(wildcardExpression, indexAbstraction.getName()));
             }
             if (context.includeDataStreams() == false) {
                 matchesStream = matchesStream.filter(indexAbstraction -> indexAbstraction.isDataStreamRelated() == false);

@@ -34,10 +34,13 @@ Create an ILM policy for your time series data. While not required, an ILM
 policy is recommended to automate the management of your time series data stream
 indices.
 
-For this example, an ILM policy is configired only for the `hot` data
+To enable downsampling, add a <<ilm-rollup,Rollup action>> and set the
+<<ilm-rollup-options,`fixed_interval`>> to the frequency at which you want to
+aggregate the original time series data.
+
+In this example, an ILM policy is configired for the `hot` data
 tier. A rollup process runs after the first document is inserted into the index,
-and then repeats hourly, based on the 
-<<ilm-rollup-options,`fixed_interval`>> option.
+and then repeats hourly.
 
 ////
 [source,console]

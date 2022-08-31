@@ -10,6 +10,13 @@ Metrics solutions collect large amounts of time series data that grow over time.
 
 Downsampling, in effect, lets you to trade data resolution and precision for storage size. You can include it in an <<index-lifecycle-management,{ilm} ({ilm-init})>> policy to automatically manage the volume and associated cost of your metrics data at it ages.
 
+Check the following sections to learn more:
+
+* <<how-downsampling-works>>
+* <<running-downsampling>>
+* <<downsampling-restrictions>>
+* <<try-out-downsampling>>
+
 [discrete]
 [[how-downsampling-works]]
 === How it works
@@ -38,7 +45,7 @@ image::images/data-streams/time-series-downsampled.png[align="center"]
 [[running-downsampling]]
 === Running downsampling on time series data
 
-To downsample a time series index, use the {ref}/rollup-apis.html[Rollup API] and set `fixed_interval` to the level of granularity that you'd like:
+To downsample a time series index, use the <<indices-downsample-data-stream,Downsample API>> and set `fixed_interval` to the level of granularity that you'd like:
 
 ```
 POST /<source_index>/_rollup/<rollup_index>
@@ -67,7 +74,7 @@ PUT _ilm/policy/my_policy
 ```
 
 [discrete]
-[[downsampling-limitations]]
+[[downsampling-restrictions]]
 === Restrictions and limitations
 
 Note the following restrictions and limitations for downsampling:

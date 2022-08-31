@@ -1,0 +1,80 @@
+[role="xpack"]
+[[indices-downsample-data-stream]]
+=== Downsample API
+++++
+<titleabbrev>Downsample</titleabbrev>
+++++
+
+Aggregates a time series index's data and stores the results, including
+statistics about the original data, in a new read-only index. For example, you
+can roll up hourly data into daily or weekly summaries.
+
+////
+[source,console]
+----
+Need to add setup for downsample example
+----
+// TESTSETUP
+////
+
+////
+[source,console]
+----
+DELETE /my-time-series-index
+DELETE /my-downsampled-time-series-index
+----
+// TEARDOWN
+////
+
+[source,console]
+----
+POST /my-time-series-index/_downsample/my-downsampled-time-series-index
+{
+    "fixed_interval": "1d"
+}
+----
+
+[[downsample-api-request]]
+==== {api-request-title}
+
+`POST /<source-index>/_downsample/<output-downsampled-index>`
+
+[[downsample-api-prereqs]]
+==== {api-prereq-title}
+
+* Only indices in a <<tsds,time series data stream>> are supported.
+
+* If the {es} {security-features} are enabled, you must have the `create_index`
+or `manage` <<privileges-list-indices,index privilege>> for the data stream.
+
+[[downsample-api-path-params]]
+==== {api-path-parms-title}
+
+`<source-index>`::
+(Optional, string) Name of the time series index to downsample.
+
+`<output-downsampled_index>`::
++
+--
+(Required, string) Name of the data stream to create. Data stream names must
+meet the following criteria:
+
+- Lowercase only
+- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, `,`, `#`, `:`, or a
+space character
+- Cannot start with `-`, `_`, `+`, or `.ds-`
+- Cannot be `.` or `..`
+- Cannot be longer than 255 bytes. Multi-byte characters
+count towards this limit faster.
+--
+
+[role="child_attributes"]
+[[downsample-api-query-parms]]
+==== {api-query-parms-title}
+
+`fixed_interval`:: (Required, <<time-units,time units>>) The interval at which
+to aggregate the original time series data. For example, `60m` produces a
+document for each 60 minute (hourly) interval. This follows standard time
+formatting syntax as used elsewhere in {es}.
++
+NOTE: Smaller, more granular intervals take up proportionally more space.

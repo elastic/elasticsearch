@@ -340,7 +340,7 @@ PUT /sample-01/_block/write
 ----
 // TEST[continued]
 
-And now, you can use the rollup API to downsample the index, setting the time series interval to one hour:
+And now, you can use the <<indices-downsample-data-stream,downsample API>> to downsample the index, setting the time series interval to one hour:
 
 [source,console]
 ----

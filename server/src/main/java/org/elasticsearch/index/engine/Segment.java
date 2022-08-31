@@ -189,6 +189,13 @@ public class Segment implements Writeable {
                 if (missingFirst != null) {
                     fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
                 }
+            } else if (type == 5) {
+                Boolean missingFirst = in.readOptionalBoolean();
+                boolean reverse = in.readBoolean();
+                fields[i] = new SortField(field, SortField.Type.STRING, reverse);
+                if (missingFirst != null) {
+                    fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
+                }
             } else {
                 Object missing = in.readGenericValue();
                 boolean max = in.readBoolean();
@@ -237,6 +244,18 @@ public class Segment implements Writeable {
                 o.writeGenericValue(field.getMissingValue());
                 o.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
                 o.writeBoolean(field.getReverse());
+            } else if (field.getType().equals(SortField.Type.STRING)) {
+                if (o.getVersion().before(Version.V_8_5_0)) {
+                    // The closest supported version before 8.5.0 was SortedSet fields, so we mimic that
+                    o.writeByte((byte) 0);
+                    o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
+                    o.writeBoolean(true);
+                    o.writeBoolean(field.getReverse());
+                } else {
+                    o.writeByte((byte) 5);
+                    o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
+                    o.writeBoolean(field.getReverse());
+                }
             } else {
                 throw new IOException("invalid index sort field:" + field);
             }

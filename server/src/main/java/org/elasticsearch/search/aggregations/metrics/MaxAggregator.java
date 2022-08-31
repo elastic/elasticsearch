@@ -135,7 +135,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public CollectedAggregator buildCollectedAggregator(long[] ordsToCollect) {
-        CollectedMax collectedMax = new CollectedMax(name, metadata(), bigArraysForResults(), ordsToCollect.length);
+        CollectedMax collectedMax = new CollectedMax(name, metadata(), bigArraysForResults(), ordsToCollect.length, formatter);
         boolean failed = true;
         try {
             for (int i = 0; i < ordsToCollect.length; i++) {

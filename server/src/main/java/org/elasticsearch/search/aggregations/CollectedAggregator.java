@@ -70,7 +70,10 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
     protected CollectedAggregator(StreamInput in) throws IOException {
         name = in.readString();
         metadata = in.readMap();
-        bigArrays = null; // Because we should be buffer backed here
+        // NOCOMMIT - Get a real instance here.
+        // We need a real BigArrays because the buffer backed version is read-only and we need to allocate
+        // something to store the reduction results.
+        bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
     }
 
     @Override

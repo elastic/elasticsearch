@@ -62,7 +62,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         final int enqueued = randomIntBetween(2 * maxTasks, 10 * maxTasks);
         AtomicInteger executed = new AtomicInteger();
         for (int i = 0; i < enqueued; i++) {
-            threadPool.generic().execute(() -> {
+            new Thread(() -> {
                 taskRunner.enqueueTask(new TestTask(() -> {
                     try {
                         Thread.sleep(randomLongBetween(0, 10));
@@ -72,7 +72,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     executed.incrementAndGet();
                 }));
                 assertThat(taskRunner.runningTasks(), lessThanOrEqualTo(maxTasks));
-            });
+            }).start();
         }
         // Eventually all tasks are executed
         assertBusy(() -> {

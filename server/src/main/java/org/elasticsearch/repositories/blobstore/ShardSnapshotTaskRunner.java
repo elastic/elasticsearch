@@ -11,7 +11,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * and zero or more {@link FileSnapshotTask}s.
  */
 public class ShardSnapshotTaskRunner {
-    private final ThrottledTaskRunner<SnapshotTask> throttledTaskRunner;
+    private final PrioritizedThrottledTaskRunner<SnapshotTask> taskRunner;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
 
@@ -113,28 +113,28 @@ public class ShardSnapshotTaskRunner {
         final Consumer<SnapshotShardContext> shardSnapshotter,
         final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
-        this.throttledTaskRunner = new ThrottledTaskRunner<>(maxRunningTasks, executor);
+        this.taskRunner = new PrioritizedThrottledTaskRunner<>(maxRunningTasks, executor);
         this.shardSnapshotter = shardSnapshotter;
         this.fileSnapshotter = fileSnapshotter;
     }
 
     public void enqueueShardSnapshot(final SnapshotShardContext context) {
         ShardSnapshotTask task = new ShardSnapshotTask(context);
-        throttledTaskRunner.enqueueTask(task);
+        taskRunner.enqueueTask(task);
     }
 
     public void enqueueFileSnapshot(final SnapshotShardContext context, final FileInfo fileInfo, final ActionListener<Void> listener) {
         final FileSnapshotTask task = new FileSnapshotTask(context, fileInfo, listener);
-        throttledTaskRunner.enqueueTask(task);
+        taskRunner.enqueueTask(task);
     }
 
     // visible for testing
     int runningTasks() {
-        return throttledTaskRunner.runningTasks();
+        return taskRunner.runningTasks();
     }
 
     // visible for testing
     int queueSize() {
-        return throttledTaskRunner.queueSize();
+        return taskRunner.queueSize();
     }
 }

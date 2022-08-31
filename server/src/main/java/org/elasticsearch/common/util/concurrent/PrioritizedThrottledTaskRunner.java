@@ -17,18 +17,18 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * ThrottledTaskRunner performs the enqueued tasks in the order dictated by the natural ordering
- * of the tasks, limiting the max number of concurrently running tasks.
+ * {@link PrioritizedThrottledTaskRunner} performs the enqueued tasks in the order dictated by the
+ * natural ordering of the tasks, limiting the max number of concurrently running tasks.
  */
-public class ThrottledTaskRunner<T extends Comparable<T> & Runnable> {
-    private static final Logger logger = LogManager.getLogger(ThrottledTaskRunner.class);
+public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> {
+    private static final Logger logger = LogManager.getLogger(PrioritizedThrottledTaskRunner.class);
 
     private final int maxRunningTasks;
     private final AtomicInteger runningTasks = new AtomicInteger();
     private final BlockingQueue<T> tasks = new PriorityBlockingQueue<>();
     private final Executor executor;
 
-    public ThrottledTaskRunner(final int maxRunningTasks, final Executor executor) {
+    public PrioritizedThrottledTaskRunner(final int maxRunningTasks, final Executor executor) {
         assert maxRunningTasks > 0;
         this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;

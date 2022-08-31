@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ThrottledTaskRunnerTests extends ESTestCase {
+public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     private ThreadPool threadPool;
     private Executor executor;
 
@@ -58,7 +58,7 @@ public class ThrottledTaskRunnerTests extends ESTestCase {
 
     public void testThrottledTaskRunner() throws Exception {
         final int maxTasks = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
-        ThrottledTaskRunner<TestTask> taskRunner = new ThrottledTaskRunner<>(maxTasks, executor);
+        PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>(maxTasks, executor);
         final int enqueued = randomIntBetween(2 * maxTasks, 10 * maxTasks);
         AtomicInteger executed = new AtomicInteger();
         for (int i = 0; i < enqueued; i++) {
@@ -86,7 +86,7 @@ public class ThrottledTaskRunnerTests extends ESTestCase {
         int maxTasks = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
         CountDownLatch taskBlocker = new CountDownLatch(1);
         AtomicInteger executed = new AtomicInteger();
-        ThrottledTaskRunner<TestTask> taskRunner = new ThrottledTaskRunner<>(maxTasks, executor);
+        PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>(maxTasks, executor);
         final int enqueued = maxTasks - 1; // So that it is possible to run at least one more task
         for (int i = 0; i < enqueued; i++) {
             taskRunner.enqueueTask(new TestTask(() -> {

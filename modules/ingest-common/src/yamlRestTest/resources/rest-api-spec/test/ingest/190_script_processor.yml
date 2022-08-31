@@ -363,18 +363,6 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
-        # x set
-        # x append
-        # x size
-        # x iterator
-        # empty
-        # get
-        # getIndex
-        # hasValue
-        # x transform
-        # x deduplicate
-        # x removeValuesIf
-        # removeValue
         body:  >
           {
             "description": "fields api",

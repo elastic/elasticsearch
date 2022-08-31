@@ -108,8 +108,7 @@ template:
       # Any message field except the top level one is matched as text but not indexed
       # TODO: Does this work? Which one has priority?
       - match_message:
-          match_mapping_type: string
-          match: message
+          path_match: message
           runtime:
             type: match_only_text
 

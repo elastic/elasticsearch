@@ -167,6 +167,15 @@ You can also place this config in custom init script (see above) to avoid accide
 If you are passing in the --debug-jvm flag with multiple nodes, you will need multiple remote debuggers running. One
 for each node listening at port 5007, 5008, 5009, and so on. Ensure that each remote debugger has auto restart enabled.
 
+==== Manually testing cross cluster search
+
+Use ./gradlew run-ccs to launch 2 clusters wired together for the purposes of cross cluster search.
+For example send a search request "my_remote_cluster:*/_search" to the querying cluster (:9200) to query data
+in the fulfilling cluster.
+
+If you are passing in the --debug-jvm flag, you will need two remote debuggers running. One at port 5007 and another
+one at port 5008. Ensure that each remote debugger has auto restart enabled.
+
 === Test case filtering.
 
 You can run a single test, provided that you specify the Gradle project. See the documentation on

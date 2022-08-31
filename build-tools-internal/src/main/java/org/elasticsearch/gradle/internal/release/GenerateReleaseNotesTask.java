@@ -123,19 +123,22 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             changelogsByVersion.getOrDefault(qualifiedVersion, Set.of())
         );
 
-        LOGGER.info("Generating release highlights...");
-        ReleaseHighlightsGenerator.update(
-            this.releaseHighlightsTemplate.get().getAsFile(),
-            this.releaseHighlightsFile.get().getAsFile(),
-            entries
-        );
+        // Only update breaking changes and migration guide for new minors
+        if (qualifiedVersion.revision() == 0) {
+            LOGGER.info("Generating release highlights...");
+            ReleaseHighlightsGenerator.update(
+                this.releaseHighlightsTemplate.get().getAsFile(),
+                this.releaseHighlightsFile.get().getAsFile(),
+                entries
+            );
 
-        LOGGER.info("Generating breaking changes / deprecations notes...");
-        BreakingChangesGenerator.update(
-            this.breakingChangesTemplate.get().getAsFile(),
-            this.breakingChangesMigrationFile.get().getAsFile(),
-            entries
-        );
+            LOGGER.info("Generating breaking changes / deprecations notes...");
+            BreakingChangesGenerator.update(
+                this.breakingChangesTemplate.get().getAsFile(),
+                this.breakingChangesMigrationFile.get().getAsFile(),
+                entries
+            );
+        }
     }
 
     /**

@@ -36,28 +36,22 @@ import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 /**
- * This classloader will load classes from non-modularized stable plugins. Fully
- * modularized plugins can be loaded using
- * {@link java.lang.module.ModuleFinder}.
+ * This classloader will load classes from non-modularized sets of jars.
+ * A synthetic module will be created for all jars in the bundle. We want
+ * to be able to construct the read relationships in the module graph for this
+ * synthetic module, which will make it different from the unnamed (classpath)
+ * module.
  * <p>
- * If the stable plugin is not modularized, a synthetic module will be created
- * for all jars in the bundle. We want to be able to construct the
- * "requires" relationships for this synthetic module, which will make it
- * different from the unnamed (classpath) module.
- * <p>
- * We can delegate to a URLClassLoader, which is battle-tested when it comes
- * to reading classes out of jars.
+ * Internally, we can delegate to a URLClassLoader, which is battle-tested when
+ * it comes to reading classes out of jars.
  * <p>
  * This classloader needs to avoid parent-first search: we'll check classes
  * against a list of packages in this synthetic module, and load a class
  * directly if it's part of this synthetic module. This will keep libraries from
  * clashing.
  * <p>
- * Alternate name ideas
- *   * UberModuleClassLoader
- *   * ModularizingClassLoader
  */
-public class StablePluginClassLoader extends SecureClassLoader implements AutoCloseable {
+public class UberModuleClassLoader extends SecureClassLoader implements AutoCloseable {
 
     private final Module module;
     private final URLClassLoader internalLoader;
@@ -65,16 +59,14 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
     private final ModuleLayer.Controller moduleController;
     private final Set<String> packageNames;
 
-    static StablePluginClassLoader getInstance(ClassLoader parent, List<Path> jarPaths) {
-        return getInstance(parent, jarPaths, Set.of());
+    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, List<Path> jarPaths) {
+        return getInstance(parent, moduleName, jarPaths, Set.of());
     }
 
     @SuppressForbidden(reason = "need access to the jar file")
     @SuppressWarnings("removal")
-    static StablePluginClassLoader getInstance(ClassLoader parent, List<Path> jarPaths, Set<String> moduleDenyList) {
-        // TODO: module name should be derived from plugin descriptor (plugin names should be distinct, might
-        // need to munge the characters a little)
-        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule("synthetic", jarPaths.toArray(new Path[0]), Set.of());
+    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, List<Path> jarPaths, Set<String> moduleDenyList) {
+        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths.toArray(new Path[0]), Set.of());
         List<URL> jarURLs = new ArrayList<>();
         try {
             for (Path jarPath : jarPaths) {
@@ -86,7 +78,7 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
             throw new IllegalArgumentException(e);
         }
         ModuleLayer mparent = ModuleLayer.boot();
-        Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of("synthetic"));
+        Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of(moduleName));
 
         Set<String> packageNames = new HashSet<>();
         for (URL url : jarURLs) {
@@ -105,8 +97,9 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
             }
         }
 
-        PrivilegedAction<StablePluginClassLoader> pa = () -> new StablePluginClassLoader(
+        PrivilegedAction<UberModuleClassLoader> pa = () -> new UberModuleClassLoader(
             parent,
+            moduleName,
             jarURLs.toArray(new URL[0]),
             cf,
             mparent,
@@ -119,8 +112,9 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
     /**
      * Constructor
      */
-    private StablePluginClassLoader(
+    private UberModuleClassLoader(
         ClassLoader parent,
+        String moduleName,
         URL[] jarURLs,
         Configuration cf,
         ModuleLayer mparent,
@@ -134,7 +128,7 @@ public class StablePluginClassLoader extends SecureClassLoader implements AutoCl
         this.codeSource = new CodeSource(jarURLs[0], (CodeSigner[]) null);
         // we need a module layer to bind our module to this classloader
         this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
-        this.module = this.moduleController.layer().findModule("synthetic").orElseThrow();
+        this.module = this.moduleController.layer().findModule(moduleName).orElseThrow();
 
         // Every module reads java.base by default, but we can add all other modules
         // that are not in the deny list so that plugins can use, for example, java.management

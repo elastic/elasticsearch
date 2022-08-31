@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESTestCase.WithoutSecurityManager
-public class StablePluginClassLoaderTests extends ESTestCase {
+public class UberModuleClassLoaderTests extends ESTestCase {
 
     /**
      * Test the loadClass method, which is the real entrypoint for users of the classloader
@@ -43,7 +43,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Path jar = topLevelDir.resolve("my-jar.jar");
         createMinimalJar(jar, "p.MyClass");
 
-        try (StablePluginClassLoader loader = getLoader(jar)) {
+        try (UberModuleClassLoader loader = getLoader(jar)) {
             {
                 Class<?> c = loader.loadClass("p.MyClass");
                 assertThat(c, notNullValue());
@@ -69,7 +69,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar, "p.MyClass");
 
         {
-            try (StablePluginClassLoader loader = getLoader(jar)) {
+            try (UberModuleClassLoader loader = getLoader(jar)) {
                 Class<?> c = loader.findClass("p.MyClass");
                 assertThat(c, notNullValue());
                 c = loader.findClass("p.DoesNotExist");
@@ -78,7 +78,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         }
 
         {
-            try (StablePluginClassLoader loader = getLoader(jar)) {
+            try (UberModuleClassLoader loader = getLoader(jar)) {
                 Class<?> c = loader.findClass("synthetic", "p.MyClass");
                 assertThat(c, notNullValue());
                 c = loader.findClass("synthetic", "p.DoesNotExist");
@@ -104,7 +104,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         jarEntries.put("META-INF/resource.txt", "my resource".getBytes(StandardCharsets.UTF_8));
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        try (StablePluginClassLoader loader = getLoader(jar)) {
+        try (UberModuleClassLoader loader = getLoader(jar)) {
 
             {
                 URL location = loader.findResource("p/MyClass.class");
@@ -152,8 +152,8 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         URL[] urls = new URL[] { overlappingJar.toUri().toURL() };
 
         try (
-            URLClassLoader parent = URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
-            StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar))
+            URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", List.of(jar))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClassInPackageP");
@@ -188,8 +188,8 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         URL[] urls = new URL[] { overlappingJar.toUri().toURL() };
 
         try (
-            URLClassLoader parent = URLClassLoader.newInstance(urls, StablePluginClassLoaderTests.class.getClassLoader());
-            StablePluginClassLoader loader = StablePluginClassLoader.getInstance(parent, List.of(jar))
+            URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", List.of(jar))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClass");
@@ -218,7 +218,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar2, "p.SecondClass");
         createMinimalJar(jar3, "p.ThirdClass");
 
-        try (StablePluginClassLoader loader = getLoader(List.of(jar1, jar2, jar3))) {
+        try (UberModuleClassLoader loader = getLoader(List.of(jar1, jar2, jar3))) {
             Class<?> c1 = loader.loadClass("p.FirstClass");
             Object instance1 = c1.getConstructor().newInstance();
             assertThat(instance1.toString(), equalTo("FirstClass"));
@@ -243,7 +243,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar2, "p.split.SecondClass");
         createMinimalJar(jar3, "p.split.ThirdClass");
 
-        try (StablePluginClassLoader loader = getLoader(List.of(jar1, jar2, jar3))) {
+        try (UberModuleClassLoader loader = getLoader(List.of(jar1, jar2, jar3))) {
             Class<?> c1 = loader.loadClass("p.a.FirstClass");
             Object instance1 = c1.getConstructor().newInstance();
             assertThat(instance1.toString(), equalTo("FirstClass"));
@@ -268,7 +268,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         createMinimalJar(jar2, "p.b.SecondClass");
         createMinimalJar(jar3, "p.c.ThirdClass");
 
-        try (StablePluginClassLoader loader = getLoader(List.of(jar1, jar2, jar3))) {
+        try (UberModuleClassLoader loader = getLoader(List.of(jar1, jar2, jar3))) {
             Class<?> c1 = loader.loadClass("p.a.FirstClass");
             Object instance1 = c1.getConstructor().newInstance();
             assertThat(instance1.toString(), equalTo("FirstClass"));
@@ -299,9 +299,9 @@ public class StablePluginClassLoaderTests extends ESTestCase {
             """);
 
         try (
-            StablePluginClassLoader denyListLoader = StablePluginClassLoader.getInstance(
-                StablePluginClassLoaderTests.class.getClassLoader(),
-                List.of(jar),
+            UberModuleClassLoader denyListLoader = UberModuleClassLoader.getInstance(
+                UberModuleClassLoaderTests.class.getClassLoader(),
+                "synthetic", List.of(jar),
                 Set.of("java.sql")
             )
         ) {
@@ -312,7 +312,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("cannot access class java.sql.ResultSet (in module java.sql)"));
         }
 
-        try (StablePluginClassLoader unrestrictedLoader = getLoader(jar)) {
+        try (UberModuleClassLoader unrestrictedLoader = getLoader(jar)) {
             Class<?> unrestricted = unrestrictedLoader.loadClass("p.MyImportingClass");
             assertThat(unrestricted, notNullValue());
             Object instance2 = unrestricted.getConstructor().newInstance();
@@ -332,12 +332,12 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         assertThat(fooBar.toString(), equalTo("FooBar 0"));
     }
 
-    private static StablePluginClassLoader getLoader(Path jar) {
+    private static UberModuleClassLoader getLoader(Path jar) {
         return getLoader(List.of(jar));
     }
 
-    private static StablePluginClassLoader getLoader(List<Path> jars) {
-        return StablePluginClassLoader.getInstance(StablePluginClassLoaderTests.class.getClassLoader(), jars);
+    private static UberModuleClassLoader getLoader(List<Path> jars) {
+        return UberModuleClassLoader.getInstance(UberModuleClassLoaderTests.class.getClassLoader(), "synthetic", jars);
     }
 
     /*
@@ -359,7 +359,7 @@ public class StablePluginClassLoaderTests extends ESTestCase {
         Path jar = topLevelDir.resolve("my-jar.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
         Class<?> c;
-        try (StablePluginClassLoader loader = getLoader(jar)) {
+        try (UberModuleClassLoader loader = getLoader(jar)) {
             c = loader.loadClass("p.FooBar");
         }
         return c.getConstructor().newInstance();

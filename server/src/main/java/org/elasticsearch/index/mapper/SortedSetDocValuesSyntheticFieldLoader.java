@@ -87,7 +87,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     @Override
     public boolean hasValue() {
-        return values.count() > 0;
+        return docValues.count() > 0;
     }
 
     @Override

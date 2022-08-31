@@ -16,6 +16,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static junit.framework.TestCase.assertTrue;
 import static junit.framework.TestCase.fail;
@@ -60,7 +61,7 @@ public class TaskAssertions {
                 }
             }
             assertTrue("found no cancellable tasks", foundTask);
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public static void assertAllTasksHaveFinished(String actionPrefix) throws Exception {

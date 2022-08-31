@@ -20,6 +20,9 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -494,7 +497,7 @@ public class ProfileServiceTests extends ESTestCase {
         final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(Set.of(), name, size, hint);
         final TaskId parentTaskId = new TaskId(randomAlphaOfLength(20), randomNonNegativeLong());
 
-        final SearchRequest searchRequest = profileService.buildSearchRequest(suggestProfilesRequest, parentTaskId);
+        final SearchRequest searchRequest = profileService.buildSearchRequestForSuggest(suggestProfilesRequest, parentTaskId);
         assertThat(searchRequest.getParentTask(), is(parentTaskId));
 
         final SearchSourceBuilder searchSourceBuilder = searchRequest.source();
@@ -557,10 +560,16 @@ public class ProfileServiceTests extends ESTestCase {
                 equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             @SuppressWarnings("unchecked")
-            final ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
+            listener.onResponse(
+                new MultiSearchResponse(
+                    new MultiSearchResponse.Item[] {
+                        new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
+                    1L
+                )
+            );
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(SearchRequest.class), anyActionListener());
+        }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
 
         when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenReturn(
             new IndexRequestBuilder(client, IndexAction.INSTANCE, SECURITY_PROFILE_ALIAS)

@@ -1071,7 +1071,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
         if (fieldType.stored()) {
-            return new StringStoredFieldFieldLoader(name(), simpleName);
+            return new StringStoredFieldFieldLoader(name(), simpleName) {
+                @Override
+                public void load(List<Object> values) {
+                    super.load(values.stream().map(fieldType()::valueForDisplay).toList());
+                }
+            };
         }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(

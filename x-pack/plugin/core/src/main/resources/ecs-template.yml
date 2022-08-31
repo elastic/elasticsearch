@@ -215,6 +215,8 @@ template:
 
 # Meta information blocks
 _meta:
-  description: default mappings for the logs index template installed by x-pack
+  description: Base mappings for indices and data streams using ECS
   managed: true
-version: 2
+
+# TODO: What should the version here be? Put in brackets for now to make it valid yaml
+version: "${xpack.stack.template.version}"

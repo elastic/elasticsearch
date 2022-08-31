@@ -311,6 +311,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        String value = fieldType().value();
+        ;
+        if (value == null) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
             public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
@@ -319,17 +324,12 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
             @Override
             public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
-                /*
-                 * If there is a value we need to enable objects containing these
-                 * fields. We could build something special for fields that are
-                 * always "on", but constant_keyword fields are rare enough that
-                 * having an extra doc values loader that always returns `true`
-                 * isn't a big performance hit and gets the job done.
-                 */
-                if (fieldType().value == null) {
-                    return null;
-                }
                 return docId -> true;
+            }
+
+            @Override
+            public boolean hasValue() {
+                return true;
             }
 
             @Override

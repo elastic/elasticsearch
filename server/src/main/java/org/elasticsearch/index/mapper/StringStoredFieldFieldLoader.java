@@ -19,7 +19,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 
-public class StringStoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
+public abstract class StringStoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String name;
     private final String simpleName;
     private List<Object> values = emptyList();
@@ -35,7 +35,7 @@ public class StringStoredFieldFieldLoader implements SourceLoader.SyntheticField
     }
 
     @Override
-    public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+    public final Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
         Stream<Map.Entry<String, StoredFieldLoader>> standard = Stream.of(Map.entry(name, values -> this.values = values));
         if (extraStoredName == null) {
             return standard;
@@ -44,7 +44,12 @@ public class StringStoredFieldFieldLoader implements SourceLoader.SyntheticField
     }
 
     @Override
-    public void write(XContentBuilder b) throws IOException {
+    public final boolean hasValue() {
+        return values != null && values.isEmpty() == false;
+    }
+
+    @Override
+    public final void write(XContentBuilder b) throws IOException {
         int size = values.size() + extraValues.size();
         switch (size) {
             case 0:
@@ -54,11 +59,11 @@ public class StringStoredFieldFieldLoader implements SourceLoader.SyntheticField
                 if (values.size() > 0) {
                     assert values.size() == 1;
                     assert extraValues.isEmpty();
-                    b.value(values.get(0));
+                    write(b, values.get(0));
                 } else {
                     assert values.isEmpty();
                     assert extraValues.size() == 1;
-                    b.value(extraValues.get(0));
+                    write(b, extraValues.get(0));
                 }
                 values = emptyList();
                 extraValues = emptyList();
@@ -66,10 +71,10 @@ public class StringStoredFieldFieldLoader implements SourceLoader.SyntheticField
             default:
                 b.startArray(simpleName);
                 for (Object value : values) {
-                    b.value((String) value);
+                    write(b, value);
                 }
                 for (Object value : extraValues) {
-                    b.value((String) value);
+                    write(b, value);
                 }
                 b.endArray();
                 values = emptyList();
@@ -77,6 +82,8 @@ public class StringStoredFieldFieldLoader implements SourceLoader.SyntheticField
                 return;
         }
     }
+
+    protected abstract void write(XContentBuilder b, Object value) throws IOException;
 
     @Override
     public final DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {

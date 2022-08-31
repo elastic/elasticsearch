@@ -22,6 +22,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,7 +87,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                 percolatorLeafReaderContext,
                                 slot
                             );
-                            subContext.sourceLookup().setSource(document);
+                            subContext.sourceLookup().setSourceProvider(new SourceLookup.BytesSourceProvider(document));
                             // force source because MemoryIndex does not store fields
                             SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields(), true);
                             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext, highlight, query);

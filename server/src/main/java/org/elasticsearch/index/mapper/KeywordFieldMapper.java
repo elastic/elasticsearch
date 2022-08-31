@@ -63,6 +63,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1084,7 +1085,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 name(),
                 simpleName,
                 fieldType().ignoreAbove == Defaults.IGNORE_ABOVE ? null : originalName()
-            );
+            ) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    BytesRef ref = (BytesRef) value;
+                    b.value(ref.bytes, ref.offset, ref.length);
+                }
+            };
         }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(

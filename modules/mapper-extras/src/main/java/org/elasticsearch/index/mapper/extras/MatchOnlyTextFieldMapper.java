@@ -13,10 +13,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -37,6 +35,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -61,6 +61,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -178,27 +179,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             if (searchExecutionContext.isSourceSynthetic()) {
                 String name = storedFieldNameForSyntheticSource();
-                return context -> docID -> {
-                    List<Object> values = new ArrayList<>();
-                    context.reader().document(docID, new StoredFieldVisitor() {
-                        private Status found = Status.NO;
-
-                        @Override
-                        public Status needsField(FieldInfo fieldInfo) {
-                            if (fieldInfo.name.equals(name)) {
-                                found = Status.STOP;
-                                return Status.YES;
-                            }
-                            return found;
-                        }
-
-                        @Override
-                        public void stringField(FieldInfo fieldInfo, String value) {
-                            assert fieldInfo.name.equals(name);
-                            values.add(value);
-                        }
-                    });
-                    return values;
+                StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(name));
+                return context -> {
+                    LeafStoredFieldLoader leafLoader = loader.getLoader(context, null);
+                    return docId -> {
+                        leafLoader.advanceTo(docId);
+                        return leafLoader.storedFields().get(name);
+                    };
                 };
             }
             SourceLookup sourceLookup = searchExecutionContext.lookup().source();

@@ -113,8 +113,7 @@ public class SecurityFeatureResetTests extends SecurityIntegTestCase {
                     assertThat(
                         e.getMessage(),
                         containsString(
-                            "action [cluster:admin/features/reset] is unauthorized for user [usr]"
-                                + " with declared roles [role2] (all resolved)"
+                            "action [cluster:admin/features/reset] is unauthorized for user [usr]" + " with effective roles [role2]"
                         )
                     );
                 }

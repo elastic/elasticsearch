@@ -81,11 +81,7 @@ public class SecurityTestsUtils {
                     + "] is unauthorized for user ["
                     + authenticatingUser.principal()
                     + "]"
-                    + (authenticatingUser.roles().length == 0
-                        ? " with no declared roles"
-                        : " with declared roles [%s] (all resolved)".formatted(
-                            Strings.arrayToCommaDelimitedString(authenticatingUser.roles())
-                        ))
+                    + " with effective roles [%s]".formatted(Strings.arrayToCommaDelimitedString(authenticatingUser.roles()))
                     + ", because user ["
                     + authenticatingUser.principal()
                     + "] is unauthorized to run as ["

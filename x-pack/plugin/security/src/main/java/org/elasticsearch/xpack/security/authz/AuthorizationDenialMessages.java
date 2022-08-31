@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -111,55 +113,37 @@ class AuthorizationDenialMessages {
         }
 
         final StringBuilder sb = new StringBuilder();
-        final boolean hasDeclaredRoleNames = subject.getUser().roles().length > 0;
-        if (hasDeclaredRoleNames) {
-            sb.append(" with declared roles [").append(Strings.arrayToCommaDelimitedString(subject.getUser().roles())).append("]");
+        final List<String> effectiveRoleNames = extractEffectiveRoleNames(authorizationInfo);
+        if (effectiveRoleNames == null) {
+            sb.append(" with assigned roles [").append(Strings.arrayToCommaDelimitedString(subject.getUser().roles())).append("]");
         } else {
-            sb.append(" with no declared roles");
-        }
-        if (authorizationInfo == null) {
-            return sb.toString();
-        }
+            sb.append(" with effective roles [").append(Strings.collectionToCommaDelimitedString(effectiveRoleNames)).append("]");
 
-        final Set<String> resolvedRoleNames;
-        final Role role = RBACEngine.maybeGetRBACEngineRole(authorizationInfo);
-        if (role == Role.EMPTY) {
-            resolvedRoleNames = Set.of();
-        } else {
-            final Map<String, Object> info = authorizationInfo.asMap();
-            if (false == info.containsKey(PRINCIPAL_ROLES_FIELD_NAME)) {
-                return sb.toString();
-            }
-            resolvedRoleNames = Set.of((String[]) info.get(PRINCIPAL_ROLES_FIELD_NAME));
-        }
-        if (hasDeclaredRoleNames) {
-            sb.append(" (");
-            final Set<String> declaredRoleNames = Set.of(subject.getUser().roles());
-            final Set<String> intersection = Sets.intersection(declaredRoleNames, resolvedRoleNames);
-            if (intersection.equals(declaredRoleNames)) {
-                sb.append("all resolved");
-            } else {
-                if (intersection.isEmpty()) {
-                    sb.append("none resolved");
-                } else {
-                    sb.append("unresolved [")
-                        .append(Strings.collectionToCommaDelimitedString(Sets.sortedDifference(declaredRoleNames, intersection)))
-                        .append("]");
-                }
-            }
-            final SortedSet<String> additionalRoleNames = Sets.sortedDifference(resolvedRoleNames, intersection);
-            if (false == additionalRoleNames.isEmpty()) {
-                sb.append(", additionally resolved [").append(Strings.collectionToCommaDelimitedString(additionalRoleNames)).append("]");
-            }
-            sb.append(")");
-        } else {
-            if (false == resolvedRoleNames.isEmpty()) {
-                sb.append(" (additionally resolved [")
-                    .append(Strings.collectionToCommaDelimitedString(resolvedRoleNames.stream().sorted().toList()));
-                sb.append("])");
+            final Set<String> assignedRoleNames = Set.of(subject.getUser().roles());
+            final SortedSet<String> unfoundedRoleNames = Sets.sortedDifference(assignedRoleNames, Set.copyOf(effectiveRoleNames));
+            if (false == unfoundedRoleNames.isEmpty()) {
+                sb.append(" (assigned roles [")
+                    .append(Strings.collectionToCommaDelimitedString(unfoundedRoleNames))
+                    .append("] were not found)");
             }
         }
         return sb.toString();
+    }
+
+    private static List<String> extractEffectiveRoleNames(@Nullable AuthorizationInfo authorizationInfo) {
+        if (authorizationInfo == null) {
+            return null;
+        }
+        final Role role = RBACEngine.maybeGetRBACEngineRole(authorizationInfo);
+        if (role == Role.EMPTY) {
+            return List.of();
+        } else {
+            final Map<String, Object> info = authorizationInfo.asMap();
+            if (false == info.containsKey(PRINCIPAL_ROLES_FIELD_NAME)) {
+                return null;
+            }
+            return Arrays.stream((String[]) info.get(PRINCIPAL_ROLES_FIELD_NAME)).sorted().toList();
+        }
     }
 
     private static String actionIsUnauthorizedMessage(String action, String userText) {

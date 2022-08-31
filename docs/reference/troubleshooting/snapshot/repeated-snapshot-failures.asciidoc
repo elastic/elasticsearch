@@ -1,0 +1,13 @@
+[[repeated-snapshot-failures]]
+== Addressing repeated snapshot policy failures
+
+Repeated snapshot failures are usually an indicator of a problem with your deployment. Continuous failures of automated
+snapshots can leave a deployment without recovery options in cases of data loss or outages.
+
+In the event that an automated {slm} policy execution is experiencing repeated failures, follow these steps to get more
+information about the problem:
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/snapshot/repeated-snapshot-failures-widget.asciidoc[]
+
+
+

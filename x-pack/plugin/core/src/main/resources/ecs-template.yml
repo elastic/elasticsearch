@@ -81,10 +81,6 @@ template:
       # No path matching is needed as it is assumed these fields are already in the json doc a float or double
       # Elasticsearch would do this mapping automatically but it is specified here for documentation purpose
       # DISCUSS: If a field "7.7" as string comes in, will it still be mapped correctly?
-      - float_as_double:
-          match_mapping_type: float
-          runtime:
-            type: double
       - double_as_double:
           match_mapping_type: double
           runtime:

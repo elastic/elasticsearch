@@ -81,7 +81,7 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
     @Override
     public Block evaluateFinal() {  // assume block positions == groupIds
         GroupingAvgState s = state;
-        int positions = s.counts.length;
+        int positions = s.largestGroupId + 1;
         double[] result = new double[positions];
         for (int i = 0; i < positions; i++) {
             result[i] = s.values[i] / s.counts[i];
@@ -94,6 +94,9 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
         double[] values;
         double[] deltas;
         long[] counts;
+
+        // total number of groups; <= values.length
+        int largestGroupId;
 
         // TODO prototype:
         // 1. BigDoubleArray BigDoubleArray, BigLongArray
@@ -116,9 +119,12 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
             add(valueToAdd, 0d, 0);
         }
 
-        void add(double valueToAdd, int position) {
-            ensureCapacity(position);
-            add(valueToAdd, 0d, position);
+        void add(double valueToAdd, int groupId) {
+            ensureCapacity(groupId);
+            if (groupId > largestGroupId) {
+                largestGroupId = groupId;
+            }
+            add(valueToAdd, 0d, groupId);
         }
 
         private void ensureCapacity(int position) {

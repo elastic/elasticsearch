@@ -20,11 +20,15 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -189,19 +193,22 @@ public class DesiredBalanceReconciler {
             allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
         }
 
+        var lastAllocationTime = Maps.<String, Long>newHashMapWithExpectedSize(routingNodes.size());
+        var lastAllocationTimeComparator = Comparator.<String, Long>comparing(nodeId -> lastAllocationTime.getOrDefault(nodeId, 0L));
+
         do {
             nextShard: for (int i = 0; i < primaryLength; i++) {
                 final var shard = primary[i];
                 final var assignment = desiredBalance.getAssignment(shard.shardId());
                 var isThrottled = false;
                 if (assignment != null) {
-                    final Set<String> assignmentNodeIds;
+                    final List<String> assignmentNodeIds;
 
                     final var forcedNodeIds = allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation);
                     if (forcedNodeIds.isEmpty()) {
-                        assignmentNodeIds = assignment.nodeIds();
+                        assignmentNodeIds = copyAndSort(assignment.nodeIds(), lastAllocationTimeComparator);
                     } else {
-                        assignmentNodeIds = forcedNodeIds.get();
+                        assignmentNodeIds = copyAndSort(forcedNodeIds.get(), lastAllocationTimeComparator);
                         if (logger.isTraceEnabled()) {
                             logger.trace(
                                 "Shard assignment is ignored as shard [{}] initial allocation forced to {}",
@@ -232,6 +239,7 @@ public class DesiredBalanceReconciler {
                                     allocation.routingTable()
                                 );
                                 routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
+                                lastAllocationTime.put(desiredNodeId, System.nanoTime());
                                 if (shard.primary() == false) {
                                     // copy over the same replica shards to the secondary array so they will get allocated
                                     // in a subsequent iteration, allowing replicas of other shards to be allocated first
@@ -421,4 +429,9 @@ public class DesiredBalanceReconciler {
         return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
     }
 
+    private static <T> List<T> copyAndSort(Set<T> set, Comparator<T> comparator) {
+        var list = new ArrayList<>(set);
+        Collections.sort(list, comparator);
+        return list;
+    }
 }

@@ -22,7 +22,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DesiredNodeTests extends ESTestCase {
@@ -276,7 +275,6 @@ public class DesiredNodeTests extends ESTestCase {
         }
 
         assertThat(desiredNode1.equalsWithProcessorsCloseTo(desiredNode2), is(isEqualOrCloseTo));
-        assertThat(desiredNode1, is(not(equalTo(desiredNode2))));
     }
 
     private double randomNumberOfProcessors() {

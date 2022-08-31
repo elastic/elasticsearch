@@ -30,18 +30,12 @@ streams:
 GET /_data_stream/_stats?human=true
 ----
 
-Use the <<cat-indices,cat indices API>> to list all indices:
+Use the <<indices-get-index,get index API>> to list all indices and their
+aliases:
 
 [source,console]
 ----
-GET _cat/indices?v=true&s=index&h=index,docs.count,status,health
-----
-
-Use the <<cat-alias,cat aliases API>> to list all aliases:
-
-[source,console]
-----
-GET _cat/aliases?v=true&s=alias&h=alias,index,is_write_index
+GET _all?filter_path=*.aliases
 ----
 
 [discrete]

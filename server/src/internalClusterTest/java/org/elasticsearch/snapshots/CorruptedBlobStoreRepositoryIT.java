@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -41,6 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -839,5 +841,15 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             repositoryException4.getMessage(),
             containsString("Could not read repository data because the contents of the repository do not match its expected state.")
         );
+
+        logger.info("--> confirm corrupt flag in cluster state");
+        ClusterState clusterState = clusterService().state();
+        Metadata metadata = clusterState.metadata();
+        RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories().stream()
+                .filter(x -> x.name().equals(repo))
+                .findFirst();
+        assertTrue(repositoryMetadata.isPresent());
+        assertEquals(RepositoryData.CORRUPTED_REPO_GEN, repositoryMetadata.get().generation());
     }
 }

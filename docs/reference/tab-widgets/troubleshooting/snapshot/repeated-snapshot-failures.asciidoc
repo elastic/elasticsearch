@@ -28,6 +28,7 @@ image::images/kibana-console.png[{kib} Console,align="center"]
 ----
 GET _slm/policy/<affected-policy-name>
 ----
+// TEST[skip:These policies do not exist]
 +
 The response will look like this:
 +
@@ -97,6 +98,7 @@ other reasons check the logs on the elected master node during the snapshot exec
 ----
 GET _slm/policy/<affected-policy-name>
 ----
+// TEST[skip:These policies do not exist]
 
 The response will look like this:
 

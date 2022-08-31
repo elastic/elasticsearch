@@ -130,26 +130,23 @@ public class LocalHealthMonitorTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
         simulateHealthDiskSpace();
-        try (
-            LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
-                Settings.EMPTY,
-                clusterService,
-                nodeService,
-                threadPool,
-                client
-            )
-        ) {
-            // We override the poll interval like this to avoid the min value set by the setting which is too high for this test
-            localHealthMonitor.setInterval(TimeValue.timeValueMillis(10));
-            assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
-            localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
-            localHealthMonitor.rescheduleIfNecessaryNow();
-            assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
-        }
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
+        // We override the poll interval like this to avoid the min value set by the setting which is too high for this test
+        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
+        assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
+        localHealthMonitor.maybeStartScheduleNow();
+        assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
+        // Ensure the run has been completed
+        assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
+        // Wait until the next run
+        waitUntil(localHealthMonitor::isInProgress);
+        // Ensure that the next run finished
+        assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
     }
 
     @SuppressWarnings("unchecked")
-    public void testDoNotUpdateHealthInfoOnFailure() {
+    public void testDoNotUpdateHealthInfoOnFailure() throws Exception {
         doAnswer(invocation -> {
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onFailure(new RuntimeException("simulated"));
@@ -157,19 +154,11 @@ public class LocalHealthMonitorTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         simulateHealthDiskSpace();
-        try (
-            LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
-                Settings.EMPTY,
-                clusterService,
-                nodeService,
-                threadPool,
-                client
-            )
-        ) {
-            assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
-            localHealthMonitor.rescheduleIfNecessaryNow();
-            assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, null);
-        }
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
+        assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
+        localHealthMonitor.maybeStartScheduleNow();
+        assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, null);
+        assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
     }
 
     @SuppressWarnings("unchecked")
@@ -192,21 +181,14 @@ public class LocalHealthMonitorTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         when(clusterService.state()).thenReturn(previous);
-        try (
-            LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
-                Settings.EMPTY,
-                clusterService,
-                nodeService,
-                threadPool,
-                client
-            )
-        ) {
-            localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-            localHealthMonitor.rescheduleIfNecessaryNow();
-            assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
-            localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
-            assertBusy(() -> assertThat(counter.get(), equalTo(2)));
-        }
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
+        localHealthMonitor.maybeStartScheduleNow();
+        assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
+        assertThat(localHealthMonitor.isInProgress(), equalTo(false));
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
+        assertBusy(() -> assertThat(counter.get(), equalTo(2)));
+        assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
     }
 
     @SuppressWarnings("unchecked")
@@ -219,38 +201,26 @@ public class LocalHealthMonitorTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
         simulateHealthDiskSpace();
         when(clusterService.state()).thenReturn(null);
-        try (
-            LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
-                Settings.EMPTY,
-                clusterService,
-                nodeService,
-                threadPool,
-                client
-            )
-        ) {
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
 
-            // Ensure that there are no issues if the cluster state hasn't been initialized yet
-            localHealthMonitor.setEnabled(true);
-            assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
+        // Ensure that there are no issues if the cluster state hasn't been initialized yet
+        localHealthMonitor.setEnabled(true);
+        assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), nullValue());
 
-            when(clusterService.state()).thenReturn(clusterState);
-            localHealthMonitor.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
-            assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
+        when(clusterService.state()).thenReturn(clusterState);
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
+        assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
 
-            // Disable the local monitoring
-            localHealthMonitor.setEnabled(false);
-            assertBusy(() -> assertThat(localHealthMonitor.isScheduled(), equalTo(false)));
-            simulateDiskOutOfSpace();
-            assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, green);
+        // Disable the local monitoring
+        localHealthMonitor.setEnabled(false);
+        localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(1));
+        simulateDiskOutOfSpace();
+        assertRemainsUnchanged(localHealthMonitor::getLastReportedDiskHealthInfo, green);
 
-            localHealthMonitor.setEnabled(true);
-            assertBusy(() -> assertThat(localHealthMonitor.isScheduled(), equalTo(true)));
-            DiskHealthInfo nextHealthStatus = new DiskHealthInfo(
-                HealthStatus.RED,
-                DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD
-            );
-            assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(nextHealthStatus)));
-        }
+        localHealthMonitor.setEnabled(true);
+        DiskHealthInfo nextHealthStatus = new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
+        assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(nextHealthStatus)));
+        assertBusy(() -> assertThat(localHealthMonitor.isInProgress(), equalTo(false)));
     }
 
     private void assertRemainsUnchanged(Supplier<DiskHealthInfo> supplier, DiskHealthInfo expected) {

@@ -67,29 +67,10 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     /**
      * Schedule the task to run after the configured interval if it
      * is not closed and any further conditions imposed by derived
-     * classes are met. Any previously scheduled invocation is
+     * classes are met.  Any previously scheduled invocation is
      * cancelled.
      */
-    public void rescheduleIfNecessary() {
-        rescheduleIfNecessary(true);
-    }
-
-    /**
-     * Schedule the task to run now if it is not closed and any
-     * further conditions imposed by derived classes are met. Any
-     * previously scheduled invocation is cancelled.
-     */
-    public void rescheduleIfNecessaryNow() {
-        rescheduleIfNecessary(false);
-    }
-
-    /**
-     * Schedule the task to run either now or after the configured
-     * interval if it is not closed and any further conditions imposed
-     * by derived classes are met. Any previously scheduled invocation
-     * is cancelled.
-     */
-    public synchronized void rescheduleIfNecessary(boolean withDelay) {
+    public synchronized void rescheduleIfNecessary() {
         if (isClosed()) {
             return;
         }
@@ -97,11 +78,10 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             cancellable.cancel();
         }
         if (interval.millis() > 0 && mustReschedule()) {
-            TimeValue delay = withDelay ? interval : TimeValue.ZERO;
             if (logger.isTraceEnabled()) {
-                logger.trace("scheduling {} every {} starting in {}", toString(), interval, delay);
+                logger.trace("scheduling {} every {}", toString(), interval);
             }
-            cancellable = threadPool.schedule(this, delay, getThreadPool());
+            cancellable = threadPool.schedule(this, interval, getThreadPool());
             isScheduledOrRunning = true;
         } else {
             logger.trace("scheduled {} disabled", toString());
@@ -150,14 +130,8 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             cancellable = null;
             isScheduledOrRunning = autoReschedule;
         }
-        boolean attemptToReschedule = false;
-        Runnable rescheduleIfNecessary = new RunOnce(() -> {
-            if (autoReschedule) {
-                rescheduleIfNecessary();
-            }
-        });
         try {
-            attemptToReschedule = runInternalAsync(rescheduleIfNecessary);
+            runInternal();
         } catch (Exception ex) {
             if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
                 // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
@@ -168,8 +142,8 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
                 lastThrownException = ex;
             }
         } finally {
-            if (attemptToReschedule == false) {
-                rescheduleIfNecessary.run();
+            if (autoReschedule) {
+                rescheduleIfNecessary();
             }
         }
     }
@@ -193,16 +167,6 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     }
 
     protected abstract void runInternal();
-
-    /**
-     * Override this method in order to be able to reschedule the next execution when the async task completes.
-     * @param rescheduleIfNecessary, the runnable to execute when the async action is over in order to reschedule.
-     * @return true, if the rescheduleIfNecessary was scheduled for execution, false otherwise.
-     */
-    protected boolean runInternalAsync(Runnable rescheduleIfNecessary) {
-        runInternal();
-        return false;
-    }
 
     /**
      * Use the same threadpool by default.

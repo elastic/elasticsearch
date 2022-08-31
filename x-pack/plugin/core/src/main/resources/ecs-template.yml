@@ -142,7 +142,7 @@ template:
           match_mapping_type: object
           match: location
           runtime:
-            type: geopoint
+            type: geo_point
 
       # Match location fields to geopoint
       - match_location:

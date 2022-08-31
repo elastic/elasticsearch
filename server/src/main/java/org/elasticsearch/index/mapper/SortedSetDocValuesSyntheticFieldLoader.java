@@ -87,7 +87,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     @Override
     public boolean hasValue() {
-        return docValues.count() > 0;
+        return docValues.count() > 0 || storedValues.isEmpty() == false;
     }
 
     @Override
@@ -105,7 +105,8 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
                 } else {
                     assert docValues.count() == 0;
                     assert storedValues.size() == 1;
-                    b.value((String) storedValues.get(0));
+                    BytesRef ref = (BytesRef) storedValues.get(0);
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
                     storedValues = emptyList();
                 }
                 return;
@@ -113,7 +114,8 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
                 b.startArray(simpleName);
                 docValues.write(b);
                 for (Object v : storedValues) {
-                    b.value((String) v);
+                    BytesRef ref = (BytesRef) v;
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
                 }
                 storedValues = emptyList();
                 b.endArray();

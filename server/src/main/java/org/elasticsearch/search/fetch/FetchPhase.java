@@ -480,6 +480,7 @@ public class FetchPhase {
     public static List<Object> processStoredField(Function<String, MappedFieldType> fieldTypeLookup, String field, List<Object> input) {
         MappedFieldType ft = fieldTypeLookup.apply(field);
         if (ft == null) {
+            // TODO remove this once we've stopped calling it for accidentally loaded fields
             return input;
         }
         return input.stream().map(ft::valueForDisplay).collect(Collectors.toList());

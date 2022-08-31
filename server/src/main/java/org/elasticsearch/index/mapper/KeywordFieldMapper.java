@@ -949,7 +949,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.addIgnoredField(name());
             if (context.isSyntheticSource()) {
                 // Save a copy of the field so synthetic source can load it
-                context.doc().add(new StoredField(originalName(), value));
+                context.doc().add(new StoredField(originalName(), new BytesRef(value)));
             }
             return;
         }
@@ -1089,7 +1089,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     BytesRef ref = (BytesRef) value;
-                    b.value(ref.bytes, ref.offset, ref.length);
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
                 }
             };
         }

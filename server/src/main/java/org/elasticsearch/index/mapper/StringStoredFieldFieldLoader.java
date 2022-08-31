@@ -45,7 +45,7 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
 
     @Override
     public final boolean hasValue() {
-        return values != null && values.isEmpty() == false;
+        return values.isEmpty() == false || extraValues.isEmpty() == false;
     }
 
     @Override

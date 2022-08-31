@@ -846,9 +846,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         ClusterState clusterState = clusterService().state();
         Metadata metadata = clusterState.metadata();
         RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories().stream()
-                .filter(x -> x.name().equals(repo))
-                .findFirst();
+        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories()
+            .stream()
+            .filter(x -> x.name().equals(repo))
+            .findFirst();
         assertTrue(repositoryMetadata.isPresent());
         assertEquals(RepositoryData.CORRUPTED_REPO_GEN, repositoryMetadata.get().generation());
     }

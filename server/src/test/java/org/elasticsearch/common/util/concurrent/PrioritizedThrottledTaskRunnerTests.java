@@ -40,14 +40,16 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     static class TestTask implements Comparable<TestTask>, Runnable {
 
         private final Runnable runnable;
+        private final int priority;
 
-        TestTask(Runnable runnable) {
+        TestTask(Runnable runnable, int priority) {
             this.runnable = runnable;
+            this.priority = priority;
         }
 
         @Override
         public int compareTo(TestTask o) {
-            return randomIntBetween(0, 1000);
+            return Integer.compare(priority, o.priority);
         }
 
         @Override
@@ -70,7 +72,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                         throw new RuntimeException(e);
                     }
                     executed.incrementAndGet();
-                }));
+                }, getRandomPriority()));
                 assertThat(taskRunner.runningTasks(), lessThanOrEqualTo(maxTasks));
             }).start();
         }
@@ -96,7 +98,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 executed.incrementAndGet();
-            }));
+            }, getRandomPriority()));
             assertThat(taskRunner.runningTasks(), equalTo(i + 1));
         }
         // Enqueueing one or more new tasks would create only one new running task
@@ -109,7 +111,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 executed.incrementAndGet();
-            }));
+            }, getRandomPriority()));
             assertThat(taskRunner.runningTasks(), equalTo(maxTasks));
         }
         taskBlocker.countDown();
@@ -119,5 +121,9 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
             assertThat(taskRunner.runningTasks(), equalTo(0));
         });
         assertThat(taskRunner.queueSize(), equalTo(0));
+    }
+
+    private int getRandomPriority() {
+        return randomIntBetween(-1000, 1000);
     }
 }

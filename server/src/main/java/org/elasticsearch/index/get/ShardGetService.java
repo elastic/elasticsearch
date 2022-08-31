@@ -20,8 +20,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -240,34 +241,34 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         Map<String, DocumentField> documentFields = null;
         Map<String, DocumentField> metadataFields = null;
-        BytesReference source = null;
+        BytesReference source;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         SourceLoader loader = forceSyntheticSource
             ? new SourceLoader.Synthetic(mappingLookup.getMapping())
             : mappingLookup.newSourceLoader();
-        FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields, fetchSourceContext, loader);
-        if (fieldVisitor != null) {
-            try {
-                docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
-            } catch (IOException e) {
-                throw new ElasticsearchException("Failed to get id [" + id + "]", e);
-            }
+        StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFields, fetchSourceContext, loader);
+        LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
+        try {
+            leafStoredFieldLoader.advanceTo(docIdAndVersion.docId);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to get id [" + id + "]", e);
+        }
 
-            // put stored fields into result objects
-            if (fieldVisitor.fields().isEmpty() == false) {
-                fieldVisitor.postProcess(mapperService::fieldType);
-                documentFields = new HashMap<>();
-                metadataFields = new HashMap<>();
-                for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
-                    if (mapperService.isMetadataField(entry.getKey())) {
-                        metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
-                    } else {
-                        documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
-                    }
+        // put stored fields into result objects
+        if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
+            documentFields = new HashMap<>();
+            metadataFields = new HashMap<>();
+            for (Map.Entry<String, List<Object>> entry : leafStoredFieldLoader.storedFields().entrySet()) {
+                List<Object> values = FetchPhase.processStoredField(mapperService::fieldType, entry.getKey(), entry.getValue());
+                if (mapperService.isMetadataField(entry.getKey())) {
+                    metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
+                } else {
+                    documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
                 }
             }
-            source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId }).source(fieldVisitor, docIdAndVersion.docId);
         }
+        source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+            .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
         if (source != null) {
             // apply request-level source filtering
@@ -296,19 +297,18 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext, SourceLoader loader) {
+    private static StoredFieldLoader buildStoredFieldLoader(String[] fields, FetchSourceContext fetchSourceContext, SourceLoader loader) {
+        Set<String> fieldsToLoad = new HashSet<>();
         if (fields != null && fields.length > 0) {
-            Set<String> fieldsToLoad = new HashSet<>();
             Collections.addAll(fieldsToLoad, fields);
-            if (fetchSourceContext.fetchSource()) {
-                fieldsToLoad.addAll(loader.requiredStoredFields());
+        }
+        if (fetchSourceContext.fetchSource()) {
+            fieldsToLoad.addAll(loader.requiredStoredFields());
+        } else {
+            if (fieldsToLoad.isEmpty()) {
+                return StoredFieldLoader.empty();
             }
-            return new CustomFieldsVisitor(fieldsToLoad, fetchSourceContext.fetchSource());
         }
-        Set<String> sourceFields = fetchSourceContext.fetchSource() ? loader.requiredStoredFields() : Set.of();
-        if (sourceFields.isEmpty()) {
-            return fetchSourceContext.fetchSource() ? new FieldsVisitor(true) : null;
-        }
-        return new CustomFieldsVisitor(sourceFields, fetchSourceContext.fetchSource());
+        return StoredFieldLoader.create(fetchSourceContext.fetchSource(), fieldsToLoad);
     }
 }

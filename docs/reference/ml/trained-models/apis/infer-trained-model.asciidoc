@@ -838,6 +838,7 @@ POST _ml/trained_models/cross-encoder__ms-marco-tinybert-l-2-v2/_infer
   }
 }
 --------------------------------------------------
+// TEST[skip:TBD]
 
 The response contains the prediction for every string that is compared to the 
 text provided in the `text_similarity`.`text` field:

@@ -39,6 +39,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -374,6 +375,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
+    @TestIssueLogging(value = "org.elasticsearch.gateway:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/87952")
     public void testDataOnlyNodePersistence() throws Exception {
         final List<Closeable> cleanup = new ArrayList<>(2);
 
@@ -431,7 +433,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             );
             persistedState.setCurrentTerm(state.term());
             persistedState.setLastAcceptedState(state);
-            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
+            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
 
             assertThat(
                 persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
@@ -449,7 +451,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             );
 
             persistedState.markLastAcceptedStateAsCommitted();
-            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
+            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
 
             CoordinationMetadata expectedCoordinationMetadata = CoordinationMetadata.builder(coordinationMetadata)
                 .lastCommittedConfiguration(coordinationMetadata.getLastAcceptedConfiguration())
@@ -503,7 +505,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             assertTrue(wroteState); // must write it at least once
             assertEquals(currentTerm, persistedState.getCurrentTerm());
             assertClusterStateEqual(state, persistedState.getLastAcceptedState());
-            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
+            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
 
             gateway.close();
             assertTrue(cleanup.remove(gateway));

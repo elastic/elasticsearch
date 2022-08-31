@@ -56,7 +56,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         }
     }
 
-    public void testThrottledTaskRunner() throws Exception {
+    public void testMultiThreadedEnqueue() throws Exception {
         final int maxTasks = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
         PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>("test", maxTasks, executor);
         final int enqueued = randomIntBetween(2 * maxTasks, 10 * maxTasks);

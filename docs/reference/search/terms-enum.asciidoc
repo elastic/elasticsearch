@@ -41,6 +41,11 @@ If the `complete` flag is `false`, the returned `terms` set may be incomplete
 and should be treated as approximate. This can occur due to a few reasons, such
 as a request timeout or a node error.
 
+NOTE: The terms enum API may return terms from deleted documents. Deleted
+documents are initially only marked as deleted. It is not until their segments
+are <<index-modules-merge,merged>> that documents are actually deleted. Until
+that happens, the terms enum API will return terms from these documents.
+
 [[search-terms-enum-api-request]]
 ==== {api-request-title}
 

@@ -85,8 +85,10 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             DiscoveryNode healthNodeToBeShutDown = waitAndGetHealthNode(internalCluster);
             assertThat(healthNodeToBeShutDown, notNullValue());
             internalCluster.restartNode(healthNodeToBeShutDown.getName());
+            ensureStableCluster(nodeIds.length);
             DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
             assertThat(newHealthNode, notNullValue());
+            logger.info("Previous health node {}, new health node {}", healthNodeToBeShutDown, newHealthNode);
             assertBusy(() -> {
                 Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, newHealthNode.getName())
                     .getDiskHealthInfo();
@@ -106,7 +108,9 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             String[] nodeIds = state.getNodes().getNodes().keySet().toArray(new String[0]);
             DiscoveryNode healthNodeBeforeIncident = waitAndGetHealthNode(internalCluster);
             assertThat(healthNodeBeforeIncident, notNullValue());
-            internalCluster.restartNode(internalCluster.getMasterName());
+            String masterName = internalCluster.getMasterName();
+            internalCluster.restartNode(masterName);
+            ensureStableCluster(nodeIds.length);
             DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
             assertThat(newHealthNode, notNullValue());
             assertBusy(() -> {

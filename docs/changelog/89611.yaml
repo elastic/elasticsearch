@@ -1,6 +1,0 @@
-pr: 89611
-summary: "[ML] Validate trained model deployment `queue_capacity` limit"
-area: Machine Learning
-type: bug
-issues:
- - 89555

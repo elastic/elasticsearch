@@ -36,6 +36,9 @@ public class CustomFieldsVisitor extends FieldsVisitor {
 
     @Override
     public Status needsField(FieldInfo fieldInfo) {
+        if (fields.isEmpty()) {
+            return super.needsField(fieldInfo);
+        }
         if (super.needsField(fieldInfo) == Status.YES) {
             return Status.YES;
         }

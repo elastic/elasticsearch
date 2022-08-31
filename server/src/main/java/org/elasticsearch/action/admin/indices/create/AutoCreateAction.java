@@ -161,11 +161,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 listener.onFailure(e);
             }
 
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                assert false : "should not be called";
-            }
-
             private ClusterStateAckListener getAckListener(String indexName) {
                 return new ClusterStateAckListener() {
                     @Override

@@ -136,11 +136,6 @@ public class MetadataUpdateSettingsService {
             listener.onFailure(e);
         }
 
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
-        }
-
         ClusterState execute(ClusterState currentState) {
             final Settings normalizedSettings = Settings.builder()
                 .put(request.settings())

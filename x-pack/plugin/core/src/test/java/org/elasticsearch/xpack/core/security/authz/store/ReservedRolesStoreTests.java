@@ -416,7 +416,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
         assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, createApiKeyRequest, authentication), is(true));
         // Can only get and query its own API keys
-        assertThat(kibanaRole.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.forAllApiKeys(), authentication), is(false));
+        assertThat(kibanaRole.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().build(), authentication), is(false));
         assertThat(
             kibanaRole.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), authentication),
             is(true)

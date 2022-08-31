@@ -83,7 +83,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     }
 
     public void testEnqueueSpawnsNewTasksUpToMax() throws Exception {
-        int maxTasks = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
+        int maxTasks = randomIntBetween(1, threadPool.info(ThreadPool.Names.GENERIC).getMax());
         CountDownLatch taskBlocker = new CountDownLatch(1);
         AtomicInteger executed = new AtomicInteger();
         PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>("test", maxTasks, executor);

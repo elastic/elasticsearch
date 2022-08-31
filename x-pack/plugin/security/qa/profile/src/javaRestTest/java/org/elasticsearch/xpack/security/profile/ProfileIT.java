@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIT extends ESRestTestCase {
@@ -351,14 +352,39 @@ public class ProfileIT extends ESRestTestCase {
         assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
     }
 
+    public void testGetUsersWithProfileUid() throws IOException {
+        final String username = randomAlphaOfLengthBetween(3, 8);
+        final Request putUserRequest = new Request("PUT", "_security/user/" + username);
+        putUserRequest.setJsonEntity("{\"password\":\"x-pack-test-password\",\"roles\":[\"superuser\"]}");
+        assertOK(adminClient().performRequest(putUserRequest));
+        final Map<String, Object> profile = doActivateProfile(username, "x-pack-test-password");
+
+        final Request getUserRequest = new Request("GET", "_security/user" + (randomBoolean() ? "/" + username : ""));
+        getUserRequest.addParameter("with_profile_uid", "true");
+        final Response getUserResponse = adminClient().performRequest(getUserRequest);
+        assertOK(getUserResponse);
+
+        responseAsMap(getUserResponse).forEach((k, v) -> {
+            if (username.equals(k)) {
+                assertThat(castToMap(v).get("profile_uid"), equalTo(profile.get("uid")));
+            } else {
+                assertThat(castToMap(v), not(hasKey("profile_uid")));
+            }
+        });
+    }
+
     private Map<String, Object> doActivateProfile() throws IOException {
+        return doActivateProfile("rac-user", "x-pack-test-password");
+    }
+
+    private Map<String, Object> doActivateProfile(String username, String password) throws IOException {
         final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
         activateProfileRequest.setJsonEntity("""
             {
               "grant_type": "password",
-              "username": "rac-user",
-              "password": "x-pack-test-password"
-            }""");
+              "username": "%s",
+              "password": "%s"
+            }""".formatted(username, password));
 
         final Response activateProfileResponse = adminClient().performRequest(activateProfileRequest);
         assertOK(activateProfileResponse);

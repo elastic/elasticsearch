@@ -249,14 +249,14 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         }
     }
 
-    public boolean equalsWithProcessorsCloseTo(DesiredNodes that, double maxError) {
+    public boolean equalsWithProcessorsCloseTo(DesiredNodes that) {
         return that != null
             && version == that.version
             && Objects.equals(historyID, that.historyID)
-            && equalsNodesWithProcessorsCloseTo(that, maxError);
+            && equalsNodesWithProcessorsCloseTo(that);
     }
 
-    public boolean equalsNodesWithProcessorsCloseTo(DesiredNodes that, double maxError) {
+    public boolean equalsNodesWithProcessorsCloseTo(DesiredNodes that) {
         if (that == null || nodes.size() != that.nodes.size()) {
             return false;
         }
@@ -264,7 +264,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         for (Map.Entry<String, DesiredNodeWithStatus> desiredNodeEntry : nodes.entrySet()) {
             final DesiredNodeWithStatus desiredNodeWithStatus = desiredNodeEntry.getValue();
             final DesiredNodeWithStatus otherDesiredNodeWithStatus = that.nodes.get(desiredNodeEntry.getKey());
-            if (desiredNodeWithStatus.equalsWithProcessorsCloseTo(otherDesiredNodeWithStatus, maxError) == false) {
+            if (desiredNodeWithStatus.equalsWithProcessorsCloseTo(otherDesiredNodeWithStatus) == false) {
                 return false;
             }
         }

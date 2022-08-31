@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE;
@@ -228,72 +227,55 @@ public class DesiredNodeTests extends ESTestCase {
         }
     }
 
-    public void testFloatProcessorsConvertedToDoubleAreCloseToEqual() {
-        final double processorCount = randomNumberOfProcessors();
-        final float processorCountAsFloat = (float) processorCount;
-        final Processors bwcProcessors = new Processors(processorCountAsFloat);
-        final Processors doubleProcessor = new Processors(processorCount);
-        assertThat(DesiredNode.processorsEqualsOrCloseTo(bwcProcessors, doubleProcessor, MAX_ERROR), is(true));
-    }
-
-    public void testProcessorsAreConsideredDifferentIfTheDifferenceIsGreaterThanMaxError() {
-        // Ensure that (processorCount - MAX_ERROR) is at least the smallest representable processor
-        final double processorCount = Math.max(Math.ulp(0.0) + MAX_ERROR, randomNumberOfProcessors());
-        final Processors processorsA = new Processors(processorCount + MAX_ERROR);
-        final Processors processorsB = new Processors(processorCount - MAX_ERROR);
-        assertThat(DesiredNode.processorsEqualsOrCloseTo(processorsA, processorsB, MAX_ERROR), is(false));
-        assertThat(processorsA.equals(processorsB), is(false));
-    }
-
-    public void testRoundedProcessorsToFloatAreCloseToEqual() {
-        double processorCount = randomNumberOfProcessors();
-        final Processors doubleProcessor = new Processors(processorCount);
-        final Processors floatProcessor = new Processors((float) doubleProcessor.count());
-        assertThat(DesiredNode.processorsEqualsOrCloseTo(doubleProcessor, floatProcessor, MAX_ERROR), is(true));
-    }
-
     public void testEqualsOrProcessorsCloseTo() {
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
+        final double maxDelta = 1E-3;
 
         final double processorCount = randomNumberOfProcessors();
-        final boolean shouldBeConsideredEqual = randomBoolean();
-        final double maxDifferenceBetweenProcessorCounts = shouldBeConsideredEqual ? MAX_ERROR / 2 : MAX_ERROR * 2;
+        final boolean isEqualOrCloseTo = randomBoolean();
         final ByteSizeValue memory = ByteSizeValue.ofGb(randomIntBetween(1, 32));
         final ByteSizeValue storage = ByteSizeValue.ofGb(randomIntBetween(128, 256));
 
         final DesiredNode desiredNode1;
         final DesiredNode desiredNode2;
         if (randomBoolean()) {
-            desiredNode1 = new DesiredNode(
+            desiredNode1 = new DesiredNode(settings, processorCount, memory, storage, Version.CURRENT);
+            desiredNode2 = new DesiredNode(
                 settings,
-                processorCount + maxDifferenceBetweenProcessorCounts,
+                isEqualOrCloseTo ? (float) processorCount : processorCount + maxDelta,
                 memory,
                 storage,
                 Version.CURRENT
             );
-            desiredNode2 = new DesiredNode(settings, processorCount, memory, storage, Version.CURRENT);
         } else {
-            final Double maxProcessors = randomBoolean() ? processorCount + randomIntBetween(1, 10) : null;
-
-            final Double maxProcessorsDesiredNode1;
-            if (maxProcessors != null && randomBoolean()) {
-                maxProcessorsDesiredNode1 = maxProcessors + maxDifferenceBetweenProcessorCounts;
-            } else {
-                maxProcessorsDesiredNode1 = maxProcessors;
-            }
-
-            final DesiredNode.ProcessorsRange processorsRange1 = new DesiredNode.ProcessorsRange(
-                processorCount + maxDifferenceBetweenProcessorCounts,
-                maxProcessorsDesiredNode1
+            final double desiredNodes1Min = processorCount;
+            final Double desiredNodes1Max = randomBoolean() ? processorCount + randomIntBetween(1, 10) : null;
+            final DesiredNode.ProcessorsRange desiredNodes1ProcessorsRange = new DesiredNode.ProcessorsRange(
+                desiredNodes1Min,
+                desiredNodes1Max
             );
 
-            final DesiredNode.ProcessorsRange processorsRange2 = new DesiredNode.ProcessorsRange(processorCount, maxProcessors);
+            final double modifiedMinProcessors = isEqualOrCloseTo ? (float) desiredNodes1Min : desiredNodes1Min + maxDelta;
 
-            desiredNode1 = new DesiredNode(settings, processorsRange1, memory, storage, Version.CURRENT);
-            desiredNode2 = new DesiredNode(settings, processorsRange2, memory, storage, Version.CURRENT);
+            final double desiredNodes2Min;
+            final Double desiredNodes2Max;
+            if (desiredNodes1Max != null && randomBoolean()) {
+                desiredNodes2Min = randomBoolean() ? desiredNodes1Min : modifiedMinProcessors;
+                desiredNodes2Max = isEqualOrCloseTo ? desiredNodes1Max.floatValue() : desiredNodes1Max + maxDelta;
+            } else {
+                desiredNodes2Min = modifiedMinProcessors;
+                desiredNodes2Max = desiredNodes1Max;
+            }
+            final DesiredNode.ProcessorsRange desiredNodes2ProcessorsRange = new DesiredNode.ProcessorsRange(
+                desiredNodes2Min,
+                desiredNodes2Max
+            );
+
+            desiredNode1 = new DesiredNode(settings, desiredNodes1ProcessorsRange, memory, storage, Version.CURRENT);
+            desiredNode2 = new DesiredNode(settings, desiredNodes2ProcessorsRange, memory, storage, Version.CURRENT);
         }
 
-        assertThat(desiredNode1.equalsWithProcessorsCloseTo(desiredNode2, MAX_ERROR), is(shouldBeConsideredEqual));
+        assertThat(desiredNode1.equalsWithProcessorsCloseTo(desiredNode2), is(isEqualOrCloseTo));
         assertThat(desiredNode1, is(not(equalTo(desiredNode2))));
     }
 

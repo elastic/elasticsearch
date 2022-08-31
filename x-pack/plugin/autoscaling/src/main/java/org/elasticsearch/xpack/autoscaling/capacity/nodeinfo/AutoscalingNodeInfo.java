@@ -30,7 +30,7 @@ public record AutoscalingNodeInfo(long memory, Processors processors) {
         }
 
         Builder setProcessors(double processors) {
-            this.processors = new Processors(processors);
+            this.processors = Processors.of(processors);
             return this;
         }
 

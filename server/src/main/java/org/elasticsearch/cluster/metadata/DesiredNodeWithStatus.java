@@ -122,8 +122,8 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
         return desiredNode.compareTo(o.desiredNode);
     }
 
-    public boolean equalsWithProcessorsCloseTo(DesiredNodeWithStatus other, double maxError) {
-        return other != null && status == other.status && desiredNode.equalsWithProcessorsCloseTo(other.desiredNode, maxError);
+    public boolean equalsWithProcessorsCloseTo(DesiredNodeWithStatus other) {
+        return other != null && status == other.status && desiredNode.equalsWithProcessorsCloseTo(other.desiredNode);
     }
 
     public enum Status {

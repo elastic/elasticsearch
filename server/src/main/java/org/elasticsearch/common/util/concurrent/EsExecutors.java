@@ -61,7 +61,7 @@ public class EsExecutors {
                 String err = "Failed to parse value [" + textValue + "] for setting [node.processors] must be <= " + maxNumberOfProcessors;
                 throw new IllegalArgumentException(err);
             }
-            return new Processors(numberOfProcessors);
+            return Processors.of(numberOfProcessors);
         },
         Property.NodeScope
     );

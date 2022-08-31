@@ -112,7 +112,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         OsInfo osInfo = null;
         if (randomBoolean()) {
             int availableProcessors = randomIntBetween(1, 64);
-            Processors allocatedProcessors = new Processors(randomIntBetween(1, availableProcessors));
+            Processors allocatedProcessors = Processors.of((double) randomIntBetween(1, availableProcessors));
             long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
             String name = randomAlphaOfLengthBetween(3, 10);
             String arch = randomAlphaOfLengthBetween(3, 10);

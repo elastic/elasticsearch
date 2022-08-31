@@ -39,7 +39,6 @@ import static java.lang.String.format;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
-    private static final double MAX_DELTA_PROCESSORS = 7E-5;
 
     private final DesiredNodesSettingsValidator settingsValidator;
     private final ClusterStateTaskExecutor<UpdateDesiredNodesTask> taskExecutor;
@@ -127,7 +126,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         );
 
         if (latestDesiredNodes != null) {
-            if (latestDesiredNodes.equalsWithProcessorsCloseTo(proposedDesiredNodes, MAX_DELTA_PROCESSORS)) {
+            if (latestDesiredNodes.equalsWithProcessorsCloseTo(proposedDesiredNodes)) {
                 return latestDesiredNodes;
             }
 

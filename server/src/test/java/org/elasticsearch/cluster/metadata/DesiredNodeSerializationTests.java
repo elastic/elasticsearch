@@ -51,7 +51,7 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
             );
             case 1 -> new DesiredNode(
                 instance.settings(),
-                randomValueOtherThan(instance.processors(), () -> new Processors(randomDouble() + randomIntBetween(1, 128))),
+                randomValueOtherThan(instance.processors(), () -> Processors.of(randomDouble() + randomIntBetween(1, 128))),
                 null,
                 instance.memory(),
                 instance.storage(),

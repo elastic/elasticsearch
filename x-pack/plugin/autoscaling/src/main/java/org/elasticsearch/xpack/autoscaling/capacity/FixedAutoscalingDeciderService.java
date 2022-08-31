@@ -32,7 +32,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
     public static final Setting<Processors> PROCESSORS = new Setting<>(
         "processors",
         Double.toString(1.0),
-        textValue -> new Processors(Double.parseDouble(textValue))
+        textValue -> Processors.of(Double.parseDouble(textValue))
     );
     public static final Setting<Integer> NODES = Setting.intSetting("nodes", 1, 0);
 

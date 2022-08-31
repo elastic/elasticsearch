@@ -56,7 +56,7 @@ public class OsProbeTests extends ESTestCase {
             }
 
         };
-        final OsInfo info = osProbe.osInfo(refreshInterval, new Processors(allocatedProcessors));
+        final OsInfo info = osProbe.osInfo(refreshInterval, Processors.of((double) allocatedProcessors));
         assertNotNull(info);
         assertThat(info.getRefreshInterval(), equalTo(refreshInterval));
         assertThat(info.getName(), equalTo(Constants.OS_NAME));

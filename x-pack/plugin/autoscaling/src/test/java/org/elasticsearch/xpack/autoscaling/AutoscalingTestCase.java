@@ -155,7 +155,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     public static Processors randomProcessors() {
-        return Processors.of(randomInt(128) + randomDouble());
+        return Processors.of(randomDoubleBetween(Double.MIN_VALUE, 512.9999999, true));
     }
 
     public static AutoscalingPolicy mutateAutoscalingPolicy(final AutoscalingPolicy instance) {

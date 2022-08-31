@@ -53,7 +53,7 @@ public class OsInfo implements ReportingService.Info {
         if (in.getVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
             this.allocatedProcessors = Processors.readFrom(in);
         } else {
-            this.allocatedProcessors = new Processors(in.readInt());
+            this.allocatedProcessors = Processors.of((double) in.readInt());
         }
         this.name = in.readOptionalString();
         this.prettyName = in.readOptionalString();
@@ -137,7 +137,7 @@ public class OsInfo implements ReportingService.Info {
             builder.field(Fields.VERSION, version);
         }
         builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
-        builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
+        builder.field(Fields.ALLOCATED_PROCESSORS, getAllocatedProcessors());
         builder.endObject();
         return builder;
     }

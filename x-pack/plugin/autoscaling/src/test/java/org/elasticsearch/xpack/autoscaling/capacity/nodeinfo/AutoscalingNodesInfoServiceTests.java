@@ -403,7 +403,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
                 equalTo(
                     new AutoscalingNodeInfo(
                         response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes(),
-                        new Processors(infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getFractionalAllocatedProcessors())
+                        Processors.of(infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getFractionalAllocatedProcessors())
                     )
                 )
             );
@@ -446,7 +446,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private static org.elasticsearch.action.admin.cluster.node.info.NodeInfo infoForNode(DiscoveryNode node, int processors) {
-        OsInfo osInfo = new OsInfo(randomLong(), processors, new Processors(processors), null, null, null, null);
+        OsInfo osInfo = new OsInfo(randomLong(), processors, Processors.of((double) processors), null, null, null, null);
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Version.CURRENT,
             Build.CURRENT,

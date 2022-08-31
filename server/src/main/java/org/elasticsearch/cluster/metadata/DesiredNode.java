@@ -119,7 +119,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     }
 
     public DesiredNode(Settings settings, double processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
-        this(settings, new Processors(processors), null, memory, storage, version);
+        this(settings, Processors.of(processors), null, memory, storage, version);
     }
 
     DesiredNode(
@@ -329,24 +329,10 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             && Objects.equals(roles, that.roles);
     }
 
-    public boolean equalsWithProcessorsCloseTo(DesiredNode that, double maxError) {
+    public boolean equalsWithProcessorsCloseTo(DesiredNode that) {
         return equalsWithoutProcessorsSpecification(that)
-            && processorsEqualsOrCloseTo(processors, that.processors, maxError)
-            && ProcessorsRange.equalsOrCloseTo(processorsRange, that.processorsRange, maxError);
-    }
-
-    static boolean processorsEqualsOrCloseTo(Processors a, Processors b, double maxError) {
-        return (a == b) || (a != null && (a.equals(b) || processorsAsFloatCloseTo(a, b, maxError)));
-    }
-
-    private static boolean processorsAsFloatCloseTo(Processors a, Processors b, double maxError) {
-        if (b == null) {
-            return false;
-        }
-
-        float floatCount = (float) a.count();
-        float otherFloatCount = (float) b.count();
-        return Float.isFinite(floatCount) && Float.isFinite(otherFloatCount) && (Math.abs(floatCount - otherFloatCount) < maxError);
+            && Processors.equalsOrCloseTo(processors, that.processors)
+            && ProcessorsRange.equalsOrCloseTo(processorsRange, that.processorsRange);
     }
 
     @Override
@@ -471,14 +457,13 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             return builder;
         }
 
-        static boolean equalsOrCloseTo(ProcessorsRange a, ProcessorsRange b, double maxError) {
-            return (a == b) || (a != null && a.equalsOrCloseTo(b, maxError));
+        static boolean equalsOrCloseTo(ProcessorsRange a, ProcessorsRange b) {
+            return (a == b) || (a != null && a.equalsOrCloseTo(b));
         }
 
-        boolean equalsOrCloseTo(ProcessorsRange that, double maxError) {
+        boolean equalsOrCloseTo(ProcessorsRange that) {
             return that != null
-                && (equals(that)
-                    || (processorsEqualsOrCloseTo(min, that.min, maxError) && processorsEqualsOrCloseTo(max, that.max, maxError)));
+                && (equals(that) || (Processors.equalsOrCloseTo(min, that.min) && Processors.equalsOrCloseTo(max, that.max)));
         }
     }
 }

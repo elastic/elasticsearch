@@ -19,7 +19,7 @@ public class ProcessorsTests extends ESTestCase {
     public void testTruncatesAfterFiveDecimalPlaces() {
         final double processorCount = randomNumberOfProcessors();
 
-        final Processors processors = new Processors(processorCount);
+        final Processors processors = Processors.of(processorCount);
         final String processorsString = Double.toString(processors.count());
         final int decimalPlaces = processorsString.length() - processorsString.indexOf(".") - 1;
         assertThat(decimalPlaces, is(lessThanOrEqualTo(Processors.NUMBER_OF_DECIMAL_PLACES)));
@@ -27,39 +27,39 @@ public class ProcessorsTests extends ESTestCase {
 
     public void testRounding() {
         {
-            final Processors processors = new Processors(1.2);
+            final Processors processors = Processors.of(1.2);
             assertThat(processors.roundDown(), is(equalTo(1)));
             assertThat(processors.roundUp(), is(equalTo(2)));
         }
 
         {
-            final Processors processors = new Processors(0.1);
+            final Processors processors = Processors.of(0.1);
             assertThat(processors.roundDown(), is(equalTo(1)));
             assertThat(processors.roundUp(), is(equalTo(1)));
         }
 
         {
-            final Processors processors = new Processors(1E-12);
+            final Processors processors = Processors.of(1E-12);
             assertThat(processors.roundDown(), is(equalTo(1)));
             assertThat(processors.roundUp(), is(equalTo(1)));
         }
     }
 
     public void testNeverRoundsDownToZero() {
-        final Processors processors = new Processors(1E-12);
+        final Processors processors = Processors.of(1E-12);
         assertThat(processors.count(), is(greaterThan(0.0)));
     }
 
     public void testValidation() {
-        expectThrows(IllegalArgumentException.class, () -> new Processors(-1.0));
-        expectThrows(IllegalArgumentException.class, () -> new Processors(Double.POSITIVE_INFINITY));
-        expectThrows(IllegalArgumentException.class, () -> new Processors(Double.NEGATIVE_INFINITY));
-        expectThrows(IllegalArgumentException.class, () -> new Processors(Double.NaN));
+        expectThrows(IllegalArgumentException.class, () -> Processors.of(-1.0));
+        expectThrows(IllegalArgumentException.class, () -> Processors.of(Double.POSITIVE_INFINITY));
+        expectThrows(IllegalArgumentException.class, () -> Processors.of(Double.NEGATIVE_INFINITY));
+        expectThrows(IllegalArgumentException.class, () -> Processors.of(Double.NaN));
     }
 
     public void testAddition() {
-        final Processors processorsA = new Processors(randomNumberOfProcessors());
-        final Processors processorsB = new Processors(randomNumberOfProcessors());
+        final Processors processorsA = Processors.of(randomNumberOfProcessors());
+        final Processors processorsB = Processors.of(randomNumberOfProcessors());
 
         final Processors addedProcessors = processorsA.plus(processorsB);
 
@@ -68,17 +68,25 @@ public class ProcessorsTests extends ESTestCase {
     }
 
     public void testOverflowAddition() {
-        final Processors processorsA = new Processors(Double.MAX_VALUE);
-        final Processors processorsB = new Processors(Double.MAX_VALUE);
+        final Processors processorsA = Processors.of(Double.MAX_VALUE);
+        final Processors processorsB = Processors.of(Double.MAX_VALUE);
 
         expectThrows(ArithmeticException.class, () -> processorsA.plus(processorsB));
     }
 
     public void testMultiplication() {
-        final Processors processors = new Processors(randomNumberOfProcessors());
+        final Processors processors = Processors.of(randomNumberOfProcessors());
         final Processors multipliedProcessors = processors.multiply(100);
 
         assertThat(multipliedProcessors, is(greaterThan(processors)));
+    }
+
+    public void testFloatProcessorsConvertedToDoubleAreCloseToEqual() {
+        final double processorCount = randomNumberOfProcessors();
+        final float processorCountAsFloat = (float) processorCount;
+        final Processors bwcProcessors = Processors.of((double) processorCountAsFloat);
+        final Processors doubleProcessor = Processors.of(processorCount);
+        assertThat(Processors.equalsOrCloseTo(bwcProcessors, doubleProcessor), is(true));
     }
 
     private double randomNumberOfProcessors() {

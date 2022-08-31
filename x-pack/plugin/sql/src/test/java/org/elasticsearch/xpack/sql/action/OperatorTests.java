@@ -54,7 +54,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 
 public class OperatorTests extends ESTestCase {
 
@@ -323,9 +328,14 @@ public class OperatorTests extends ESTestCase {
         AtomicInteger rowCount = new AtomicInteger();
         AtomicReference<Page> lastPage = new AtomicReference<>();
 
+        var rawValues = LongStream.range(0, 100_000).boxed().collect(toList());
+        // shuffling provides a basic level of randomness to otherwise quite boring data
+        Collections.shuffle(rawValues, random());
+        var source = new SequenceLongBlockSourceOperator(rawValues);
+
         Driver driver = new Driver(
             List.of(
-                new ListLongBlockSourceOperator(LongStream.range(0, 100_000).boxed().toList()),
+                source,
                 new AggregationOperator(
                     List.of(
                         new Aggregator(AggregatorFunction.avg, AggregatorMode.INITIAL, 0),
@@ -369,13 +379,14 @@ public class OperatorTests extends ESTestCase {
 
     // Tests avg aggregators with multiple intermediate partial blocks.
     public void testIntermediateAvgOperators() {
-        Operator source = new ListLongBlockSourceOperator(LongStream.range(0, 100_000).boxed().toList());
+        Operator source = new SequenceLongBlockSourceOperator(LongStream.range(0, 100_000).boxed().toList());
         List<Page> rawPages = new ArrayList<>();
         Page page;
         while ((page = source.getOutput()) != null) {
             rawPages.add(page);
         }
         assert rawPages.size() > 0;
+        // shuffling provides a basic level of randomness to otherwise quite boring data
         Collections.shuffle(rawPages, random());
 
         Aggregator partialAggregator = null;
@@ -406,16 +417,34 @@ public class OperatorTests extends ESTestCase {
         assertEquals(49_999.5, resultBlock.getDouble(0), 0);
     }
 
-    // Trivial test with small input
+    /** Tuple of groupId and respective value. Both of which are of type long. */
+    record LongGroupPair(long groupId, long value) {}
+
+    // Basic test with small(ish) input
     public void testBasicAvgGroupingOperators() {
         AtomicInteger pageCount = new AtomicInteger();
         AtomicInteger rowCount = new AtomicInteger();
         AtomicReference<Page> lastPage = new AtomicReference<>();
 
-        var source = new LongTupleBlockSourceOperator(
-            List.of(9L, 5L, 9L, 5L, 9L, 5L, 9L, 5L, 9L),  // groups
-            List.of(1L, 1L, 2L, 1L, 3L, 1L, 4L, 1L, 5L)   // values
-        );
+        final int cardinality = 10;
+        final long initialGroupId = 10_000L;
+        final long initialValue = 0L;
+
+        // create a list of group/value pairs. Each group has 100 monotonically increasing values.
+        // Higher groupIds have higher sets of values, e.g. logical group1, values 0...99;
+        // group2, values 100..199, etc. This way we can assert average values given the groupId.
+        List<LongGroupPair> values = new ArrayList<>();
+        long group = initialGroupId;
+        long value = initialValue;
+        for (int i = 0; i < cardinality; i++) {
+            for (int j = 0; j < 100; j++) {
+                values.add(new LongGroupPair(group, value++));
+            }
+            group++;
+        }
+        // shuffling provides a basic level of randomness to otherwise quite boring data
+        Collections.shuffle(values, random());
+        var source = new GroupPairBlockSourceOperator(values, 99);
 
         Driver driver = new Driver(
             List.of(
@@ -436,63 +465,59 @@ public class OperatorTests extends ESTestCase {
         );
         driver.run();
         assertEquals(1, pageCount.get());
-        assertEquals(2, rowCount.get());
+        assertEquals(10, rowCount.get());
+        assertEquals(2, lastPage.get().getBlockCount());
 
-        // expect [5 - avg 1.0 , 9 - avg 3.0] - groups (order agnostic)
-        assertEquals(9, lastPage.get().getBlock(0).getLong(0));  // expect [5, 9] - order agnostic
-        assertEquals(5, lastPage.get().getBlock(0).getLong(1));
-        assertEquals(3.0, lastPage.get().getBlock(1).getDouble(0), 0);
-        assertEquals(1.0, lastPage.get().getBlock(1).getDouble(1), 0);
+        final Block groupIdBlock = lastPage.get().getBlock(0);
+        assertEquals(cardinality, groupIdBlock.getPositionCount());
+        var expectedGroupIds = LongStream.range(initialGroupId, initialGroupId + cardinality).boxed().collect(toSet());
+        var actualGroupIds = IntStream.range(0, groupIdBlock.getPositionCount()).mapToLong(groupIdBlock::getLong).boxed().collect(toSet());
+        assertEquals(expectedGroupIds, actualGroupIds);
+
+        final Block valuesBlock = lastPage.get().getBlock(1);
+        assertEquals(cardinality, valuesBlock.getPositionCount());
+        var expectedValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 49.5 + (i * 100)));
+        var actualValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, valuesBlock::getDouble));
+        assertEquals(expectedValues, actualValues);
     }
 
     /**
-     * A source operator whose output is the given long values. This operator produces a single
-     * Page with two Blocks. The first Block contains the long values from the first list, in order.
-     * The second Block contains the long values from the second list, in order.
+     * A source operator whose output is the given group tuple values. This operator produces pages
+     * with two Blocks. The first Block contains the groupId long values. The second Block contains
+     * the respective groupId {@link LongGroupPair#value()}. The returned pages preserve the order
+     * of values as given in the in initial list.
      */
-    class LongTupleBlockSourceOperator implements Operator {
+    class GroupPairBlockSourceOperator extends AbstractBlockSourceOperator {
 
-        private final List<Long> firstValues;
-        private final List<Long> secondValues;
+        private static final int MAX_PAGE_POSITIONS = 8 * 1024;
 
-        LongTupleBlockSourceOperator(List<Long> firstValues, List<Long> secondValues) {
-            assert firstValues.size() == secondValues.size();
-            this.firstValues = firstValues;
-            this.secondValues = secondValues;
+        private final List<LongGroupPair> values;
+
+        GroupPairBlockSourceOperator(List<LongGroupPair> values) {
+            this(values, MAX_PAGE_POSITIONS);
         }
 
-        boolean finished;
-
-        @Override
-        public Page getOutput() {
-            // all in one page for now
-            finished = true;
-            LongBlock firstBlock = new LongBlock(firstValues.stream().mapToLong(Long::longValue).toArray(), firstValues.size());
-            LongBlock secondBlock = new LongBlock(secondValues.stream().mapToLong(Long::longValue).toArray(), secondValues.size());
-            return new Page(firstBlock, secondBlock);
+        GroupPairBlockSourceOperator(List<LongGroupPair> values, int maxPagePositions) {
+            super(maxPagePositions);
+            this.values = values;
         }
 
         @Override
-        public void close() {}
-
-        @Override
-        public boolean isFinished() {
-            return finished;
+        Page createPage(int positionOffset, int length) {
+            final long[] groupsBlock = new long[length];
+            final long[] valuesBlock = new long[length];
+            for (int i = 0; i < length; i++) {
+                LongGroupPair item = values.get(positionOffset + i);
+                groupsBlock[i] = item.groupId();
+                valuesBlock[i] = item.value();
+            }
+            currentPosition += length;
+            return new Page(new LongBlock(groupsBlock, length), new LongBlock(valuesBlock, length));
         }
 
         @Override
-        public void finish() {
-            finished = true;
-        }
-
-        @Override
-        public boolean needsInput() {
-            return false;
-        }
-
-        @Override
-        public void addInput(Page page) {
-            throw new UnsupportedOperationException();
+        int remaining() {
+            return values.size() - currentPosition;
         }
     }
 
@@ -500,41 +525,63 @@ public class OperatorTests extends ESTestCase {
      * A source operator whose output is the given long values. This operator produces pages
      * containing a single Block. The Block contains the long values from the given list, in order.
      */
-    class ListLongBlockSourceOperator implements Operator {
+    class SequenceLongBlockSourceOperator extends AbstractBlockSourceOperator {
+
+        static final int MAX_PAGE_POSITIONS = 16 * 1024;
 
         private final long[] values;
 
-        ListLongBlockSourceOperator(List<Long> values) {
+        SequenceLongBlockSourceOperator(List<Long> values) {
+            super(MAX_PAGE_POSITIONS);
             this.values = values.stream().mapToLong(Long::longValue).toArray();
         }
 
+        protected Page createPage(int positionOffset, int length) {
+            final long[] array = new long[length];
+            for (int i = 0; i < length; i++) {
+                array[i] = values[positionOffset + i];
+            }
+            currentPosition += length;
+            return new Page(new LongBlock(array, array.length));
+        }
+
+        int remaining() {
+            return values.length - currentPosition;
+        }
+    }
+
+    /**
+     * An abstract source operator. Implementations of this operator produce pages with a random
+     * number of positions up to a maximum of the given maxPagePositions positions.
+     */
+    abstract class AbstractBlockSourceOperator implements Operator {
+
         boolean finished;
 
-        int position;
+        /** The position of the next element to output. */
+        int currentPosition;
 
-        static final int MAX_PAGE_POSITIONS = 16 * 1024;
+        final int maxPagePositions;
+
+        AbstractBlockSourceOperator(int maxPagePositions) {
+            this.maxPagePositions = maxPagePositions;
+        }
+
+        abstract int remaining();
+
+        abstract Page createPage(int positionOffset, int length);
 
         @Override
         public Page getOutput() {
             if (finished) {
                 return null;
             }
-            if (position >= values.length) {
+            if (remaining() <= 0) {
                 finish();
                 return null;
             }
-            int positionCount = Math.min(random().nextInt(MAX_PAGE_POSITIONS), remaining());
-            final long[] array = new long[positionCount];
-            int offset = position;
-            for (int i = 0; i < positionCount; i++) {
-                array[i] = values[offset + i];
-            }
-            position += positionCount;
-            return new Page(new LongBlock(array, array.length));
-        }
-
-        int remaining() {
-            return values.length - position;
+            int length = Math.min(random().nextInt(maxPagePositions), remaining());
+            return createPage(currentPosition, length);
         }
 
         @Override

@@ -60,10 +60,12 @@ public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> 
         return preUpdateValue < maxRunningTasks;
     }
 
+    // Only use for testing
     public int runningTasks() {
         return runningTasks.get();
     }
 
+    // Only use for testing
     public int queueSize() {
         return tasks.size();
     }

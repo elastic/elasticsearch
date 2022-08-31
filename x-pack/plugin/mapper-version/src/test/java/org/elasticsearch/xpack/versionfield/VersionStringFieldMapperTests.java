@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -28,6 +29,9 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -74,7 +78,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
 
-        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[0].binaryValue()));
+        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[0].binaryValue()).utf8ToString());
         IndexableFieldType fieldType = fields[0].fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertFalse(fieldType.tokenized());
@@ -86,7 +90,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
-        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[1].binaryValue()));
+        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[1].binaryValue()).utf8ToString());
         fieldType = fields[1].fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
@@ -137,10 +141,14 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
 
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
+        return randomValue();
+    }
+
+    protected static String randomValue() {
         return randomVersionNumber() + (randomBoolean() ? "" : randomPrerelease());
     }
 
-    private String randomVersionNumber() {
+    private static String randomVersionNumber() {
         int numbers = between(1, 3);
         String v = Integer.toString(between(0, 100));
         for (int i = 1; i < numbers; i++) {
@@ -149,7 +157,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         return v;
     }
 
-    private String randomPrerelease() {
+    private static String randomPrerelease() {
         if (rarely()) {
             return randomFrom("alpha", "beta", "prerelease", "whatever");
         }
@@ -162,12 +170,46 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
 
     @Override
-    protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new VersionStringSyntheticSourceSupport();
+    }
+
+    static class VersionStringSyntheticSourceSupport implements SyntheticSourceSupport {
+        @Override
+        public SyntheticSourceExample example(int maxValues) {
+            if (randomBoolean()) {
+                Tuple<String, String> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
+            List<String> in = values.stream().map(Tuple::v1).toList();
+            List<String> outList = values.stream()
+                .map(Tuple::v2)
+                .collect(Collectors.toSet())
+                .stream()
+                .sorted(Comparator.comparing(str -> VersionEncoder.encodeVersion(str).bytesRef))
+                .toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<String, String> generateValue() {
+            String v = randomValue();
+            return Tuple.tuple(v, v);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "version");
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of();
+        }
     }
 }

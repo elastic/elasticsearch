@@ -67,6 +67,21 @@ public class WriteFieldTests extends ESTestCase {
         Map<String, Object> a = new HashMap<>();
         a.put("b.c", null);
         assertTrue(new WriteField("a.b.c", () -> Map.of("a", a)).exists());
+
+        a.clear();
+        Map<String, Object> level1 = new HashMap<>();
+        level1.put("null", null);
+        a.put("level1", level1);
+        a.put("null", null);
+        // WriteField.leaf is null
+        assertFalse(new WriteField("missing.leaf", () -> a).exists());
+
+        // WriteField.leaf non-null but missing
+        assertFalse(new WriteField("missing", () -> a).exists());
+
+        // Check mappings with null values exist
+        assertTrue(new WriteField("level1.null", () -> a).exists());
+        assertTrue(new WriteField("null", () -> a).exists());
     }
 
     public void testMove() {

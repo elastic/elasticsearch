@@ -63,7 +63,7 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals("flat", wf.get("missing"));
     }
 
-    public void testIsExists() {
+    public void testExists() {
         Map<String, Object> a = new HashMap<>();
         a.put("b.c", null);
         assertTrue(new WriteField("a.b.c", () -> Map.of("a", a)).exists());

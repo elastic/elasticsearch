@@ -49,7 +49,6 @@ import java.util.stream.Collectors;
  * against a list of packages in this synthetic module, and load a class
  * directly if it's part of this synthetic module. This will keep libraries from
  * clashing.
- * <p>
  */
 public class UberModuleClassLoader extends SecureClassLoader implements AutoCloseable {
 

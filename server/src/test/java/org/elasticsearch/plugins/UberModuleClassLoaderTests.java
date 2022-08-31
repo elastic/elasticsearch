@@ -301,7 +301,8 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         try (
             UberModuleClassLoader denyListLoader = UberModuleClassLoader.getInstance(
                 UberModuleClassLoaderTests.class.getClassLoader(),
-                "synthetic", List.of(jar),
+                "synthetic",
+                List.of(jar),
                 Set.of("java.sql")
             )
         ) {

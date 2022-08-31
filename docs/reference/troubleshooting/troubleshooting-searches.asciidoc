@@ -53,6 +53,18 @@ stream or index. Check that `count` in the response is not 0.
 [source,console]
 ----
 PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "my-field": {
+        "type": "keyword"
+      },
+      "my-num-field": {
+        "type": "integer"
+      }
+    }
+  }
+}
 ----
 ////
 
@@ -67,61 +79,11 @@ correct data view and a valid time range. Also, ensure the data view has been
 configured with the correct time field.
 
 [discrete]
-[[troubleshooting-searches-field-exists]]
-=== Ensure the field exists and has data
+[[troubleshooting-searches-field-exists-caps]]
+=== Check that the field exists and its capabilities
 
-Querying a field that does not exist or has no data will not return any results.
-Use the <<query-dsl-exists-query,`exists` query>> to check whether there are
-documents that have a value for a field. Check that `count` in the response is
-not 0.
-
-[source,console]
-----
-GET /my-index-000001/_count
-{
-  "query": {
-    "exists": {
-      "field": "my-field"
-    }
-  }
-}
-----
-//TEST[continued]
-
-If the field exists, and is not of type `text`, use a
-<<search-aggregations-bucket-terms-aggregation,terms aggregation>> to retrieve
-the field's most common values:
-
-[source,console]
-----
-GET /my-index-000001/_search?filter_path=aggregations
-{
-  "size": 0,
-  "aggs": {
-    "top_values": {
-      "terms": {
-        "field": "my-field",
-        "size": 10
-      }
-    }
-  }
-}
-----
-//TEST[continued]
-
-If the field does not exist or have any values, check the data ingestion
-process. The field may have a different name.
-
-[discrete]
-[[troubleshooting-searches-fieldcaps-mappings]]
-=== Check field capabilities and mappings
-
-When the field you're querying exists, but you get no or unexpected search
-results, check the capabilities and <<mapping,mapping>> of the field. 
-
-Use the <<search-field-caps,field capabilities API>> to retrieve the
-capabilities of a field. This will return a field's type and tell you if it is
-searchable and aggregatable:
+Querying a field that does not exist will not return any results. Use the
+<<search-field-caps,field capabilities API>> to check whether a field exists:
 
 [source,console]
 ----
@@ -129,8 +91,41 @@ GET /my-index-000001/_field_caps?fields=my-field
 ----
 //TEST[continued]
 
-A field's capabilities are determined by its mapping. To retrieve the mapping,
-use the <<indices-get-mapping,get mapping API>>:
+If the field does not exist, check the data ingestion process. The field may
+have a different name.
+
+If the field exists, the request will return the field's type and whether it is
+searchable and aggregatable.
+
+[source,console-response]
+----
+{
+  "indices": [
+    "my-index-000001"
+  ],
+  "fields": {
+    "my-field": {
+      "keyword": {
+        "type": "keyword",         <1>
+        "metadata_field": false,
+        "searchable": true,        <2>
+        "aggregatable": true       <3>
+      }
+    }
+  }
+}
+----
+
+<1> The field is of type `keyword` in this index.
+<2> The field is searchable in this index.
+<3> The field is aggregatable in this index.
+
+[discrete]
+[[troubleshooting-searches-mappings]]
+=== Check the field's mappings
+
+A field's capabilities are determined by its <<mapping,mapping>>. To retrieve
+the mapping, use the <<indices-get-mapping,get mapping API>>:
 
 [source,console]
 ----
@@ -156,30 +151,69 @@ To change the mapping of an existing field, refer to
 <<updating-field-mappings,Changing the mapping of a field>>.
 
 [discrete]
-[[troubleshooting-searches-settings]]
-=== Check index settings
+[[troubleshooting-check-field-values]]
+=== Check the field's values
 
-<<index-modules-settings,Index settings>> can influence search results. For
-example, the `index.query.default_field` setting, which determines the field
-that is queried when a query specifies no explicit field. Use the
-<<indices-get-settings,get index settings API>> to retrieve the settings for an
-index:
+Use the <<query-dsl-exists-query,`exists` query>> to check whether there are
+documents that return a value for a field. Check that `count` in the response is
+not 0.
 
 [source,console]
 ----
-GET /my-index-000001/_settings
+GET /my-index-000001/_count
+{
+  "query": {
+    "exists": {
+      "field": "my-field"
+    }
+  }
+}
 ----
 //TEST[continued]
 
-You can update dynamic index settings with the <<indices-update-settings,update
-index settings API>>. <<change-dynamic-index-setting-for-a-data-stream,Changing
-dynamic index settings for a data stream>> requires changing the index template
-used by the data stream.
+If the field is aggregatable, you can use <<search-aggregations,aggregations>>
+to check the field's values. For `keyword` fields, you can use a
+<<search-aggregations-bucket-terms-aggregation,terms aggregation>> to retrieve
+the field's most common values:
 
-For static settings, you need to create a new index with the correct settings.
-Next, you can reindex the data into that index. For data streams, refer to
-<<change-static-index-setting-for-a-data-stream,Change a static index setting
-for a data stream>>.
+[source,console]
+----
+GET /my-index-000001/_search?filter_path=aggregations
+{
+  "size": 0,
+  "aggs": {
+    "top_values": {
+      "terms": {
+        "field": "my-field",
+        "size": 10
+      }
+    }
+  }
+}
+----
+//TEST[continued]
+
+For numeric fields, you can use the
+<<search-aggregations-metrics-stats-aggregation,stats aggregation>> to get an
+idea of the field's value distribution:
+
+[source,console]
+----
+GET my-index-000001/_search?filter_path=aggregations
+{
+  "aggs": {
+    "my-num-field-stats": {
+      "stats": {
+        "field": "my-num-field"
+      }
+    }
+  }
+}
+----
+//TEST[continued]
+
+If the field does not return any values, check the data ingestion process. The
+field may have a different name.
 
 [discrete]
 [[troubleshooting-searches-validate-explain-profile]]
@@ -229,3 +263,29 @@ search request. For a visual representation of the results, use the
 NOTE: To troubleshoot queries in {kib}, select **Inspect** in the toolbar. Next,
 select **Request**. You can now copy the query {kib} sent to {es} for
 further analysis in Console.
+
+[discrete]
+[[troubleshooting-searches-settings]]
+=== Check index settings
+
+<<index-modules-settings,Index settings>> can influence search results. For
+example, the `index.query.default_field` setting, which determines the field
+that is queried when a query specifies no explicit field. Use the
+<<indices-get-settings,get index settings API>> to retrieve the settings for an
+index:
+
+[source,console]
+----
+GET /my-index-000001/_settings
+----
+//TEST[continued]
+
+You can update dynamic index settings with the <<indices-update-settings,update
+index settings API>>. <<change-dynamic-index-setting-for-a-data-stream,Changing
+dynamic index settings for a data stream>> requires changing the index template
+used by the data stream.
+
+For static settings, you need to create a new index with the correct settings.
+Next, you can reindex the data into that index. For data streams, refer to
+<<change-static-index-setting-for-a-data-stream,Change a static index setting
+for a data stream>>.

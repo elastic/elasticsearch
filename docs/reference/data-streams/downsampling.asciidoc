@@ -35,6 +35,38 @@ Downsampling works on older, less frequently accessed data by replacing the orig
 image::images/data-streams/time-series-downsampled.png[align="center"]
 
 [discrete]
+[[running-downsampling]]
+=== Running downsampling on time series data
+
+To downsample a time series index, use the {ref}/rollup-apis.html[Rollup API] and set `fixed_interval` to the level of granularity that you'd like:
+
+```
+POST /<source_index>/_rollup/<rollup_index>
+{
+    "fixed_interval": "1d"
+}
+```
+
+To downsample time series data as part of ILM, include a <<ilm-rollup,Rollup action>> in your ILM policy and set `fixed_interval` to the level of granularity that you'd like:
+
+```
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "rollup" : {
+            "fixed_interval": "1h"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+[discrete]
 [[downsampling-limitations]]
 === Restrictions and limitations
 

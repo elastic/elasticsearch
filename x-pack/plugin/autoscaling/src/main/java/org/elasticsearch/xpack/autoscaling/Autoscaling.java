@@ -118,11 +118,12 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        Supplier<AllocationDeciders> allocationDecidersSupplier
     ) {
         this.clusterServiceHolder.set(clusterService);
         var capacityServiceHolder = new AutoscalingCalculateCapacityService.Holder(this);
-        reservedAutoscalingPolicyAction.set(new ReservedAutoscalingPolicyAction(clusterService, capacityServiceHolder));
+        reservedAutoscalingPolicyAction.set(new ReservedAutoscalingPolicyAction(capacityServiceHolder, allocationDecidersSupplier));
         return List.of(capacityServiceHolder, autoscalingLicenseChecker, new AutoscalingNodeInfoService(clusterService, client));
     }
 

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
@@ -35,7 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
 public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHandler<List<PutAutoscalingPolicyAction.Request>> {
     public static final String NAME = "autoscaling";
 
-    private final ClusterService clusterService;
+    private final Supplier<AllocationDeciders> allocationDecidersSupplier;
     private final AutoscalingCalculateCapacityService.Holder policyValidatorHolder;
 
     /**
@@ -44,11 +45,11 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
      * @param policyValidatorHolder requires AutoscalingCalculateCapacityService.Holder for validation
      */
     public ReservedAutoscalingPolicyAction(
-        final ClusterService clusterService,
-        final AutoscalingCalculateCapacityService.Holder policyValidatorHolder
+        final AutoscalingCalculateCapacityService.Holder policyValidatorHolder,
+        final Supplier<AllocationDeciders> allocationDecidersSupplier
     ) {
-        this.clusterService = clusterService;
         this.policyValidatorHolder = policyValidatorHolder;
+        this.allocationDecidersSupplier = allocationDecidersSupplier;
     }
 
     @Override
@@ -76,7 +77,7 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
             state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
                 state,
                 request,
-                policyValidatorHolder.get(clusterService.getAllocationService().getAllocationDeciders())
+                policyValidatorHolder.get(allocationDecidersSupplier.get())
             );
         }
 

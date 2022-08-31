@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -50,7 +47,7 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks.v1(), mocks.v2());
+        ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks, () -> DECIDERS);
 
         String badPolicyJSON = """
             {
@@ -81,7 +78,7 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks.v1(), mocks.v2());
+        ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks, () -> DECIDERS);
 
         String emptyJSON = "";
 
@@ -129,18 +126,10 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
         assertThat(updatedState.keys(), empty());
     }
 
-    private Tuple<ClusterService, AutoscalingCalculateCapacityService.Holder> createMockServices() {
-        ClusterService clusterService = mock(ClusterService.class);
-        AllocationService allocationService = mock(AllocationService.class);
-        doReturn(allocationService).when(clusterService).getAllocationService();
-        doReturn(DECIDERS).when(allocationService).getAllocationDeciders();
-        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
-
+    private AutoscalingCalculateCapacityService.Holder createMockServices() {
         Autoscaling autoscaling = mock(Autoscaling.class);
         doReturn(Set.of(new FixedAutoscalingDeciderService())).when(autoscaling).createDeciderServices(any());
 
-        AutoscalingCalculateCapacityService.Holder holder = new AutoscalingCalculateCapacityService.Holder(autoscaling);
-
-        return new Tuple<>(clusterService, holder);
+        return new AutoscalingCalculateCapacityService.Holder(autoscaling);
     }
 }

@@ -42,7 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeNotConnectedException;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -299,11 +298,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
                                 );
                             }
                         });
-                        String uuid = UUID.randomUUID().toString();
-                        logger.info("Cluster state before sending req {}: {}", uuid, clusterState.metadata().customs());
                         client.execute(
                             UpdateHealthInfoCacheAction.INSTANCE,
-                            new UpdateHealthInfoCacheAction.Request(nodeId, currentHealth, uuid),
+                            new UpdateHealthInfoCacheAction.Request(nodeId, currentHealth),
                             ActionListener.runAfter(listener, runOnceScheduleNextRunIfNecessary)
                         );
                         nextRunScheduled = true;

@@ -113,7 +113,7 @@ public class ShardSnapshotTaskRunner {
         final Consumer<SnapshotShardContext> shardSnapshotter,
         final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
-        this.taskRunner = new PrioritizedThrottledTaskRunner<>(maxRunningTasks, executor);
+        this.taskRunner = new PrioritizedThrottledTaskRunner<>("ShardSnapshotTaskRunner", maxRunningTasks, executor);
         this.shardSnapshotter = shardSnapshotter;
         this.fileSnapshotter = fileSnapshotter;
     }

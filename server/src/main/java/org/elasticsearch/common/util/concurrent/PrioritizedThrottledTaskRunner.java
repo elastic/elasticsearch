@@ -23,19 +23,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> {
     private static final Logger logger = LogManager.getLogger(PrioritizedThrottledTaskRunner.class);
 
+    private final String taskRunnerName;
     private final int maxRunningTasks;
     private final AtomicInteger runningTasks = new AtomicInteger();
     private final BlockingQueue<T> tasks = new PriorityBlockingQueue<>();
     private final Executor executor;
 
-    public PrioritizedThrottledTaskRunner(final int maxRunningTasks, final Executor executor) {
+    public PrioritizedThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor) {
         assert maxRunningTasks > 0;
+        this.taskRunnerName = name;
         this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;
     }
 
     public void enqueueTask(final T task) {
-        logger.trace("enqueuing task {}", task);
+        logger.trace("[{}] enqueuing task {}", taskRunnerName, task);
         tasks.add(task);
         pollAndSpawn();
     }
@@ -44,7 +46,7 @@ public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> 
         while (incrementRunningTasks()) {
             T task = tasks.poll();
             if (task == null) {
-                logger.trace("task queue is empty");
+                logger.trace("[{}] task queue is empty", taskRunnerName);
                 int decremented = runningTasks.decrementAndGet();
                 assert decremented >= 0;
                 if (tasks.peek() == null) break;
@@ -72,7 +74,7 @@ public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> 
 
     private void runTask(final T task) {
         try {
-            logger.trace("running task {}", task);
+            logger.trace("[{}] running task {}", taskRunnerName, task);
             task.run();
         } finally {
             int decremented = runningTasks.decrementAndGet();

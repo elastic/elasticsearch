@@ -58,7 +58,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
     public void testThrottledTaskRunner() throws Exception {
         final int maxTasks = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
-        PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>(maxTasks, executor);
+        PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>("test", maxTasks, executor);
         final int enqueued = randomIntBetween(2 * maxTasks, 10 * maxTasks);
         AtomicInteger executed = new AtomicInteger();
         for (int i = 0; i < enqueued; i++) {
@@ -86,7 +86,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         int maxTasks = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
         CountDownLatch taskBlocker = new CountDownLatch(1);
         AtomicInteger executed = new AtomicInteger();
-        PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>(maxTasks, executor);
+        PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>("test", maxTasks, executor);
         final int enqueued = maxTasks - 1; // So that it is possible to run at least one more task
         for (int i = 0; i < enqueued; i++) {
             taskRunner.enqueueTask(new TestTask(() -> {

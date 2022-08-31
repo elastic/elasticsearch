@@ -1320,7 +1320,7 @@ public class IndexNameExpressionResolver {
          * Given a single wildcard {@param expression}, return the {@code Stream} that contains all the resources (i.e. indices, aliases,
          * and datastreams), that exist in the cluster at this moment in time, and that the wildcard "resolves" to (i.e. the resource's
          * name matches the {@param expression} wildcard).
-         * The {@param context} provides the current time-snapshot view of all the resources, as well as conditions
+         * The {@param context} provides the current time-snapshot view of cluster state, as well as conditions
          * on whether to consider alias, datastream, system, and hidden resources.
          * It does NOT consider the open or closed status of index resources.
          */

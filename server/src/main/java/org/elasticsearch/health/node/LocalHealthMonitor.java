@@ -309,7 +309,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                             // Update the last reported value only if the health node hasn't changed.
                             if (Objects.equals(healthNodeId, lastSeenHealthNode.get())
                                 && lastReportedDiskHealthInfo.compareAndSet(previousHealth, currentHealth)) {
-                                logger.info(
+                                logger.debug(
                                     "Health info [{}] successfully sent, last reported value: {}.",
                                     currentHealth,
                                     lastReportedDiskHealthInfo.get()
@@ -359,7 +359,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
         @Override
         public String toString() {
-            return "HealthMonitoringTask{interval=" + interval + ", cancelled=" + cancelled + "}";
+            return "MonitoringTask{interval=" + interval + ", cancelled=" + cancelled + "}";
         }
     }
 

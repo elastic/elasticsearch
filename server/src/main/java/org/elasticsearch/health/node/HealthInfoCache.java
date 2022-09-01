@@ -43,7 +43,7 @@ public class HealthInfoCache implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         DiscoveryNode currentHealthNode = HealthNode.findHealthNode(event.state());
         DiscoveryNode localNode = event.state().nodes().getLocalNode();
-        if (localNode.equals(currentHealthNode)) {
+        if (currentHealthNode != null && localNode.getId().equals(currentHealthNode.getId())) {
             if (event.nodesRemoved()) {
                 for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                     diskInfoByNode.remove(removedNode.getId());

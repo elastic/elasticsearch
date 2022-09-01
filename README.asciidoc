@@ -28,6 +28,11 @@ https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearc
 
 === Set up a local dev deployment
 
+//// 
+IMPORTANT: This content is replicated in the Elasticsearch guide. 
+If you make changes, you must also update setup/set-up-local-dev-deployment.asciidoc.
+////
+
 To try out Elasticsearch on your dev machine, we recommend using Docker
 and running both Elasticsearch and Kibana.
 Docker images are available from the https://www.docker.elastic.co[Elastic Docker registry].

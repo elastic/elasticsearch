@@ -26,7 +26,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
@@ -894,15 +893,6 @@ public abstract class StreamInput extends InputStream {
             values[i] = readVInt();
         }
         return values;
-    }
-
-    /**
-     * Reads a readonly {@link IntArray} that references the underlying
-     * buffer if possible. Releasing the array will release the buffer
-     * reference.
-     */
-    public IntArray readBigIntArray() throws IOException {
-        return readReleasableBytesReference().asIntArray();
     }
 
     private static final long[] EMPTY_LONG_ARRAY = new long[0];

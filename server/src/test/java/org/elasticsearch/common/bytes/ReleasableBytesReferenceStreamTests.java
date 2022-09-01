@@ -66,11 +66,11 @@ public class ReleasableBytesReferenceStreamTests extends AbstractStreamTests {
         testData.set(0, 1);
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.writeBigIntArray(testData);
+        testData.writeTo(out);
 
         ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
 
-        try (IntArray in = ref.streamInput().readBigIntArray()) {
+        try (IntArray in = IntArray.readFrom(ref.streamInput())) {
             ref.decRef();
             assertThat(ref.hasReferences(), equalTo(true));
 

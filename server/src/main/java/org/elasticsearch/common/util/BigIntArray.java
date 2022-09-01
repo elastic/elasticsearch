@@ -10,7 +10,9 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -38,6 +40,21 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         for (int i = 0; i < pages.length; ++i) {
             pages[i] = newBytePage(i);
         }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (size > Integer.MAX_VALUE / Integer.BYTES) {
+            throw new IllegalArgumentException();
+        }
+        int intSize = (int) size;
+        out.writeVInt(intSize * 4);
+        for (int i = 0; i < pages.length - 1; i++) {
+            out.write(pages[i]);
+        }
+        int end = intSize % INT_PAGE_SIZE;
+        out.write(pages[pages.length - 1], 0, end * Integer.BYTES);
+        // NOCOMMIT endian-ness
     }
 
     @Override

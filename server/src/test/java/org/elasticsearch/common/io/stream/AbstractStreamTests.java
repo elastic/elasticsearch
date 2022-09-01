@@ -219,14 +219,15 @@ public abstract class AbstractStreamTests extends ESTestCase {
     public void testBigIntArray() throws IOException {
         int size = between(0, 10000);
         IntArray testData = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(size, false);
+        // NOCOMMIT assert that testData is a big-arrays backed version sometimes
         for (int i = 0; i < size; i++) {
             testData.set(i, randomInt());
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.writeBigIntArray(testData);
+        testData.writeTo(out);
 
-        try (IntArray in = getStreamInput(out.bytes()).readBigIntArray()) {
+        try (IntArray in = IntArray.readFrom(getStreamInput(out.bytes()))) {
             assertThat(in.size(), equalTo(testData.size()));
             for (int i = 0; i < size; i++) {
                 assertThat(in.get(i), equalTo(testData.get(i)));

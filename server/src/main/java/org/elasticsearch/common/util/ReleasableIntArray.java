@@ -6,15 +6,24 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.bytes;
+package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 class ReleasableIntArray implements IntArray {
     private ReleasableBytesReference ref;
 
-    public ReleasableIntArray(ReleasableBytesReference ref) {
-        this.ref = ref;
+    ReleasableIntArray(StreamInput in) throws IOException {
+        ref = in.readReleasableBytesReference();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBytesReference(ref);
     }
 
     @Override
@@ -27,7 +36,7 @@ class ReleasableIntArray implements IntArray {
         if (index > Integer.MAX_VALUE / 4) {
             throw new UnsupportedOperationException(); // NOCOMMIT Oh god, what do we do here?
         }
-        return ref.getInt((int) index * 4);
+        return ref.getIntLE((int) index * 4);
     }
 
     @Override

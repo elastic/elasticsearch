@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
@@ -870,17 +869,6 @@ public abstract class StreamOutput extends OutputStream {
         writeVInt(values.length);
         for (int value : values) {
             writeVInt(value);
-        }
-    }
-
-    public void writeBigIntArray(IntArray values) throws IOException {
-        // TODO do we need to specialize this for ReleasableIntArray
-        if (values.size() > Integer.MAX_VALUE / Integer.BYTES) {
-            throw new UnsupportedOperationException(); // NOCOMMIT What do?
-        }
-        writeVInt((int) values.size() * Integer.BYTES);
-        for (int i = 0; i < values.size(); i++) {
-            writeInt(values.get(i));
         }
     }
 

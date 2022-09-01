@@ -382,6 +382,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), simpleName());
+        return new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), simpleName(), null);
     }
 }

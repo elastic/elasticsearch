@@ -13,13 +13,13 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 public class IdentifierBuilder extends EsqlBaseBaseVisitor<Object> {
     @Override
-    public String visitWildcardIdentifier(EsqlBaseParser.WildcardIdentifierContext ctx) {
+    public String visitIdentifier(EsqlBaseParser.IdentifierContext ctx) {
         String identifier;
         if (ctx.QUOTED_IDENTIFIER() != null) {
             identifier = ctx.QUOTED_IDENTIFIER().getText();
             identifier = identifier.substring(1, identifier.length() - 1);
         } else {
-            identifier = ctx.IDENTIFIER().getText();
+            identifier = ctx.UNQUOTED_IDENTIFIER().getText();
         }
         return identifier;
     }
@@ -30,6 +30,6 @@ public class IdentifierBuilder extends EsqlBaseBaseVisitor<Object> {
             return null;
         }
 
-        return Strings.collectionToDelimitedString(visitList(this, ctx.wildcardIdentifier(), String.class), ".");
+        return Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".");
     }
 }

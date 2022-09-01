@@ -88,18 +88,6 @@ class EsqlBaseBaseListener implements EsqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterExpression(EsqlBaseParser.ExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitExpression(EsqlBaseParser.ExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterLogicalNot(EsqlBaseParser.LogicalNotContext ctx) { }
   /**
    * {@inheritDoc}
@@ -292,13 +280,13 @@ class EsqlBaseBaseListener implements EsqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterWildcardIdentifier(EsqlBaseParser.WildcardIdentifierContext ctx) { }
+  @Override public void enterIdentifier(EsqlBaseParser.IdentifierContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitWildcardIdentifier(EsqlBaseParser.WildcardIdentifierContext ctx) { }
+  @Override public void exitIdentifier(EsqlBaseParser.IdentifierContext ctx) { }
   /**
    * {@inheritDoc}
    *

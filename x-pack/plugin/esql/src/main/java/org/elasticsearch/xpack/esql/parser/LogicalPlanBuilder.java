@@ -70,15 +70,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public Filter visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) {
-        Expression expression = expression(ctx.expression());
+        Expression expression = expression(ctx.booleanExpression());
         return new Filter(source(ctx), RELATION, expression);
     }
 
-    private static String unquoteIdentifier(String identifier) {
-        return identifier.replace("``", "`");
-    }
-
     private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
-        return ctx.wildcardIdentifier().stream().map(w -> visitWildcardIdentifier(w)).collect(Collectors.joining(","));
+        return ctx.identifier().stream().map(w -> visitIdentifier(w)).collect(Collectors.joining(","));
     }
 }

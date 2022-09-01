@@ -59,13 +59,6 @@ class EsqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements Esql
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitExpression(EsqlBaseParser.ExpressionContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitLogicalNot(EsqlBaseParser.LogicalNotContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -178,7 +171,7 @@ class EsqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements Esql
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitWildcardIdentifier(EsqlBaseParser.WildcardIdentifierContext ctx) { return visitChildren(ctx); }
+  @Override public T visitIdentifier(EsqlBaseParser.IdentifierContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

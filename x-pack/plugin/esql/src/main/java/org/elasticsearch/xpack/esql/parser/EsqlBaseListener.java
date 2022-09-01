@@ -68,16 +68,6 @@ interface EsqlBaseListener extends ParseTreeListener {
    */
   void exitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#expression}.
-   * @param ctx the parse tree
-   */
-  void enterExpression(EsqlBaseParser.ExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#expression}.
-   * @param ctx the parse tree
-   */
-  void exitExpression(EsqlBaseParser.ExpressionContext ctx);
-  /**
    * Enter a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -260,15 +250,15 @@ interface EsqlBaseListener extends ParseTreeListener {
    */
   void exitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#wildcardIdentifier}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
    */
-  void enterWildcardIdentifier(EsqlBaseParser.WildcardIdentifierContext ctx);
+  void enterIdentifier(EsqlBaseParser.IdentifierContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#wildcardIdentifier}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
    */
-  void exitWildcardIdentifier(EsqlBaseParser.WildcardIdentifierContext ctx);
+  void exitIdentifier(EsqlBaseParser.IdentifierContext ctx);
   /**
    * Enter a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.

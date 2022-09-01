@@ -12,7 +12,7 @@ singleStatement
     ;
 
 singleExpression
-    : expression EOF
+    : booleanExpression EOF
     ;
 
 query
@@ -29,11 +29,7 @@ processingCommand
     ;
 
 whereCommand
-    : WHERE expression
-    ;
-
-expression
-    : booleanExpression
+    : WHERE booleanExpression
     ;
 
 booleanExpression
@@ -58,7 +54,7 @@ operatorExpression
 primaryExpression
     : constant                                                                          #constantDefault
     | qualifiedName                                                                     #dereference
-    | LP expression RP                                                                  #parenthesizedExpression
+    | LP booleanExpression RP                                                           #parenthesizedExpression
     ;
 
 rowCommand
@@ -71,19 +67,19 @@ fields
 
 field
     : constant
-    | qualifiedName ASGN constant
+    | qualifiedName ASSIGN constant
     ;
 
 fromCommand
-    : FROM wildcardIdentifier (COMMA wildcardIdentifier)*
+    : FROM identifier (COMMA identifier)*
     ;
 
 qualifiedName
-    : wildcardIdentifier (DOT wildcardIdentifier)*
+    : identifier (DOT identifier)*
     ;
 
-wildcardIdentifier
-    : IDENTIFIER
+identifier
+    : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
     ;
 
@@ -119,8 +115,8 @@ fragment LETTER
     : [A-Za-z]
     ;
 
-fragment STRING_ESCAPE
-    : '\\' [btnfr"'\\]
+fragment ESCAPE_SEQUENCE
+    : '\\' [tnr"\\]
     ;
 
 fragment UNESCAPED_CHARS
@@ -131,12 +127,8 @@ fragment EXPONENT
     : [Ee] [+-]? DIGIT+
     ;
 
-fragment UNQUOTED_IDENTIFIER
-    : ~[`|., \t\r\n]*
-    ;
-
 STRING
-    : '"' (STRING_ESCAPE | UNESCAPED_CHARS)* '"'
+    : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
     | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
 
@@ -152,7 +144,7 @@ DECIMAL_LITERAL
     ;
 
 AND : 'and';
-ASGN : '=';
+ASSIGN : '=';
 COMMA : ',';
 DOT : '.';
 FALSE : 'false';
@@ -180,7 +172,7 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
-IDENTIFIER
+UNQUOTED_IDENTIFIER
     : (LETTER | '_') (LETTER | DIGIT | '_')*
     ;
 
@@ -192,8 +184,8 @@ LINE_COMMENT
     : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
     ;
 
-BRACKETED_COMMENT
-    : '/*' (BRACKETED_COMMENT|.)*? '*/' -> channel(HIDDEN)
+MULTILINE_COMMENT
+    : '/*' (MULTILINE_COMMENT|.)*? '*/' -> channel(HIDDEN)
     ;
 
 WS

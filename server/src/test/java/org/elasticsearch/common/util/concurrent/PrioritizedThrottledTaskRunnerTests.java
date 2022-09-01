@@ -31,7 +31,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("test");
-        executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        executor = threadPool.executor(ThreadPool.Names.GENERIC);
     }
 
     @Override
@@ -66,8 +66,15 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         PrioritizedThrottledTaskRunner<TestTask> taskRunner = new PrioritizedThrottledTaskRunner<>("test", maxTasks, executor);
         final int enqueued = randomIntBetween(2 * maxTasks, 10 * maxTasks);
         AtomicInteger executed = new AtomicInteger();
+        CountDownLatch threadBlocker = new CountDownLatch(enqueued);
         for (int i = 0; i < enqueued; i++) {
             new Thread(() -> {
+                try {
+                    threadBlocker.countDown();
+                    threadBlocker.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
                 taskRunner.enqueueTask(new TestTask(() -> {
                     try {
                         Thread.sleep(randomLongBetween(0, 10));

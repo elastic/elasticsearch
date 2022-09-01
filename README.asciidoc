@@ -47,7 +47,7 @@ docker network create elastic
 docker pull docker.elastic.co/elasticsearch/elasticsearch:{version} <1>
 docker run --name es-node1 --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
 ----
-<1> Replace {version} with the version of Elasticsearch you want to run, for example 8.4.1.
+<1> Replace {version} with the version of Elasticsearch you want to run, such as 8.4.1.
 +
 When you start Elasticsearch for the first time, the following security configuration 
 occurs automatically:

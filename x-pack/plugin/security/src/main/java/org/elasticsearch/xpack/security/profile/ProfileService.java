@@ -828,7 +828,7 @@ public class ProfileService {
     boolean shouldSkipUpdateForActivate(ProfileDocument currentProfileDocument, ProfileDocument newProfileDocument) {
         assert newProfileDocument.enabled() : "new profile document must be enabled";
         if (newProfileDocument.user().equals(currentProfileDocument.user())
-            && currentProfileDocument.enabled()
+            && newProfileDocument.enabled() == currentProfileDocument.enabled()
             && newProfileDocument.lastSynchronized() - currentProfileDocument.lastSynchronized() < ACTIVATE_INTERVAL_IN_MS) {
             return true;
         }

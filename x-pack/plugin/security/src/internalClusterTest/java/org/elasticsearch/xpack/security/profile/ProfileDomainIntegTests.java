@@ -365,6 +365,10 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         );
         // All concurrent activations should succeed because we handle version conflict error and check whether update
         // can be skipped. In this case, they can be skipped because all updates are for the same content.
+        // Due to the concurrency nature, there is no guarantee whether an update can succeed or succeed with error handling.
+        // We can only be sure that at least one of them will succeed.
+        // Other updates may succeed or they may succeed with the error handling. So we cannot assert that the document
+        // is only updated once. What we can assert is that they will all be successful (one way or another).
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {

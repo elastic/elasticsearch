@@ -36,8 +36,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -390,19 +388,19 @@ public class ProfileIT extends ESRestTestCase {
             final Instant start = Instant.now();
             // Activate again with the same host (node0) should fall within the grace period and skip actual update
             final Map<String, Object> responseMap1 = responseAsMap(client.performRequest(activateProfileRequest));
+            assumeTrue("Test is running too slow", start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()));
             assertThat(responseMap1.get("_doc"), equalTo(responseMap0.get("_doc")));
-            assertThat(start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()), is(true));
 
             // Activate with different host (node1) should actually update since node name changes in RealmRef
             client.setNodes(List.of(node1));
             final Map<String, Object> responseMap2 = responseAsMap(client.performRequest(activateProfileRequest));
+            assumeTrue("Test is running too slow", start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()));
             assertThat(responseMap2.get("_doc"), not(equalTo(responseMap0.get("_doc"))));
-            assertThat(start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()), is(true));
 
             // Activate again with node1 should see no update
             final Map<String, Object> responseMap3 = responseAsMap(client.performRequest(activateProfileRequest));
+            assertTrue("Test is running too slow", Instant.now().toEpochMilli() - (long) responseMap2.get("last_synchronized") < 30_000L);
             assertThat(responseMap3.get("_doc"), equalTo(responseMap2.get("_doc")));
-            assertThat(Instant.now().toEpochMilli() - (long) responseMap3.get("last_synchronized"), lessThan(30_000L));
         } finally {
             client.setNodes(originalNodes);
         }

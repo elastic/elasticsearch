@@ -104,7 +104,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
 
-    private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
+    private final StablePluginsRegistry stablePluginsRegistry;
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
         "plugin.mandatory",
@@ -115,14 +115,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     /**
      * Constructs a new PluginService
-     *
-     * @param settings         The settings of the system
+     *  @param settings         The settings of the system
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
-    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
+    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory/*, Path modulePath*/) {
         this.settings = settings;
         this.configPath = configPath;
+        stablePluginsRegistry = new StablePluginsRegistry();
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
 

@@ -32,7 +32,7 @@ public class StablePluginsRegistry {
         namedComponents.putAll(namedComponentsFromPlugin);
     }
 
-    //TODO this will be removed. getPluginForName or similar wil be created
+    // TODO this will be removed. getPluginForName or similar wil be created
     public Map<String, NameToPluginInfo> getNamedComponents() {
         return namedComponents;
     }

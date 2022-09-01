@@ -262,6 +262,10 @@ public class Environment {
         return libFile;
     }
 
+    public Path modulePath() {
+        return libFile();
+    }
+
     public Path modulesFile() {
         return modulesFile;
     }

@@ -20,12 +20,17 @@ public class ExtensibleFileReaderTests extends ESTestCase {
         ExtensibleFileReader extensibleFileReader = new ExtensibleFileReader("test_extensible.json");
 
         Map<String, String> stringStringMap = extensibleFileReader.readFromFile();
-        assertThat(stringStringMap, equalTo(
-            Map.of("org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass",
-                "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass",
-                "org/elasticsearch/plugins/scanners/extensible_test_classes/SubClass",
-                "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass"
-                )));
+        assertThat(
+            stringStringMap,
+            equalTo(
+                Map.of(
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass",
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass",
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/SubClass",
+                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass"
+                )
+            )
+        );
 
     }
 }

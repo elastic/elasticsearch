@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugins.scanners;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.plugin.api.Extensible;
@@ -27,7 +26,7 @@ public class ExtensiblesRegistry {
         return null;
     });
 
-    //only 1 file for now, but in the future multiple for different apis? does this have to be in exported package?
+    // only 1 file for now, but in the future multiple for different apis? does this have to be in exported package?
     private static final String EXTENSIBLES_FILE = "extensibles.json";
     public static final ExtensiblesRegistry INSTANCE = new ExtensiblesRegistry(EXTENSIBLES_FILE);
 
@@ -48,7 +47,6 @@ public class ExtensiblesRegistry {
             logger.error("Unable to load extensible classes", e);
         }
     }
-
 
     ClassScanner getExtensibleClassScanner() {
         return extensibleClassScanner;

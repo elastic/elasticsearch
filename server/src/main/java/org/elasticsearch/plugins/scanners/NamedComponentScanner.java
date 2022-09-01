@@ -44,8 +44,12 @@ public class NamedComponentScanner {
 
     // scope for testing
     Map<String, NameToPluginInfo> findNamedComponents(Stream<ClassReader> classReaderStream, ClassLoader pluginClassLoader) {
-//        readFromFile()
-        return scanForNamedClasses(classReaderStream, pluginClassLoader);
+        // readFromFile()
+        try {
+            return scanForNamedClasses(classReaderStream, pluginClassLoader);
+        } finally {
+            classReaderStream.close();
+        }
     }
 
     private Map<String, NameToPluginInfo> scanForNamedClasses(Stream<ClassReader> classReaderStream, ClassLoader pluginClassLoader) {

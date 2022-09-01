@@ -90,5 +90,4 @@ public class PluginBundle {
         return Objects.hash(plugin);
     }
 
-
 }

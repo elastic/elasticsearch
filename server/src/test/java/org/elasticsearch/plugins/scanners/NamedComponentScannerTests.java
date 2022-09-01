@@ -19,6 +19,7 @@ import org.objectweb.asm.ClassReader;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,13 +32,18 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NamedComponentScannerTests extends ESTestCase {
-    ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("file_does_not_exist.txt");//forcing to do classpath scan
+    ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("file_does_not_exist.txt");// forcing to do classpath scan
     NamedComponentScanner namedComponentScanner = new NamedComponentScanner(extensiblesRegistry);
 
     public void testReadNamedComponentsFromFile() throws IOException {
-        final InputStream resource = this.getClass().getClassLoader().getResourceAsStream("org/elasticsearch/plugins/scanners/named_components.json");
+        final InputStream resource = this.getClass()
+            .getClassLoader()
+            .getResourceAsStream("org/elasticsearch/plugins/scanners/named_components.json");
 
-        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.readFromFile(resource, TestNamedComponent.class.getClassLoader());
+        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.readFromFile(
+            resource,
+            TestNamedComponent.class.getClassLoader()
+        );
 
         assertThat(
             namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("test_named_component"),
@@ -78,25 +84,23 @@ public class NamedComponentScannerTests extends ESTestCase {
         Files.createDirectories(dirWithJar);
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, Map.of("named_components.json", bytes("""
-                {
-                  "p.A":
-                  "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
-                }
-                """),
-            "p/A.class", InMemoryJavaCompiler.compile("p.A", """
-                package p;
-                import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.plugins.scanners.extensible_test_classes.*;
-                @NamedComponent(name = "a_component")
-                public class A extends ExtensibleClass {}
-                """),
-            "p/B.class", InMemoryJavaCompiler.compile("p.B", """
-                package p;
-                import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.plugins.scanners.extensible_test_classes.*;
-                @NamedComponent(name = "b_component")
-                public class B implements ExtensibleInterface{}
-                """)));
+            {
+              "p.A":
+              "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
+            }
+            """), "p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            import org.elasticsearch.plugin.api.*;
+            import org.elasticsearch.plugins.scanners.extensible_test_classes.*;
+            @NamedComponent(name = "a_component")
+            public class A extends ExtensibleClass {}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            import org.elasticsearch.plugin.api.*;
+            import org.elasticsearch.plugins.scanners.extensible_test_classes.*;
+            @NamedComponent(name = "b_component")
+            public class B implements ExtensibleInterface{}
+            """)));
 
         ClassLoader classLoader = NamedComponentScannerTests.class.getClassLoader();
         Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(
@@ -221,14 +225,14 @@ public class NamedComponentScannerTests extends ESTestCase {
         return Arrays.stream(classes).map(clazz -> {
             String className = classNameToPath(clazz) + ".class";
             Path path = mainPath.resolve(className);
-            try {
-                InputStream fileInputStream = Files.newInputStream(path);
-                return new ClassReader(fileInputStream);
+            try (InputStream is = Files.newInputStream(path)) {
+                byte[] classBytes = is.readAllBytes();
+                ClassReader classReader = new ClassReader(classBytes);
+                return classReader;
             } catch (IOException e) {
-                // e.printStackTrace();
+                throw new UncheckedIOException(e);
             }
-            return null;
-        }).filter(cr -> cr != null);
+        })/*.filter(cr -> cr != null)*/;
     }
 
     private String classNameToPath(Class<?> clazz) {

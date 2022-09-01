@@ -13,7 +13,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -34,12 +33,14 @@ public class ExtensibleFileReader {
     public Map<String, String> readFromFile() {
         Map<String, String> res = new HashMap<>();
         try (InputStream in = /*new BufferedInputStream(*/getClass().getClassLoader().getResourceAsStream(extensibleFile))/*)*/ {
-            if (in != null)  {
+            if (in != null) {
                 try (XContentParser parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, in)) {
-                    //validation class exist??
-                    return parser.mapStrings().entrySet().stream()
+                    // validation class exist??
+                    return parser.mapStrings()
+                        .entrySet()
+                        .stream()
                         .collect(Collectors.toMap(e -> classNameToSlashes(e.getKey()), e -> classNameToSlashes(e.getValue())));
-                    //todo decide if dot  or /classes names should be used
+                    // todo decide if dot or /classes names should be used
                 }
             }
 
@@ -49,7 +50,7 @@ public class ExtensibleFileReader {
         return res;
     }
 
-    //todo duplication
+    // todo duplication
     private static String classNameToSlashes(String className) {
         return className.replace('.', '/');
     }

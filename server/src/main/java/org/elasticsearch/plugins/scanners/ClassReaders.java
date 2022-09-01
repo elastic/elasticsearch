@@ -17,15 +17,16 @@ import org.objectweb.asm.ClassReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.jar.JarFile;
 import java.util.stream.Stream;
+import java.util.zip.ZipFile;
 
 /**
  * A utility class containing methods to create streams of ASM's ClassReader
+ *
  * @see ClassReader
  */
 public class ClassReaders {
@@ -35,6 +36,7 @@ public class ClassReaders {
     }
 
     public static Stream<ClassReader> ofModulePath() throws IOException {
+        // TODO should we use this? or should we use Environment#modulePath?
         String modulePath = System.getProperty("jdk.module.path");
         return ofDirWithJars(modulePath);
     }
@@ -45,6 +47,7 @@ public class ClassReaders {
     }
 
     // package scope for testing
+    @SuppressForbidden(reason = "converting modulePaths")
     static Stream<ClassReader> ofClassPath(String classpath) {
         if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
             String[] pathelements = classpath.split(":");
@@ -53,11 +56,13 @@ public class ClassReaders {
         return Stream.empty();
     }
 
+    @SuppressForbidden(reason = "converting modulePaths")
     public static Stream<ClassReader> ofDirWithJars(String path) throws IOException {
         if (path == null) {
             return Stream.empty();
         }
-        Stream<Path> list = Files.list(PathUtils.get(path));
+        Path dir = PathUtils.get(path);
+        Stream<Path> list = Files.list(dir);
         return ofPaths(list);
     }
 
@@ -71,16 +76,32 @@ public class ClassReaders {
         });
     }
 
+    private static final String MODULE_INFO = "module-info.class";
+
+    @SuppressForbidden(reason = "need access to the jar file")
     private static Stream<ClassReader> classesInJar(Path jar) {
+        // try {
+        // FileSystem jarFs = FileSystems.newFileSystem(jar);
+        // Path root = jarFs.getPath("/");
+
         try {
-            FileSystem jarFs = FileSystems.newFileSystem(jar);
-            Path root = jarFs.getPath("/");
-            return classesInPath(root);
+            JarFile jf = new JarFile(jar.toFile(), true, ZipFile.OPEN_READ, Runtime.version());
+
+            Stream<ClassReader> classReaderStream = jf.versionedStream()
+                .filter(e -> e.getName().endsWith(".class") && e.getName().equals(MODULE_INFO) == false)
+                .map(e -> {
+                    try (InputStream is = jf.getInputStream(e)) {
+                        byte[] classBytes = is.readAllBytes();
+                        return new ClassReader(classBytes);
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
+                });
+            return classReaderStream;
         } catch (IOException e) {
-            // e.printStackTrace();
+            e.printStackTrace();
         }
         return Stream.empty();
-
     }
 
     private static Stream<ClassReader> classesInPath(Path root) {

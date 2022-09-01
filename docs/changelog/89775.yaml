@@ -1,6 +1,6 @@
 pr: 89775
-summary: Return 408 when open/start APIs time out
+summary: Return 408 instead of 500 when open/start APIs time out
 area: Machine Learning
-type: enhancement
+type: bug
 issues:
  - 89585

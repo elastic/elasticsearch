@@ -86,20 +86,19 @@ public class RandomSamplerIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89721")
     public void testRandomSampler() {
         double sampleMonotonicValue = 0.0;
         double sampleNumericValue = 0.0;
         double sampledDocCount = 0.0;
 
-        SearchRequest sampledRequest = client().prepareSearch("idx")
-            .addAggregation(
-                new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
-                    .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
-                    .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
-            )
-            .request();
         for (int i = 0; i < NUM_SAMPLE_RUNS; i++) {
+            SearchRequest sampledRequest = client().prepareSearch("idx")
+                .addAggregation(
+                    new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                        .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                        .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                )
+                .request();
             InternalRandomSampler sampler = client().search(sampledRequest).actionGet().getAggregations().get("sampler");
             sampleMonotonicValue += ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
             sampleNumericValue += ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
@@ -132,18 +131,18 @@ public class RandomSamplerIT extends ESIntegTestCase {
         Map<String, Double> sampleNumericValue = new HashMap<>();
         Map<String, Double> sampledDocCount = new HashMap<>();
 
-        SearchRequest sampledRequest = client().prepareSearch("idx")
-            .addAggregation(
-                new RandomSamplerAggregationBuilder("sampler").setProbability(0.5)
-                    .subAggregation(
-                        histogram("histo").field(NUMERIC_VALUE)
-                            .interval(5.0)
-                            .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
-                            .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
-                    )
-            )
-            .request();
         for (int i = 0; i < NUM_SAMPLE_RUNS; i++) {
+            SearchRequest sampledRequest = client().prepareSearch("idx")
+                .addAggregation(
+                    new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                        .subAggregation(
+                            histogram("histo").field(NUMERIC_VALUE)
+                                .interval(5.0)
+                                .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                                .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                        )
+                )
+                .request();
             InternalRandomSampler sampler = client().search(sampledRequest).actionGet().getAggregations().get("sampler");
             Histogram histo = sampler.getAggregations().get("histo");
             for (Histogram.Bucket bucket : histo.getBuckets()) {

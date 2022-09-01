@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
+import org.gradle.api.GradleException;
 import org.gradle.api.Named;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -21,6 +22,7 @@ import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.initialization.IncludedBuild;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.CompileClasspath;
@@ -186,7 +188,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     }
 
     static boolean hasModuleInfoDotJava(Project project, ProjectComponentIdentifier id) {
-        return project.findProject(id.getProjectPath()).file("src/main/java/module-info.java").exists();
+        return new File(findProjectIdPath(project, id), "src/main/java/module-info.java").exists();
     }
 
     static SourceSet getJavaMainSourceSet(Project project) {
@@ -208,5 +210,28 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
 
     static boolean isIdea() {
         return System.getProperty("idea.sync.active", "false").equals("true");
+    }
+
+    static String findProjectIdPath(Project project, ProjectComponentIdentifier id) {
+        if (id.getBuild().isCurrentBuild()) {
+            return project.findProject(id.getProjectPath()).getProjectDir().getPath();
+        } else {
+            // For project dependencies sourced from an included build we have to infer the source project path
+            File includedBuildDir = project.getGradle()
+                .getIncludedBuilds()
+                .stream()
+                .filter(b -> b.getName().equals(id.getBuild().getName()))
+                .map(IncludedBuild::getProjectDir)
+                .findFirst()
+                .orElseThrow(() -> new GradleException("Unable to locate included build named '" + id.getBuild().getName() + "'"));
+
+            // We have to account for us renaming the :libs projects here
+            String[] pathSegments = id.getProjectPath().split(":");
+            if (pathSegments[1].equals("libs")) {
+                pathSegments[2] = pathSegments[2].replaceFirst("elasticsearch-", "");
+            }
+
+            return new File(includedBuildDir, String.join(File.separator, List.of(pathSegments))).getPath();
+        }
     }
 }

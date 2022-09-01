@@ -262,9 +262,11 @@ details have contents and a structure that is unique to each indicator.
 ====
 
 `cluster_formation`::
-    (Optional, object) If there has been no elected master node recently, the node being queried attempts to
+    (Optional, map) If there has been no elected master node recently, the node being queried attempts to
     gather information about why the cluster has been unable to form, or why the node being queried has been
-    unable to join the cluster if it has formed.
+    unable to join the cluster if it has formed. This could contain each master eligibles
+    node view on the cluster formation. The node id is the key in the map and its 
+    cluster formation information is the value.
 +
 .Properties of `cluster_formation`
 [%collapsible%open]
@@ -337,6 +339,13 @@ details have contents and a structure that is unique to each indicator.
 
 `policies`::
     (int) The number of snapshot policies that the system is managing.
+
+`unhealthy_policies`::
+    (map) A detailed view on the policies that are considered unhealthy due to having
+    several consecutive unssuccesful invocations. 
+    The `count` key represents the number of unhealthy policies (int).
+    The `invocations_since_last_success` key will report a map where the unhealthy policy
+    name is the key and it's corresponding number of failed invocations is the value.
 
 [[health-api-example]]
 ==== {api-examples-title}

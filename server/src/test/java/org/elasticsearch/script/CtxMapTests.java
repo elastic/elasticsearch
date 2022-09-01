@@ -19,13 +19,13 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 public class CtxMapTests extends ESTestCase {
-    CtxMap map;
+    CtxMap<?> map;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        map = new CtxMap(new HashMap<>(), new Metadata(new HashMap<>(), new HashMap<>()));
+        map = new CtxMap<>(new HashMap<>(), new Metadata(new HashMap<>(), new HashMap<>()));
     }
 
     public void testAddingJunkToCtx() {

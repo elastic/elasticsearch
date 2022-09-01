@@ -120,7 +120,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes + " for " + this);
         }
 
-        if (numberOfNodes <= nodes.size()) {
+        if (numberOfNodes < nodes.size()) {
             throw new IllegalArgumentException(
                 "Cannot shrink " + this + " to have " + numberOfNodes + " nodes as it already has " + getNumberOfNodes()
             );
@@ -438,7 +438,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.all(node -> node.requiresFeature(feature, from, until));
     }
 
-    private void writeUnicastHostsFiles() {
+    public void writeUnicastHostsFiles() {
         String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
         nodes.forEach(node -> {
             try {

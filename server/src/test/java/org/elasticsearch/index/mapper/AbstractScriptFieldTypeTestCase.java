@@ -29,6 +29,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -187,7 +188,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static FieldDataContext mockFielddataContext() {
-        return new FieldDataContext("test", mockContext()::lookup);
+        return new FieldDataContext("test", mockContext()::lookup, mockContext()::sourcePath, MappedFieldType.FielddataOperation.SCRIPT);
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
@@ -203,6 +204,14 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
+        return mockContext(allowExpensiveQueries, mappedFieldType, new SourceLookup.ReaderSourceProvider());
+    }
+
+    protected static SearchExecutionContext mockContext(
+        boolean allowExpensiveQueries,
+        MappedFieldType mappedFieldType,
+        SourceLookup.SourceProvider sourceProvider
+    ) {
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         if (mappedFieldType != null) {
             when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
@@ -210,12 +219,15 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier)).build(null, null)
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
+                .build(null, null),
+            sourceProvider
         );
         when(context.lookup()).thenReturn(lookup);
-        when(context.getForField(any())).then(args -> {
+        when(context.getForField(any(), any())).then(args -> {
             MappedFieldType ft = args.getArgument(0);
-            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup))
+            MappedFieldType.FielddataOperation fdo = args.getArgument(1);
+            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         return context;

@@ -149,7 +149,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
         IndexFieldMapper mapper = new IndexFieldMapper();
 
-        IndexFieldData<?> forField = context.getForField(mapper.fieldType());
+        IndexFieldData<?> forField = context.getForField(mapper.fieldType(), MappedFieldType.FielddataOperation.SEARCH);
         String expected = clusterAlias == null
             ? context.getIndexSettings().getIndexMetadata().getIndex().getName()
             : clusterAlias + ":" + context.getIndexSettings().getIndex().getName();
@@ -598,9 +598,9 @@ public class SearchExecutionContextTests extends ESTestCase {
                 MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
-                    indexFieldData = searchExecutionContext.getForField(fieldType);
+                    indexFieldData = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 } else {
-                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType);
+                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 }
                 searcher.search(query, new Collector() {
                     @Override

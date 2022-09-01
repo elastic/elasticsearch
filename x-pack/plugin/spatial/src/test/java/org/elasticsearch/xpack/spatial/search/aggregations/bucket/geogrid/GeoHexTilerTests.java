@@ -89,13 +89,12 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
             }
             return 0;
         }
-        return computeBuckets("", bbox, geoValue, precision);
+        return computeBuckets(H3.getStringRes0Cells(), bbox, geoValue, precision);
     }
 
-    private int computeBuckets(String address, GeoBoundingBox bbox, GeoShapeValues.GeoShapeValue geoValue, int finalPrecision)
+    private int computeBuckets(String[] children, GeoBoundingBox bbox, GeoShapeValues.GeoShapeValue geoValue, int finalPrecision)
         throws IOException {
         int count = 0;
-        String[] children = H3.h3ToChildren(address);
         for (String child : children) {
             if (addressIntersectsBounds(child, bbox) == false) {
                 continue;
@@ -104,7 +103,7 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
                 if (child.length() == finalPrecision) {
                     count++;
                 } else {
-                    count += computeBuckets(child, bbox, geoValue, finalPrecision);
+                    count += computeBuckets(H3.h3ToChildren(child), bbox, geoValue, finalPrecision);
                 }
             }
         }

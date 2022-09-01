@@ -18,6 +18,7 @@ import org.apache.lucene.spatial3d.geom.GeoPathFactory;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
+import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygonFactory;
 import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
 import org.elasticsearch.h3.CellBoundary;
@@ -162,7 +163,7 @@ public class H3LatLonGeometry extends LatLonGeometry {
 
         @Override
         public boolean intersectsLine(double minX, double maxX, double minY, double maxY, double aX, double aY, double bX, double bY) {
-            throw new UnsupportedOperationException("intersectsLine not implemented in H3Polygon2D");
+            return hexagon.intersects(makeLine(aX, aY, bX, bY));
         }
 
         @Override
@@ -285,12 +286,12 @@ public class H3LatLonGeometry extends LatLonGeometry {
         }
 
         private GeoAreaShape makeTriangle(double aX, double aY, double bX, double bY, double cX, double cY) {
-            // TODO: currently just relying on GeoPolygonFactory.makeGeoPolygon to make the right thing, but this could be expensive
-            final List<GeoPoint> points = new ArrayList<>(3);
-            points.add(new GeoPoint(PlanetModel.SPHERE, Math.toRadians(aY), Math.toRadians(aX)));
-            points.add(new GeoPoint(PlanetModel.SPHERE, Math.toRadians(bY), Math.toRadians(bX)));
-            points.add(new GeoPoint(PlanetModel.SPHERE, Math.toRadians(cY), Math.toRadians(cX)));
-            return GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
+            return GeoRegularConvexPolygonFactory.makePolygon(
+                PlanetModel.SPHERE,
+                new GeoPoint(PlanetModel.SPHERE, Math.toRadians(aY), Math.toRadians(aX)),
+                new GeoPoint(PlanetModel.SPHERE, Math.toRadians(bY), Math.toRadians(bX)),
+                new GeoPoint(PlanetModel.SPHERE, Math.toRadians(cY), Math.toRadians(cX))
+            );
         }
 
         private GeoAreaShape makeLine(double aX, double aY, double bX, double bY) {

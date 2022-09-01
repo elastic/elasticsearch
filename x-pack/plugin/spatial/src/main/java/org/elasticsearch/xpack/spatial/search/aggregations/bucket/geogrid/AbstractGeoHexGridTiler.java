@@ -53,7 +53,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             GeoRelation relation = geoValue.relate(hexagon);
             if (relation != GeoRelation.QUERY_DISJOINT) {
                 values.resizeCell(values.docValueCount() + 1);
-                values.add(values.docValueCount() + 1, H3.stringToH3(h3));
+                values.add(values.docValueCount() - 1, H3.stringToH3(h3));
             }
         }
         return values.docValueCount();
@@ -84,7 +84,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     private void setAllValuesByRecursion(GeoShapeCellValues values, String h3, int precision) {
         if (precision == this.precision) {
             values.resizeCell(values.docValueCount() + 1);
-            values.add(values.docValueCount() + 1, H3.stringToH3(h3));
+            values.add(values.docValueCount() - 1, H3.stringToH3(h3));
         } else {
             for (String child : H3.h3ToChildren(h3)) {
                 setAllValuesByRecursion(values, child, precision + 1);
@@ -104,7 +104,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             if (relation != GeoRelation.QUERY_DISJOINT) {
                 if (precision == this.precision) {
                     values.resizeCell(values.docValueCount() + 1);
-                    values.add(values.docValueCount() + 1, H3.stringToH3(h3));
+                    values.add(values.docValueCount() - 1, H3.stringToH3(h3));
                 } else {
                     for (String child : H3.h3ToChildren(h3)) {
                         if (relation == GeoRelation.QUERY_INSIDE) {

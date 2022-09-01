@@ -52,7 +52,7 @@ docker network create elastic
 docker pull docker.elastic.co/elasticsearch/elasticsearch:{version} <1>
 docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
 ----
-<1> Replace {version} with the version of Elasticsearch you want to run, such as 8.4.1.
+<1> Replace {version} with the version of Elasticsearch you want to run.
 +
 When you start Elasticsearch for the first time, the generated `elastic` user password and
 Kibana enrollment token are output to the terminal.
@@ -74,7 +74,7 @@ Kibana enables you to easily send requests to Elasticsearch and analyze, visuali
 docker pull docker.elastic.co/kibana/kibana:{version} <1>
 docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
 ----
-<1> Replace {version} with the version of Kibana you want to run, such as 8.4.1.
+<1> Replace {version} with the version of Kibana you want to run.
 +
 When you start Kibana, a unique URL is output to your terminal.
 

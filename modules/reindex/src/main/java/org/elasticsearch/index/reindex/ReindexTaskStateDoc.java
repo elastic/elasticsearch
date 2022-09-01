@@ -31,7 +31,6 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
-// TODO: This class has become complicated enough that we should implement a xcontent serialization test
 public class ReindexTaskStateDoc implements ToXContentObject {
 
     public static final ConstructingObjectParser<ReindexTaskStateDoc, Void> PARSER =

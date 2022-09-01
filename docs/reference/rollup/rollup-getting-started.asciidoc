@@ -260,7 +260,6 @@ Which returns a corresponding response:
    },
    "aggregations" : {
      "timeline" : {
-       "meta" : { },
        "buckets" : [
          {
            "key_as_string" : "2018-01-18T00:00:00.000Z",

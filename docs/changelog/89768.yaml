@@ -2,4 +2,5 @@ pr: 89768
 summary: Autoscaling after clone fix
 area: Autoscaling
 type: bug
-issues: []
+issues:
+ - 89758

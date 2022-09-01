@@ -17,7 +17,6 @@ import org.apache.lucene.spatial3d.geom.GeoAreaShape;
 import org.apache.lucene.spatial3d.geom.GeoPathFactory;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
-import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
 import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygonFactory;
 import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
@@ -25,8 +24,6 @@ import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 /** Implementation of a lucene {@link LatLonGeometry} that covers the extent of a provided H3 bin. Note that
@@ -106,12 +103,12 @@ public class H3LatLonGeometry extends LatLonGeometry {
         }
 
         private GeoPolygon getGeoPolygon(CellBoundary cellBoundary) {
-            final List<GeoPoint> points = new ArrayList<>(cellBoundary.numPoints());
+            final GeoPoint[] points = new GeoPoint[cellBoundary.numPoints()];
             for (int i = 0; i < cellBoundary.numPoints(); i++) {
                 final LatLng latLng = cellBoundary.getLatLon(i);
-                points.add(new GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad()));
+                points[i] = new GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad());
             }
-            return GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
+            return GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
         }
 
         @Override
@@ -286,7 +283,7 @@ public class H3LatLonGeometry extends LatLonGeometry {
         }
 
         private GeoAreaShape makeTriangle(double aX, double aY, double bX, double bY, double cX, double cY) {
-            return GeoRegularConvexPolygonFactory.makePolygon(
+            return GeoRegularConvexPolygonFactory.makeGeoPolygon(
                 PlanetModel.SPHERE,
                 new GeoPoint(PlanetModel.SPHERE, Math.toRadians(aY), Math.toRadians(aX)),
                 new GeoPoint(PlanetModel.SPHERE, Math.toRadians(bY), Math.toRadians(bX)),

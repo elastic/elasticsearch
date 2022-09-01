@@ -46,7 +46,7 @@ public class GeoRegularConvexPolygonTests {
     }
 
     private void simpleShapeShouldBeValid(GeoPoint... points) {
-        GeoPolygon triangle = GeoRegularConvexPolygonFactory.makePolygon(PlanetModel.SPHERE, points);
+        GeoPolygon triangle = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
         // test 3D axes (all samples above surround the x-axis)
         assertTrue(triangle.isWithin(new Vector(1, 0, 0)));
         assertFalse(triangle.isWithin(new Vector(0, 1, 0)));

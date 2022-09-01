@@ -32,7 +32,7 @@ public class GeoRegularConvexPolygonFactory {
      * @param points an array of at least three points in CCW orientation.
      * @return the generated shape.
      */
-    public static GeoPolygon makePolygon(final PlanetModel planetModel, final GeoPoint... points) {
+    public static GeoPolygon makeGeoPolygon(final PlanetModel planetModel, final GeoPoint... points) {
         return new GeoRegularConvexPolygon(planetModel, points);
     }
 }

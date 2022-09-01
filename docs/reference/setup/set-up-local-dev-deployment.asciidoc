@@ -113,6 +113,7 @@ You can retrieve it with a GET request that specifies its document ID:
 ----
 GET /customer/_doc/1
 ----
+// TEST[continued]
 
 To add multiple documents in one request, use the `_bulk` API.
 Bulk data must be newline-delimited JSON (NDJSON). 
@@ -130,6 +131,7 @@ PUT customer/_bulk
 { "create": { } }
 { "firstname": "Jennifer","lastname":"Takeda"}
 ----
+// TEST[continued]
 
 **Search**
 
@@ -146,6 +148,7 @@ GET customer/_search
   }
 }
 ----
+// TEST[continued]
 
 **Explore**
 

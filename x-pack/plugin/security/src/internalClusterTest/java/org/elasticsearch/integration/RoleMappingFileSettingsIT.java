@@ -9,19 +9,28 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 
@@ -30,9 +39,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.hamcrest.Matchers.allOf;
@@ -40,6 +54,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests that file settings service can properly add role mappings and detect REST clashes
@@ -153,6 +168,13 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         assertThat(handlerMetadata.keys(), allOf(notNullValue(), containsInAnyOrder("everyone_kibana", "everyone_fleet")));
 
+        var response = client().execute(GetRoleMappingsAction.INSTANCE, new GetRoleMappingsRequest()).actionGet();
+
+        assertThat(
+            Arrays.stream(response.mappings()).map(rm -> rm.getName()).collect(Collectors.toSet()),
+            containsInAnyOrder("everyone_kibana", "everyone_fleet")
+        );
+
         // Try using the REST API to update the everyone_kibana role mapping
         // This should fail, we have reserved certain role mappings in operator mode
         assertEquals(
@@ -234,5 +256,23 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser);
             return PutRoleMappingRequest.fromMapping(mapping);
         }
+    }
+
+    private UserRoleMapper.UserData userData(String userName, String group) {
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
+        final Settings settings = Settings.builder()
+            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+            .build();
+        final RealmConfig realm = new RealmConfig(realmIdentifier, settings, mock(Environment.class), new ThreadContext(settings));
+
+        final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
+        final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
+            userName,
+            "cn=walter.langowski,ou=people,ou=dept_h,o=forces,dc=gc,dc=ca",
+            List.of("cn=alphaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca", "cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"),
+            Map.of(group, "flight"),
+            realm
+        );
+        return user;
     }
 }

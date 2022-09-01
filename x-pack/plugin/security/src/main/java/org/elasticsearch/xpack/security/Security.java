@@ -635,6 +635,7 @@ public class Security extends Plugin
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, systemIndices.getMainIndexManager());
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(
+            clusterService,
             settings,
             client,
             systemIndices.getMainIndexManager(),
@@ -915,7 +916,7 @@ public class Security extends Plugin
 
         components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get()));
 
-        reservedRoleMappingAction.set(new ReservedRoleMappingAction(nativeRoleMappingStore));
+        reservedRoleMappingAction.set(new ReservedRoleMappingAction(nativeRoleMappingStore, scriptService));
 
         cacheInvalidatorRegistry.validate();
 

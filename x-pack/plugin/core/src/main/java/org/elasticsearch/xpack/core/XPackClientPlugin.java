@@ -160,6 +160,7 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotFeatureSetUsage;
+import org.elasticsearch.xpack.core.security.RoleMappingsMetadata;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -458,6 +459,13 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
+                // security : role-mappings in cluster state
+                new NamedWriteableRegistry.Entry(Metadata.Custom.class, RoleMappingsMetadata.TYPE, RoleMappingsMetadata::new),
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    RoleMappingsMetadata.TYPE,
+                    RoleMappingsMetadata.RoleMappingsMetadataDiff::new
+                ),
                 // eql
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.EQL, EqlFeatureSetUsage::new),
                 // sql

@@ -159,9 +159,12 @@ public class ReservedClusterStateService {
                 (clusterState, errorState) -> saveErrorState(clusterState, errorState),
                 new ActionListener<>() {
                     @Override
-                    public void onResponse(ActionResponse.Empty empty) {
+                    public void onResponse(ClusterState clusterState) {
                         logger.info("Successfully applied new reserved cluster state for namespace [{}]", namespace);
                         errorListener.accept(null);
+                        for (var handler : handlers.values()) {
+                            handler.postTransform(clusterState);
+                        }
                     }
 
                     @Override

@@ -18,6 +18,7 @@ import com.unboundid.ldap.sdk.schema.Schema;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -422,6 +423,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         RealmConfig config = setupRealm(realmId, settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
 
+        ClusterService clusterService = mock(ClusterService.class);
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
         when(mockSecurityIndex.isAvailable()).thenReturn(true);
         when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
@@ -435,7 +437,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
-        NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(settings, mockClient, mockSecurityIndex, scriptService) {
+        var roleMapper = new NativeRoleMappingStore(clusterService, settings, mockClient, mockSecurityIndex, scriptService) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
                 listener.onResponse(Arrays.asList(NativeRoleMappingStore.buildMapping("m1", new BytesArray("""

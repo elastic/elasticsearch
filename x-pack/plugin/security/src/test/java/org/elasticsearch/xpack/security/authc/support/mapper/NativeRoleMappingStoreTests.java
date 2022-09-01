@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -117,6 +118,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             false
         );
 
+        ClusterService clusterService = mock(ClusterService.class);
         final Client client = mock(Client.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         ScriptService scriptService = new ScriptService(
@@ -127,7 +129,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         );
         when(securityIndex.isAvailable()).thenReturn(true);
 
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, securityIndex, scriptService) {
+        final var store = new NativeRoleMappingStore(clusterService, Settings.EMPTY, client, securityIndex, scriptService) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
                 final List<ExpressionRoleMapping> mappings = Arrays.asList(mapping1, mapping2, mapping3, mapping4);
@@ -266,6 +268,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         doAnswer(invocationOnMock -> { throw new IllegalArgumentException(); }).when(templateRoleName).validate(scriptService);
 
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(
+            mock(ClusterService.class),
             Settings.EMPTY,
             mock(Client.class),
             mock(SecurityIndexManager.class),
@@ -299,6 +302,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         }).when(client).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class), anyActionListener());
 
         final NativeRoleMappingStore store = new NativeRoleMappingStore(
+            mock(ClusterService.class),
             Settings.EMPTY,
             client,
             mock(SecurityIndexManager.class),

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -48,7 +47,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     private final Map<String, ReservedClusterStateHandler<?>> handlers;
     private final Collection<String> orderedHandlers;
     private final BiConsumer<ClusterState, ErrorState> errorReporter;
-    private final ActionListener<ActionResponse.Empty> listener;
+    private final ActionListener<ClusterState> listener;
 
     public ReservedStateUpdateTask(
         String namespace,
@@ -56,7 +55,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         BiConsumer<ClusterState, ErrorState> errorReporter,
-        ActionListener<ActionResponse.Empty> listener
+        ActionListener<ClusterState> listener
     ) {
         this.namespace = namespace;
         this.stateChunk = stateChunk;
@@ -71,7 +70,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         listener.onFailure(e);
     }
 
-    ActionListener<ActionResponse.Empty> listener() {
+    ActionListener<ClusterState> listener() {
         return listener;
     }
 
@@ -101,23 +100,6 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             }
         }
 
-        checkAndThrowOnError(errors, currentState, reservedStateVersion);
-
-        // Run the postTransform loop for any handlers that need to perform updates to other things than the cluster state
-        for (var handlerName : orderedHandlers) {
-            ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
-            try {
-                // We first try to fetch the existing keys from what we have in the builder if transform saved any keys
-                Set<String> existingKeys = keysForHandler(reservedMetadataBuilder.getHandler(handlerName), existingMetadata, handlerName);
-                // postTransform doesn't modify the cluster state
-                Set<String> newKeys = handler.postTransform(reservedState.get(handlerName), state, existingKeys);
-                reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, newKeys));
-            } catch (Exception e) {
-                errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
-            }
-        }
-
-        // Most error should be caught in the transform phase, however we check if the post transform encountered any
         checkAndThrowOnError(errors, currentState, reservedStateVersion);
 
         // remove the last error if we had previously encountered any

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.action.reservedstate;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.script.ScriptService;
@@ -37,10 +38,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
     private TransformState processJSON(ReservedRoleMappingAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             var content = action.fromXContent(parser);
-            var state = action.transform(content, prevState);
-            var modifiedKeys = action.postTransform(content, state.state(), state.keys());
-
-            return new TransformState(state.state(), modifiedKeys);
+            return action.transform(content, prevState);
         }
     }
 
@@ -49,7 +47,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore);
+        ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore, mock(ScriptService.class));
 
         String badPolicyJSON = """
             {
@@ -82,7 +80,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore);
+        ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore, mock(ScriptService.class));
 
         String emptyJSON = "";
 
@@ -122,7 +120,13 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
     private NativeRoleMappingStore mockNativeRoleMappingStore() {
 
         final NativeRoleMappingStore nativeRoleMappingStore = spy(
-            new NativeRoleMappingStore(Settings.EMPTY, mock(Client.class), mock(SecurityIndexManager.class), mock(ScriptService.class))
+            new NativeRoleMappingStore(
+                mock(ClusterService.class),
+                Settings.EMPTY,
+                mock(Client.class),
+                mock(SecurityIndexManager.class),
+                mock(ScriptService.class)
+            )
         );
 
         doAnswer(invocation -> null).when(nativeRoleMappingStore).putRoleMapping(any(), any());

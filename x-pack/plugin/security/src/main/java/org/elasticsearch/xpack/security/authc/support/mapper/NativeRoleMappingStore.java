@@ -14,6 +14,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,6 +30,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.RoleMappingsMetadata;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
@@ -54,6 +57,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
@@ -91,7 +95,16 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private final ScriptService scriptService;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
 
-    public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
+    private final ClusterService clusterService;
+
+    public NativeRoleMappingStore(
+        ClusterService clusterService,
+        Settings settings,
+        Client client,
+        SecurityIndexManager securityIndex,
+        ScriptService scriptService
+    ) {
+        this.clusterService = clusterService;
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
@@ -134,21 +147,23 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             ScrollHelper.fetchAllByEntity(
                 client,
                 request,
-                new ContextPreservingActionListener<>(
-                    supplier,
-                    ActionListener.wrap(
-                        (Collection<ExpressionRoleMapping> mappings) -> listener.onResponse(
-                            mappings.stream().filter(Objects::nonNull).toList()
-                        ),
-                        ex -> {
-                            logger.error(
-                                () -> format("failed to load role mappings from index [%s] skipping all mappings.", SECURITY_MAIN_ALIAS),
-                                ex
-                            );
-                            listener.onResponse(Collections.emptyList());
-                        }
-                    )
-                ),
+                new ContextPreservingActionListener<>(supplier, ActionListener.wrap((Collection<ExpressionRoleMapping> mappings) -> {
+                    var clusterMappings = getMappingsFromClusterState();
+                    Set<String> clusterMappingNames = clusterMappings.stream().map(cm -> cm.getName()).collect(Collectors.toSet());
+
+                    listener.onResponse(
+                        Stream.concat(
+                            clusterMappings.stream(),
+                            mappings.stream().filter(m -> clusterMappingNames.contains(m.getName()) == false)
+                        ).filter(Objects::nonNull).toList()
+                    );
+                }, ex -> {
+                    logger.error(
+                        () -> format("failed to load role mappings from index [%s] skipping all mappings.", SECURITY_MAIN_ALIAS),
+                        ex
+                    );
+                    listener.onResponse(Collections.emptyList());
+                })),
                 doc -> buildMapping(getNameFromId(doc.getId()), doc.getSourceRef())
             );
         }
@@ -176,6 +191,13 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             templateRoleName.validate(scriptService);
         }
         modifyMapping(request.getName(), this::innerPutMapping, request, listener);
+    }
+
+    Collection<ExpressionRoleMapping> getMappingsFromClusterState() {
+        ClusterState currentState = clusterService.state();
+        final RoleMappingsMetadata currentMetadata = currentState.metadata().custom(RoleMappingsMetadata.TYPE, RoleMappingsMetadata.EMPTY);
+
+        return currentMetadata.getRoleMappings().values();
     }
 
     /**
@@ -343,6 +365,10 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
             refreshRealms(ActionListener.noop(), null);
         }
+    }
+
+    public void onClusterStateRolesUpdated() {
+        refreshRealms(ActionListener.noop(), null);
     }
 
     private <Result> void refreshRealms(ActionListener<Result> listener, Result result) {

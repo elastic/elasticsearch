@@ -11,7 +11,6 @@ package org.elasticsearch.reservedstate.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -33,7 +32,8 @@ public record ReservedStateUpdateTaskExecutor(RerouteService rerouteService) imp
             try (var ignored = taskContext.captureResponseHeaders()) {
                 updatedState = taskContext.getTask().execute(updatedState);
             }
-            taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
+            ClusterState finalState = updatedState;
+            taskContext.success(() -> taskContext.getTask().listener().onResponse(finalState));
         }
         return updatedState;
     }

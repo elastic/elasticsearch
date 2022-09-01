@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -179,6 +180,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         when(mockClient.settings()).thenReturn(settings);
 
         final NativeRoleMappingStore store = new NativeRoleMappingStore(
+            mock(ClusterService.class),
             Settings.EMPTY,
             mockClient,
             mock(SecurityIndexManager.class),

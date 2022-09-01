@@ -146,7 +146,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 (clusterState, errorState) -> {},
                 new ActionListener<>() {
                     @Override
-                    public void onResponse(ActionResponse.Empty empty) {}
+                    public void onResponse(ClusterState empty) {}
 
                     @Override
                     public void onFailure(Exception e) {}
@@ -332,7 +332,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             (clusterState, errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },
             new ActionListener<>() {
                 @Override
-                public void onResponse(ActionResponse.Empty empty) {}
+                public void onResponse(ClusterState empty) {}
 
                 @Override
                 public void onFailure(Exception e) {}

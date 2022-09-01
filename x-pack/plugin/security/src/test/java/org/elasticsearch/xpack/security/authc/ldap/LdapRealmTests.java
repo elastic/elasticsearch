@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -489,6 +490,7 @@ public class LdapRealmTests extends LdapTestCase {
             .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 
+        ClusterService clusterService = mock(ClusterService.class);
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
         when(mockSecurityIndex.isAvailable()).thenReturn(true);
         when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
@@ -503,6 +505,7 @@ public class LdapRealmTests extends LdapTestCase {
             () -> 1L
         );
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(
+            clusterService,
             defaultGlobalSettings,
             mockClient,
             mockSecurityIndex,

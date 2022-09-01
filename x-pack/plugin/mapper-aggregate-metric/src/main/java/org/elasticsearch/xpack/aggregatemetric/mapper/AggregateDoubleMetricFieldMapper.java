@@ -726,6 +726,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean hasValue() {
+            return metricHasValue.isEmpty() == false;
+        }
+
+        @Override
         public void write(XContentBuilder b) throws IOException {
             if (metricHasValue.isEmpty()) {
                 return;

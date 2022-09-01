@@ -143,7 +143,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 null,
                 Collections.emptyMap(),
                 Collections.emptySet(),
-                (errorState) -> {},
+                (clusterState, errorState) -> {},
                 new ActionListener<>() {
                     @Override
                     public void onResponse(ActionResponse.Empty empty) {}
@@ -329,7 +329,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT)),
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             List.of(exceptionThrower.name(), newStateMaker.name()),
-            (errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },
+            (clusterState, errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },
             new ActionListener<>() {
                 @Override
                 public void onResponse(ActionResponse.Empty empty) {}

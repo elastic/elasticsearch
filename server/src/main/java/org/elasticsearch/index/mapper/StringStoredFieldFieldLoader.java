@@ -40,6 +40,11 @@ public class StringStoredFieldFieldLoader
     }
 
     @Override
+    public boolean hasValue() {
+        return values != null && values.isEmpty() == false;
+    }
+
+    @Override
     public void write(XContentBuilder b) throws IOException {
         if (values == null || values.isEmpty()) {
             return;

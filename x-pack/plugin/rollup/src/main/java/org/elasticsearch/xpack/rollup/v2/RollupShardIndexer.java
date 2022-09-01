@@ -54,6 +54,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -240,6 +241,11 @@ class RollupShardIndexer {
                 labelFieldLeaves.put(fetcher.name(), fetcher.getLeaf(ctx));
             }
 
+            Set<Map.Entry<String, FormattedDocValues>> fieldFetchers = Sets.union(
+                metricsFieldLeaves.entrySet(),
+                labelFieldLeaves.entrySet()
+            );
+
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
@@ -304,7 +310,7 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-                    for (Map.Entry<String, FormattedDocValues> e : Sets.union(metricsFieldLeaves.entrySet(), labelFieldLeaves.entrySet())) {
+                    for (Map.Entry<String, FormattedDocValues> e : fieldFetchers) {
                         final String fieldName = e.getKey();
                         final FormattedDocValues leafField = e.getValue();
 

@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.type.DataType;
 
-import java.util.StringJoiner;
-
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -87,6 +85,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l("hello\\tworld", KEYWORD), expression("\"\"\"hello\\tworld\"\"\""));
         assertEquals(l("hello world\\", KEYWORD), expression("\"\"\"hello world\\\"\"\""));
         assertEquals(l("hello            world\\", KEYWORD), expression("\"\"\"hello            world\\\"\"\""));
+        assertEquals(l("\t \n \r \" \\ ", KEYWORD), expression("\"\\t \\n \\r \\\" \\\\ \""));
     }
 
     public void testStringLiteralsExceptions() {
@@ -100,6 +99,7 @@ public class ExpressionTests extends ESTestCase {
             () -> expression("\"\"\"\"\"\\\"foo\"\"\\\"\"\"\" == \"\"\"\"\"\\\"bar\\\"\\\"\"\"\"\"\""),
             "line 1:40: token recognition error at: '\"'"
         );
+        assertParsingException(() -> expression("\"\"\"\"\"\" foo \"\"\"\" == abc"), "line 1:8: mismatched input 'foo' expecting {<EOF>,");
     }
 
     public void testBooleanLiteralsCondition() {
@@ -183,13 +183,5 @@ public class ExpressionTests extends ESTestCase {
     private void assertParsingException(ThrowingRunnable expression, String expectedError) {
         ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", expression);
         assertThat(e.getMessage(), startsWith(expectedError));
-    }
-
-    private static String randomWhitespaces() {
-        StringJoiner sj = new StringJoiner("");
-        for (int i = 0; i < randomInt(10); i++) {
-            sj.add(randomFrom(" ", "\t", "\r", "\n"));
-        }
-        return sj.toString();
     }
 }

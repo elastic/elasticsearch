@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -45,7 +46,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitSingleExpression(EsqlBaseParser.SingleExpressionContext ctx) {
-        return expression(ctx.expression());
+        return expression(ctx.booleanExpression());
     }
 
     @Override
@@ -70,10 +71,10 @@ public class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx) {
         Source source = source(ctx);
         String text = ctx.getText();
+        long value;
 
         try {
-            Number value = StringUtils.parseIntegral(text);
-            return new Literal(source, value, DataTypes.fromJava(value));
+            value = Long.valueOf(StringUtils.parseLong(text));
         } catch (QlIllegalArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
@@ -82,6 +83,16 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
             throw new ParsingException(source, siae.getMessage());
         }
+
+        Object val = Long.valueOf(value);
+        DataType type = DataTypes.LONG;
+
+        // try to downsize to int if possible (since that's the most common type)
+        if ((int) value == value) {
+            type = DataTypes.INTEGER;
+            val = Integer.valueOf((int) value);
+        }
+        return new Literal(source, val, type);
     }
 
     @Override
@@ -119,7 +130,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
             case EsqlBaseParser.PERCENT -> new Mod(source, left, right);
             case EsqlBaseParser.PLUS -> new Add(source, left, right);
             case EsqlBaseParser.MINUS -> new Sub(source, left, right);
-            default -> throw new ParsingException(source, "Unknown arithmetic {}", source.text());
+            default -> throw new ParsingException(source, "Unknown arithmetic operator {}", source.text());
         };
     }
 
@@ -139,7 +150,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
             case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId);
             case EsqlBaseParser.GT -> new GreaterThan(source, left, right, zoneId);
             case EsqlBaseParser.GTE -> new GreaterThanOrEqual(source, left, right, zoneId);
-            default -> throw new ParsingException(source, "Unknown operator {}", source.text());
+            default -> throw new ParsingException(source, "Unknown comparison operator {}", source.text());
         };
     }
 
@@ -150,7 +161,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitParenthesizedExpression(EsqlBaseParser.ParenthesizedExpressionContext ctx) {
-        return expression(ctx.expression());
+        return expression(ctx.booleanExpression());
     }
 
     @Override
@@ -173,11 +184,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
 
-        if (type == EsqlBaseParser.AND) {
-            return new And(source, left, right);
-        } else {
-            return new Or(source, left, right);
-        }
+        return type == EsqlBaseParser.AND ? new And(source, left, right) : new Or(source, left, right);
     }
 
     private static String unquoteString(Source source) {
@@ -199,12 +206,9 @@ public class ExpressionBuilder extends IdentifierBuilder {
                 // ANTLR4 Grammar guarantees there is always a character after the `\`
                 switch (text.charAt(++i)) {
                     case 't' -> sb.append('\t');
-                    case 'b' -> sb.append('\b');
-                    case 'f' -> sb.append('\f');
                     case 'n' -> sb.append('\n');
                     case 'r' -> sb.append('\r');
                     case '"' -> sb.append('\"');
-                    case '\'' -> sb.append('\'');
                     case '\\' -> sb.append('\\');
 
                     // will be interpreted as regex, so we have to escape it

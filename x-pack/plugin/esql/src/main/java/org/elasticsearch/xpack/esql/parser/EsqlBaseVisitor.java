@@ -47,12 +47,6 @@ interface EsqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#expression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitExpression(EsqlBaseParser.ExpressionContext ctx);
-  /**
    * Visit a parse tree produced by the {@code logicalNot}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -160,11 +154,11 @@ interface EsqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#wildcardIdentifier}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitWildcardIdentifier(EsqlBaseParser.WildcardIdentifierContext ctx);
+  T visitIdentifier(EsqlBaseParser.IdentifierContext ctx);
   /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.

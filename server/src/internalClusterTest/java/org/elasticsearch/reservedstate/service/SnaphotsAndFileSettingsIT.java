@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -85,9 +86,10 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
-    private CountDownLatch setupClusterStateListener(String node) {
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -99,20 +101,21 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
                     }
                     if (handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec")) {
                         clusterService.removeListener(this);
+                        metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();
                     }
                 }
             }
         });
 
-        return savedClusterState;
+        return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    private ClusterStateResponse assertClusterStateSaveOK(CountDownLatch savedClusterState) throws Exception {
+    private ClusterStateResponse assertClusterStateSaveOK(CountDownLatch savedClusterState, AtomicLong metadataVersion) throws Exception {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        return clusterAdmin().state(new ClusterStateRequest()).actionGet();
+        return clusterAdmin().state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())).actionGet();
     }
 
     public void testRestoreWithRemovedFileSettings() throws Exception {
@@ -138,7 +141,7 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
             logger.info("--> write some file based settings, putting some reserved state");
             writeJSONFile(masterNode, testFileSettingsJSON);
-            final ClusterStateResponse savedStateResponse = assertClusterStateSaveOK(savedClusterState);
+            final ClusterStateResponse savedStateResponse = assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
             assertThat(
                 savedStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
                 equalTo("50mb")
@@ -195,26 +198,29 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private CountDownLatch removedReservedClusterStateListener(String node) {
+    private Tuple<CountDownLatch, AtomicLong> removedReservedClusterStateListener(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null && reservedState.version() == 0L) {
                     clusterService.removeListener(this);
+                    metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
                 }
             }
         });
 
-        return savedClusterState;
+        return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    private CountDownLatch cleanedClusterStateListener(String node) {
+    private Tuple<CountDownLatch, AtomicLong> cleanedClusterStateListener(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -226,13 +232,14 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
                     }
                     if (handlerMetadata.keys().isEmpty()) {
                         clusterService.removeListener(this);
+                        metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();
                     }
                 }
             }
         });
 
-        return savedClusterState;
+        return new Tuple<>(savedClusterState, metadataVersion);
     }
 
     public void testRestoreWithPersistedFileSettings() throws Exception {
@@ -258,7 +265,7 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
             logger.info("--> write some file based settings, putting some reserved state");
             writeJSONFile(masterNode, testFileSettingsJSON);
-            final ClusterStateResponse savedStateResponse = assertClusterStateSaveOK(savedClusterState);
+            final ClusterStateResponse savedStateResponse = assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
             assertThat(
                 savedStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
                 equalTo("50mb")
@@ -289,12 +296,14 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
             // cluster state for file based settings, but instead we reset the version to 0 and 'touch' the operator file
             // so that it gets re-processed.
             logger.info("--> reserved state version will be reset to 0, because of snapshot restore");
-            assertTrue(removedReservedState.await(20, TimeUnit.SECONDS));
+            assertTrue(removedReservedState.v1().await(20, TimeUnit.SECONDS));
 
             logger.info("--> reserved state would be restored");
-            assertTrue(restoredReservedState.await(20, TimeUnit.SECONDS));
+            assertTrue(restoredReservedState.v1().await(20, TimeUnit.SECONDS));
 
-            final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest().metadata(true)).actionGet();
+            final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+                new ClusterStateRequest().metadata(true).waitForMetadataVersion(restoredReservedState.v2().get())
+            ).actionGet();
 
             assertNotNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
 
@@ -313,7 +322,7 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
             logger.info("--> clear the file based settings");
             writeJSONFile(masterNode, emptyFileSettingsJSON);
-            assertClusterStateSaveOK(cleanupReservedState);
+            assertClusterStateSaveOK(cleanupReservedState.v1(), cleanupReservedState.v2());
         } finally {
             // cleanup
             assertAcked(

@@ -109,12 +109,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     /*
      * This is a reference to the task that is periodically reaching out to a master eligible node to get its CoordinationDiagnosticsResult
      * for diagnosis. It is null when no polling is occurring.
-     * The field is accessed (reads/writes) from multiple threads, and is also reassigned on multiple threads.
+     * The field is accessed (reads/writes) from multiple threads. It is only reassigned on the initialization thread and the cluster
+     * change event thread.
      */
     volatile AtomicReference<Scheduler.Cancellable> remoteCoordinationDiagnosisTask = null;
     /*
      * This field holds the result of the task in the remoteCoordinationDiagnosisTask field above. The field is accessed
-     * (reads/writes) from multiple threads, but is only ever reassigned on a single thread (the cluster change event thread).
+     * (reads/writes) from multiple threads, but is only ever reassigned on a the initialization thread and the cluster change event thread.
      */
     volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = null;
 
@@ -181,10 +182,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         /*
          * This is called here to cover an edge case -- when there are master-eligible nodes in the cluster but none of them has been
          * elected master. In the most common case this node will receive a ClusterChangedEvent that results in this polling being
-         * cancelled almost immediately. If that does not happen, then we do in fact need to be polling. Unfortunately there is no way to
-         * tell at this point whether this node is master-eligible or not, so we kick this off regardless. On master-eligible nodes the
-         * results will always be harmlessly ignored. Note that beginPollingRemoteMasterStabilityDiagnostic results in several internal
-         * transport actions being called, so it must run in the system context.
+         * cancelled almost immediately. If that does not happen, then we do in fact need to be polling. Note that
+         * beginPollingRemoteMasterStabilityDiagnostic results in several internal transport actions being called, so it must run in the
+         * system context.
          */
         if (clusterService.localNode().isMasterNode() == false) {
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -741,8 +741,16 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-        if (currentMaster == null && previousMaster != null) {
+        if ((currentMaster == null && previousMaster != null) || (currentMaster != null && previousMaster == null)) {
             if (masterHistoryService.getLocalMasterHistory().hasMasterGoneNullAtLeastNTimes(unacceptableNullTransitions)) {
+                /*
+                 * If the master node has been going to null repeatedly, we want to make a remote request to it to see what it thinks of
+                 * master stability. We want to query the most recent master whether the current master has just transitioned to null or
+                 * just transitioned from null to not null. The reason that we make the latter request is that sometimes when the elected
+                 * master goes to null the most recent master is not responsive for the duration of the request timeout (for example if
+                 * that node is in the middle of a long GC pause which would be both the reason for it not being master and the reason it
+                 * does not respond quickly to transport requests).
+                 */
                 DiscoveryNode master = masterHistoryService.getLocalMasterHistory().getMostRecentNonNullMaster();
                 /*
                  * If the most recent master was this box, there is no point in making a transport request -- we already know what this

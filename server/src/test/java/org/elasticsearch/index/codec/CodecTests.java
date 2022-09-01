@@ -10,7 +10,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene92.Lucene92Codec;
+import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -42,21 +42,21 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene92Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene94Codec.class));
     }
 
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
-        assertStoredFieldsCompressionEquals(Lucene92Codec.Mode.BEST_SPEED, codec);
+        assertStoredFieldsCompressionEquals(Lucene94Codec.Mode.BEST_SPEED, codec);
     }
 
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService().codec("best_compression");
-        assertStoredFieldsCompressionEquals(Lucene92Codec.Mode.BEST_COMPRESSION, codec);
+        assertStoredFieldsCompressionEquals(Lucene94Codec.Mode.BEST_COMPRESSION, codec);
     }
 
     // write some docs with it, inspect .si to see this was the used compression
-    private void assertStoredFieldsCompressionEquals(Lucene92Codec.Mode expected, Codec actual) throws Exception {
+    private void assertStoredFieldsCompressionEquals(Lucene94Codec.Mode expected, Codec actual) throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(null);
         iwc.setCodec(actual);
@@ -68,7 +68,7 @@ public class CodecTests extends ESTestCase {
         SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
         String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
-        assertEquals(expected, Lucene92Codec.Mode.valueOf(v));
+        assertEquals(expected, Lucene94Codec.Mode.valueOf(v));
         ir.close();
         dir.close();
     }

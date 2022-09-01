@@ -157,6 +157,18 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     '/It is no longer possible to freeze indices, but existing frozen indices can still be unfrozen/',
     "Cannot freeze write index for data stream"
   )
+
+  task.replaceValueInMatch(
+    "error.reason",
+    "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with effective roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]",
+    "Test invalidate api key by realm name"
+  )
+
+  task.replaceValueInMatch(
+    "error.reason",
+    "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with effective roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]",
+    "Test invalidate api key by username"
+  )
 }
 
 

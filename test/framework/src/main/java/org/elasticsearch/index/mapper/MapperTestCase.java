@@ -34,8 +34,8 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.Script;
@@ -850,19 +850,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int i = 0;
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
-                FieldsVisitor visitor = loader.requiredStoredFields().isEmpty()
-                    ? null
-                    : new CustomFieldsVisitor(loader.requiredStoredFields(), false);
+                StoredFieldLoader storedFieldLoader = loader.requiredStoredFields().isEmpty()
+                    ? StoredFieldLoader.empty()
+                    : StoredFieldLoader.create(false, loader.requiredStoredFields());
                 for (LeafReaderContext leaf : reader.leaves()) {
                     int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                     SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
+                    LeafStoredFieldLoader storedLeaf = storedFieldLoader.getLoader(leaf, docIds);
                     for (int docId : docIds) {
-                        if (visitor != null) {
-                            visitor.reset();
-                            leaf.reader().document(docId, visitor);
-                            visitor.postProcess(mapper.mappers().fieldTypesLookup()::get);
-                        }
-                        assertThat("doc " + docId, sourceLoaderLeaf.source(visitor, docId).utf8ToString(), equalTo(expected[i++]));
+                        storedLeaf.advanceTo(docId);
+                        assertThat("doc " + docId, sourceLoaderLeaf.source(storedLeaf, docId).utf8ToString(), equalTo(expected[i++]));
                     }
                 }
             }

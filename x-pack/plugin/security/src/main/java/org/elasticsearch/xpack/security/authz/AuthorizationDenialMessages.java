@@ -8,23 +8,33 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.isIndexAction;
 
 class AuthorizationDenialMessages {
 
     private AuthorizationDenialMessages() {}
 
-    static String runAsDenied(Authentication authentication, String action) {
+    static String runAsDenied(Authentication authentication, @Nullable AuthorizationInfo authorizationInfo, String action) {
         assert authentication.isRunAs() : "constructing run as denied message but authentication for action was not run as";
 
         String userText = authenticatedUserDescription(authentication);
@@ -36,22 +46,26 @@ class AuthorizationDenialMessages {
             + authentication.getUser().principal()
             + "]";
 
-        return actionIsUnauthorizedMessage + " " + unauthorizedToRunAsMessage;
+        return actionIsUnauthorizedMessage
+            + rolesDescription(authentication.getAuthenticatingSubject(), authorizationInfo.getAuthenticatedUserAuthorizationInfo())
+            + ", "
+            + unauthorizedToRunAsMessage;
     }
 
-    static String actionDenied(Authentication authentication, String action, TransportRequest request, @Nullable String context) {
+    static String actionDenied(
+        Authentication authentication,
+        @Nullable AuthorizationInfo authorizationInfo,
+        String action,
+        TransportRequest request,
+        @Nullable String context
+    ) {
         String userText = authenticatedUserDescription(authentication);
 
         if (authentication.isRunAs()) {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
         }
 
-        // The run-as user is always from a realm. So it must have roles that can be printed.
-        // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
-        // roles, but privileges)
-        if (false == authentication.isServiceAccount() && false == authentication.isApiKey()) {
-            userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
-        }
+        userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);
 
         String message = actionIsUnauthorizedMessage(action, userText);
         if (context != null) {
@@ -90,6 +104,46 @@ class AuthorizationDenialMessages {
             userText = "API key id [" + apiKeyId + "] of " + userText;
         }
         return userText;
+    }
+
+    static String rolesDescription(Subject subject, @Nullable AuthorizationInfo authorizationInfo) {
+        // We cannot print the roles if it's an API key or a service account (both do not have roles, but privileges)
+        if (subject.getType() != Subject.Type.USER) {
+            return "";
+        }
+
+        final StringBuilder sb = new StringBuilder();
+        final List<String> effectiveRoleNames = extractEffectiveRoleNames(authorizationInfo);
+        if (effectiveRoleNames == null) {
+            sb.append(" with assigned roles [").append(Strings.arrayToCommaDelimitedString(subject.getUser().roles())).append("]");
+        } else {
+            sb.append(" with effective roles [").append(Strings.collectionToCommaDelimitedString(effectiveRoleNames)).append("]");
+
+            final Set<String> assignedRoleNames = Set.of(subject.getUser().roles());
+            final SortedSet<String> unfoundedRoleNames = Sets.sortedDifference(assignedRoleNames, Set.copyOf(effectiveRoleNames));
+            if (false == unfoundedRoleNames.isEmpty()) {
+                sb.append(" (assigned roles [")
+                    .append(Strings.collectionToCommaDelimitedString(unfoundedRoleNames))
+                    .append("] were not found)");
+            }
+        }
+        return sb.toString();
+    }
+
+    private static List<String> extractEffectiveRoleNames(@Nullable AuthorizationInfo authorizationInfo) {
+        if (authorizationInfo == null) {
+            return null;
+        }
+        final Role role = RBACEngine.maybeGetRBACEngineRole(authorizationInfo);
+        if (role == Role.EMPTY) {
+            return List.of();
+        } else {
+            final Map<String, Object> info = authorizationInfo.asMap();
+            if (false == info.containsKey(PRINCIPAL_ROLES_FIELD_NAME)) {
+                return null;
+            }
+            return Arrays.stream((String[]) info.get(PRINCIPAL_ROLES_FIELD_NAME)).sorted().toList();
+        }
     }
 
     private static String actionIsUnauthorizedMessage(String action, String userText) {

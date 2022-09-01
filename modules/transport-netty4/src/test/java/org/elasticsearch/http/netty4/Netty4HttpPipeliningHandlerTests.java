@@ -266,7 +266,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final Netty4HttpRequest request2 = embeddedChannel.readInbound();
 
         final int chunks2 = randomIntBetween(2, 10);
-        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(Math.toIntExact(embeddedChannel.bytesBeforeUnwritable() * 2)));
+        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(embeddedChannel.config().getWriteBufferHighWaterMark() + 1));
         final HttpResponse response1 = request1.createResponse(RestStatus.OK, chunk);
         final HttpResponse response2 = request2.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks2, chunk));
         final ChannelPromise promise1 = embeddedChannel.newPromise();
@@ -296,7 +296,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final int chunks2 = randomIntBetween(2, 10);
         final HttpResponse response1 = request1.createResponse(
             RestStatus.OK,
-            new BytesArray(randomByteArrayOfLength(Math.toIntExact(embeddedChannel.bytesBeforeUnwritable() * 2)))
+            new BytesArray(randomByteArrayOfLength(embeddedChannel.config().getWriteBufferHighWaterMark() + 1))
         );
         final HttpResponse response2 = request2.createResponse(
             RestStatus.OK,

@@ -507,8 +507,9 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                         );
                     } else {
                         listener.onFailure(
-                            new ElasticsearchException(
+                            new ElasticsearchStatusException(
                                 "Starting data frame analytics [{}] timed out after [{}]",
+                                RestStatus.REQUEST_TIMEOUT,
                                 task.getParams().getId(),
                                 timeout
                             )

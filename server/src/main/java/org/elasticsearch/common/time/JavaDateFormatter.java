@@ -41,10 +41,19 @@ class JavaDateFormatter implements DateFormatter {
     */
     private static final BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> DEFAULT_ROUND_UP = (builder, parser) -> {
         String parserAsString = parser.toString();
+        // note: week_of_week_based_year cannot be defaulted, because it depends on locale.
+        // Locale can set by a user on a request, after the parser is already created
+        // This means that YYYY'W'[wwe] could not be supported (but YYYY'W'ww[e] can)
+        if (parserAsString.contains(ChronoField.DAY_OF_WEEK.toString())) {
+            builder.parseDefaulting(ChronoField.DAY_OF_WEEK, 1L);
+        }
         if (parserAsString.contains(ChronoField.DAY_OF_YEAR.toString())) {
             builder.parseDefaulting(ChronoField.DAY_OF_YEAR, 1L);
-        } else {
+        }
+        if (parserAsString.contains(ChronoField.MONTH_OF_YEAR.toString())) {
             builder.parseDefaulting(ChronoField.MONTH_OF_YEAR, 1L);
+        }
+        if (parserAsString.contains(ChronoField.DAY_OF_MONTH.toString())) {
             builder.parseDefaulting(ChronoField.DAY_OF_MONTH, 1L);
         }
         if (parserAsString.contains(ChronoField.CLOCK_HOUR_OF_AMPM.toString())) {

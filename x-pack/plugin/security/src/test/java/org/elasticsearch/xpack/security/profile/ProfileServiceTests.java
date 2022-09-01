@@ -908,6 +908,7 @@ public class ProfileServiceTests extends ESTestCase {
         verify(service, never()).doUpdate(any(), anyActionListener());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89764")
     public void testActivateWhenShouldSkipUpdateForActivateReturnsFalseFirst() throws IOException {
         final ProfileService service = spy(profileService);
         doAnswer(

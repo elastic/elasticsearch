@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ProcessorsTests extends ESTestCase {
@@ -21,7 +22,14 @@ public class ProcessorsTests extends ESTestCase {
 
         final Processors processors = Processors.of(processorCount);
         final String processorsString = Double.toString(processors.count());
-        final int decimalPlaces = processorsString.length() - processorsString.indexOf(".") - 1;
+        final int decimalPlaces;
+        if (processorsString.contains("E")) {
+            int exponent = Integer.parseInt(processorsString.substring(processorsString.indexOf("E") + 1));
+            assertThat(exponent, is(lessThan(0)));
+            decimalPlaces = Math.abs(exponent);
+        } else {
+            decimalPlaces = processorsString.length() - processorsString.indexOf(".") - 1;
+        }
         assertThat(decimalPlaces, is(lessThanOrEqualTo(Processors.NUMBER_OF_DECIMAL_PLACES)));
     }
 

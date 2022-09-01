@@ -17,7 +17,14 @@ class EsqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements Esql
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitStatement(EsqlBaseParser.StatementContext ctx) { return visitChildren(ctx); }
+  @Override public T visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitSingleExpression(EsqlBaseParser.SingleExpressionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -31,14 +38,105 @@ class EsqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements Esql
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitSourceCmd(EsqlBaseParser.SourceCmdContext ctx) { return visitChildren(ctx); }
+  @Override public T visitSourceCommand(EsqlBaseParser.SourceCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitRowCmd(EsqlBaseParser.RowCmdContext ctx) { return visitChildren(ctx); }
+  @Override public T visitProcessingCommand(EsqlBaseParser.ProcessingCommandContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitLogicalNot(EsqlBaseParser.LogicalNotContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitValueExpressionDefault(EsqlBaseParser.ValueExpressionDefaultContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitComparison(EsqlBaseParser.ComparisonContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitOperatorExpressionDefault(EsqlBaseParser.OperatorExpressionDefaultContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitArithmeticBinary(EsqlBaseParser.ArithmeticBinaryContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitArithmeticUnary(EsqlBaseParser.ArithmeticUnaryContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitConstantDefault(EsqlBaseParser.ConstantDefaultContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitDereference(EsqlBaseParser.DereferenceContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitParenthesizedExpression(EsqlBaseParser.ParenthesizedExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitRowCommand(EsqlBaseParser.RowCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -59,7 +157,14 @@ class EsqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements Esql
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitExpression(EsqlBaseParser.ExpressionContext ctx) { return visitChildren(ctx); }
+  @Override public T visitFromCommand(EsqlBaseParser.FromCommandContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -67,4 +172,67 @@ class EsqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements Esql
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitIdentifier(EsqlBaseParser.IdentifierContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitNullLiteral(EsqlBaseParser.NullLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitNumericLiteral(EsqlBaseParser.NumericLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitBooleanLiteral(EsqlBaseParser.BooleanLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitStringLiteral(EsqlBaseParser.StringLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitBooleanValue(EsqlBaseParser.BooleanValueContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitDecimalLiteral(EsqlBaseParser.DecimalLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitIntegerLiteral(EsqlBaseParser.IntegerLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitString(EsqlBaseParser.StringContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitComparisonOperator(EsqlBaseParser.ComparisonOperatorContext ctx) { return visitChildren(ctx); }
 }

@@ -2,10 +2,6 @@
 [[ml-configuring-aggregation]]
 = Aggregating data for faster performance
 
-Aggregating data in {es} and configuring the {anomaly-jobs} to analyze this
-aggregated data is more efficient than the default behavior when {dfeeds} fetch 
-data from {es} using search and scroll requests. 
-
 When you aggregate data, {es} automatically distributes the calculations across 
 your cluster. Then you can feed this aggregated data into the {ml-features} 
 instead of raw results. It reduces the volume of data that must be analyzed.
@@ -52,7 +48,7 @@ aggregated. It applies to all detectors in the job.
 `calendar_interval` or `fixed_interval` in your aggregation (with no remainder).
 
 * If you specify a `frequency` for your {dfeed}, it must be divisible by the 
-`calendar_interval` or the `fixed_ineterval`.
+`calendar_interval` or the `fixed_interval`.
 
 * {anomaly-jobs-cap} cannot use `date_histogram` or `composite` aggregations 
 with an interval measured in months because the length of the month is not 
@@ -125,8 +121,8 @@ on influencers, refer to <<ml-ad-influencers>>.
 == Including aggregations in {anomaly-jobs}
 
 When you create or update an {anomaly-job}, you can include aggregated fields in 
-the analysis configuration and the job analyses these fields. In the {dfeed} 
-configuration object, you can define the aggregations.
+the analysis configuration. In the {dfeed} configuration object, you can define 
+the aggregations.
 
 [source,console]
 ----------------------------------
@@ -229,12 +225,11 @@ time in your {dfeed}:
 
 [discrete]
 [[aggs-using-composite]]
-== Using composite aggregations in {dfeeds}
+== Composite aggregations
 
 Composite aggregations are optimized for queries that are either `match_all` or 
 `range` filters. Use composite aggregations in your {dfeeds} for these cases. 
-Other types of queries may cause the `composite` aggregation to be inefficient, 
-so as your {dfeeds}.
+Other types of queries may cause the `composite` aggregation to be inefficient.
 
 The following is an example of a job with a {dfeed} that uses a `composite` 
 aggregation to bucket the metrics based on time and terms:
@@ -347,7 +342,7 @@ Use the following format to define a composite aggregation in your {dfeed}:
 
 [discrete]
 [[aggs-dfeeds]]
-== Using nested aggregations in {dfeeds}
+== Nested aggregations
 
 You can also use complex nested aggregations in {dfeeds}.
 
@@ -400,11 +395,11 @@ NOTE: `derivative` or other pipeline aggregations may not work within
 
 [discrete]
 [[aggs-single-dfeeds]]
-== Using single bucket aggregations in {dfeeds}
+== Single bucket aggregations
 
-You can also use single bucket aggregations in {dfeeds}. The example below shows 
-two `filter` aggregations, each gathering the number of unique entries for the 
-`error` field.
+You can also use single bucket aggregations in {dfeeds}. The following example 
+shows two `filter` aggregations, each gathering the number of unique entries for 
+the `error` field.
 
 [source,js]
 ----------------------------------
@@ -448,3 +443,4 @@ two `filter` aggregations, each gathering the number of unique entries for the
 }
 ----------------------------------
 // NOTCONSOLE
+

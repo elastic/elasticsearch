@@ -1547,28 +1547,26 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private static final class SnapshotInProgressDiff implements NamedDiff<Custom> {
 
+        private final SnapshotsInProgress after;
+
         private final DiffableUtils.MapDiff<String, ByRepo, Map<String, ByRepo>> mapDiff;
 
         SnapshotInProgressDiff(SnapshotsInProgress before, SnapshotsInProgress after) {
             this.mapDiff = DiffableUtils.diff(before.entries, after.entries, DiffableUtils.getStringKeySerializer());
-        }
-
-        SnapshotInProgressDiff(DiffableUtils.MapDiff<String, ByRepo, Map<String, ByRepo>> mapDiff) {
-            this.mapDiff = mapDiff;
+            this.after = after;
         }
 
         SnapshotInProgressDiff(StreamInput in) throws IOException {
-            this(
-                DiffableUtils.readJdkMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    i -> new ByRepo(i.readList(Entry::readFrom)),
-                    i -> new ByRepo.ByRepoDiff(
-                        DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), Entry::readFrom, EntryDiff::new),
-                        DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)
-                    )
+            this.mapDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                i -> new ByRepo(i.readList(Entry::readFrom)),
+                i -> new ByRepo.ByRepoDiff(
+                    DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), Entry::readFrom, EntryDiff::new),
+                    DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)
                 )
             );
+            this.after = null;
         }
 
         @Override
@@ -1588,7 +1586,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            mapDiff.writeTo(out);
+            assert after != null : "should only write instances that were diffed from this node's state";
+            if (out.getVersion().onOrAfter(DIFFABLE_VERSION)) {
+                mapDiff.writeTo(out);
+            } else {
+                new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
+            }
         }
     }
 

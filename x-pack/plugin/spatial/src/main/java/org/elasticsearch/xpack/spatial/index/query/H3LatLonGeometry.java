@@ -13,6 +13,8 @@ import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.spatial3d.geom.GeoArea;
 import org.apache.lucene.spatial3d.geom.GeoAreaFactory;
+import org.apache.lucene.spatial3d.geom.GeoAreaShape;
+import org.apache.lucene.spatial3d.geom.GeoPathFactory;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
@@ -28,11 +30,11 @@ import java.util.Objects;
 
 /** Implementation of a lucene {@link LatLonGeometry} that covers the extent of a provided H3 bin. Note that
  * H3 bin are polygons on the sphere. */
-class H3LatLonGeometry extends LatLonGeometry {
+public class H3LatLonGeometry extends LatLonGeometry {
 
     private final String h3Address;
 
-    H3LatLonGeometry(String h3Address) {
+    public H3LatLonGeometry(String h3Address) {
         this.h3Address = h3Address;
     }
 
@@ -176,7 +178,8 @@ class H3LatLonGeometry extends LatLonGeometry {
             double cX,
             double cY
         ) {
-            throw new UnsupportedOperationException("intersectsTriangle not implemented in H3Polygon2D");
+            GeoAreaShape triangle = makeTriangle(aX, aY, bX, bY, cX, cY);
+            return hexagon.intersects(triangle);
         }
 
         @Override
@@ -236,7 +239,66 @@ class H3LatLonGeometry extends LatLonGeometry {
             double cY,
             boolean ca
         ) {
-            throw new UnsupportedOperationException("withinTriangle not implemented in H3Polygon2D");
+            // if any of the points is inside the polygon, the polygon cannot be within this indexed
+            // shape because points belong to the original indexed shape.
+            if (contains(aX, aY) || contains(bX, bY) || contains(cX, cY)) {
+                return WithinRelation.NOTWITHIN;
+            }
+
+            WithinRelation relation = WithinRelation.DISJOINT;
+            // if any of the edges intersects an the edge belongs to the shape then it cannot be within.
+            // if it only intersects edges that do not belong to the shape, then it is a candidate
+            // we skip edges at the dateline to support shapes crossing it
+            if (hexagon.intersects(makeLine(aX, aY, bX, bY))) {
+                if (ab) {
+                    return WithinRelation.NOTWITHIN;
+                } else {
+                    relation = WithinRelation.CANDIDATE;
+                }
+            }
+
+            if (hexagon.intersects(makeLine(bX, bY, cX, cY))) {
+                if (bc) {
+                    return WithinRelation.NOTWITHIN;
+                } else {
+                    relation = WithinRelation.CANDIDATE;
+                }
+            }
+            if (hexagon.intersects(makeLine(cX, cY, aX, aY))) {
+                if (ca) {
+                    return WithinRelation.NOTWITHIN;
+                } else {
+                    relation = WithinRelation.CANDIDATE;
+                }
+            }
+
+            // if any of the edges crosses an edge that does not belong to the shape
+            // then it is a candidate for within
+            if (relation == WithinRelation.CANDIDATE) {
+                return WithinRelation.CANDIDATE;
+            }
+
+            // Check if shape is within the triangle
+            // TODO: If centroid is within triangle, return WithinRelation.CANDIDATE
+
+            return relation;
+        }
+
+        private GeoAreaShape makeTriangle(double aX, double aY, double bX, double bY, double cX, double cY) {
+            // TODO: currently just relying on GeoPolygonFactory.makeGeoPolygon to make the right thing, but this could be expensive
+            final List<GeoPoint> points = new ArrayList<>(3);
+            points.add(new GeoPoint(PlanetModel.SPHERE, Math.toRadians(aY), Math.toRadians(aX)));
+            points.add(new GeoPoint(PlanetModel.SPHERE, Math.toRadians(bY), Math.toRadians(bX)));
+            points.add(new GeoPoint(PlanetModel.SPHERE, Math.toRadians(cY), Math.toRadians(cX)));
+            return GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
+        }
+
+        private GeoAreaShape makeLine(double aX, double aY, double bX, double bY) {
+            // TODO: currently just relying on GeoPathFactory.makeGeoPath to make the right thing, but this could be expensive
+            final GeoPoint[] points = new GeoPoint[2];
+            points[0] = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(aY), Math.toRadians(aX));
+            points[1] = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(bY), Math.toRadians(bX));
+            return GeoPathFactory.makeGeoPath(PlanetModel.SPHERE, 0, points);
         }
     }
 }

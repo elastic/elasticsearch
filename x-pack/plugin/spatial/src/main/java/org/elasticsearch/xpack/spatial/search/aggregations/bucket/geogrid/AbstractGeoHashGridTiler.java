@@ -43,7 +43,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
 
         // When the shape represents a point, we compute the hash directly as we do it for GeoPoint
         if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
-            return setValue(values, geoValue, bounds);
+            return setValue(values, geoValue, Geohash.stringEncode(bounds.minX(), bounds.minY(), precision));
         }
         // TODO: optimize for when a shape fits in a single tile an
         // for when brute-force is expected to be faster than rasterization, which
@@ -51,14 +51,11 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return setValuesByRasterization("", values, 0, geoValue);
     }
 
-    protected int setValuesByBruteForceScan(
-        GeoShapeCellValues values,
-        GeoShapeValues.GeoShapeValue geoValue,
-        GeoShapeValues.BoundingBox bounds
-    ) throws IOException {
+    protected int setValuesByBruteForceScan(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
         // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I can
         // see that eventually we will be visiting twice the same cell which should not happen.
         int idx = 0;
+        GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         String min = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
         String max = Geohash.stringEncode(bounds.maxX(), bounds.maxY(), precision);
         String minNeighborBelow = Geohash.getNeighbor(min, precision, 0, -1);
@@ -82,9 +79,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     /**
      * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}.
      */
-    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
-        throws IOException {
-        String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
+    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, String hash) throws IOException {
         if (relateTile(geoValue, hash) != GeoRelation.QUERY_DISJOINT) {
             docValues.resizeCell(1);
             docValues.add(0, Geohash.longEncode(hash));

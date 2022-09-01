@@ -67,8 +67,7 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
         GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, tiler, NOOP_BREAKER);
         int bruteForceCount;
         {
-            GeoShapeValues.BoundingBox bounds = value.boundingBox();
-            bruteForceCount = tiler.setValuesByBruteForceScan(bruteForceValues, value, bounds);
+            bruteForceCount = tiler.setValuesByBruteForceScan(bruteForceValues, value);
         }
 
         assertThat(geometry.toString(), recursiveCount, equalTo(bruteForceCount));

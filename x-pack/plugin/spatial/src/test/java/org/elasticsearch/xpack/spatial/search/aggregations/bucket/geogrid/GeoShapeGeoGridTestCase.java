@@ -24,7 +24,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -82,12 +81,12 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     protected abstract GeoBoundingBox randomBBox();
 
     /**
-     * Return the bounding tile as a {@link Rectangle} for a given point
+     * Return true if the point intersects the given shape value
      */
     protected abstract boolean intersects(double lng, double lat, int precision, GeoShapeValues.GeoShapeValue value) throws IOException;
 
     /**
-     * Return true if the points intersects the bounds
+     * Return true if the point intersects the given bounding box
      */
     protected abstract boolean intersectsBounds(double lng, double lat, int precision, GeoBoundingBox box);
 

@@ -181,6 +181,33 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testResendHealthInfoOnMasterChange() throws Exception {
+        ClusterState previous = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        ClusterState current = ClusterStateCreationUtils.state(node, frozenNode, node, new DiscoveryNode[] { node, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        DiskHealthInfo green = new DiskHealthInfo(HealthStatus.GREEN, null);
+        simulateHealthDiskSpace();
+
+        AtomicInteger counter = new AtomicInteger(0);
+        doAnswer(invocation -> {
+            DiskHealthInfo diskHealthInfo = ((UpdateHealthInfoCacheAction.Request) invocation.getArgument(1)).getDiskHealthInfo();
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
+            assertThat(diskHealthInfo, equalTo(green));
+            counter.incrementAndGet();
+            listener.onResponse(null);
+            return null;
+        }).when(client).execute(any(), any(), any());
+
+        when(clusterService.state()).thenReturn(previous);
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, nodeService, threadPool, client);
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
+        assertBusy(() -> assertThat(localHealthMonitor.getLastReportedDiskHealthInfo(), equalTo(green)));
+        localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
+        assertBusy(() -> assertThat(counter.get(), equalTo(2)));
+    }
+
+    @SuppressWarnings("unchecked")
     public void testEnablingAndDisabling() throws Exception {
         AtomicInteger clientCalledCount = new AtomicInteger();
         DiskHealthInfo green = new DiskHealthInfo(HealthStatus.GREEN, null);

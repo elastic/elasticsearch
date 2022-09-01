@@ -8,6 +8,8 @@
 
 package org.elasticsearch.health.node;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -22,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class HealthInfoCache implements ClusterStateListener {
 
+    private static final Logger logger = LogManager.getLogger(HealthInfoCache.class);
     private volatile ConcurrentHashMap<String, DiskHealthInfo> diskInfoByNode = new ConcurrentHashMap<>();
 
     private HealthInfoCache() {}
@@ -51,6 +54,7 @@ public class HealthInfoCache implements ClusterStateListener {
             // the node is not the health node anymore has small impact since it will
             // be reset in the next round again.
         } else if (diskInfoByNode.isEmpty() == false) {
+            logger.debug("Node {{{}}{{}}} is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
             diskInfoByNode = new ConcurrentHashMap<>();
         }
     }

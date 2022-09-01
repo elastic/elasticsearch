@@ -62,15 +62,12 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             Collection<DiscoveryNode> nodes = state.getNodes().getNodes().values();
             DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
             assertThat(healthNode, notNullValue());
-            DiscoveryNode nodeToLeave = nodes.stream()
-                .filter(node -> {
-                    boolean isMaster = node.getName().equals(internalCluster.getMasterName());
-                    boolean isHealthNode = node.getId().equals(healthNode.getId());
-                    // We have dedicated tests for master and health node
-                    return isMaster == false && isHealthNode == false;
-                })
-                .findAny()
-                .orElseThrow();
+            DiscoveryNode nodeToLeave = nodes.stream().filter(node -> {
+                boolean isMaster = node.getName().equals(internalCluster.getMasterName());
+                boolean isHealthNode = node.getId().equals(healthNode.getId());
+                // We have dedicated tests for master and health node
+                return isMaster == false && isHealthNode == false;
+            }).findAny().orElseThrow();
             internalCluster.stopNode(nodeToLeave.getName());
             assertBusy(() -> {
                 Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, healthNode.getName())
@@ -154,7 +151,6 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         }, 2, TimeUnit.SECONDS);
         return healthNode[0];
     }
-
 
     private void decreasePollingInterval(InternalTestCluster internalCluster) {
         internalCluster.client()

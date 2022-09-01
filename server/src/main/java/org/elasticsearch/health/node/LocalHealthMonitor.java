@@ -49,7 +49,8 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * This class monitors the health of the node regarding the load on several resources.
  * Currently, it only checks for available disk space. Furthermore, it informs the health
- * node about the local health upon change or when a new node is detected.
+ * node about the local health upon change or when a new node is detected or when the
+ * master node changed.
  */
 public class LocalHealthMonitor implements ClusterStateListener {
 
@@ -79,7 +80,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // Keeps the last seen health node. We use this variable to ensure that there wasn't a health node
     // change between the time we send an update until the time we update the lastReportedDiskHealthInfo.
     private final AtomicReference<String> lastSeenHealthNode = new AtomicReference<>();
-    private final AtomicReference<Scheduler.Cancellable> scheduledTask = new AtomicReference<>();
+    // Using a volatile reference to ensure that there is a single monitoring task running at all times
+    // without extra synchronization is sufficient because all the writes are executed on the cluster
+    // applier thread.
+    private volatile Scheduler.Cancellable scheduledMonitoringTask;
 
     private LocalHealthMonitor(
         Settings settings,
@@ -118,8 +122,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // When the monitoring interval changed we reschedule the health monitoring task with the new interval.
     void setMonitorInterval(TimeValue monitorInterval) {
         this.monitorInterval = monitorInterval;
-        cancelExistingSchedule();
-        maybeStartNewSchedule();
+        cancelMonitoringTask();
+        scheduleMonitoringTaskIfNecessary();
     }
 
     // When the health node is enabled we try to schedule a monitoring task if it is not
@@ -127,73 +131,82 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // no configuration change. When the health node is disabled we cancel the schedule.
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        if (enabled && isScheduled() == false) {
-            maybeStartNewSchedule();
-        }
-        if (enabled == false) {
-            cancelExistingSchedule();
+        if (enabled) {
+            scheduleMonitoringTaskIfNecessary();
+        } else {
+            cancelMonitoringTask();
         }
     }
 
-    private void cancelExistingSchedule() {
+    private void cancelMonitoringTask() {
         // If there is an existing schedule, cancel it
-        Scheduler.Cancellable existingTask = scheduledTask.get();
+        Scheduler.Cancellable existingTask = scheduledMonitoringTask;
         if (existingTask != null) {
             existingTask.cancel();
         }
     }
 
-    private void maybeStartNewSchedule() {
+    private void scheduleMonitoringTaskIfNecessary() {
         if (prerequisitesFulfilled && enabled) {
-            // We synchronize on this block to ensure that we will not override an existing
-            // schedule that is not cancelled
-            // TODO check in which thread are the setting updates executed
-            synchronized (this) {
-                if (isScheduled() == false) {
-                    scheduledTask.set(
-                        new HealthMonitoringTask(
-                            monitorInterval,
-                            ThreadPool.Names.MANAGEMENT,
-                            threadPool,
-                            lastReportedDiskHealthInfo,
-                            lastSeenHealthNode,
-                            diskCheck,
-                            clusterService,
-                            client
-                        )
-                    );
-                    logger.debug("Monitoring task started {}", scheduledTask.get());
-                } else {
-                    logger.debug("Monitoring task already started {}, skipping", scheduledTask.get());
-                }
+            if (isScheduled() == false) {
+                scheduledMonitoringTask = new MonitoringTask(
+                    monitorInterval,
+                    ThreadPool.Names.MANAGEMENT,
+                    threadPool,
+                    lastReportedDiskHealthInfo,
+                    lastSeenHealthNode,
+                    diskCheck,
+                    clusterService,
+                    client
+                );
+                logger.debug("Monitoring task started {}", scheduledMonitoringTask);
+            } else {
+                logger.debug("Monitoring task already started {}, skipping", scheduledMonitoringTask);
             }
         }
     }
 
     private boolean isScheduled() {
-        Scheduler.Cancellable scheduled = this.scheduledTask.get();
+        Scheduler.Cancellable scheduled = this.scheduledMonitoringTask;
         return scheduled != null && scheduled.isCancelled() == false;
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         DiscoveryNode currentHealthNode = HealthNode.findHealthNode(event.state());
+        DiscoveryNode currentMasterNode = event.state().nodes().getMasterNode();
         boolean healthNodeChanged = hasHealthNodeChanged(currentHealthNode, event);
-        if (healthNodeChanged) {
-            // The new health node might not have any information yet, so the last
-            // reported health info gets reset to null.
+        boolean masterNodeChanged = hasMasterNodeChanged(currentMasterNode, event);
+        if (healthNodeChanged || masterNodeChanged) {
+            // On health node or on master node changes, the health node might be reset so the reported
+            // health info gets reset to null, to ensure it will be resent.
             lastSeenHealthNode.set(currentHealthNode == null ? null : currentHealthNode.getId());
             lastReportedDiskHealthInfo.set(null);
+            logger.debug(
+                "Change detected, resetting the health monitoring [masterNodeChanged={},healthNodeChanged={},newHealthNode={}",
+                masterNodeChanged,
+                healthNodeChanged,
+                lastSeenHealthNode.get()
+            );
         }
         prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
             && HealthMetadata.getFromClusterState(event.state()) != null
-            && currentHealthNode != null;
-        if (prerequisitesFulfilled == false || healthNodeChanged) {
-            cancelExistingSchedule();
+            && currentHealthNode != null
+            && currentMasterNode != null;
+        if (prerequisitesFulfilled == false || healthNodeChanged || masterNodeChanged) {
+            cancelMonitoringTask();
         }
-        if (prerequisitesFulfilled && isScheduled() == false) {
-            maybeStartNewSchedule();
+        if (prerequisitesFulfilled) {
+            scheduleMonitoringTaskIfNecessary();
         }
+    }
+
+    private boolean hasMasterNodeChanged(DiscoveryNode currentMasterNode, ClusterChangedEvent event) {
+        DiscoveryNode previousMasterNode = event.previousState().nodes().getMasterNode();
+        if (currentMasterNode == null || previousMasterNode == null) {
+            return currentMasterNode != previousMasterNode;
+        }
+        return previousMasterNode.getEphemeralId().equals(currentMasterNode.getEphemeralId()) == false;
     }
 
     // We compare the current health node against both the last seen health node from this node and the
@@ -211,11 +224,11 @@ public class LocalHealthMonitor implements ClusterStateListener {
     }
 
     /**
-     * This class is responsible for repeatedly running the health monitoring. The first execution happens
-     * upon initialization and the following at the predefined interval. If there is an exception,
-     * it will log it and continue to schedule the next execution unless it was a EsRejectedExecutionException
+     * This class is responsible for running the health monitoring in the configured intervals. The first execution happens
+     * upon initialization. If there is an exception, it will log it and continue to schedule the next execution unless it
+     * was a EsRejectedExecutionException which will cancel the task.
      */
-    static class HealthMonitoringTask implements Runnable, Scheduler.Cancellable {
+    static class MonitoringTask implements Runnable, Scheduler.Cancellable {
 
         private final TimeValue interval;
         private final String executor;
@@ -224,11 +237,12 @@ public class LocalHealthMonitor implements ClusterStateListener {
         private final DiskCheck diskCheck;
         private final Client client;
 
-        private volatile boolean run = true;
         private final AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo;
         private final AtomicReference<String> lastSeenHealthNode;
 
-        HealthMonitoringTask(
+        private volatile boolean cancelled = false;
+
+        MonitoringTask(
             TimeValue interval,
             String executor,
             Scheduler scheduler,
@@ -251,14 +265,14 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
         @Override
         public boolean cancel() {
-            final boolean result = run;
-            run = false;
-            return result;
+            final boolean result = cancelled;
+            cancelled = true;
+            return result == false;
         }
 
         @Override
         public boolean isCancelled() {
-            return run == false;
+            return cancelled;
         }
 
         /**
@@ -266,6 +280,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
          */
         @Override
         public void run() {
+            if (cancelled) {
+                return;
+            }
             boolean nextRunScheduled = false;
             Runnable runOnceScheduleNextRunIfNecessary = new RunOnce(this::scheduleNextRunIfNecessary);
             try {
@@ -316,22 +333,22 @@ public class LocalHealthMonitor implements ClusterStateListener {
         }
 
         private void scheduleNextRunIfNecessary() {
-            // if this has not been cancelled reschedule it to run again
-            if (run) {
-                try {
-                    scheduler.schedule(this, interval, executor);
-                } catch (final EsRejectedExecutionException e) {
-                    run = false;
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(() -> format("scheduled health monitoring task was rejected on thread pool [%s]", executor), e);
-                    }
+            if (cancelled) {
+                return;
+            }
+            try {
+                scheduler.schedule(this, interval, executor);
+            } catch (final EsRejectedExecutionException e) {
+                cancelled = true;
+                if (logger.isDebugEnabled()) {
+                    logger.debug(() -> format("scheduled health monitoring task was rejected on thread pool [%s]", executor), e);
                 }
             }
         }
 
         @Override
         public String toString() {
-            return "HealthMonitoringTask{" + ", interval=" + interval + '}';
+            return "HealthMonitoringTask{interval=" + interval + ", cancelled=" + cancelled + "}";
         }
     }
 

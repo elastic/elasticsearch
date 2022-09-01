@@ -212,9 +212,9 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         return System.getProperty("idea.sync.active", "false").equals("true");
     }
 
-    static String findProjectIdPath(Project project, ProjectComponentIdentifier id) {
+    static File findProjectIdPath(Project project, ProjectComponentIdentifier id) {
         if (id.getBuild().isCurrentBuild()) {
-            return project.findProject(id.getProjectPath()).getProjectDir().getPath();
+            return project.findProject(id.getProjectPath()).getProjectDir();
         } else {
             // For project dependencies sourced from an included build we have to infer the source project path
             File includedBuildDir = project.getGradle()
@@ -231,7 +231,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                 pathSegments[2] = pathSegments[2].replaceFirst("elasticsearch-", "");
             }
 
-            return new File(includedBuildDir, String.join(File.separator, List.of(pathSegments))).getPath();
+            return new File(includedBuildDir, String.join(File.separator, List.of(pathSegments)));
         }
     }
 }

@@ -76,7 +76,7 @@ Kibana enables you to easily send requests to Elasticsearch and analyze, visuali
 docker pull docker.elastic.co/kibana/kibana:{version} <1>
 docker run --name kib-01 --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
 ----
-<1> Replace {version} with the version of Kibana you want to run, for example 8.4.1.
+<1> Replace {version} with the version of Kibana you want to run, such as 8.4.1.
 +
 When you start Kibana, a unique link is output to your terminal.
 

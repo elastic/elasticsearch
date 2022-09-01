@@ -629,7 +629,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 
 The response depends on the kind of model.
 
-For example, for language identification the response is the predicted language and the score:
+For example, for {lang-ident} the response is the predicted language and the 
+score:
 
 [source,console]
 --------------------------------------------------
@@ -657,7 +658,8 @@ Here are the results predicting english with a high probability.
 // NOTCONSOLE
 
 
-When it is a text classification model, the response is the score and predicted classification.
+When it is a text classification model, the response is the score and predicted 
+classification.
 
 For example:
 
@@ -819,6 +821,43 @@ The API returns a response similar to the following:
 }
 ----
 // NOTCONSOLE
+
+Text similarity models require at least two sequences of text to compare. It's 
+possible to provide multiple strings of text to compare to another text 
+sequence:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/cross-encoder__ms-marco-tinybert-l-2-v2/_infer
+{
+  "docs":[{ "text_field": "Berlin has a population of 3,520,031 registered inhabitants in an area of 891.82 square kilometers."}, {"text_field": "New York City is famous for the Metropolitan Museum of Art."}],
+  "inference_config": {
+    "text_similarity": {
+      "text": "How many people live in Berlin?"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The response contains the prediction for every string that is compared to the 
+text provided in the `text_similarity`.`text` field:
+
+[source,console-result]
+----
+{
+  "inference_results": [
+    {
+      "predicted_value": 7.235751628875732
+    },
+    {
+      "predicted_value": -11.562295913696289
+    }
+  ]
+}
+----
+// NOTCONSOLE
+
 
 The tokenization truncate option can be overridden when calling the API:
 

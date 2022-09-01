@@ -190,7 +190,6 @@ Of the numeric field types, only `byte`, `short`, `integer`, `long`, and
 A numeric field can't be both a time series dimension and a time series metric.
 --
 
-ifeval::["{release-state}"=="unreleased"]
 `time_series_metric`::
 preview:[] (Optional, string)
 // tag::time_series_metric[]
@@ -210,7 +209,6 @@ include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
 +
 For a numeric time series metric, the `doc_values` parameter must be `true`. A
 numeric field can't be both a time series dimension and a time series metric.
-endif::[]
 
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`

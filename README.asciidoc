@@ -93,7 +93,7 @@ You can interact with Elasticsearch using any client that sends HTTP requests,
 such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
 language clients] and https://curl.se[curl]. 
 Kibana's developer console provides an easy way to experiment and test requests. 
-To access the console, go to **Managment > Dev Tools**.
+To access the console, go to **Management > Dev Tools**.
 
 **Add data**
 

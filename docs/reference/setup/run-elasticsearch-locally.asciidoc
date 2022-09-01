@@ -23,7 +23,7 @@ a password is generated for the `elastic` user,
 and a Kibana enrollment token is created so you can connect Kibana to your secured cluster.
 
 For other installation options, see the
-https://www.elastic.co/guide/en/Elasticsearch/reference/current/install-Elasticsearch.html[Elasticsearch installation documentation].
+https://www.elastic.co/guide/en/Elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation documentation].
 
 **Start Elasticsearch**
 
@@ -75,7 +75,7 @@ When you start Kibana, a unique URL is output to your terminal.
 
 You send data and other requests to Elasticsearch through REST APIs. 
 You can interact with Elasticsearch using any client that sends HTTP requests, 
-such as the https://www.elastic.co/guide/en/Elasticsearch/client/index.html[Elasticsearch
+such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
 language clients] and https://curl.se[curl]. 
 Kibana's developer console provides an easy way to experiment and test requests. 
 To access the console, go to **Management > Dev Tools**.

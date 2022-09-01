@@ -42,7 +42,8 @@ public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> 
         pollAndSpawn();
     }
 
-    private void pollAndSpawn() {
+    // visible for testing
+    protected void pollAndSpawn() {
         while (incrementRunningTasks()) {
             T task = tasks.poll();
             if (task == null) {

@@ -5,9 +5,9 @@
 <titleabbrev>Downsample</titleabbrev>
 ++++
 
-Aggregates a time series index's data and stores the results, including
-statistics about the original data, in a new read-only index. For example, you
-can roll up hourly data into daily or weekly summaries.
+Aggregates a <<tsds,time series data stream>> index and stores
+the results, including statistics about the original data, in a new read-only
+index. For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]
 ----

@@ -80,9 +80,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // Keeps the last seen health node. We use this variable to ensure that there wasn't a health node
     // change between the time we send an update until the time we update the lastReportedDiskHealthInfo.
     private final AtomicReference<String> lastSeenHealthNode = new AtomicReference<>();
-    // Using a volatile reference to ensure that there is a single monitoring task running at all times
-    // without extra synchronization is sufficient because all the writes are executed on the cluster
-    // applier thread.
+    // Using a volatile reference to ensure that there is a single monitoring task running at all times.
+    // No need for extra synchronization because all the writes are executed on the cluster applier thread.
     private volatile Scheduler.Cancellable scheduledMonitoringTask;
 
     private LocalHealthMonitor(
@@ -151,7 +150,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
             if (isScheduled() == false) {
                 scheduledMonitoringTask = new MonitoringTask(
                     monitorInterval,
-                    ThreadPool.Names.MANAGEMENT,
                     threadPool,
                     lastReportedDiskHealthInfo,
                     lastSeenHealthNode,
@@ -183,7 +181,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             lastSeenHealthNode.set(currentHealthNode == null ? null : currentHealthNode.getId());
             lastReportedDiskHealthInfo.set(null);
             logger.debug(
-                "Change detected, resetting the health monitoring [masterNodeChanged={},healthNodeChanged={},newHealthNode={}",
+                "Change detected, resetting the health monitoring [masterNodeChanged={},healthNodeChanged={},newHealthNode={}]",
                 masterNodeChanged,
                 healthNodeChanged,
                 lastSeenHealthNode.get()
@@ -245,7 +243,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
         MonitoringTask(
             TimeValue interval,
-            String executor,
             Scheduler scheduler,
             AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo,
             AtomicReference<String> lastSeenHealthNode,
@@ -254,7 +251,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             Client client
         ) {
             this.interval = interval;
-            this.executor = executor;
+            this.executor = ThreadPool.Names.MANAGEMENT;
             this.scheduler = scheduler;
             this.lastReportedDiskHealthInfo = lastReportedDiskHealthInfo;
             this.lastSeenHealthNode = lastSeenHealthNode;

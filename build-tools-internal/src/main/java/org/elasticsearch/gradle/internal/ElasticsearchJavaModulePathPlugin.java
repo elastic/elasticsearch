@@ -217,13 +217,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
             return project.findProject(id.getProjectPath()).getProjectDir();
         } else {
             // For project dependencies sourced from an included build we have to infer the source project path
-            File includedBuildDir = project.getGradle()
-                .getIncludedBuilds()
-                .stream()
-                .filter(b -> b.getName().equals(id.getBuild().getName()))
-                .map(IncludedBuild::getProjectDir)
-                .findFirst()
-                .orElseThrow(() -> new GradleException("Unable to locate included build named '" + id.getBuild().getName() + "'"));
+            File includedBuildDir = project.getGradle().includedBuild(id.getBuild().getName()).getProjectDir();
 
             // We have to account for us renaming the :libs projects here
             String[] pathSegments = id.getProjectPath().split(":");

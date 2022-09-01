@@ -31,6 +31,7 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.junit.After;
 
 import java.nio.channels.ClosedChannelException;
@@ -223,8 +224,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         embeddedChannel.flush();
         assertTrue(promise.isDone());
         assertThat(messagesSeen, hasSize(chunks + 1));
-        assertThat(messagesSeen.get(0), instanceOf(Netty4ChunkedHttpResponse.class));
-        assertThat(messagesSeen.get(chunks), instanceOf(LastHttpContent.class));
+        assertChunkedMessageAtIndex(messagesSeen, 0, chunks, chunk);
     }
 
     public void testResumesAfterChunkedMessage() {
@@ -249,10 +249,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         embeddedChannel.flush();
         assertTrue(promise1.isDone());
         assertThat(messagesSeen, hasSize(chunks1 + chunks2 + 2));
-        assertThat(messagesSeen.get(0), instanceOf(Netty4ChunkedHttpResponse.class));
-        assertThat(messagesSeen.get(chunks1), instanceOf(LastHttpContent.class));
-        assertThat(messagesSeen.get(chunks1 + 1), instanceOf(Netty4ChunkedHttpResponse.class));
-        assertThat(messagesSeen.get(chunks1 + chunks2 + 1), instanceOf(LastHttpContent.class));
+        assertChunkedMessageAtIndex(messagesSeen, 0, chunks1, chunk);
+        assertChunkedMessageAtIndex(messagesSeen, chunks1 + 1, chunks2, chunk);
         assertTrue(promise2.isDone());
     }
 
@@ -279,8 +277,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertTrue(promise1.isDone());
         assertThat(messagesSeen, hasSize(chunks2 + 2));
         assertThat(messagesSeen.get(0), instanceOf(Netty4HttpResponse.class));
-        assertThat(messagesSeen.get(1), instanceOf(Netty4ChunkedHttpResponse.class));
-        assertThat(messagesSeen.get(chunks2 + 1), instanceOf(LastHttpContent.class));
+        assertChunkedMessageAtIndex(messagesSeen, 1, chunks2, chunk);
         assertTrue(promise2.isDone());
     }
 
@@ -297,10 +294,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             RestStatus.OK,
             new BytesArray(randomByteArrayOfLength(embeddedChannel.config().getWriteBufferHighWaterMark() + 1))
         );
-        final HttpResponse response2 = request2.createResponse(
-            RestStatus.OK,
-            getRepeatedChunkResponseBody(chunks2, new BytesArray(randomByteArrayOfLength(randomIntBetween(10, 512))))
-        );
+        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(randomIntBetween(10, 512)));
+        final HttpResponse response2 = request2.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks2, chunk));
         final ChannelPromise promise1 = embeddedChannel.newPromise();
         embeddedChannel.write(response1, promise1);
         assertFalse(embeddedChannel.isWritable());
@@ -312,8 +307,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertTrue(promise1.isDone());
         assertThat(messagesSeen, hasSize(chunks2 + 2));
         assertThat(messagesSeen.get(0), instanceOf(Netty4HttpResponse.class));
-        assertThat(messagesSeen.get(1), instanceOf(Netty4ChunkedHttpResponse.class));
-        assertThat(messagesSeen.get(chunks2 + 1), instanceOf(LastHttpContent.class));
+        assertChunkedMessageAtIndex(messagesSeen, 1, chunks2, chunk);
         assertTrue(promise2.isDone());
     }
 
@@ -361,6 +355,17 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(messagesSeen, hasSize(2));
         assertThat(messagesSeen.get(0), instanceOf(Netty4ChunkedHttpResponse.class));
         assertThat(messagesSeen.get(1), instanceOf(DefaultHttpContent.class));
+    }
+
+    // assert that a message of the given number of repeated chunks is found at the given index in the list and each chunk is equal to
+    // the given BytesReference
+    private static void assertChunkedMessageAtIndex(List<Object> messagesSeen, int index, int chunks, BytesReference chunkBytes) {
+        assertThat(messagesSeen.get(index), instanceOf(Netty4ChunkedHttpResponse.class));
+        for (int i = index + 1; i < chunks; i++) {
+            assertThat(messagesSeen.get(i), instanceOf(DefaultHttpContent.class));
+            assertEquals(Netty4Utils.toBytesReference(((DefaultHttpContent) messagesSeen.get(i)).content()), chunkBytes);
+        }
+        assertThat(messagesSeen.get(index + chunks), instanceOf(LastHttpContent.class));
     }
 
     private static void assertDoneWithClosedChannel(ChannelPromise chunkedWritePromise) {

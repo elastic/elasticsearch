@@ -74,4 +74,8 @@ public class ClassScanner {// rename to registry?
     public Map<String, Set<String>> getClassHierarchy() {
         return this.annotatedHierarchyVisitor.getClassHierarchy();
     }
+
+    public void addFoundClasses(Map<String, String> fromFile) {
+        foundClasses.putAll(fromFile);
+    }
 }

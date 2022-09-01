@@ -27,10 +27,12 @@ public class StablePluginsRegistry {
     private final NamedComponentScanner namedComponentsScanner = new NamedComponentScanner();
 
     public void scanBundleForStablePlugins(PluginBundle bundle, ClassLoader pluginClassLoader) {
+
         Map<String, NameToPluginInfo> namedComponentsFromPlugin = namedComponentsScanner.findNamedComponents(bundle, pluginClassLoader);
         namedComponents.putAll(namedComponentsFromPlugin);
     }
 
+    //TODO this will be removed. getPluginForName or similar wil be created
     public Map<String, NameToPluginInfo> getNamedComponents() {
         return namedComponents;
     }

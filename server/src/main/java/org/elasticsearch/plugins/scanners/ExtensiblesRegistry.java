@@ -8,27 +8,49 @@
 
 package org.elasticsearch.plugins.scanners;
 
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.plugin.api.Extensible;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class ExtensiblesRegistry {
-    public static final ClassScanner INSTANCE = new ClassScanner(Extensible.class, (classname, map) -> {
+
+    private static final Logger logger = LogManager.getLogger(ExtensiblesRegistry.class);
+
+    private final ClassScanner extensibleClassScanner = new ClassScanner(Extensible.class, (classname, map) -> {
         map.put(classname, classname);
         return null;
     });
 
-    static {
+    //only 1 file for now, but in the future multiple for different apis? does this have to be in exported package?
+    private static final String EXTENSIBLES_FILE = "extensibles.json";
+    public static final ExtensiblesRegistry INSTANCE = new ExtensiblesRegistry(EXTENSIBLES_FILE);
+
+    private final ExtensibleFileReader extensibleFileReader;
+
+    ExtensiblesRegistry(String extensiblesFile) {
+        extensibleFileReader = new ExtensibleFileReader(extensiblesFile);
+
         try {
-            INSTANCE.visit(ClassReaders.ofModuleAndClassPaths());
+            Map<String, String> fromFile = extensibleFileReader.readFromFile();
+            if (fromFile.size() > 0) {
+                logger.debug(() -> format("Loaded extensible from cache file %s", (fromFile)));
+                extensibleClassScanner.addFoundClasses(fromFile);
+            } else {
+                extensibleClassScanner.visit(ClassReaders.ofModuleAndClassPaths());
+            }
         } catch (IOException e) {
-            // e.printStackTrace();
+            logger.error("Unable to load extensible classes", e);
         }
     }
 
-    public static Map<String, String> getScannedExtensibles() {
-        return null;// NSTANCE.getExtensibleClasses();
-    }
 
+    ClassScanner getExtensibleClassScanner() {
+        return extensibleClassScanner;
+    }
 }

@@ -37,10 +37,11 @@ public class ClassReadersTests extends ESTestCase {
             public class B {}
             """)));
 
-        Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString());
+        try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString())) {
 
-        List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-        assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B"));
+            List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
+            assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B"));
+        }
     }
 
     public void testStreamFromDirWithJars() throws IOException {
@@ -69,10 +70,10 @@ public class ClassReadersTests extends ESTestCase {
             """)));
 
         // Stream<ClassReader> classReaderStream = ClassReaders.ofModulePath();
-        Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString());
+        try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString())) {
 
-        List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-        assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"));
+            List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
+        }
     }
 
     public void testStreamOfClassPath() throws IOException {
@@ -108,9 +109,10 @@ public class ClassReadersTests extends ESTestCase {
             """));
 
         String classPath = Files.walk(tmp).filter(Files::isRegularFile).map(Path::toString).collect(Collectors.joining(":"));
-        Stream<ClassReader> classReaderStream = ClassReaders.ofClassPath(classPath);
+        try (Stream<ClassReader> classReaderStream = ClassReaders.ofClassPath(classPath)) {
 
-        List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
-        assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D", "p/E"));
+            List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
+            assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D", "p/E"));
+        }
     }
 }

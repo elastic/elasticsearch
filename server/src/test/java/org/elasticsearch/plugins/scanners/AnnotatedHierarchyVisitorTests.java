@@ -81,9 +81,10 @@ public class AnnotatedHierarchyVisitorTests extends ESTestCase {
         for (Class<?> clazz : classes) {
             String className = classNameToPath(clazz) + ".class";
             Path path = mainPath.resolve(className);
-            InputStream fileInputStream = Files.newInputStream(path);
-            ClassReader cr = new ClassReader(fileInputStream);
-            cr.accept(classVisitor, 0);
+            try (InputStream fileInputStream = Files.newInputStream(path)) {
+                ClassReader cr = new ClassReader(fileInputStream);
+                cr.accept(classVisitor, 0);
+            }
         }
     }
 

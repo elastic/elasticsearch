@@ -27,10 +27,29 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NamedComponentScannerTests extends ESTestCase {
-    NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
+    ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("file_does_not_exist.txt");//forcing to do classpath scan
+    NamedComponentScanner namedComponentScanner = new NamedComponentScanner(extensiblesRegistry);
+
+    public void testReadNamedComponentsFromFile() throws IOException {
+        final InputStream resource = this.getClass().getClassLoader().getResourceAsStream("org/elasticsearch/plugins/scanners/named_components.json");
+
+        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.readFromFile(resource, TestNamedComponent.class.getClassLoader());
+
+        assertThat(
+            namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("test_named_component"),
+            equalTo(
+                new NamedPluginInfo(
+                    "test_named_component",
+                    TestNamedComponent.class.getCanonicalName(),
+                    TestNamedComponent.class.getClassLoader()
+                )
+            )
+        );
+    }
 
     public void testFindNamedComponentInSingleClass() throws URISyntaxException {
         Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(
@@ -46,6 +65,52 @@ public class NamedComponentScannerTests extends ESTestCase {
                     TestNamedComponent.class.getClassLoader()
                 )
             )
+        );
+    }
+
+    static byte[] bytes(String str) {
+        return str.getBytes(UTF_8);
+    }
+
+    public void testFindNamedComponentInJarWithNamedComponentscacheFile() throws IOException {
+        final Path tmp = createTempDir();
+        final Path dirWithJar = tmp.resolve("jars-dir");
+        Files.createDirectories(dirWithJar);
+        Path jar = dirWithJar.resolve("plugin.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("named_components.json", bytes("""
+                {
+                  "p.A":
+                  "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
+                }
+                """),
+            "p/A.class", InMemoryJavaCompiler.compile("p.A", """
+                package p;
+                import org.elasticsearch.plugin.api.*;
+                import org.elasticsearch.plugins.scanners.extensible_test_classes.*;
+                @NamedComponent(name = "a_component")
+                public class A extends ExtensibleClass {}
+                """),
+            "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+                package p;
+                import org.elasticsearch.plugin.api.*;
+                import org.elasticsearch.plugins.scanners.extensible_test_classes.*;
+                @NamedComponent(name = "b_component")
+                public class B implements ExtensibleInterface{}
+                """)));
+
+        ClassLoader classLoader = NamedComponentScannerTests.class.getClassLoader();
+        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(
+            ClassReaders.ofDirWithJars(dirWithJar.toString()),
+            classLoader
+        );
+
+        assertThat(
+            namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("b_component"),
+            equalTo(new NamedPluginInfo("b_component", "p.B", classLoader))
+        );
+        assertThat(
+            namedComponents.get(ExtensibleClass.class.getCanonicalName()).getForPluginName("a_component"),
+            equalTo(new NamedPluginInfo("a_component", "p.A", classLoader))
         );
     }
 

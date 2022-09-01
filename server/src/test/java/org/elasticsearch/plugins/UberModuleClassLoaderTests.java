@@ -288,7 +288,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path jar = topLevelDir.resolve("my-jar-with-resources.jar");
         createSingleClassJar(jar, "p.MyImportingClass", """
             package p;
-            import java.lang.management.ThreadInfo;
             import java.sql.ResultSet;
             public class MyImportingClass {
                 @Override

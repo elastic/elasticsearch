@@ -31,7 +31,6 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
 import org.junit.After;
 
 import java.nio.channels.ClosedChannelException;
@@ -214,7 +213,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
         embeddedChannel.writeInbound(createHttpRequest("/chunked"));
         final Netty4HttpRequest request = embeddedChannel.readInbound();
-        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE * 2));
+        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(embeddedChannel.config().getWriteBufferHighWaterMark() + 1));
         final int chunks = randomIntBetween(2, 10);
         final HttpResponse response = request.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks, chunk));
         final ChannelPromise promise = embeddedChannel.newPromise();
@@ -238,7 +237,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
         final int chunks1 = randomIntBetween(2, 10);
         final int chunks2 = randomIntBetween(2, 10);
-        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE * 2));
+        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(embeddedChannel.config().getWriteBufferHighWaterMark() + 1));
         final HttpResponse response1 = request1.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks1, chunk));
         final HttpResponse response2 = request2.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks2, chunk));
         final ChannelPromise promise1 = embeddedChannel.newPromise();
@@ -324,7 +323,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         embeddedChannel.writeInbound(createHttpRequest("/chunked"));
         final Netty4HttpRequest chunkedResponseRequest = embeddedChannel.readInbound();
 
-        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE * 2));
+        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(embeddedChannel.config().getWriteBufferHighWaterMark() + 1));
         final HttpResponse chunkedResponse = chunkedResponseRequest.createResponse(
             RestStatus.OK,
             getRepeatedChunkResponseBody(randomIntBetween(2, 10), chunk)

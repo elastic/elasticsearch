@@ -26,21 +26,21 @@ If you prefer to install and manage Elasticsearch yourself, you can download
 the latest version from 
 https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
 
-=== Set up a local dev deployment
+=== Run Elasticsearch locally
 
 //// 
 IMPORTANT: This content is replicated in the Elasticsearch guide. 
 If you make changes, you must also update setup/set-up-local-dev-deployment.asciidoc.
 ////
 
-To try out Elasticsearch on your dev machine, we recommend using Docker
+To try out Elasticsearch on your own machine, we recommend using Docker
 and running both Elasticsearch and Kibana.
 Docker images are available from the https://www.docker.elastic.co[Elastic Docker registry].
 
 For other installation options, see the
 https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation documentation].
 
-**Install and run Elasticsearch**
+**Start Elasticsearch**
 
 . Install and start https://www.docker.com/products/docker-desktop[Docker
 Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at least 4GB.
@@ -50,19 +50,12 @@ Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at leas
 ----
 docker network create elastic
 docker pull docker.elastic.co/elasticsearch/elasticsearch:{version} <1>
-docker run --name es-node1 --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
+docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
 ----
 <1> Replace {version} with the version of Elasticsearch you want to run, such as 8.4.1.
 +
-When you start Elasticsearch for the first time, the following security configuration 
-occurs automatically:
-+
-* https://www.elastic.co/guide/en/elasticsearch/reference/current/configuring-stack-security.html#stack-security-certificates[Certificates and keys] 
-are generated for the transport and HTTP layers.
-* The Transport Layer Security (TLS) configuration settings are written to
-`elasticsearch.yml`.
-* A password is generated for the `elastic` user.
-* An enrollment token is generated for Kibana.
+When you start Elasticsearch for the first time, the generated `elastic` user password and
+Kibana enrollment token are output to the terminal.
 +
 NOTE: You might need to scroll back a bit in the terminal to view the password 
 and enrollment token.
@@ -71,7 +64,7 @@ and enrollment token.
 location. These values are shown only when you start Elasticsearch for the first time.
 You'll use these to enroll Kibana with your Elasticsearch cluster and log in.
 
-**Install and run Kibana**
+**Start Kibana**
 
 Kibana enables you to easily send requests to Elasticsearch and analyze, visualize, and manage data interactively.
 
@@ -79,13 +72,13 @@ Kibana enables you to easily send requests to Elasticsearch and analyze, visuali
 +
 ----
 docker pull docker.elastic.co/kibana/kibana:{version} <1>
-docker run --name kib-01 --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
+docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
 ----
 <1> Replace {version} with the version of Kibana you want to run, such as 8.4.1.
 +
-When you start Kibana, a unique link is output to your terminal.
+When you start Kibana, a unique URL is output to your terminal.
 
-. To access Kibana, open the generated link in your browser.
+. To access Kibana, open the generated URL in your browser.
 
   .. Paste the enrollment token that you copied when starting
   Elasticsearch and click the button to connect your Kibana instance with Elasticsearch.

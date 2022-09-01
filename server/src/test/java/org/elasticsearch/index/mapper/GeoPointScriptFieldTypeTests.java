@@ -235,7 +235,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             case "fromLatLon" -> (fieldName, params, lookup) -> (ctx) -> new GeoPointFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    Map<?, ?> foo = (Map<?, ?>) lookup.source().get("foo");
+                    Map<?, ?> foo = (Map<?, ?>) lookup.source().source().get("foo");
                     emit(((Number) foo.get("lat")).doubleValue(), ((Number) foo.get("lon")).doubleValue());
                 }
             };

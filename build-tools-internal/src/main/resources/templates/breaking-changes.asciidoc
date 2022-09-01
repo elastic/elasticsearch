@@ -72,7 +72,7 @@ if (deprecationsByNotabilityByArea.isEmpty() == false) { %>
 The following functionality has been deprecated in {es} ${majorDotMinor}
 and will be removed in a future version.
 While this won't have an immediate impact on your applications,
-we strongly encourage you take the described steps to update your code
+we strongly encourage you to take the described steps to update your code
 after upgrading to ${majorDotMinor}.
 
 To find out if you are using any deprecated functionality,

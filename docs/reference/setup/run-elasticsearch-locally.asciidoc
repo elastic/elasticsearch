@@ -1,5 +1,5 @@
 [[run-elasticsearch-locally]]
-=== Run Elasticsearch locally
+== Run Elasticsearch locally
 
 //// 
 IMPORTANT: This content is replicated in the Elasticsearch repo 
@@ -25,19 +25,27 @@ and a Kibana enrollment token is created so you can connect Kibana to your secur
 For other installation options, see the
 https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation documentation].
 
-==== Start Elasticsearch
+[discrete]
+=== Start Elasticsearch
 
 . Install and start https://www.docker.com/products/docker-desktop[Docker
 Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at least 4GB.
 
 . Start an Elasticsearch container:
+ifeval::["{release-state}"=="unreleased"]
++
+NOTE: Version {version} of {es} has not yet been released, so no
+Docker image is currently available for this version.
+endif::[]
+ifeval::["{release-state}"!="unreleased"]
 +
 [source,sh,subs="attributes"]
 ----
 docker network create elastic
-docker pull docker.elastic.co/Elasticsearch/Elasticsearch:{version}
-docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/Elasticsearch/Elasticsearch:{version}
+docker pull docker.elastic.co/elasticsearch/elasticsearch:{version}
+docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
 ----
+endif::[]
 +
 When you start Elasticsearch for the first time, the generated `elastic` user password and
 Kibana enrollment token are output to the terminal.
@@ -49,17 +57,25 @@ and enrollment token.
 location. These values are shown only when you start Elasticsearch for the first time.
 You'll use these to enroll Kibana with your Elasticsearch cluster and log in.
 
-==== Start Kibana
+[discrete]
+=== Start Kibana
 
 Kibana enables you to easily send requests to Elasticsearch and analyze, visualize, and manage data interactively.
 
 . In a new terminal session, start Kibana and connect it to your Elasticsearch container:
+ifeval::["{release-state}"=="unreleased"]
++
+NOTE: Version {version} of {kib} has not yet been released, so no
+Docker image is currently available for this version.
+endif::[]
+ifeval::["{release-state}"!="unreleased"]
 +
 [source,sh,subs="attributes"]
 ----
-docker pull docker.elastic.co/Kibana/Kibana:{version}
-docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/Kibana/Kibana:{version}
+docker pull docker.elastic.co/kibana/kibana:{version}
+docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
 ----
+endif::[]
 +
 When you start Kibana, a unique URL is output to your terminal.
 
@@ -71,7 +87,8 @@ When you start Kibana, a unique URL is output to your terminal.
   .. Log in to Kibana as the `elastic` user with the password that was generated
   when you started Elasticsearch.
 
-==== Send requests to Elasticsearch
+[discrete]
+=== Send requests to Elasticsearch
 
 You send data and other requests to Elasticsearch through REST APIs. 
 You can interact with Elasticsearch using any client that sends HTTP requests, 
@@ -80,7 +97,8 @@ language clients] and https://curl.se[curl].
 Kibana's developer console provides an easy way to experiment and test requests. 
 To access the console, go to **Management > Dev Tools**.
 
-==== Add data
+[discrete]
+=== Add data
 
 You index data into Elasticsearch by sending JSON objects (documents) through the REST APIs.  
 Whether you have structured or unstructured text, numerical data, or geospatial data, 
@@ -131,7 +149,8 @@ PUT customer/_bulk
 ----
 // TEST[continued]
 
-==== Search
+[discrete]
+=== Search
 
 Indexed documents are available for search in near real-time. 
 The following search matches all customers with a first name of _Jennifer_ 
@@ -148,7 +167,8 @@ GET customer/_search
 ----
 // TEST[continued]
 
-==== Explore
+[discrete]
+=== Explore
 
 You can use Discover in Kibana to interactively search and filter your data.
 From there, you can start creating visualizations and building and sharing dashboards.
@@ -158,7 +178,8 @@ data streams, or index aliases.
 
 . Go to **Management > Stack Management > Kibana > Data Views**.
 . Select **Create data view**.
-. Enter a name that matches one or more indices, for example _customers_. 
+. Enter a name for the data view and a pattern that matches one or more indices, 
+for example _customer_. 
 . Select **Save data view to Kibana**.  
 
 To start exploring, go to **Analytics > Discover**.

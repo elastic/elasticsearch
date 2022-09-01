@@ -16,12 +16,14 @@ configure(subprojects - project('elasticsearch-log4j')) {
   /*
    * Subprojects may depend on the "core" lib but may not depend on any
    * other libs. This keeps our dependencies simpler.
+   * With the exception that specialised plugin apis can depend on "core" plugin api project
    */
   project.afterEvaluate {
     configurations.all { Configuration conf ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project depProject = dep.dependencyProject
         if (depProject != null
+          && false == isPluginApi(project, depProject)
           && false == depProject.path.equals(':libs:elasticsearch-x-content')
           && false == depProject.path.equals(':libs:elasticsearch-core')
           && depProject.path.startsWith(':libs')
@@ -34,4 +36,8 @@ configure(subprojects - project('elasticsearch-log4j')) {
       }
     }
   }
+}
+
+boolean isPluginApi(Project project, Project depProject) {
+  return project.path.matches(".*elasticsearch-plugin-.*-api") &&  depProject.path.equals(':libs:elasticsearch-plugin-api')
 }

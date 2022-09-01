@@ -95,7 +95,7 @@ public class VersionEncoderTests extends ESTestCase {
      */
     public void testRandomRoundtrip() {
         String versionString = randomVersionString();
-        assertEquals(versionString, decodeVersion(encodeVersion(versionString)));
+        assertEquals(versionString, decodeVersion(encodeVersion(versionString)).utf8ToString());
     }
 
     private String randomVersionString() {
@@ -182,7 +182,7 @@ public class VersionEncoderTests extends ESTestCase {
         for (String version : validSemverVersions) {
             assertTrue("should be valid: " + version, VersionEncoder.encodeVersion(version).isLegal);
             // since we're here, also check encoding / decoding rountrip
-            assertEquals(version, decodeVersion(encodeVersion(version)));
+            assertEquals(version, decodeVersion(encodeVersion(version)).utf8ToString());
         }
 
         String[] invalidSemverVersions = new String[] {
@@ -229,7 +229,7 @@ public class VersionEncoderTests extends ESTestCase {
         for (String version : invalidSemverVersions) {
             assertFalse("should be invalid: " + version, VersionEncoder.encodeVersion(version).isLegal);
             // since we're here, also check encoding / decoding rountrip
-            assertEquals(version, decodeVersion(encodeVersion(version)));
+            assertEquals(version, decodeVersion(encodeVersion(version)).utf8ToString());
         }
     }
 }

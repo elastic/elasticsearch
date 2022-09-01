@@ -1001,7 +1001,7 @@ public class ProfileServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), anyActionListener());
 
-        // First check returns false, second check return true or false randomly
+        // First check returns false
         doAnswer(invocation -> false).when(service).shouldSkipUpdateForActivate(any(), any());
 
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();

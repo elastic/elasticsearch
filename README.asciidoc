@@ -86,7 +86,7 @@ When you start Kibana, a unique link is output to your terminal.
   .. Log in to Kibana as the `elastic` user with the password that was generated
   when you started Elasticsearch.
 
-**Send requests to Elasticsarch**
+**Send requests to Elasticsearch**
 
 You send data and other requests to Elasticsearch through REST APIs. 
 You can interact with Elasticsearch using any client that sends HTTP requests, 

@@ -179,7 +179,7 @@ data streams, or index aliases.
 . Go to **Management > Stack Management > Kibana > Data Views**.
 . Select **Create data view**.
 . Enter a name for the data view and a pattern that matches one or more indices, 
-for example _customer_. 
+such as _customer_. 
 . Select **Save data view to Kibana**.  
 
 To start exploring, go to **Analytics > Discover**.

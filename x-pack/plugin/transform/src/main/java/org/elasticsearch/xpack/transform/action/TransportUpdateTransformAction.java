@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -163,12 +162,10 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                                 // to send a request to apply new settings at runtime, several requirements must be met:
                                 // - transform must be running, meaning a task exists
                                 // - transform is not failed (stopped transforms do not have a task)
-                                // - the node where transform is executed on is at least 7.8.0 in order to understand the request
                                 if (transformTask != null
                                     && transformTask.isAssigned()
                                     && transformTask.getState() instanceof TransformState
-                                    && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
-                                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)) {
+                                    && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED) {
 
                                     ActionListener<Response> taskUpdateListener = ActionListener.wrap(listener::onResponse, e -> {
                                         // benign: A transform might be stopped meanwhile, this is not a problem

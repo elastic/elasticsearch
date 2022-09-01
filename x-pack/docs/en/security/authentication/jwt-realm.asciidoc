@@ -212,19 +212,19 @@ match to any of the CSV values in the `allowed_audiences` setting.
 
 `exp`::
 (Required, integer) Expiration time for the ID token, expressed in UTC
-milliseconds since epoch.
+seconds since epoch.
 
 `iat`::
 (Required, integer) Time that the ID token was issued, expressed in UTC
-milliseconds since epoch.
+seconds since epoch.
 
 `nbf`::
 (Optional, integer) Indicates the time before which the JWT must not be accepted,
-expressed as UTC milliseconds since epoch.
+expressed as UTC seconds since epoch.
 
 `auth_time`::
 (Optional, integer) Time when the user authenticated to the JWT issuer,
-expressed as UTC milliseconds since epoch.
+expressed as UTC seconds since epoch.
 
 [[jwt-validation-payload-es]]
 ====== {es} settings for consuming OIDC claims
@@ -479,7 +479,7 @@ Enabling client authentication (`client_authentication.type`) is strongly
 recommended. Only trusted client applications and realm-specific JWT users can
 trigger PKC reload attempts. Additionally, configuring the following
 <<ref-jwt-settings,JWT security settings>> is recommended:
- 
+
 * `allowed_audiences`
 * `allowed_clock_skew`
 * `allowed_issuer`

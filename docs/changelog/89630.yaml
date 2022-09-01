@@ -1,0 +1,5 @@
+pr: 89630
+summary: Fix `FileSettingsService` hang on error update
+area: Infra/Core
+type: bug
+issues: []

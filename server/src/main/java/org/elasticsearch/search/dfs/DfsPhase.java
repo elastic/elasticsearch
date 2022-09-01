@@ -16,12 +16,12 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -91,8 +91,11 @@ public class DfsPhase {
                 SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
                 KnnSearchBuilder knnSearch = source.knnSearch();
 
-                QueryBuilder queryBuilder = knnSearch.toQueryBuilder();
-                ParsedQuery query = searchExecutionContext.toQuery(queryBuilder);
+                KnnVectorQueryBuilder knnVectorQueryBuilder = knnSearch.toQueryBuilder();
+                if (context.request().getAliasFilter().getQueryBuilder() != null) {
+                    knnVectorQueryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
+                }
+                ParsedQuery query = searchExecutionContext.toQuery(knnVectorQueryBuilder);
 
                 TopDocs topDocs = searcher.search(query.query(), knnSearch.k());
                 DfsKnnResults knnResults = new DfsKnnResults(topDocs.scoreDocs);

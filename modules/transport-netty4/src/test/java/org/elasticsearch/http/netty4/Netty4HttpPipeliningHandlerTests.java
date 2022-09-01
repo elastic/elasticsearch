@@ -241,9 +241,15 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final HttpResponse response1 = request1.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks1, chunk));
         final HttpResponse response2 = request2.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks2, chunk));
         final ChannelPromise promise1 = embeddedChannel.newPromise();
-        embeddedChannel.write(response1, promise1);
         final ChannelPromise promise2 = embeddedChannel.newPromise();
-        embeddedChannel.write(response2, promise2);
+        if (randomBoolean()) {
+            // randomly write messages out of order
+            embeddedChannel.write(response2, promise2);
+            embeddedChannel.write(response1, promise1);
+        } else {
+            embeddedChannel.write(response1, promise1);
+            embeddedChannel.write(response2, promise2);
+        }
         assertFalse("should not be fully flushed right away", promise1.isDone());
         assertThat(messagesSeen, hasSize(2));
         embeddedChannel.flush();
@@ -267,10 +273,18 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final HttpResponse response1 = request1.createResponse(RestStatus.OK, chunk);
         final HttpResponse response2 = request2.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks2, chunk));
         final ChannelPromise promise1 = embeddedChannel.newPromise();
-        embeddedChannel.write(response1, promise1);
-        assertFalse(embeddedChannel.isWritable());
         final ChannelPromise promise2 = embeddedChannel.newPromise();
-        embeddedChannel.write(response2, promise2);
+        if (randomBoolean()) {
+            // randomly write messages out of order
+            embeddedChannel.write(response2, promise2);
+            assertTrue(embeddedChannel.isWritable());
+            embeddedChannel.write(response1, promise1);
+            assertFalse(embeddedChannel.isWritable());
+        } else {
+            embeddedChannel.write(response1, promise1);
+            assertFalse(embeddedChannel.isWritable());
+            embeddedChannel.write(response2, promise2);
+        }
         assertFalse("should not be fully flushed right away", promise1.isDone());
         assertThat("unexpected [" + messagesSeen + "]", messagesSeen, hasSize(1));
         embeddedChannel.flush();
@@ -297,10 +311,18 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final BytesReference chunk = new BytesArray(randomByteArrayOfLength(randomIntBetween(10, 512)));
         final HttpResponse response2 = request2.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks2, chunk));
         final ChannelPromise promise1 = embeddedChannel.newPromise();
-        embeddedChannel.write(response1, promise1);
-        assertFalse(embeddedChannel.isWritable());
         final ChannelPromise promise2 = embeddedChannel.newPromise();
-        embeddedChannel.write(response2, promise2);
+        if (randomBoolean()) {
+            // randomly write messages out of order
+            embeddedChannel.write(response2, promise2);
+            assertTrue(embeddedChannel.isWritable());
+            embeddedChannel.write(response1, promise1);
+            assertFalse(embeddedChannel.isWritable());
+        } else {
+            embeddedChannel.write(response1, promise1);
+            assertFalse(embeddedChannel.isWritable());
+            embeddedChannel.write(response2, promise2);
+        }
         assertFalse("should not be fully flushed right away", promise1.isDone());
         assertThat("unexpected [" + messagesSeen + "]", messagesSeen, hasSize(1));
         embeddedChannel.flush();

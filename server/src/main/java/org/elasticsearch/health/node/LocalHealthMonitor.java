@@ -241,6 +241,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         private final AtomicReference<String> lastSeenHealthNode;
 
         private volatile boolean cancelled = false;
+        private volatile Scheduler.ScheduledCancellable scheduledTask;
 
         MonitoringTask(
             TimeValue interval,
@@ -260,14 +261,27 @@ public class LocalHealthMonitor implements ClusterStateListener {
             this.clusterService = clusterService;
             this.diskCheck = diskCheck;
             this.client = client;
-            scheduler.schedule(this, TimeValue.ZERO, executor);
+            scheduledTask = scheduler.schedule(this, TimeValue.ZERO, executor);
         }
 
+        /**
+         * Attempts to cancel execution of this task. This method has no
+         * effect if the task cancelled. If this task has not started when
+         * {@code cancel} is called, this task should never run anymore.
+         * If the task has already started, then the current execution
+         * will not be interrupted but the task will not be scheduled anymore.
+         *
+         * @return false, if the task was already cancelled; {@code true}
+         * otherwise.
+         */
         @Override
         public boolean cancel() {
-            final boolean result = cancelled;
+            final boolean alreadyCancelled = cancelled;
             cancelled = true;
-            return result == false;
+            if (alreadyCancelled == false) {
+                scheduledTask.cancel();
+            }
+            return alreadyCancelled == false;
         }
 
         @Override
@@ -337,7 +351,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return;
             }
             try {
-                scheduler.schedule(this, interval, executor);
+                scheduledTask = scheduler.schedule(this, interval, executor);
             } catch (final EsRejectedExecutionException e) {
                 cancelled = true;
                 if (logger.isDebugEnabled()) {

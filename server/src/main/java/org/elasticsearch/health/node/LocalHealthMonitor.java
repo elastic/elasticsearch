@@ -335,7 +335,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                     }
                 }
             } catch (Exception e) {
-                logger.warn(() -> format("failed to run scheduled health monitoring task on thread pool [%s]", executor), e);
+                logger.warn(() -> format("Failed to run scheduled health monitoring task on thread pool [%s]", executor), e);
             } finally {
                 if (nextRunScheduled == false) {
                     runOnceScheduleNextRunIfNecessary.run();
@@ -352,7 +352,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             } catch (final EsRejectedExecutionException e) {
                 cancelled = true;
                 if (logger.isDebugEnabled()) {
-                    logger.debug(() -> format("scheduled health monitoring task was rejected on thread pool [%s]", executor), e);
+                    logger.debug(() -> format("Scheduled health monitoring task was rejected on thread pool [%s]", executor), e);
                 }
             }
         }
@@ -386,7 +386,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             if (node.isDedicatedFrozenNode()) {
                 long frozenFloodStageThreshold = diskMetadata.getFreeBytesFrozenFloodStageWatermark(totalBytes).getBytes();
                 if (usage.getFreeBytes() < frozenFloodStageThreshold) {
-                    logger.debug("flood stage disk watermark [{}] exceeded on {}", frozenFloodStageThreshold, usage);
+                    logger.debug("Flood stage disk watermark [{}] exceeded on {}", frozenFloodStageThreshold, usage);
                     return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD);
                 }
                 return new DiskHealthInfo(HealthStatus.GREEN);
@@ -394,11 +394,13 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
             long floodStageThreshold = diskMetadata.getFreeBytesFloodStageWatermark(totalBytes).getBytes();
             if (usage.getFreeBytes() < floodStageThreshold) {
+                logger.debug("Flood stage disk watermark [{}] exceeded on {}", floodStageThreshold, usage);
                 return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
             }
 
             long highThreshold = diskMetadata.getFreeBytesHighWatermark(totalBytes).getBytes();
             if (usage.getFreeBytes() < highThreshold && hasRelocatingShards(clusterState, node.getId()) == false) {
+                logger.debug("High disk watermark [{}] exceeded on {}", highThreshold, usage);
                 return new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD);
             }
             return new DiskHealthInfo(HealthStatus.GREEN);

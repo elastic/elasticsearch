@@ -1,6 +1,6 @@
-# Synchronize all pushes to upstream 'master' branch with 'main' branch to facilitate migration
-# Create a PR that automatically merges master with the current branch (esql)
-name: "Sync ESQL upstream"
+# Synchronizes all pushes to upstream 'main' branch local 'main' branch.
+# Creates a PR that automatically merges main with the ESQL branch (esql/lang).
+name: "Sync development branches"
 on:
   schedule:
       - cron: '40 4 * * *'
@@ -9,42 +9,54 @@ on:
 jobs:
   sync_latest_from_upstream:
     runs-on: ubuntu-latest
-    name: Sync latest commits from upstream branch
+    name: Sync latest commits from upstream main
 
     steps:
       - name: Checkout target repo
         id: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2.4.2
         with:
-          ref: master
+          ref: main
 
       - name: Sync upstream changes
         id: sync
-        uses: aormsby/Fork-Sync-With-Upstream-action@v3.0
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.3
         with:
-          target_sync_branch: master
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
-          upstream_sync_branch: master
+          target_sync_branch: main
+          target_repo_token: ${{ secrets.ELASTICSEARCHMACHINE }}
+          upstream_sync_branch: main
           upstream_sync_repo: elastic/elasticsearch
 
-      - name: Create PR
-        id: pr-create
+      - name: Create ESQL PR
+        id: pr-create-esql
         if: steps.sync.outputs.has_new_commits == 'true'
-        uses: thomaseizinger/create-pull-request@1.2.1
+        uses: thomaseizinger/create-pull-request@1.2.2
         with:
-           head: master
+           head: main
            base: esql/lang
-           title: "🤖 ESQL: Merge upstream to dev"
-           body: ":robot: Generated PR to keep ESQK development branch up to date"
-           labels: "upstream-sync,auto-merge"
-           github_token: ${{ secrets.GITHUB_TOKEN }}
+           title: "🤖 ESQL: Merge upstream"
+           body: ":robot: Generated PR to keep ESQL development branch up to date"
+           labels: "upstream-sync,esql,gh-automerge"
+           github_token: ${{ secrets.ELASTICSEARCHMACHINE }}
 
-      - name: Merge PR
-        id: pr-merge
-        if: steps.pr-create.outputs.created == 'true'
-        uses: juliangruber/merge-pull-request-action@v1
+## Merging done by bot on CI check completion 
+## -- auto-merge label removed, since bot squash-merges, later resulting in
+##    conflicts
+##
+#      - name: Merge ESQL PR
+#        id: pr-merge-esql
+#        if: steps.pr-create-esql.outputs.created == 'true'
+#        uses: juliangruber/merge-pull-request-action@v1.1.0
+#        with:
+#           method: merge
+#           number: ${{ steps.pr-create-esql.outputs.number }}
+#           github-token: ${{ secrets.ELASTICSEARCHMACHINE }}
+
+      - name: Enable github auto-merge
+        id: enable-automerge-esql
+        if: steps.pr-create-esql.outputs.created == 'true'
+        uses: reitermarkus/automerge@v2.1.2
         with:
-           method: merge
-           number: ${{ steps.pr-create.outputs.number }}
-           github-token: ${{ secrets.GITHUB_TOKEN }}
-       
+           required-labels: gh-automerge
+           pull-request: ${{ steps.pr-create-esql.outputs.number }}
+           token: ${{ secrets.ELASTICSEARCHMACHINE }}

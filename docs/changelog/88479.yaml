@@ -1,5 +1,0 @@
-pr: 88479
-summary: Deduplicate mappings in persisted cluster state
-area: Cluster Coordination
-type: enhancement
-issues: []

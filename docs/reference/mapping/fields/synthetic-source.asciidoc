@@ -1,5 +1,5 @@
 [[synthetic-source]]
-==== Synthetic `_source`
+==== Synthetic `_source` preview:[]
 
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
@@ -42,6 +42,7 @@ types:
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>> (with a `keyword` sub-field)
+** <<version-synthetic-source,`version`>>
 
 Runtime fields cannot, at this stage, use synthetic `_source`.
 

@@ -153,17 +153,12 @@ preview:[] (Optional, Boolean)
 +
 --
 // tag::dimension[]
-ifeval::["{release-state}"=="unreleased"]
-Marks the field as a `time-series-dimension,time series dimension`. Defaults
+Marks the field as a <<time-series-dimension,time series dimension>>. Defaults
 to `false`.
 
 The
 <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
 index setting limits the number of dimensions in an index.
-endif::[]
-ifeval::["{release-state}"!="unreleased"]
-Marks the field as a time series dimension. Defaults to `false`.
-endif::[]
 
 Dimension fields have the following constraints:
 
@@ -174,9 +169,8 @@ Dimension fields have the following constraints:
 * The field cannot use a <<normalizer,`normalizer`>>.
 --
 
-ifeval::["{release-state}"=="unreleased"]
 [[keyword-synthetic-source]]
-==== Synthetic source
+==== Synthetic source preview:[]
 `keyword` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 <<ignore-above,`ignore_above`>>, a <<normalizer,`normalizer`>>,
@@ -211,8 +205,6 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
-
-endif::[]
 
 include::constant-keyword.asciidoc[]
 

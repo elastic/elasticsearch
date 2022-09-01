@@ -8,6 +8,7 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.buffer.ByteBufHolder;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -260,6 +261,42 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertTrue(promise2.isDone());
     }
 
+    public void testResumesSingleAfterChunkedMessage() {
+        final List<Object> messagesSeen = new ArrayList<>();
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
+        embeddedChannel.writeInbound(createHttpRequest("/chunked"));
+        embeddedChannel.writeInbound(createHttpRequest("/single"));
+        final Netty4HttpRequest request1 = embeddedChannel.readInbound();
+        final Netty4HttpRequest request2 = embeddedChannel.readInbound();
+
+        final int chunks1 = randomIntBetween(2, 10);
+        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(embeddedChannel.config().getWriteBufferHighWaterMark() + 1));
+        final HttpResponse response1 = request1.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks1, chunk));
+        final BytesReference single = new BytesArray(
+            randomByteArrayOfLength(randomIntBetween(1, embeddedChannel.config().getWriteBufferHighWaterMark()))
+        );
+        final HttpResponse response2 = request2.createResponse(RestStatus.OK, single);
+        final ChannelPromise promise1 = embeddedChannel.newPromise();
+        final ChannelPromise promise2 = embeddedChannel.newPromise();
+        if (randomBoolean()) {
+            // randomly write messages out of order
+            embeddedChannel.write(response2, promise2);
+            embeddedChannel.write(response1, promise1);
+        } else {
+            embeddedChannel.write(response1, promise1);
+            embeddedChannel.write(response2, promise2);
+        }
+        assertFalse("should not be fully flushed right away", promise1.isDone());
+        assertThat(messagesSeen, hasSize(2));
+        embeddedChannel.flush();
+        assertTrue(promise1.isDone());
+        assertThat(messagesSeen, hasSize(chunks1 + 1 + 1));
+        assertChunkedMessageAtIndex(messagesSeen, 0, chunks1, chunk);
+        assertThat(messagesSeen.get(chunks1 + 1), instanceOf(Netty4HttpResponse.class));
+        assertContentAtIndexEquals(messagesSeen, chunks1 + 1, single);
+        assertTrue(promise2.isDone());
+    }
+
     public void testChunkedResumesAfterSingleMessage() {
         final List<Object> messagesSeen = new ArrayList<>();
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
@@ -385,9 +422,13 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(messagesSeen.get(index), instanceOf(Netty4ChunkedHttpResponse.class));
         for (int i = index + 1; i < chunks; i++) {
             assertThat(messagesSeen.get(i), instanceOf(DefaultHttpContent.class));
-            assertEquals(Netty4Utils.toBytesReference(((DefaultHttpContent) messagesSeen.get(i)).content()), chunkBytes);
+            assertContentAtIndexEquals(messagesSeen, i, chunkBytes);
         }
         assertThat(messagesSeen.get(index + chunks), instanceOf(LastHttpContent.class));
+    }
+
+    private static void assertContentAtIndexEquals(List<Object> messagesSeen, int index, BytesReference single) {
+        assertEquals(Netty4Utils.toBytesReference(((ByteBufHolder) messagesSeen.get(index)).content()), single);
     }
 
     private static void assertDoneWithClosedChannel(ChannelPromise chunkedWritePromise) {

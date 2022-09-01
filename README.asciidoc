@@ -37,6 +37,11 @@ To try out Elasticsearch on your own machine, we recommend using Docker
 and running both Elasticsearch and Kibana.
 Docker images are available from the https://www.docker.elastic.co[Elastic Docker registry].
 
+NOTE: Starting in Elasticsearch 8.0, security is enabled by default. 
+The first time you start Elasticsearch, TLS encryption is configured automatically, 
+a password is generated for the `elastic` user, 
+and a Kibana enrollment token is created so you can connect Kibana to your secured cluster.
+
 For other installation options, see the
 https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation documentation].
 

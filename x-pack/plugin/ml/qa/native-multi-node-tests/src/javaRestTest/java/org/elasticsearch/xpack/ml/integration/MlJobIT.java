@@ -981,9 +981,7 @@ public class MlJobIT extends ESRestTestCase {
         if (timeout.isPresent()) {
             path.append("?timeout=" + timeout.get().getStringRep());
         }
-        Response openResponse = client().performRequest(
-            new Request("POST", path.toString())
-        );
+        Response openResponse = client().performRequest(new Request("POST", path.toString()));
         return openResponse;
     }
 

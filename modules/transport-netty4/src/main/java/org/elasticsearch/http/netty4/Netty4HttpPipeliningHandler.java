@@ -305,10 +305,12 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     private boolean writeChunk(ChannelHandlerContext ctx, PromiseCombiner combiner, ChunkedRestResponseBody body) throws IOException {
+        assert body.isDone() == false : "should not continue to try and serialize once done";
         final ReleasableBytesReference bytes = body.encodeChunk(
             Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE,
             serverTransport.recycler()
         );
+        assert bytes.length() > 0 : "serialization should not produce empty buffers";
         final ByteBuf content = Netty4Utils.toByteBuf(bytes);
         final boolean done = body.isDone();
         final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));

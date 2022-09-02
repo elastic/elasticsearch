@@ -12,13 +12,17 @@ import java.util.Arrays;
 /**
  * Block implementation that stores a list of long values
  */
-public class LongBlock extends Block {
+public final class LongBlock extends Block {
 
     private final long[] values;
 
     public LongBlock(long[] values, int positionCount) {
         super(positionCount);
         this.values = values;
+    }
+
+    public long[] getRawLongArray() {
+        return values;
     }
 
     @Override

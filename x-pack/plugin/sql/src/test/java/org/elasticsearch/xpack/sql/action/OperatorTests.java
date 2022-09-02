@@ -340,21 +340,24 @@ public class OperatorTests extends ESTestCase {
                     List.of(
                         new Aggregator(AggregatorFunction.avg, AggregatorMode.INITIAL, 0),
                         new Aggregator(AggregatorFunction.count, AggregatorMode.INITIAL, 0),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.INITIAL, 0)
+                        new Aggregator(AggregatorFunction.max, AggregatorMode.INITIAL, 0),
+                        new Aggregator(AggregatorFunction.sum, AggregatorMode.INITIAL, 0)
                     )
                 ),
                 new AggregationOperator(
                     List.of(
                         new Aggregator(AggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 0),
                         new Aggregator(AggregatorFunction.count, AggregatorMode.INTERMEDIATE, 1),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.INTERMEDIATE, 2)
+                        new Aggregator(AggregatorFunction.max, AggregatorMode.INTERMEDIATE, 2),
+                        new Aggregator(AggregatorFunction.sum, AggregatorMode.INTERMEDIATE, 3)
                     )
                 ),
                 new AggregationOperator(
                     List.of(
                         new Aggregator(AggregatorFunction.avg, AggregatorMode.FINAL, 0),
                         new Aggregator(AggregatorFunction.count, AggregatorMode.FINAL, 1),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.FINAL, 2)
+                        new Aggregator(AggregatorFunction.max, AggregatorMode.FINAL, 2),
+                        new Aggregator(AggregatorFunction.sum, AggregatorMode.FINAL, 3)
                     )
                 ),
                 new PageConsumerOperator(page -> {
@@ -375,6 +378,8 @@ public class OperatorTests extends ESTestCase {
         assertEquals(100_000, lastPage.get().getBlock(1).getLong(0));
         // assert max
         assertEquals(99_999.0, lastPage.get().getBlock(2).getDouble(0), 0.0);
+        // assert sum
+        assertEquals(4.99995E9, lastPage.get().getBlock(3).getDouble(0), 0.0);
     }
 
     // Tests avg aggregators with multiple intermediate partial blocks.

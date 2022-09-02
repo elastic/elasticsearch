@@ -45,4 +45,12 @@ public interface AggregatorFunction {
             return MaxAggregator.create(inputChannel);
         }
     };
+
+    BiFunction<AggregatorMode, Integer, AggregatorFunction> sum = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return SumAggregator.createIntermediate();
+        } else {
+            return SumAggregator.create(inputChannel);
+        }
+    };
 }

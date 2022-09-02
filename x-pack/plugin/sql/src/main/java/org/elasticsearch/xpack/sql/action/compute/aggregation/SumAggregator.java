@@ -13,24 +13,24 @@ import org.elasticsearch.xpack.sql.action.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
-// Max Aggregator function.
-public class MaxAggregator implements AggregatorFunction {
+// Sum Aggregator function.
+public class SumAggregator implements AggregatorFunction {
 
     private final DoubleState state;
     private final int channel;
 
-    static MaxAggregator create(int inputChannel) {
+    static SumAggregator create(int inputChannel) {
         if (inputChannel < 0) {
             throw new IllegalArgumentException();
         }
-        return new MaxAggregator(inputChannel, new DoubleState());
+        return new SumAggregator(inputChannel, new DoubleState());
     }
 
-    static MaxAggregator createIntermediate() {
-        return new MaxAggregator(-1, new DoubleState());
+    static SumAggregator createIntermediate() {
+        return new SumAggregator(-1, new DoubleState());
     }
 
-    private MaxAggregator(int channel, DoubleState state) {
+    private SumAggregator(int channel, DoubleState state) {
         this.channel = channel;
         this.state = state;
     }
@@ -39,31 +39,30 @@ public class MaxAggregator implements AggregatorFunction {
     public void addRawInput(Page page) {
         assert channel >= 0;
         Block block = page.getBlock(channel);
-        double max;
+        double sum;
         if (block instanceof LongBlock longBlock) {
-            max = maxFromLongBlock(longBlock);
+            sum = sumFromLongBlock(longBlock);
         } else {
-            max = maxFromBlock(block);
+            sum = sumFromBlock(block);
         }
-        state.doubleValue(Math.max(state.doubleValue(), max));
+        state.doubleValue(state.doubleValue() + sum);
     }
 
-    static double maxFromBlock(Block block) {
-        double max = Double.MIN_VALUE;
-        int len = block.getPositionCount();
-        for (int i = 0; i < len; i++) {
-            max = Math.max(max, block.getDouble(i));
+    static double sumFromBlock(Block block) {
+        double sum = 0;
+        for (int i = 0; i < block.getPositionCount(); i++) {
+            sum += block.getDouble(i);
         }
-        return max;
+        return sum;
     }
 
-    static double maxFromLongBlock(LongBlock block) {
-        double max = Double.MIN_VALUE;
+    static double sumFromLongBlock(LongBlock block) {
+        double sum = 0;
         long[] values = block.getRawLongArray();
         for (int i = 0; i < block.getPositionCount(); i++) {
-            max = Math.max(max, values[i]);
+            sum += values[i];
         }
-        return max;
+        return sum;
     }
 
     @Override

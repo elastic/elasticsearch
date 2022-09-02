@@ -43,7 +43,7 @@ public class GeoHexBoundedPredicate {
 
     public long getMaxCells() {
         // TODO: Calculate correctly based on bounds
-        return 122 + (long) Math.pow(6, precision);
+        return 122 + (long) Math.pow(7, precision);
     }
 
     /** Extend class to get access to internal functions */

@@ -51,7 +51,7 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
     @Override
     protected long getCellsForDiffPrecision(int precisionDiff) {
         // TODO: Verify equation
-        return 122L + (long) Math.pow(6, precisionDiff);
+        return 122L + (long) Math.pow(7, precisionDiff);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
                 continue;
             }
             if (intersects(child, geoValue)) {
-                if (child.length() == finalPrecision) {
+                if (H3.getResolution(child) == finalPrecision) {
                     count++;
                 } else {
                     count += computeBuckets(H3.h3ToChildren(child), bbox, geoValue, finalPrecision);
@@ -147,32 +147,91 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         lons[lats.length - 1] = lons[0];
         lat /= cellBoundary.numPoints();
         lng /= cellBoundary.numPoints();
+        // TODO: Remove debugging output
+        StringBuilder sb = new StringBuilder("GEOMETRYCOLLECTION(");
+        sb.append("POINT(").append(lng).append(" ").append(lat).append("),");
+        addPolygon(sb, lons, lats);
+        sb.append(",");
+        double weight = 0.1; // move all points inwards by this fraction of the distance to the centroid
         for (int i = 0; i < lats.length; i++) {
-            lats[i] = 0.999 * lats[i] + 0.001 * lat;
-            lons[i] = 0.999 * lons[i] + 0.001 * lng;
+            lats[i] = (1.0 - weight) * lats[i] + weight * lat;
+            lons[i] = (1.0 - weight) * lons[i] + weight * lng;
         }
         Polygon polygon = new Polygon(new LinearRing(lons, lats));
         GeoShapeValues.GeoShapeValue value = geoShapeValue(polygon);
+        addPolygon(sb, lons, lats);
+        for (int i = 0; i < lats.length; i++) {
+            sb.append(",POINT(");
+            sb.append(lons[i]).append(" ").append(lats[i]);
+            sb.append(")");
+        }
+        System.out.println(sb + ")");
 
         // test shape within tile bounds
         {
             GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoHexGridTiler(5), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             int count = values.docValueCount();
+            addPolygons(5, sb, values);
+            System.out.println(sb + ")");
             assertThat(count, equalTo(1));
         }
         {
             GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoHexGridTiler(6), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             int count = values.docValueCount();
-            assertThat(count, equalTo(32)); // TODO fix for H3
+            addPolygons(6, sb, values);
+            System.out.println(sb + ")");
+            //assertThat(count, equalTo(7));
         }
         {
             GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoHexGridTiler(7), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             int count = values.docValueCount();
-            assertThat(count, equalTo(1024)); // TODO fix for H3
+            addPolygons(7, sb, values);
+            System.out.println(sb + ")");
+            assertThat(count, equalTo(7 * 7));
         }
+    }
+
+    private void addPolygons(int precision, StringBuilder sb, GeoShapeCellValues values) {
+        long[] h3values = values.getValues();
+        for (int i = 0; i < values.docValueCount(); i++) {
+            long h3 = h3values[i];
+            System.out.println("Adding polygon at depth " + precision + ": " + h3);
+            sb.append(",");
+            addPolygon(sb, H3.h3ToGeoBoundary(h3));
+        }
+    }
+
+    private void addPolygon(StringBuilder sb, CellBoundary cell) {
+        sb.append("POLYGON((");
+        for (int i = 0; i <= cell.numPoints(); i++) {
+            if (i == cell.numPoints()) {
+                LatLng point = cell.getLatLon(0);
+                sb.append(point.getLonDeg()).append(" ");
+                sb.append(point.getLatDeg());
+            } else {
+                LatLng point = cell.getLatLon(i);
+                sb.append(point.getLonDeg()).append(" ");
+                sb.append(point.getLatDeg()).append(", ");
+            }
+        }
+        sb.append("))");
+    }
+
+    private void addPolygon(StringBuilder sb, double[] lons, double[] lats) {
+        sb.append("POLYGON((");
+        for (int i = 0; i <= lats.length; i++) {
+            if (i == lats.length) {
+                sb.append(lons[0]).append(" ");
+                sb.append(lats[0]);
+            } else {
+                sb.append(lons[i]).append(" ");
+                sb.append(lats[i]).append(", ");
+            }
+        }
+        sb.append("))");
     }
 
 }

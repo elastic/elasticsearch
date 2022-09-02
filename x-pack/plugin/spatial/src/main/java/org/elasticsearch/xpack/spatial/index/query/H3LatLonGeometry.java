@@ -14,6 +14,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.spatial3d.geom.GeoArea;
 import org.apache.lucene.spatial3d.geom.GeoAreaFactory;
 import org.apache.lucene.spatial3d.geom.GeoAreaShape;
+import org.apache.lucene.spatial3d.geom.GeoPath;
 import org.apache.lucene.spatial3d.geom.GeoPathFactory;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
@@ -65,6 +66,19 @@ public class H3LatLonGeometry extends LatLonGeometry {
         return sb.toString();
     }
 
+    /**
+     * This class implements the Component2D interface in order to be useful in comparing hexagons to existing indexed (and triangulated)
+     * lucene geometries, like Polygon2D for example. However, all the internal mathematics is based instead on the geometrically
+     * accurate code in org.apache.lucene.spatial3d package which uses great circles to model straight lines between points.
+     * To achieve this, we make use of a model of a hexagon that implements the org.apache.lucene.spatial3d.geom.GeoPolygon
+     * interface. The methods implemented here are essentially copies of the same methods in Polygon2D, but with the internal logic
+     * modified in two specific directions:
+     * <ul>
+     *     <li>Intersections between lines make use of great circles</li>
+     *     <li>The fact that this object is a simple convex polygon with no holes allows for some optimizations</li>
+     * </ul>
+     * TODO: Move this comment to the public class comment above for more visibility
+     */
     private static class H3Polygon2D implements Component2D {
 
         // We want to make are edges a bit bigger because spatial3d and h3 edges do not fully agree in
@@ -138,7 +152,7 @@ public class H3LatLonGeometry extends LatLonGeometry {
 
         @Override
         public PointValues.Relation relate(double minX, double maxX, double minY, double maxY) {
-            if (minX > this.maxX || maxX < this.minX || maxY < this.minY || minY > this.maxY) {
+            if (disjointBounds(minX, maxX, minY, maxY)) {
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;
             }
             // h3 edges are fuzzy, therefore to avoid issues when bounding box are around the edges,
@@ -160,7 +174,10 @@ public class H3LatLonGeometry extends LatLonGeometry {
 
         @Override
         public boolean intersectsLine(double minX, double maxX, double minY, double maxY, double aX, double aY, double bX, double bY) {
-            return hexagon.intersects(makeLine(aX, aY, bX, bY));
+            if (disjointBounds(minX, maxX, minY, maxY)) {
+                return false;
+            }
+            return crossesLine(aX, aY, bX, bY);
         }
 
         @Override
@@ -176,13 +193,25 @@ public class H3LatLonGeometry extends LatLonGeometry {
             double cX,
             double cY
         ) {
+            if (disjointBounds(minX, maxX, minY, maxY)) {
+                return false;
+            }
+            if (contains(aX, aY) || contains(bX, bY) || contains(cX, cY)) {
+                // If any corner of the triangle is within the hexagon, we intersect the triangle since we have no holes
+                return true;
+            }
+            // But if all corners are outside, we still need to do a more comprehensive search in case the hexagon is within the triangle
             GeoAreaShape triangle = makeTriangle(aX, aY, bX, bY, cX, cY);
             return hexagon.intersects(triangle);
         }
 
         @Override
         public boolean containsLine(double minX, double maxX, double minY, double maxY, double aX, double aY, double bX, double bY) {
-            throw new UnsupportedOperationException("containsLine not implemented in H3Polygon2D");
+            if (disjointBounds(minX, maxX, minY, maxY)) {
+                return false;
+            }
+            // If both ends of the line are within this hexagon, then the entire line is within the hexagon since we have no holes
+            return contains(aX, aY) && contains(bX, bY);
         }
 
         @Override
@@ -198,7 +227,11 @@ public class H3LatLonGeometry extends LatLonGeometry {
             double cX,
             double cY
         ) {
-            throw new IllegalArgumentException();
+            if (disjointBounds(minX, maxX, minY, maxY)) {
+                return false;
+            }
+            // If all corners of the triangle are within this hexagon, then the entire triangle is within the hexagon since we have no holes
+            return contains(aX, aY) && contains(bX, bY) && contains(cX, cY);
         }
 
         @Override
@@ -218,7 +251,18 @@ public class H3LatLonGeometry extends LatLonGeometry {
             double bX,
             double bY
         ) {
-            throw new UnsupportedOperationException("withinLine not implemented in H3Polygon2D");
+            if (disjointBounds(minX, maxX, minY, maxY)) {
+                return WithinRelation.DISJOINT;
+            }
+            // If either end is within the hexagon, then the hexagon is not within the shape for which the line is a component
+            if (contains(aX, aY) || contains(bX, bY)) {
+                return WithinRelation.NOTWITHIN;
+            }
+            // If the line is part of the outside of the shape, and it crosses the hexagon, then the hexagon is not within the shape
+            if (ab == true && crossesLine(aX, aY, bX, bY)) {
+                return WithinRelation.NOTWITHIN;
+            }
+            return WithinRelation.DISJOINT;
         }
 
         @Override
@@ -237,17 +281,21 @@ public class H3LatLonGeometry extends LatLonGeometry {
             double cY,
             boolean ca
         ) {
-            // if any of the points is inside the polygon, the polygon cannot be within this indexed
-            // shape because points belong to the original indexed shape.
+            if (disjointBounds(minX, maxX, minY, maxY)) {
+                return WithinRelation.DISJOINT;
+            }
+
+            // if any of the triangle vertices is inside the hexagon, the hexagon cannot be within this indexed
+            // shape because all triangle vertices belong to the original indexed shape.
             if (contains(aX, aY) || contains(bX, bY) || contains(cX, cY)) {
                 return WithinRelation.NOTWITHIN;
             }
 
             WithinRelation relation = WithinRelation.DISJOINT;
-            // if any of the edges intersects an the edge belongs to the shape then it cannot be within.
-            // if it only intersects edges that do not belong to the shape, then it is a candidate
+            // if any of the triangle edges intersects an edge belonging to the shape then it cannot be within.
+            // if it only intersects edges that do not belong to the shape, then it is a candidate.
             // we skip edges at the dateline to support shapes crossing it
-            if (hexagon.intersects(makeLine(aX, aY, bX, bY))) {
+            if (crossesLine(aX, aY, bX, bY)) {
                 if (ab) {
                     return WithinRelation.NOTWITHIN;
                 } else {
@@ -255,14 +303,15 @@ public class H3LatLonGeometry extends LatLonGeometry {
                 }
             }
 
-            if (hexagon.intersects(makeLine(bX, bY, cX, cY))) {
+            if (crossesLine(bX, bY, cX, cY)) {
                 if (bc) {
                     return WithinRelation.NOTWITHIN;
                 } else {
                     relation = WithinRelation.CANDIDATE;
                 }
             }
-            if (hexagon.intersects(makeLine(cX, cY, aX, aY))) {
+
+            if (crossesLine(cX, cY, aX, aY)) {
                 if (ca) {
                     return WithinRelation.NOTWITHIN;
                 } else {
@@ -270,16 +319,16 @@ public class H3LatLonGeometry extends LatLonGeometry {
                 }
             }
 
-            // if any of the edges crosses an edge that does not belong to the shape
-            // then it is a candidate for within
+            // if any of the hexagon edges crosses a triangle edge that does not belong to the original then it is a candidate for within
             if (relation == WithinRelation.CANDIDATE) {
                 return WithinRelation.CANDIDATE;
             }
 
-            // Check if shape is within the triangle
-            // TODO: If centroid is within triangle, return WithinRelation.CANDIDATE
-
-            return relation;
+            // We can only get to this stage if the entire triangle is outside the hexagon, or the entire hexagon
+            // is contained within the triangle, but no points or edges intersect. It is sufficient to test
+            // that a single point of the hexagon is within the triangle to return this triangle as a candidate.
+            // TODO: test a single point instead of the whole hexagon
+            return makeTriangle(aX, aY, bX, bY, cX, cY).intersects(hexagon) ? WithinRelation.CANDIDATE : WithinRelation.DISJOINT;
         }
 
         private GeoAreaShape makeTriangle(double aX, double aY, double bX, double bY, double cX, double cY) {
@@ -291,12 +340,22 @@ public class H3LatLonGeometry extends LatLonGeometry {
             );
         }
 
-        private GeoAreaShape makeLine(double aX, double aY, double bX, double bY) {
-            // TODO: currently just relying on GeoPathFactory.makeGeoPath to make the right thing, but this could be expensive
+        private boolean disjointBounds(double minX, double maxX, double minY, double maxY) {
+            return minX > this.maxX || maxX < this.minX || maxY < this.minY || minY > this.maxY;
+        }
+
+        /** Returns true if the line crosses any edge of this hexagon */
+        private boolean crossesLine(double aX, double aY, double bX, double bY) {
+            // TODO: currently just relying on GeoPathFactory.makeGeoPath to make a usable GeoShape for intersects.
+            // But this could be expensive. Since we only ever use this for testing line intersection with the hexagon,
+            // there could be a simpler structure to do just that specific test.
+            // Look into org.apache.lucene.spatial3d code for line intersection code for this.
             final GeoPoint[] points = new GeoPoint[2];
             points[0] = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(aY), Math.toRadians(aX));
             points[1] = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(bY), Math.toRadians(bX));
-            return GeoPathFactory.makeGeoPath(PlanetModel.SPHERE, 0, points);
+            GeoPath line = GeoPathFactory.makeGeoPath(PlanetModel.SPHERE, 0, points);
+
+            return hexagon.intersects(line);
         }
     }
 }

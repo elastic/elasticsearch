@@ -37,6 +37,7 @@ POST /my-index-000001/_delete_by_query
   "throttled_millis": 0,
   "requests_per_second": -1.0,
   "throttled_until_millis": 0,
+  "eta_millis": 0,
   "total": 119,
   "failures" : [ ]
 }
@@ -295,6 +296,7 @@ The JSON response looks like this:
   "throttled_millis": 0,
   "requests_per_second": -1.0,
   "throttled_until_millis": 0,
+  "eta_millis": 0,
   "failures" : [ ]
 }
 --------------------------------------------------

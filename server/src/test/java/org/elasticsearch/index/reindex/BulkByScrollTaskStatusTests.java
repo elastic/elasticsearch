@@ -127,6 +127,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         TimeUnit[] timeUnits = { TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS };
         TimeValue throttled = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
         TimeValue throttledUntil = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
+        TimeValue eta = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
         return new BulkByScrollTask.Status(
             sliceId,
             total,
@@ -141,7 +142,8 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
             throttled,
             abs(Randomness.get().nextFloat()),
             randomBoolean() ? null : randomSimpleString(Randomness.get()),
-            throttledUntil
+            throttledUntil,
+            eta
         );
     }
 

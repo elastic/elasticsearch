@@ -53,6 +53,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
                 timeValueMillis(0),
                 0f,
                 thisReasonCancelled,
+                timeValueMillis(0),
                 timeValueMillis(0)
             );
             List<BulkItemResponse.Failure> bulkFailures = frequently()

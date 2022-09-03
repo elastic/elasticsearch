@@ -211,11 +211,43 @@ public class TransportRethrottleActionTests extends ESTestCase {
     }
 
     private BulkByScrollTask.Status believeableInProgressStatus(Integer sliceId) {
-        return new BulkByScrollTask.Status(sliceId, 10, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0, null, timeValueMillis(0));
+        return new BulkByScrollTask.Status(
+            sliceId,
+            10,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            timeValueMillis(0),
+            0,
+            null,
+            timeValueMillis(0),
+            timeValueMillis(0)
+        );
     }
 
     private BulkByScrollTask.Status believeableCompletedStatus(Integer sliceId) {
-        return new BulkByScrollTask.Status(sliceId, 10, 10, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0, null, timeValueMillis(0));
+        return new BulkByScrollTask.Status(
+            sliceId,
+            10,
+            10,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            timeValueMillis(0),
+            0,
+            null,
+            timeValueMillis(0),
+            timeValueMillis(0)
+        );
     }
 
     private <T> ActionListener<T> neverCalled() {

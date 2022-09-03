@@ -56,6 +56,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
     ) {
         TimeValue throttle = parseTimeValue(randomPositiveTimeValue(), "test");
         TimeValue throttledUntil = parseTimeValue(randomPositiveTimeValue(), "test");
+        TimeValue eta = parseTimeValue(randomPositiveTimeValue(), "test");
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -73,7 +74,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
                 throttle,
                 0f,
                 null,
-                throttledUntil
+                throttledUntil,
+                eta
             )
         );
         assertEquals(e.getMessage(), fieldName + " must be greater than 0 but was [-1]");
@@ -95,6 +97,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
             timeValueMillis(0),
             Float.POSITIVE_INFINITY,
             null,
+            timeValueMillis(0),
             timeValueMillis(0)
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -117,6 +120,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
             timeValueMillis(0),
             Float.POSITIVE_INFINITY,
             null,
+            timeValueMillis(0),
             timeValueMillis(0)
         );
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(
@@ -153,6 +157,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         TimeValue mergedThrottled = timeValueNanos(0);
         float mergedRequestsPerSecond = 0;
         TimeValue mergedThrottledUntil = timeValueNanos(Integer.MAX_VALUE);
+        TimeValue mergedEta = timeValueMillis(0);
         for (int i = 0; i < statuses.length; i++) {
             if (containsNullStatuses && rarely()) {
                 continue;
@@ -170,6 +175,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
             float requestsPerSecond = randomValueOtherThanMany(r -> r <= 0, () -> randomFloat());
             String reasonCancelled = randomBoolean() ? null : "test";
             TimeValue throttledUntil = timeValueNanos(between(0, 1000));
+            // `slices` only contains the status of completed slices, which means eta should be 0
+            TimeValue eta = timeValueMillis(0);
             statuses[i] = new BulkByScrollTask.StatusOrException(
                 new BulkByScrollTask.Status(
                     i,
@@ -185,7 +192,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
                     throttled,
                     requestsPerSecond,
                     reasonCancelled,
-                    throttledUntil
+                    throttledUntil,
+                    eta
                 )
             );
             mergedTotal += total;
@@ -200,6 +208,9 @@ public class BulkByScrollTaskTests extends ESTestCase {
             mergedThrottled = timeValueNanos(mergedThrottled.nanos() + throttled.nanos());
             mergedRequestsPerSecond += requestsPerSecond;
             mergedThrottledUntil = timeValueNanos(min(mergedThrottledUntil.nanos(), throttledUntil.nanos()));
+            // `slices` only contains the status of completed slices, which means eta should be 0
+            // maybe we can return the max eta when unfinished slices can return also be returned
+            // mergedEta = timeValueMillis(max(mergedEta.millis(), eta.millis()));
         }
         String reasonCancelled = randomBoolean() ? randomAlphaOfLength(10) : null;
         BulkByScrollTask.Status merged = new BulkByScrollTask.Status(Arrays.asList(statuses), reasonCancelled);
@@ -216,6 +227,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertEquals(mergedRequestsPerSecond, merged.getRequestsPerSecond(), 0.0001f);
         assertEquals(mergedThrottledUntil, merged.getThrottledUntil());
         assertEquals(reasonCancelled, merged.getReasonCancelled());
+        assertEquals(mergedEta, merged.getEta());
     }
 
 }

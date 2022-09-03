@@ -9,6 +9,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -208,6 +210,7 @@ public class BulkByScrollTask extends CancellableTask {
         private String reasonCancelled = null;
         private TimeValue throttledUntil = null;
         private List<StatusOrException> sliceStatuses = new ArrayList<>();
+        private TimeValue eta = null;
 
         public void setSliceId(Integer sliceId) {
             this.sliceId = sliceId;
@@ -289,6 +292,12 @@ public class BulkByScrollTask extends CancellableTask {
             this.sliceStatuses.add(statusOrException);
         }
 
+        public void setEta(Long eta) {
+            if (eta != null) {
+                this.eta = new TimeValue(eta, TimeUnit.MILLISECONDS);
+            }
+        }
+
         public Status buildStatus() {
             if (sliceStatuses.isEmpty()) {
                 try {
@@ -306,7 +315,8 @@ public class BulkByScrollTask extends CancellableTask {
                         throttled,
                         requestsPerSecond,
                         reasonCancelled,
-                        throttledUntil
+                        throttledUntil,
+                        eta
                     );
                 } catch (NullPointerException npe) {
                     throw new IllegalArgumentException("a required field is null when building Status");
@@ -358,6 +368,8 @@ public class BulkByScrollTask extends CancellableTask {
         public static final String THROTTLED_UNTIL_RAW_FIELD = "throttled_until_millis";
         public static final String THROTTLED_UNTIL_HR_FIELD = "throttled_until";
         public static final String SLICES_FIELD = "slices";
+        public static final String ETA_RAW_FIELD = "eta_millis";
+        public static final String ETA_HR_FIELD = "eta";
 
         public static Set<String> FIELDS_SET = new HashSet<>();
         static {
@@ -378,6 +390,8 @@ public class BulkByScrollTask extends CancellableTask {
             FIELDS_SET.add(THROTTLED_UNTIL_RAW_FIELD);
             FIELDS_SET.add(THROTTLED_UNTIL_HR_FIELD);
             FIELDS_SET.add(SLICES_FIELD);
+            FIELDS_SET.add(ETA_RAW_FIELD);
+            FIELDS_SET.add(ETA_HR_FIELD);
         }
 
         static final ConstructingObjectParser<Tuple<Long, Long>, Void> RETRIES_PARSER = new ConstructingObjectParser<>(
@@ -409,6 +423,7 @@ public class BulkByScrollTask extends CancellableTask {
                 (p, c) -> StatusOrException.fromXContent(p),
                 new ParseField(SLICES_FIELD)
             );
+            parser.declareLong(StatusBuilder::setEta, new ParseField(ETA_RAW_FIELD));
         }
 
         private final Integer sliceId;
@@ -426,6 +441,7 @@ public class BulkByScrollTask extends CancellableTask {
         private final String reasonCancelled;
         private final TimeValue throttledUntil;
         private final List<StatusOrException> sliceStatuses;
+        private final TimeValue eta;
 
         public Status(
             Integer sliceId,
@@ -441,7 +457,8 @@ public class BulkByScrollTask extends CancellableTask {
             TimeValue throttled,
             float requestsPerSecond,
             @Nullable String reasonCancelled,
-            TimeValue throttledUntil
+            TimeValue throttledUntil,
+            TimeValue eta
         ) {
             this.sliceId = sliceId == null ? null : checkPositive(sliceId, "sliceId");
             this.total = checkPositive(total, "total");
@@ -458,6 +475,7 @@ public class BulkByScrollTask extends CancellableTask {
             this.reasonCancelled = reasonCancelled;
             this.throttledUntil = throttledUntil;
             this.sliceStatuses = emptyList();
+            this.eta = eta;
         }
 
         /**
@@ -483,6 +501,7 @@ public class BulkByScrollTask extends CancellableTask {
             long mergedThrottled = 0;
             float mergedRequestsPerSecond = 0;
             long mergedThrottledUntil = Long.MAX_VALUE;
+            long mergedEta = 0;
 
             for (StatusOrException slice : sliceStatuses) {
                 if (slice == null) {
@@ -505,6 +524,9 @@ public class BulkByScrollTask extends CancellableTask {
                 mergedThrottled += slice.status.getThrottled().nanos();
                 mergedRequestsPerSecond += slice.status.getRequestsPerSecond();
                 mergedThrottledUntil = min(mergedThrottledUntil, slice.status.getThrottledUntil().nanos());
+                // `slices` only contains the status of completed slices, which means eta should be 0
+                // maybe we can return the max eta when unfinished slices can return also be returned
+                // mergedEta = max(mergedEta, slice.status.getEta().millis());
             }
 
             total = mergedTotal;
@@ -520,6 +542,7 @@ public class BulkByScrollTask extends CancellableTask {
             requestsPerSecond = mergedRequestsPerSecond;
             throttledUntil = timeValueNanos(mergedThrottledUntil == Long.MAX_VALUE ? 0 : mergedThrottledUntil);
             this.sliceStatuses = sliceStatuses;
+            eta = timeValueMillis(mergedEta);
         }
 
         public Status(StreamInput in) throws IOException {
@@ -538,6 +561,7 @@ public class BulkByScrollTask extends CancellableTask {
             reasonCancelled = in.readOptionalString();
             throttledUntil = in.readTimeValue();
             sliceStatuses = in.readList(stream -> stream.readOptionalWriteable(StatusOrException::new));
+            eta = in.getVersion().onOrAfter(Version.V_8_5_0) ? in.readTimeValue() : null;
         }
 
         @Override
@@ -557,6 +581,9 @@ public class BulkByScrollTask extends CancellableTask {
             out.writeOptionalString(reasonCancelled);
             out.writeTimeValue(throttledUntil);
             out.writeCollection(sliceStatuses, StreamOutput::writeOptionalWriteable);
+            if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+                out.writeTimeValue(eta);
+            }
         }
 
         @Override
@@ -614,6 +641,7 @@ public class BulkByScrollTask extends CancellableTask {
                 }
                 builder.endArray();
             }
+            builder.humanReadableField(ETA_RAW_FIELD, ETA_HR_FIELD, eta);
             return builder;
         }
 
@@ -666,6 +694,7 @@ public class BulkByScrollTask extends CancellableTask {
                         case Status.REQUESTS_PER_SEC_FIELD -> builder.setRequestsPerSecond(parser.floatValue());
                         case Status.CANCELED_FIELD -> builder.setReasonCancelled(parser.text());
                         case Status.THROTTLED_UNTIL_RAW_FIELD -> builder.setThrottledUntil(parser.longValue());
+                        case Status.ETA_RAW_FIELD -> builder.setEta(parser.longValue());
                     }
                 }
             }
@@ -696,6 +725,7 @@ public class BulkByScrollTask extends CancellableTask {
             if (false == sliceStatuses.isEmpty()) {
                 builder.append(",workers=").append(sliceStatuses);
             }
+            builder.append(",eta=").append(eta);
         }
 
         /**
@@ -798,6 +828,10 @@ public class BulkByScrollTask extends CancellableTask {
             return sliceStatuses;
         }
 
+        public TimeValue getEta() {
+            return eta;
+        }
+
         @Override
         public int hashCode() {
             return Objects.hash(
@@ -815,7 +849,8 @@ public class BulkByScrollTask extends CancellableTask {
                 requestsPerSecond,
                 reasonCancelled,
                 throttledUntil,
-                sliceStatuses
+                sliceStatuses,
+                eta
             );
         }
 
@@ -836,7 +871,8 @@ public class BulkByScrollTask extends CancellableTask {
                 && Objects.equals(throttled, other.throttled)
                 && requestsPerSecond == other.requestsPerSecond
                 && Objects.equals(reasonCancelled, other.reasonCancelled)
-                && Objects.equals(throttledUntil, other.throttledUntil);
+                && Objects.equals(throttledUntil, other.throttledUntil)
+                && Objects.equals(eta, other.eta);
         }
 
         @Override

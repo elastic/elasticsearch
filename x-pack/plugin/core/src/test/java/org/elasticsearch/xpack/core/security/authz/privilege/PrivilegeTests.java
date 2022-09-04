@@ -22,19 +22,31 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -226,6 +238,32 @@ public class PrivilegeTests extends ESTestCase {
             GetServiceAccountCredentialsAction.NAME,
             GetUsersAction.NAME,
             HasPrivilegesAction.NAME
+        );
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.READ_SECURITY,
+            GetServiceAccountNodesCredentialsAction.NAME,
+            GetServiceAccountCredentialsAction.NAME + "whatever"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.READ_SECURITY,
+            PutUserAction.NAME,
+            DeleteUserAction.NAME,
+            PutRoleAction.NAME,
+            DeleteRoleAction.NAME,
+            PutRoleMappingAction.NAME,
+            DeleteRoleMappingAction.NAME,
+            CreateServiceAccountTokenAction.NAME,
+            CreateApiKeyAction.NAME,
+            InvalidateApiKeyAction.NAME,
+            ClusterHealthAction.NAME,
+            ClusterStateAction.NAME,
+            ClusterStatsAction.NAME,
+            NodeEnrollmentAction.NAME,
+            KibanaEnrollmentAction.NAME,
+            PutIndexTemplateAction.NAME,
+            GetIndexTemplatesAction.NAME,
+            ClusterRerouteAction.NAME,
+            ClusterUpdateSettingsAction.NAME
         );
     }
 

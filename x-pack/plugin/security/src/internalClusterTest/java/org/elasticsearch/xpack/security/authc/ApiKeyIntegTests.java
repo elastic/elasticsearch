@@ -198,6 +198,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
             no_api_key_role:
               cluster: ["manage_token"]
+            read_security_role:
+              cluster: ["read_security"]
             manage_api_key_role:
               cluster: ["manage_api_key"]
             manage_own_api_key_role:
@@ -214,6 +216,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             + "user_with_no_api_key_role:"
             + usersPasswdHashed
             + "\n"
+            + "user_with_read_security_role:"
+            + usersPasswdHashed
+            + "\n"
             + "user_with_manage_api_key_role:"
             + usersPasswdHashed
             + "\n"
@@ -226,6 +231,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public String configUsersRoles() {
         return super.configUsersRoles() + """
             no_api_key_role:user_with_no_api_key_role
+            read_security_role:user_with_read_security_role
             manage_api_key_role:user_with_manage_api_key_role
             manage_own_api_key_role:user_with_manage_own_api_key_role
             """;
@@ -1092,7 +1098,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = userWithManageOwnTuple.v1();
 
         final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue("user_with_manage_api_key_role", TEST_PASSWORD_SECURE_STRING))
+            Collections.singletonMap(
+                "Authorization",
+                basicAuthHeaderValue(
+                    randomFrom("user_with_read_security_role", "user_with_manage_api_key_role"),
+                    TEST_PASSWORD_SECURE_STRING
+                )
+            )
         );
         final boolean withLimitedBy = randomBoolean();
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();

@@ -525,7 +525,7 @@ public class BulkByScrollTask extends CancellableTask {
                 mergedRequestsPerSecond += slice.status.getRequestsPerSecond();
                 mergedThrottledUntil = min(mergedThrottledUntil, slice.status.getThrottledUntil().nanos());
                 // `slices` only contains the status of completed slices, which means eta should be 0
-                // maybe we can return the max eta when unfinished slices can return also be returned
+                // maybe we can return the max eta when unfinished slices can also be returned
                 // mergedEta = max(mergedEta, slice.status.getEta().millis());
             }
 

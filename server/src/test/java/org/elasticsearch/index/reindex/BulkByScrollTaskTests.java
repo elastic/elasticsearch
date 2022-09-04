@@ -209,7 +209,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
             mergedRequestsPerSecond += requestsPerSecond;
             mergedThrottledUntil = timeValueNanos(min(mergedThrottledUntil.nanos(), throttledUntil.nanos()));
             // `slices` only contains the status of completed slices, which means eta should be 0
-            // maybe we can return the max eta when unfinished slices can return also be returned
+            // maybe we can return the max eta when unfinished slices can also be returned
             // mergedEta = timeValueMillis(max(mergedEta.millis(), eta.millis()));
         }
         String reasonCancelled = randomBoolean() ? randomAlphaOfLength(10) : null;

@@ -1,6 +1,6 @@
 pr: 89791
 summary: Add ETA for Reindex, update_by_query, delete_by_query
-area: Distributed/Reindex
+area: Reindex
 type: enhancement
 issues:
  - 76904

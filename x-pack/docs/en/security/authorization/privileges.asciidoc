@@ -32,7 +32,8 @@ ability to manage security.
 `manage_api_key`::
 All security-related operations on {es} API keys including
 <<security-api-create-api-key,creating new API keys>>,
-<<security-api-get-api-key,retrieving information about API keys>>, and
+<<security-api-get-api-key,retrieving information about API keys>>,
+<<security-api-query-api-key,querying API keys>>, and
 <<security-api-invalidate-api-key,invalidating API keys>>.
 +
 --
@@ -89,7 +90,8 @@ to initiate and manage OpenID Connect authentication on behalf of other users.
 All security-related operations on {es} API keys that are owned by the current
 authenticated user. The operations include
 <<security-api-create-api-key,creating new API keys>>,
-<<security-api-get-api-key,retrieving information about API keys>>, and
+<<security-api-get-api-key,retrieving information about API keys>>,
+<<security-api-query-api-key,querying API keys>>, and
 <<security-api-invalidate-api-key,invalidating API keys>>.
 
 `manage_pipeline`::
@@ -175,6 +177,16 @@ Read-only access to ingest pipline (get, simulate).
 `read_slm`::
 All read-only {slm-init} actions, such as getting policies and checking the
 {slm-init} status.
+
+`read_security`::
+All read-only security-related operations, such as getting users, user profiles,
+{es} API keys, {es} service accounts, roles and role mappings.
+Allows <<security-api-query-api-key,querying>> and <<security-api-get-api-key,retrieving information>>
+on all {es} API keys.
+It also allows checking the user and user profile privileges with the
+<<security-api-has-privileges,user has privileges API>> and the
+<<security-api-has-privileges-user-profile,user profile has privileges API>>
+respectively.
 
 `transport_client`::
 All privileges necessary for a transport client to connect. Required by the remote

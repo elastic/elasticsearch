@@ -199,7 +199,7 @@ public class ClusterPrivilegeResolver {
             GetRolesAction.NAME,
             GetRoleMappingsAction.NAME,
             GetServiceAccountAction.NAME,
-            GetServiceAccountCredentialsAction.NAME,
+            GetServiceAccountCredentialsAction.NAME + "*",
             GetUsersAction.NAME,
             HasPrivilegesAction.NAME
         )

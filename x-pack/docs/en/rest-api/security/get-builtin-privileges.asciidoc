@@ -19,7 +19,7 @@ available in this version of {es}.
 [[security-api-get-builtin-privileges-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have - the `read_security` cluster privilege
+* To use this API, you must have the `read_security` cluster privilege
 (or a greater privilege such as `manage_security` or `all`).
 
 [[security-api-get-builtin-privileges-desc]]

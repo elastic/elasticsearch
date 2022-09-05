@@ -15,29 +15,29 @@ import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ilm.RollupILMAction.CONDITIONAL_DATASTREAM_CHECK_KEY;
-import static org.elasticsearch.xpack.core.ilm.RollupILMAction.GENERATE_ROLLUP_STEP_NAME;
+import static org.elasticsearch.xpack.core.ilm.DownsampleAction.CONDITIONAL_DATASTREAM_CHECK_KEY;
+import static org.elasticsearch.xpack.core.ilm.DownsampleAction.GENERATE_DOWNSAMPLE_STEP_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction> {
+public class DownsampleActionTests extends AbstractActionTestCase<DownsampleAction> {
 
-    static RollupILMAction randomInstance() {
-        return new RollupILMAction(ConfigTestHelpers.randomInterval());
+    static DownsampleAction randomInstance() {
+        return new DownsampleAction(ConfigTestHelpers.randomInterval());
     }
 
     @Override
-    protected RollupILMAction doParseInstance(XContentParser parser) {
-        return RollupILMAction.parse(parser);
+    protected DownsampleAction doParseInstance(XContentParser parser) {
+        return DownsampleAction.parse(parser);
     }
 
     @Override
-    protected RollupILMAction createTestInstance() {
+    protected DownsampleAction createTestInstance() {
         return randomInstance();
     }
 
     @Override
-    protected Reader<RollupILMAction> instanceReader() {
-        return RollupILMAction::new;
+    protected Reader<DownsampleAction> instanceReader() {
+        return DownsampleAction::new;
     }
 
     @Override
@@ -47,7 +47,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
 
     @Override
     public void testToSteps() {
-        RollupILMAction action = new RollupILMAction(ConfigTestHelpers.randomInterval());
+        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval());
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -72,10 +72,10 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
 
         assertTrue(steps.get(3) instanceof ReadOnlyStep);
         assertThat(steps.get(3).getKey().getName(), equalTo(ReadOnlyStep.NAME));
-        assertThat(steps.get(3).getNextStepKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
+        assertThat(steps.get(3).getNextStepKey().getName(), equalTo(GENERATE_DOWNSAMPLE_STEP_NAME));
 
         assertTrue(steps.get(4) instanceof GenerateUniqueIndexNameStep);
-        assertThat(steps.get(4).getKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
+        assertThat(steps.get(4).getKey().getName(), equalTo(GENERATE_DOWNSAMPLE_STEP_NAME));
         assertThat(steps.get(4).getNextStepKey().getName(), equalTo(RollupStep.NAME));
 
         assertTrue(steps.get(5) instanceof RollupStep);
@@ -113,12 +113,12 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copy, this::notCopy);
     }
 
-    RollupILMAction copy(RollupILMAction rollupILMAction) {
-        return new RollupILMAction(rollupILMAction.fixedInterval());
+    DownsampleAction copy(DownsampleAction downsampleAction) {
+        return new DownsampleAction(downsampleAction.fixedInterval());
     }
 
-    RollupILMAction notCopy(RollupILMAction rollupILMAction) {
-        DateHistogramInterval fixedInterval = randomValueOtherThan(rollupILMAction.fixedInterval(), ConfigTestHelpers::randomInterval);
-        return new RollupILMAction(fixedInterval);
+    DownsampleAction notCopy(DownsampleAction downsampleAction) {
+        DateHistogramInterval fixedInterval = randomValueOtherThan(downsampleAction.fixedInterval(), ConfigTestHelpers::randomInterval);
+        return new DownsampleAction(fixedInterval);
     }
 }

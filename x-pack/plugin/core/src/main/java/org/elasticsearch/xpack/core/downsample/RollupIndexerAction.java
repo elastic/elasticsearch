@@ -229,7 +229,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             return request.getRollupRequest().getTargetIndex();
         }
 
-        public RollupActionConfig getRollupConfig() {
+        public DownsampleConfig getRollupConfig() {
             return request.getRollupRequest().getDownsampleConfig();
         }
 

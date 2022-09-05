@@ -71,7 +71,7 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
@@ -223,7 +223,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupIndex() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -293,7 +293,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         var updateSettingsReq = new UpdateSettingsRequest(settings, sourceIndex);
         assertAcked(client().admin().indices().updateSettings(updateSettingsReq).actionGet());
 
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             return XContentFactory.jsonBuilder()
@@ -315,7 +315,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testNullSourceIndexName() {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
             () -> rollup(null, rollupIndex, config)
@@ -324,7 +324,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testNullRollupIndexName() {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
             () -> rollup(sourceIndex, null, config)
@@ -341,7 +341,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupSparseMetrics() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             XContentBuilder builder = XContentFactory.jsonBuilder()
                 .startObject()
@@ -362,7 +362,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         prepareSourceIndex(sourceIndex);
 
         // Create an empty index with the same name as the rollup index
@@ -381,7 +381,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupEmptyIndex() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
@@ -414,28 +414,28 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             )
             .get();
 
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         prepareSourceIndex(sourceIndex);
         Exception exception = expectThrows(RollupActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
     }
 
     public void testCannotRollupWriteableIndex() {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         // Source index has been created in the setup() method and is empty and still writable
         Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("Rollup requires setting [index.blocks.write = true] for index"));
     }
 
     public void testCannotRollupMissingIndex() {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         IndexNotFoundException exception = expectThrows(IndexNotFoundException.class, () -> rollup("missing-index", rollupIndex, config));
         assertEquals("missing-index", exception.getIndex().getName());
         assertThat(exception.getMessage(), containsString("no such index [missing-index]"));
     }
 
     public void testCannotRollupWhileOtherRollupInProgress() throws Exception {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -473,7 +473,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88800")
     public void testRollupDatastream() throws Exception {
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         String dataStreamName = createDataStream();
 
         final Instant now = Instant.now();
@@ -560,7 +560,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
     }
 
-    private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
+    private void rollup(String sourceIndex, String rollupIndex, DownsampleConfig config) {
         assertAcked(
             client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config)).actionGet()
         );
@@ -577,7 +577,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertRollupIndex(String sourceIndex, String rollupIndex, RollupActionConfig config) throws IOException {
+    private void assertRollupIndex(String sourceIndex, String rollupIndex, DownsampleConfig config) throws IOException {
         // Retrieve field information for the metric fields
         final GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIndex).get();
         final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
@@ -642,7 +642,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private void assertRollupIndexAggregations(
         String sourceIndex,
         String rollupIndex,
-        RollupActionConfig config,
+        DownsampleConfig config,
         Map<String, TimeSeriesParams.MetricType> metricFields,
         Map<String, String> labelFields
     ) {
@@ -741,7 +741,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertFieldMappings(
-        RollupActionConfig config,
+        DownsampleConfig config,
         Map<String, TimeSeriesParams.MetricType> metricFields,
         Map<String, Map<String, Object>> mappings
     ) {
@@ -819,7 +819,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private AggregationBuilder buildAggregations(
-        final RollupActionConfig config,
+        final DownsampleConfig config,
         final Map<String, TimeSeriesParams.MetricType> metrics,
         final Map<String, String> labels,
         final String timestampField

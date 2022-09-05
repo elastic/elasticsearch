@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +30,7 @@ public class RestDownsampleAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String sourceIndex = restRequest.param("index");
         String targetIndex = restRequest.param("target_index");
-        RollupActionConfig config = RollupActionConfig.fromXContent(restRequest.contentParser());
+        DownsampleConfig config = DownsampleConfig.fromXContent(restRequest.contentParser());
         DownsampleAction.Request request = new DownsampleAction.Request(sourceIndex, targetIndex, config);
         return channel -> client.execute(DownsampleAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

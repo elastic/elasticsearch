@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 
 import java.util.Objects;
@@ -124,7 +124,7 @@ public class RollupStep extends AsyncActionStep {
     }
 
     private void performRollupIndex(String indexName, String rollupIndexName, ActionListener<Void> listener) {
-        RollupActionConfig config = new RollupActionConfig(fixedInterval);
+        DownsampleConfig config = new DownsampleConfig(fixedInterval);
         DownsampleAction.Request request = new DownsampleAction.Request(indexName, rollupIndexName, config).masterNodeTimeout(TimeValue.MAX_VALUE);
         // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.
         getClient().execute(

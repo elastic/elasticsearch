@@ -27,7 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.RollupILMAction.ROLLUP_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -162,7 +162,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         lifecycleState.setStep(step.getKey().getName());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(ROLLUP_INDEX_PREFIX, sourceIndexName);
+        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setRollupIndexName(rollupIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
@@ -210,7 +210,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         lifecycleState.setStep(step.getKey().getName());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(ROLLUP_INDEX_PREFIX, sourceIndexName);
+        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setRollupIndexName(rollupIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)

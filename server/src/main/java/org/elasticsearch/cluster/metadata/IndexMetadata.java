@@ -132,9 +132,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public boolean isRollupIndex() {
         final String sourceIndex = settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY);
         final String indexRollupStatus = settings.get(IndexMetadata.INDEX_ROLLUP_STATUS_KEY);
-        final boolean rollupSuccess = IndexMetadata.RollupTaskStatus.SUCCESS.name()
+        final boolean rollupSuccess = RollupTaskStatus.SUCCESS.name()
             .toLowerCase(Locale.ROOT)
-            .equals(indexRollupStatus != null ? indexRollupStatus.toLowerCase(Locale.ROOT) : IndexMetadata.RollupTaskStatus.UNKNOWN);
+            .equals(indexRollupStatus != null ? indexRollupStatus.toLowerCase(Locale.ROOT) : RollupTaskStatus.UNKNOWN);
         return Strings.isNullOrEmpty(sourceIndex) == false && rollupSuccess;
     }
 

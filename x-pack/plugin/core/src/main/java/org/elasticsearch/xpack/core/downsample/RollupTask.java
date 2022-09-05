@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 
@@ -20,7 +19,7 @@ import java.util.Map;
  */
 public class RollupTask extends CancellableTask {
     private String rollupIndex;
-    private RollupActionConfig config;
+    private DownsampleConfig config;
     private RollupJobStatus status;
 
     RollupTask(
@@ -29,7 +28,7 @@ public class RollupTask extends CancellableTask {
         String action,
         TaskId parentTask,
         String rollupIndex,
-        RollupActionConfig config,
+        DownsampleConfig config,
         Map<String, String> headers
     ) {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex, parentTask, headers);
@@ -41,7 +40,7 @@ public class RollupTask extends CancellableTask {
         return rollupIndex;
     }
 
-    public RollupActionConfig config() {
+    public DownsampleConfig config() {
         return config;
     }
 

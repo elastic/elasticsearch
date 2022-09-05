@@ -38,9 +38,9 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest, ToXContentObject {
         private String sourceIndex;
         private String targetIndex;
-        private RollupActionConfig downsampleConfig;
+        private DownsampleConfig downsampleConfig;
 
-        public Request(String sourceIndex, String targetIndex, RollupActionConfig downsampleConfig) {
+        public Request(String sourceIndex, String targetIndex, DownsampleConfig downsampleConfig) {
             this.sourceIndex = sourceIndex;
             this.targetIndex = targetIndex;
             this.downsampleConfig = downsampleConfig;
@@ -52,7 +52,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super(in);
             sourceIndex = in.readString();
             targetIndex = in.readString();
-            downsampleConfig = new RollupActionConfig(in);
+            downsampleConfig = new DownsampleConfig(in);
         }
 
         @Override
@@ -86,7 +86,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             return targetIndex;
         }
 
-        public RollupActionConfig getDownsampleConfig() {
+        public DownsampleConfig getDownsampleConfig() {
             return downsampleConfig;
         }
 

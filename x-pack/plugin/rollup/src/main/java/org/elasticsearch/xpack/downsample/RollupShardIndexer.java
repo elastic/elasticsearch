@@ -43,7 +43,7 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
-import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
 
 import java.io.Closeable;
@@ -76,7 +76,7 @@ class RollupShardIndexer {
 
     private final IndexShard indexShard;
     private final Client client;
-    private final RollupActionConfig config;
+    private final DownsampleConfig config;
     private final String rollupIndex;
 
     private final Engine.Searcher searcher;
@@ -100,7 +100,7 @@ class RollupShardIndexer {
         IndexService indexService,
         ShardId shardId,
         String rollupIndex,
-        RollupActionConfig config,
+        DownsampleConfig config,
         String[] dimensionFields,
         String[] metricFields,
         String[] labelFields

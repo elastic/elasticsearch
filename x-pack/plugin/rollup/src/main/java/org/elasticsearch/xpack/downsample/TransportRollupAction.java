@@ -61,7 +61,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 
@@ -396,7 +396,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      */
     public static String createRollupIndexMapping(
         final TimeseriesFieldTypeHelper helper,
-        final RollupActionConfig config,
+        final DownsampleConfig config,
         final MapperService mapperService,
         final Map<String, Object> sourceIndexMappings
     ) throws IOException {
@@ -437,7 +437,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         });
     }
 
-    private static void addTimestampField(final RollupActionConfig config, final XContentBuilder builder) throws IOException {
+    private static void addTimestampField(final DownsampleConfig config, final XContentBuilder builder) throws IOException {
         final String timestampField = config.getTimestampField();
         final String dateIntervalType = config.getIntervalType();
         final String dateInterval = config.getInterval().toString();
@@ -447,7 +447,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .field("type", DateFieldMapper.CONTENT_TYPE)
             .startObject("meta")
             .field(dateIntervalType, dateInterval)
-            .field(RollupActionConfig.TIME_ZONE, timezone)
+            .field(DownsampleConfig.TIME_ZONE, timezone)
             .endObject()
             .endObject();
     }

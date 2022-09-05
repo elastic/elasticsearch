@@ -20,8 +20,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
-import org.elasticsearch.xpack.core.downsample.DownsampleAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,19 +29,19 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * A {@link LifecycleAction} which calls {@link DownsampleAction} on an index
+ * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.downsample.DownsampleAction} on an index
  */
-public class RollupILMAction implements LifecycleAction {
+public class DownsampleAction implements LifecycleAction {
 
-    public static final String NAME = "rollup";
-    public static final String ROLLUP_INDEX_PREFIX = "rollup-";
+    public static final String NAME = "downsample";
+    public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
-    public static final String GENERATE_ROLLUP_STEP_NAME = "generate-rollup-name";
-    private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(RollupActionConfig.FIXED_INTERVAL);
+    public static final String GENERATE_DOWNSAMPLE_STEP_NAME = "generate-downsampled-index-name";
+    private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
 
-    private static final ConstructingObjectParser<RollupILMAction, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<DownsampleAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new RollupILMAction((DateHistogramInterval) a[0])
+        a -> new DownsampleAction((DateHistogramInterval) a[0])
     );
 
     static {
@@ -56,18 +55,18 @@ public class RollupILMAction implements LifecycleAction {
 
     private final DateHistogramInterval fixedInterval;
 
-    public static RollupILMAction parse(XContentParser parser) {
+    public static DownsampleAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RollupILMAction(DateHistogramInterval fixedInterval) {
+    public DownsampleAction(DateHistogramInterval fixedInterval) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");
         }
         this.fixedInterval = fixedInterval;
     }
 
-    public RollupILMAction(StreamInput in) throws IOException {
+    public DownsampleAction(StreamInput in) throws IOException {
         this(new DateHistogramInterval(in));
     }
 
@@ -104,7 +103,7 @@ public class RollupILMAction implements LifecycleAction {
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
         StepKey cleanupRollupIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
-        StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_ROLLUP_STEP_NAME);
+        StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_DOWNSAMPLE_STEP_NAME);
         StepKey rollupKey = new StepKey(phase, NAME, RollupStep.NAME);
         StepKey waitForRollupIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
@@ -136,7 +135,7 @@ public class RollupILMAction implements LifecycleAction {
         GenerateUniqueIndexNameStep generateRollupIndexNameStep = new GenerateUniqueIndexNameStep(
             generateRollupIndexNameKey,
             rollupKey,
-            ROLLUP_INDEX_PREFIX,
+            DOWNSAMPLED_INDEX_PREFIX,
             (rollupIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setRollupIndexName(rollupIndexName)
         );
 
@@ -215,7 +214,7 @@ public class RollupILMAction implements LifecycleAction {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        RollupILMAction that = (RollupILMAction) o;
+        DownsampleAction that = (DownsampleAction) o;
         return Objects.equals(this.fixedInterval, that.fixedInterval);
     }
 

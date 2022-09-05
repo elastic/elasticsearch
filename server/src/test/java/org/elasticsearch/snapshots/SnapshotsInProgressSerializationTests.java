@@ -53,7 +53,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         int numberOfSnapshots = randomInt(10);
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY;
         for (int i = 0; i < numberOfSnapshots; i++) {
-            snapshotsInProgress.withAddedEntry(randomSnapshot());
+            snapshotsInProgress = snapshotsInProgress.withAddedEntry(randomSnapshot());
         }
         return snapshotsInProgress;
     }
@@ -147,7 +147,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 for (int i = 0; i < entries.size(); i++) {
                     if (randomBoolean()) {
                         final Entry entry = entries.get(i);
-                        entries.set(i, mutateEntry(entry));
+                        entries.set(i, mutateEntryWithLegalChange(entry));
                     }
                 }
                 updatedInstance = updatedInstance.withUpdatedEntriesForRepo(perRepoEntries.get(0).repository(), entries);
@@ -187,6 +187,116 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     }
 
     private Entry mutateEntry(Entry entry) {
+        switch (randomInt(5)) {
+            case 0 -> {
+                boolean includeGlobalState = entry.includeGlobalState() == false;
+                return new Entry(
+                    entry.snapshot(),
+                    includeGlobalState,
+                    entry.partial(),
+                    entry.state(),
+                    entry.indices(),
+                    entry.dataStreams(),
+                    entry.featureStates(),
+                    entry.repositoryStateId(),
+                    entry.startTime(),
+                    entry.shards(),
+                    entry.failure(),
+                    entry.userMetadata(),
+                    entry.version()
+                );
+            }
+            case 1 -> {
+                boolean partial = entry.partial() == false;
+                return new Entry(
+                    entry.snapshot(),
+                    entry.includeGlobalState(),
+                    partial,
+                    entry.state(),
+                    entry.indices(),
+                    entry.dataStreams(),
+                    entry.featureStates(),
+                    entry.startTime(),
+                    entry.repositoryStateId(),
+                    entry.shards(),
+                    entry.failure(),
+                    entry.userMetadata(),
+                    entry.version()
+                );
+            }
+            case 2 -> {
+                long startTime = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
+                return new Entry(
+                    entry.snapshot(),
+                    entry.includeGlobalState(),
+                    entry.partial(),
+                    entry.state(),
+                    entry.indices(),
+                    entry.dataStreams(),
+                    entry.featureStates(),
+                    startTime,
+                    entry.repositoryStateId(),
+                    entry.shards(),
+                    entry.failure(),
+                    entry.userMetadata(),
+                    entry.version()
+                );
+            }
+            case 3 -> {
+                Map<String, Object> userMetadata = entry.userMetadata() != null ? new HashMap<>(entry.userMetadata()) : new HashMap<>();
+                String key = randomAlphaOfLengthBetween(2, 10);
+                if (userMetadata.containsKey(key)) {
+                    userMetadata.remove(key);
+                } else {
+                    userMetadata.put(key, randomAlphaOfLengthBetween(2, 10));
+                }
+                return new Entry(
+                    entry.snapshot(),
+                    entry.includeGlobalState(),
+                    entry.partial(),
+                    entry.state(),
+                    entry.indices(),
+                    entry.dataStreams(),
+                    entry.featureStates(),
+                    entry.startTime(),
+                    entry.repositoryStateId(),
+                    entry.shards(),
+                    entry.failure(),
+                    userMetadata,
+                    entry.version()
+                );
+            }
+            case 4 -> {
+                List<SnapshotFeatureInfo> featureStates = randomList(
+                    1,
+                    5,
+                    () -> randomValueOtherThanMany(entry.featureStates()::contains, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo)
+                );
+                return new Entry(
+                    entry.snapshot(),
+                    entry.includeGlobalState(),
+                    entry.partial(),
+                    entry.state(),
+                    entry.indices(),
+                    entry.dataStreams(),
+                    featureStates,
+                    entry.startTime(),
+                    entry.repositoryStateId(),
+                    entry.shards(),
+                    entry.failure(),
+                    entry.userMetadata(),
+                    entry.version()
+                );
+            }
+            case 5 -> {
+                return mutateEntryWithLegalChange(entry);
+            }
+            default -> throw new IllegalArgumentException("invalid randomization case");
+        }
+    }
+
+    // mutates an entry with a change that could occur as part of a cluster state update and is thus diffable
+    private Entry mutateEntryWithLegalChange(Entry entry) {
         switch (randomInt(3)) {
             case 0 -> {
                 List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10))).toList();

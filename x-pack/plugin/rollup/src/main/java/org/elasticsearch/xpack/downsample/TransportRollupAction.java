@@ -60,10 +60,10 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
+import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -574,7 +574,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }, ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()), STATE_UPDATE_TASK_EXECUTOR);
     }
 
-    private void updateRollupMetadata(String rollupIndexName, DownsampleAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    private void updateRollupMetadata(
+        String rollupIndexName,
+        DownsampleAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         // 6. Mark rollup index as "completed successfully" ("index.rollup.status": "success")
         clusterService.submitStateUpdateTask(
             "update-rollup-metadata [" + rollupIndexName + "]",

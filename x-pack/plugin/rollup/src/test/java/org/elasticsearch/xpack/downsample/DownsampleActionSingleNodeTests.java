@@ -561,7 +561,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
-        assertAcked(client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config)).actionGet());
+        assertAcked(
+            client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config)).actionGet()
+        );
     }
 
     private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {

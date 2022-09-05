@@ -30,15 +30,17 @@ template:
         ignore_malformed: false
 
       # The data stream properties are required in any index following the data stream naming scheme
-      # Discuss: If there is an ecs: enabled flag it can also be used in indices so this would have to be skipped
-      # These fields might not even be needed in this template
-      data_stream.type:
-        type: constant_keyword
-        #value: logs
-      data_stream.dataset:
-        type: constant_keyword
-      data_stream.namespace:
-        type: constant_keyword
+      # But not all data streams or indices which use ECS are part of the data stream naming scheme.
+      # As an example logstash-* and *beats-*. Because of this, the data_stream.* fields are not part
+      # of this template. It is expected that these are set by another template for the data stream
+      # naming scheme.
+      #data_stream.type:
+      #  type: constant_keyword
+      #  #value: logs
+      #data_stream.dataset:
+      #  type: constant_keyword
+      #data_stream.namespace:
+      #  type: constant_keyword
 
 
     # To ensure no empty mappings are in an index, everything except the properties above are mapped as dynamic templates

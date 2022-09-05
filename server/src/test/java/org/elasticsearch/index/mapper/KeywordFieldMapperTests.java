@@ -44,8 +44,10 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -623,11 +625,21 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new KeywordSyntheticSourceSupport();
+        return new KeywordSyntheticSourceSupport(randomBoolean(), usually() ? null : randomAlphaOfLength(2), true);
     }
 
     static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+        private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
+        private final boolean allIgnored = ignoreAbove != null && rarely();
+        private final boolean store;
+        private final String nullValue;
+        private final boolean exampleSortsUsingIgnoreAbove;
+
+        KeywordSyntheticSourceSupport(boolean store, String nullValue, boolean exampleSortsUsingIgnoreAbove) {
+            this.store = store;
+            this.nullValue = nullValue;
+            this.exampleSortsUsingIgnoreAbove = exampleSortsUsingIgnoreAbove;
+        }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
@@ -637,7 +649,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
-            List<String> outList = values.stream().map(Tuple::v2).collect(Collectors.toSet()).stream().sorted().toList();
+            List<String> outPrimary = new ArrayList<>();
+            List<String> outExtraValues = new ArrayList<>();
+            values.stream().map(Tuple::v2).forEach(v -> {
+                if (exampleSortsUsingIgnoreAbove && ignoreAbove != null && v.length() > ignoreAbove) {
+                    outExtraValues.add(v);
+                } else {
+                    outPrimary.add(v);
+                }
+            });
+            List<String> outList = store ? outPrimary : new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
+            outList.addAll(outExtraValues);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -646,7 +668,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             if (nullValue != null && randomBoolean()) {
                 return Tuple.tuple(null, nullValue);
             }
-            String v = randomAlphaOfLength(5);
+            int length = 5;
+            if (ignoreAbove != null && (allIgnored || randomBoolean())) {
+                length = ignoreAbove + 5;
+            }
+            String v = randomAlphaOfLength(length);
             return Tuple.tuple(v, v);
         }
 
@@ -655,18 +681,26 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             if (nullValue != null) {
                 b.field("null_value", nullValue);
             }
+            if (ignoreAbove != null) {
+                b.field("ignore_above", ignoreAbove);
+            }
+            if (store) {
+                b.field("store", true);
+                if (randomBoolean()) {
+                    b.field("doc_values", false);
+                }
+            }
         }
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of(
                 new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it doesn't have doc values"),
+                    equalTo(
+                        "field [field] of type [keyword] doesn't support synthetic source because "
+                            + "it doesn't have doc values and isn't stored"
+                    ),
                     b -> b.field("type", "keyword").field("doc_values", false)
-                ),
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares ignore_above"),
-                    b -> b.field("type", "keyword").field("ignore_above", 10)
                 ),
                 new SyntheticSourceInvalidExample(
                     equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),

@@ -49,7 +49,7 @@ if (buildNumber && performanceTest == null) {
 
         fileset(dir: "${gradle.gradleUserHomeDir}/workers", followsymlinks: false)
 
-        fileset(dir: "${project.projectDir}/.gradle/reaper", followsymlinks: false)
+        fileset(dir: "${project.projectDir}/.gradle/reaper", followsymlinks: false, erroronmissingdir: false)
       }
     } catch (Exception e) {
       logger.lifecycle("Failed to archive additional logs", e)

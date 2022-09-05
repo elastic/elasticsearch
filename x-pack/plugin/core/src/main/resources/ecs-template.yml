@@ -1,5 +1,8 @@
 ---
+# This template should serve as a foundation for indices and data streams using ECS.
+
 template:
+
   settings:
     # This is a made up setting which does not exist today. The idea is that
     # any field that shows up after the first 1000 fields is kept in source
@@ -65,36 +68,53 @@ template:
           match_mapping_type: string
           runtime:
             type: keyword
-            # Do we need this for runtime?
-            ignore_above: 1024
+            # As it is a runtime field, ignore_above is not needed
+            #ignore_above: 1024
 
-      # Matching all long fields
+      # Matching all ECS core long fields
       # This matches the following fields: bytes, packets, port, duration, severity, pid
-      # No path matching is needed as it is assumed these fields are already in the json doc a long
-      # Elasticsearch would do this mapping automatically but it is specified here for documentation purpose
-      # DISCUSS: If a field "7" as string comes in, will it still be mapped correctly?
-      - long_as_long:
-          match_mapping_type: long
+      # Path matching on these fields is needed as otherwise if the first value of the field would be for example
+      # "7" as a string in JSON, it would have the wrong default mapping. As it is a runtime field, the mapping could
+      # still be adjusted but not something we should have the user do by default.
+      # TODO: if path_match would be an array, this could be defined much nicer and more compact
+      - bytes:
+          path_match: bytes
+          runtime:
+            type: long
+      - packets:
+          path_match: packets
+          runtime:
+            type: long
+      - port:
+          path_match: port
+          runtime:
+            type: long
+      - duration:
+          path_match: duration
+          runtime:
+            type: long
+      - severity:
+          path_match: severity
+          runtime:
+            type: long
+      - pid:
+          path_match: pid
           runtime:
             type: long
 
-      # Matching all long and double fields
+      # Matching all float and double fields
       # This matches the following fields: event.risk_score
-      # No path matching is needed as it is assumed these fields are already in the json doc a float or double
-      # Elasticsearch would do this mapping automatically but it is specified here for documentation purpose
-      # DISCUSS: If a field "7.7" as string comes in, will it still be mapped correctly?
-      - double_as_double:
-          match_mapping_type: double
+      # Why path_match is used, see discussion for long. For runtime fields, it does not matter if it is a float or a double
+      - risk_score:
+          match_path: risk_score
           runtime:
             type: double
 
       # Matching all boolean fields
       # This matches the following fields: exists
-      # No path matching is needed as it is assumed these fields are already in the json doc as boolean
-      # Elasticsearch would do this mapping automatically but it is specified here for documentation purpose
-      # DISCUSS: If a field "true" as string comes in, will it still be mapped correctly?
-      - strings_as_boolean:
-          match_mapping_type: boolean
+      # Why path_match is used, see discussion for long.
+      - exists:
+          match_path: exists
           runtime:
             type: boolean
 
@@ -115,16 +135,13 @@ template:
             type: match_only_text
 
       # Match all ip fields to ip
-      - match_ip:
-          match_mapping_type: string
-          # DISCUSS: If match could be an array, these mappings could be written much more compact
+      # This matches the following fields: ip, network.forwarded_ip
+      - ip:
           match: ip
           runtime:
             type: ip
 
-      # Match all forwarded_ip fields to ip. This is for network.forwarded_ip
-      - match_ip:
-          match_mapping_type: string
+      - forwarded_ip:
           match: forwarded_ip
           runtime:
             type: ip
@@ -139,15 +156,15 @@ template:
             type: flattened
 
       # Match location fields to geopoint
-      - match_location:
+      - location:
           # TODO: What is the correct matching type here?
           match_mapping_type: object
           match: location
           runtime:
             type: geo_point
 
-      # Match location fields to geopoint
-      - match_location:
+      # Match name fields to text_keyword
+      - match_name:
           # TODO: What is the correct matching type here?
           match_mapping_type: string
           match: name

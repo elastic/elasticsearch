@@ -47,7 +47,6 @@ import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.AWS_WEB_IDENTITY_ENV_VAR;
 import static java.util.Collections.emptyMap;
-import static java.util.Objects.requireNonNull;
 
 class S3Service implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
@@ -364,7 +363,7 @@ class S3Service implements Closeable {
 
         @Override
         public AWSCredentials getCredentials() {
-            requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
             return credentialsProvider.getCredentials();
         }
 
@@ -388,8 +387,8 @@ class S3Service implements Closeable {
         private final Logger logger;
 
         ErrorLoggingCredentialsProvider(AWSCredentialsProvider delegate, Logger logger) {
-            this.delegate = requireNonNull(delegate);
-            this.logger = requireNonNull(logger);
+            this.delegate = Objects.requireNonNull(delegate);
+            this.logger = Objects.requireNonNull(logger);
         }
 
         @Override

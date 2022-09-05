@@ -70,28 +70,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertEquals("sts_secret_key", credentials.getAWSSecretKey());
     }
 
-    public void testLoggingCredentialsProviderCatchesErrors() {
-        var mockProvider = Mockito.mock(AWSCredentialsProvider.class);
-        String mockProviderErrorMessage = "mockProvider failed to generate credentials";
-        Mockito.when(mockProvider.getCredentials()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
-        var mockLogger = Mockito.mock(Logger.class);
-
-        var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
-        try {
-            credentialsProvider.getCredentials();
-            fail("Shouldn't successfully get credentials");
-        } catch (IllegalStateException e) {
-            assertEquals(mockProviderErrorMessage, e.getMessage());
-        }
-
-        var messageCaptor = ArgumentCaptor.forClass(String.class);
-        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
-        Mockito.verify(mockLogger).error(messageCaptor.capture(), throwableCaptor.capture());
-
-        assertThat(messageCaptor.getValue(), startsWith("Unable to load credentials from"));
-        assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
-    }
-
     public void testAWSCredentialsFromKeystore() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final String clientNamePrefix = "some_client_name_";
@@ -253,6 +231,50 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         final String configName = S3Repository.CLIENT_NAME.get(repositorySettings);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
         assertThat(clientSettings.endpoint, is(expectedEndpoint));
+    }
+
+    public void testLoggingCredentialsProviderCatchesErrors() {
+        var mockProvider = Mockito.mock(AWSCredentialsProvider.class);
+        String mockProviderErrorMessage = "mockProvider failed to generate credentials";
+        Mockito.when(mockProvider.getCredentials()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
+        var mockLogger = Mockito.mock(Logger.class);
+
+        var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
+        try {
+            credentialsProvider.getCredentials();
+            fail("Shouldn't successfully get credentials");
+        } catch (IllegalStateException e) {
+            assertEquals(mockProviderErrorMessage, e.getMessage());
+        }
+
+        var messageCaptor = ArgumentCaptor.forClass(String.class);
+        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
+        Mockito.verify(mockLogger).error(messageCaptor.capture(), throwableCaptor.capture());
+
+        assertThat(messageCaptor.getValue(), startsWith("Unable to load credentials from"));
+        assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
+    }
+
+    public void testLoggingCredentialsProviderCatchesErrorsOnRefresh() {
+        var mockProvider = Mockito.mock(AWSCredentialsProvider.class);
+        String mockProviderErrorMessage = "mockProvider failed to refresh";
+        Mockito.doThrow(new IllegalStateException(mockProviderErrorMessage)).when(mockProvider).refresh();
+        var mockLogger = Mockito.mock(Logger.class);
+
+        var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
+        try {
+            credentialsProvider.refresh();
+            fail("Shouldn't successfully refresh");
+        } catch (IllegalStateException e) {
+            assertEquals(mockProviderErrorMessage, e.getMessage());
+        }
+
+        var messageCaptor = ArgumentCaptor.forClass(String.class);
+        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
+        Mockito.verify(mockLogger).error(messageCaptor.capture(), throwableCaptor.capture());
+
+        assertThat(messageCaptor.getValue(), startsWith("Unable to refresh"));
+        assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
     }
 
 }

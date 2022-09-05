@@ -60,7 +60,6 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
 
     @Override
     protected GeoPoint centroidFromStream(StreamInput in) throws IOException {
-        // TODO: Consider removing if we no longer need to support older versions than 7.17
         if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             return new GeoPoint(in.readDouble(), in.readDouble());
         } else {

@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractShapeIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
@@ -185,7 +185,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new AbstractShapeIndexFieldData.GeoBuilder(name(), GeoShapeValuesSourceType.instance(), GeoShapeDocValuesField::new);
+            return (cache, breakerService) -> new LatLonShapeIndexFieldData(
+                name(),
+                GeoShapeValuesSourceType.instance(),
+                GeoShapeDocValuesField::new
+            );
         }
 
         @Override

@@ -7,17 +7,28 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
+/**
+ * This class needs to be extended with a type specific implementation.
+ * In particular the `load(context)` method needs to return an instance of `LeadShapeFieldData` that is specific to the type of
+ * `ValueSourceType` that this is constructed with. For example, the `LatLonShapeIndexFieldData.load(context)` method will
+ * create an instance of `LatLonShapeDVAtomicShapeFieldData`.
+ */
 public abstract class AbstractShapeIndexFieldData implements IndexShapeFieldData {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
@@ -44,30 +55,51 @@ public abstract class AbstractShapeIndexFieldData implements IndexShapeFieldData
     }
 
     @Override
+    public LeafShapeFieldData loadDirect(LeafReaderContext context) {
+        return load(context);
+    }
+
+    @Override
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
+        throw sortException();
+    }
+
+    @Override
     public SortField sortField(
         @Nullable Object missingValue,
         MultiValueMode sortMode,
         XFieldComparatorSource.Nested nested,
         boolean reverse
     ) {
-        throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
+        throw sortException();
     }
 
-    public static class GeoBuilder implements IndexFieldData.Builder {
-        private final String name;
-        private final ValuesSourceType valuesSourceType;
-        private final ToScriptFieldFactory<ShapeValues> toScriptFieldFactory;
+    protected abstract IllegalArgumentException sortException();
 
-        public GeoBuilder(String name, ValuesSourceType valuesSourceType, ToScriptFieldFactory<ShapeValues> toScriptFieldFactory) {
-            this.name = name;
-            this.valuesSourceType = valuesSourceType;
-            this.toScriptFieldFactory = toScriptFieldFactory;
-        }
-
-        @Override
-        public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            // ignore breaker
-            return new LatLonShapeIndexFieldData(name, valuesSourceType, toScriptFieldFactory);
+    /** helper: checks a fieldinfo and throws exception if it's definitely not a LatLonDocValuesField */
+    protected static void checkCompatible(FieldInfo fieldInfo, String fieldTypeName) {
+        // dv properties could be "unset", if you e.g. used only StoredField with this same name in the segment.
+        if (fieldInfo.getDocValuesType() != DocValuesType.NONE && fieldInfo.getDocValuesType() != DocValuesType.BINARY) {
+            throw new IllegalArgumentException(
+                "field=\""
+                    + fieldInfo.name
+                    + "\" was indexed with docValuesType="
+                    + fieldInfo.getDocValuesType()
+                    + " but this type has docValuesType="
+                    + DocValuesType.BINARY
+                    + ", is the field really a "
+                    + fieldTypeName
+                    + " field?"
+            );
         }
     }
 }

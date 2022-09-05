@@ -183,23 +183,19 @@ template:
           runtime:
             type: wildcard
 
-      # Match created fields to date
-      # This matches the following fields: event.created
+      # Match date fields to date
+      # This matches the following fields: event.created, event.ingested
       - match_created:
-          match_mapping_type: string
           match: created
           runtime:
             type: date
 
-      # Match strings fields to wildcard
-      # This matches the following fields: event.ingested
       - match_ingested:
-          match_mapping_type: string
           match: ingested
           runtime:
             type: date
 
-# Keyword fields to discuss if should be indexed or not. Proposed rule for discussion. Quorum needs to be reached
+      # Keyword fields to discuss if should be indexed or not. Proposed rule for discussion. Quorum needs to be reached
       # for a field to be indexed. Reason is going from runtime to index is easy, otherway around could be a breaking
       # It should also be discussed if logs-*, metrics-* and traces-* have exact same default.
       # change.

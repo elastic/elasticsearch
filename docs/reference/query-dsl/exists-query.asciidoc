@@ -67,3 +67,29 @@ GET /_search
   }
 }
 ----
+
+The following search returns documents that are missing an indexed value for
+a <<nested, nested>> type `user`.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+        "bool": {
+            "must_not": [
+                {
+                    "nested": {
+                        "path": "user",
+                        "query": {
+                            "exists": {
+                                "field": "user"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}
+----

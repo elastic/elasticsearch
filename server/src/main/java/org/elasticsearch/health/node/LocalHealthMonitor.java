@@ -282,12 +282,13 @@ public class LocalHealthMonitor implements ClusterStateListener {
          */
         @Override
         public boolean cancel() {
-            final boolean alreadyCancelled = cancelled;
-            cancelled = true;
-            if (alreadyCancelled == false) {
-                scheduledRun.cancel();
+            if (cancelled) {
+                // already cancelled
+                return false;
             }
-            return alreadyCancelled == false;
+            cancelled = true;
+            scheduledRun.cancel();
+            return true;
         }
 
         @Override

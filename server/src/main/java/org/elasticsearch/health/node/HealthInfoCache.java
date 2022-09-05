@@ -54,7 +54,7 @@ public class HealthInfoCache implements ClusterStateListener {
             // the node is not the health node anymore has small impact since it will
             // be reset in the next round again.
         } else if (diskInfoByNode.isEmpty() == false) {
-            logger.debug("Node {{{}}{{}}} is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
+            logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
             diskInfoByNode = new ConcurrentHashMap<>();
         }
     }

@@ -192,7 +192,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 logger.debug(
                     "Resetting the health monitoring because {} changed, current health node is {}.",
                     reason,
-                    currentHealthNode == null ? null : format("{{%s}{%s}}", currentHealthNode.getName(), currentHealthNode.getId())
+                    currentHealthNode == null ? null : format("[%s][%s]", currentHealthNode.getName(), currentHealthNode.getId())
                 );
             }
         }

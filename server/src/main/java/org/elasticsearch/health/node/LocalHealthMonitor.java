@@ -148,7 +148,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private void startMonitoringIfNecessary() {
         if (prerequisitesFulfilled && enabled) {
             if (isMonitorRunning() == false) {
-                monitoring = new Monitoring(
+                monitoring = Monitoring.start(
                     monitorInterval,
                     threadPool,
                     lastReportedDiskHealthInfo,
@@ -250,7 +250,30 @@ public class LocalHealthMonitor implements ClusterStateListener {
         private volatile boolean cancelled = false;
         private volatile Scheduler.ScheduledCancellable scheduledRun;
 
-        Monitoring(
+        private Monitoring(
+            TimeValue interval,
+            Scheduler scheduler,
+            String executor,
+            AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo,
+            AtomicReference<String> lastSeenHealthNode,
+            DiskCheck diskCheck,
+            ClusterService clusterService,
+            Client client
+        ) {
+            this.interval = interval;
+            this.executor = executor;
+            this.scheduler = scheduler;
+            this.lastReportedDiskHealthInfo = lastReportedDiskHealthInfo;
+            this.lastSeenHealthNode = lastSeenHealthNode;
+            this.clusterService = clusterService;
+            this.diskCheck = diskCheck;
+            this.client = client;
+        }
+
+        /**
+         * Creates a monitoring instance and starts the schedules the first run.
+         */
+        static Monitoring start(
             TimeValue interval,
             Scheduler scheduler,
             AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo,
@@ -259,15 +282,18 @@ public class LocalHealthMonitor implements ClusterStateListener {
             ClusterService clusterService,
             Client client
         ) {
-            this.interval = interval;
-            this.executor = ThreadPool.Names.MANAGEMENT;
-            this.scheduler = scheduler;
-            this.lastReportedDiskHealthInfo = lastReportedDiskHealthInfo;
-            this.lastSeenHealthNode = lastSeenHealthNode;
-            this.clusterService = clusterService;
-            this.diskCheck = diskCheck;
-            this.client = client;
-            scheduledRun = scheduler.schedule(this, TimeValue.ZERO, executor);
+            Monitoring monitoring = new Monitoring(
+                interval,
+                scheduler,
+                ThreadPool.Names.MANAGEMENT,
+                lastReportedDiskHealthInfo,
+                lastSeenHealthNode,
+                diskCheck,
+                clusterService,
+                client
+            );
+            monitoring.scheduledRun = scheduler.schedule(monitoring, TimeValue.ZERO, monitoring.executor);
+            return monitoring;
         }
 
         /**

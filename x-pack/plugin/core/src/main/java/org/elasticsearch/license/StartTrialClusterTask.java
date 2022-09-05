@@ -56,11 +56,6 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         this.clock = clock;
     }
 
-    @Override
-    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        assert false : "never called";
-    }
-
     private LicensesMetadata execute(
         LicensesMetadata currentLicensesMetadata,
         DiscoveryNodes discoveryNodes,

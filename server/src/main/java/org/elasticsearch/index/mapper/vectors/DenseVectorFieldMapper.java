@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
@@ -522,7 +522,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene92HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            return new Lucene94HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
     }
 }

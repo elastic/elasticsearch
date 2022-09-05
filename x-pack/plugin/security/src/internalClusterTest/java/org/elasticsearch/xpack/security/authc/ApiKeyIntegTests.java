@@ -301,6 +301,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 .setExpiration(null)
                 .setRoleDescriptors(Collections.singletonList(descriptor))
                 .setMetadata(ApiKeyTests.randomMetadata())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
                 .get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
@@ -2921,7 +2922,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             metadatas.add(metadata);
             final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(
                 namePrefix + randomAlphaOfLengthBetween(5, 9) + i
-            ).setExpiration(expiration).setRoleDescriptors(Collections.singletonList(descriptor)).setMetadata(metadata).get();
+            )
+                .setExpiration(expiration)
+                .setRoleDescriptors(Collections.singletonList(descriptor))
+                .setMetadata(metadata)
+                .setRefreshPolicy(i == noOfApiKeys - 1 ? WriteRequest.RefreshPolicy.IMMEDIATE : WriteRequest.RefreshPolicy.NONE)
+                .get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
             responses.add(response);

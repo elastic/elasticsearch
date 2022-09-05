@@ -33,11 +33,6 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
         }
 
         @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
-        }
-
-        @Override
         public String toString() {
             final StringBuilder stringBuilder = new StringBuilder();
             node.appendDescriptionWithoutAttributes(stringBuilder);

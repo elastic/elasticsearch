@@ -97,7 +97,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
         }
 
         public int getStatePersistenceFailures() {
-            return statePersistenceFailures.get();
+            return context.getStatePersistenceFailureCount();
         }
     }
 
@@ -183,7 +183,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
-                2
+                2,
+                false
             )
         );
         AtomicReference<TransformTaskState> state = new AtomicReference<>(TransformTaskState.STARTED);
@@ -398,7 +399,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
-                2
+                2,
+                false
             )
         );
         AtomicReference<TransformTaskState> state = new AtomicReference<>(TransformTaskState.STARTED);

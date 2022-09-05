@@ -136,6 +136,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             refresh();
         }
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), equalTo(0L));
+        assertThat(capacity().results().get("warm").requiredCapacity().node().storage().getBytes(), equalTo(0L));
 
         assertAcked(
             client().admin()
@@ -150,6 +151,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         }
 
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
+        assertThat(
+            capacity().results().get("warm").requiredCapacity().node().storage().getBytes(),
+            Matchers.greaterThan(ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
+        );
 
     }
 
@@ -197,7 +202,9 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
         refresh(indexName);
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), equalTo(0L));
+        assertThat(capacity().results().get("warm").requiredCapacity().node().storage().getBytes(), equalTo(0L));
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), equalTo(0L));
+        assertThat(capacity().results().get("cold").requiredCapacity().node().storage().getBytes(), equalTo(0L));
 
         assertAcked(
             client().admin()
@@ -211,10 +218,19 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
 
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
+        assertThat(
+            capacity().results().get("warm").requiredCapacity().node().storage().getBytes(),
+            Matchers.greaterThan(ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
+        );
         // this is not desirable, but one of the caveats of not using data tiers in the ILM policy.
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
+        assertThat(
+            capacity().results().get("cold").requiredCapacity().node().storage().getBytes(),
+            Matchers.greaterThan(ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
+        );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88842")
     public void testScaleWhileShrinking() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();
@@ -367,6 +383,13 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         setTotalSpace(dataNode1Name, tooLittleSpaceForShrink + 1);
         assertAcked(client().admin().cluster().prepareReroute());
         ensureGreen();
+
+        client().admin().indices().prepareDelete(indexName).get();
+        response = capacity();
+        assertThat(
+            response.results().get(policyName).requiredCapacity().total().storage(),
+            equalTo(response.results().get(policyName).currentCapacity().total().storage())
+        );
     }
 
     public void testScaleDuringSplitOrClone() throws Exception {
@@ -473,6 +496,13 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         setTotalSpace(dataNode1Name, requiredSpaceForClone);
         assertAcked(client().admin().cluster().prepareReroute());
         ensureGreen();
+
+        client().admin().indices().prepareDelete(indexName).get();
+        response = capacity();
+        assertThat(
+            response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
+            equalTo(requiredSpaceForClone + enoughSpace)
+        );
     }
 
     /**

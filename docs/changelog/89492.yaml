@@ -1,0 +1,5 @@
+pr: 89492
+summary: More accurate error message for LDAP user modes
+area: Authentication
+type: enhancement
+issues: []

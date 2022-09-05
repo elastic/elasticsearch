@@ -77,6 +77,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -183,6 +184,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final IndicesService indicesService;
 
+    private final FileSettingsService fileSettingsService;
+
     private volatile boolean refreshRepositoryUuidOnRestore;
 
     public RestoreService(
@@ -194,7 +197,8 @@ public class RestoreService implements ClusterStateApplier {
         IndexMetadataVerifier indexMetadataVerifier,
         ShardLimitValidator shardLimitValidator,
         SystemIndices systemIndices,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FileSettingsService fileSettingsService
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -209,6 +213,7 @@ public class RestoreService implements ClusterStateApplier {
         this.shardLimitValidator = shardLimitValidator;
         this.systemIndices = systemIndices;
         this.indicesService = indicesService;
+        this.fileSettingsService = fileSettingsService;
         this.refreshRepositoryUuidOnRestore = REFRESH_REPO_UUID_ON_RESTORE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
@@ -1389,6 +1394,7 @@ public class RestoreService implements ClusterStateApplier {
             // Restore global state if needed
             if (request.includeGlobalState()) {
                 applyGlobalStateRestore(currentState, mdBuilder);
+                fileSettingsService.handleSnapshotRestore(currentState, mdBuilder);
             }
 
             if (completed(shards)) {

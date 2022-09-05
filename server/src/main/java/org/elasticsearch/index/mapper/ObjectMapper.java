@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -28,6 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -142,14 +144,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
             throw new IllegalStateException("Missing intermediate object " + fullName);
         }
 
-        protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
-            MapperBuilderContext mapperBuilderContext = root ? context : context.createChildContext(name);
+        protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
+                    // The same mappings or document may hold the same field twice, either because duplicated JSON keys are allowed or
+                    // the same field is provided using the object notation as well as the dot notation at the same time.
+                    // This can also happen due to multiple index templates being merged into a single mappings definition using
+                    // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
+                    // mix of object notation and dot notation.
                     mapper = existing.merge(mapper, mapperBuilderContext);
                 }
                 mappers.put(mapper.simpleName(), mapper);
@@ -159,7 +165,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
-            return new ObjectMapper(name, context.buildFullName(name), enabled, subobjects, dynamic, buildMappers(false, context));
+            return new ObjectMapper(
+                name,
+                context.buildFullName(name),
+                enabled,
+                subobjects,
+                dynamic,
+                buildMappers(context.createChildContext(name))
+            );
         }
     }
 
@@ -426,7 +439,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
+    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
+        return mapperBuilderContext.createChildContext(name);
+    }
+
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
         if ((mergeWith instanceof ObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
@@ -436,12 +453,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
-        merged.doMerge(mergeWithObject, reason, mapperBuilderContext);
+        merged.doMerge(mergeWithObject, reason, parentBuilderContext);
         return merged;
     }
 
-    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
-
+    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
         if (mergeWith.dynamic != null) {
             this.dynamic = mergeWith.dynamic;
         }
@@ -462,6 +478,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
+        MapperBuilderContext objectBuilderContext = createChildContext(parentBuilderContext, simpleName());
         Map<String, Mapper> mergedMappers = null;
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = (mergedMappers == null ? mappers : mergedMappers).get(mergeWithMapper.simpleName());
@@ -470,8 +487,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (mergeIntoMapper == null) {
                 merged = mergeWithMapper;
             } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                MapperBuilderContext childContext = mapperBuilderContext.createChildContext(objectMapper.simpleName());
-                merged = objectMapper.merge(mergeWithMapper, reason, childContext);
+                merged = objectMapper.merge(mergeWithMapper, reason, objectBuilderContext);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                 if (mergeWithMapper instanceof ObjectMapper) {
@@ -485,7 +501,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     merged = mergeWithMapper;
                 } else {
-                    merged = mergeIntoMapper.merge(mergeWithMapper, mapperBuilderContext);
+                    merged = mergeIntoMapper.merge(mergeWithMapper, objectBuilderContext);
                 }
             }
             if (mergedMappers == null) {
@@ -553,52 +569,85 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        List<SourceLoader.SyntheticFieldLoader> fields = mappers.values()
-            .stream()
-            .sorted(Comparator.comparing(Mapper::name))
-            .map(Mapper::syntheticFieldLoader)
-            .filter(l -> l != null)
-            .toList();
-        return (reader, docIdsInLeaf) -> {
-            List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
+        return new SyntheticSourceFieldLoader(
+            mappers.values()
+                .stream()
+                .sorted(Comparator.comparing(Mapper::name))
+                .map(Mapper::syntheticFieldLoader)
+                .filter(l -> l != null)
+                .toList()
+        );
+    }
+
+    private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final List<SourceLoader.SyntheticFieldLoader> fields;
+        private boolean hasValue;
+
+        private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
+            this.fields = fields;
+        }
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return fields.stream().flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders).map(e -> Map.entry(e.getKey(), values -> {
+                hasValue = true;
+                e.getValue().load(values);
+            }));
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> loaders = new ArrayList<>();
             for (SourceLoader.SyntheticFieldLoader field : fields) {
-                SourceLoader.SyntheticFieldLoader.Leaf leaf = field.leaf(reader, docIdsInLeaf);
-                if (false == leaf.empty()) {
-                    l.add(leaf);
+                SourceLoader.SyntheticFieldLoader.DocValuesLoader loader = field.docValuesLoader(leafReader, docIdsInLeaf);
+                if (loader != null) {
+                    loaders.add(loader);
                 }
             }
-            SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
-            return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                private boolean hasValue;
+            if (loaders.isEmpty()) {
+                return null;
+            }
+            return new ObjectDocValuesLoader(loaders);
+        }
 
-                @Override
-                public boolean empty() {
-                    return leaves.length == 0;
-                }
+        private class ObjectDocValuesLoader implements DocValuesLoader {
+            private final List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> loaders;
 
-                @Override
-                public boolean advanceToDoc(int docId) throws IOException {
-                    hasValue = false;
-                    for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                        boolean leafHasValue = leaf.advanceToDoc(docId);
-                        hasValue |= leafHasValue;
-                    }
-                    return hasValue;
-                }
+            private ObjectDocValuesLoader(List<DocValuesLoader> loaders) {
+                this.loaders = loaders;
+            }
 
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (hasValue == false) {
-                        return;
-                    }
-                    startSyntheticField(b);
-                    for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                        leaf.write(b);
-                    }
-                    b.endObject();
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                boolean anyLeafHasDocValues = false;
+                for (SourceLoader.SyntheticFieldLoader.DocValuesLoader docValueLoader : loaders) {
+                    boolean leafHasValue = docValueLoader.advanceToDoc(docId);
+                    anyLeafHasDocValues |= leafHasValue;
                 }
-            };
-        };
+                hasValue |= anyLeafHasDocValues;
+                return anyLeafHasDocValues;
+            }
+        }
+
+        @Override
+        public boolean hasValue() {
+            return hasValue;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (hasValue == false) {
+                return;
+            }
+            startSyntheticField(b);
+            for (SourceLoader.SyntheticFieldLoader field : fields) {
+                if (field.hasValue()) {
+                    field.write(b);
+                }
+            }
+            b.endObject();
+            hasValue = false;
+        }
     }
 
     protected void startSyntheticField(XContentBuilder b) throws IOException {

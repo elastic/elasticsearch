@@ -1547,28 +1547,26 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private static final class SnapshotInProgressDiff implements NamedDiff<Custom> {
 
+        private final SnapshotsInProgress after;
+
         private final DiffableUtils.MapDiff<String, ByRepo, Map<String, ByRepo>> mapDiff;
 
         SnapshotInProgressDiff(SnapshotsInProgress before, SnapshotsInProgress after) {
             this.mapDiff = DiffableUtils.diff(before.entries, after.entries, DiffableUtils.getStringKeySerializer());
-        }
-
-        SnapshotInProgressDiff(DiffableUtils.MapDiff<String, ByRepo, Map<String, ByRepo>> mapDiff) {
-            this.mapDiff = mapDiff;
+            this.after = after;
         }
 
         SnapshotInProgressDiff(StreamInput in) throws IOException {
-            this(
-                DiffableUtils.readJdkMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    i -> new ByRepo(i.readList(Entry::readFrom)),
-                    i -> new ByRepo.ByRepoDiff(
-                        DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), Entry::readFrom, EntryDiff::new),
-                        DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)
-                    )
+            this.mapDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                i -> new ByRepo(i.readList(Entry::readFrom)),
+                i -> new ByRepo.ByRepoDiff(
+                    DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), Entry::readFrom, EntryDiff::new),
+                    DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)
                 )
             );
+            this.after = null;
         }
 
         @Override
@@ -1588,10 +1586,21 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            mapDiff.writeTo(out);
+            assert after != null : "should only write instances that were diffed from this node's state";
+            if (out.getVersion().onOrAfter(DIFFABLE_VERSION)) {
+                mapDiff.writeTo(out);
+            } else {
+                new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
+            }
         }
     }
 
+    /**
+     * Wrapper for the list of snapshots per repository to allow for diffing changes in individual entries as well as position changes
+     * of entries in the list.
+     *
+     * @param entries all snapshots executing for a single repository
+     */
     private record ByRepo(List<Entry> entries) implements Diffable<ByRepo> {
 
         static final ByRepo EMPTY = new ByRepo(List.of());
@@ -1619,44 +1628,46 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public Diff<ByRepo> diff(ByRepo previousState) {
-            final DiffableUtils.MapDiff<String, Entry, Map<String, Entry>> diff = DiffableUtils.diff(
-                toMapByUUID(previousState),
-                toMapByUUID(this),
-                DiffableUtils.getStringKeySerializer()
+            return new ByRepoDiff(
+                DiffableUtils.diff(toMapByUUID(previousState), toMapByUUID(this), DiffableUtils.getStringKeySerializer()),
+                DiffableUtils.diff(
+                    toPositionMap(previousState),
+                    toPositionMap(this),
+                    DiffableUtils.getStringKeySerializer(),
+                    INT_DIFF_VALUE_SERIALIZER
+                )
             );
-            final DiffableUtils.MapDiff<String, Integer, Map<String, Integer>> positionDiff = DiffableUtils.diff(
-                toPositionMap(previousState),
-                toPositionMap(this),
-                DiffableUtils.getStringKeySerializer(),
-                INT_DIFF_VALUE_SERIALIZER
-            );
-            return new ByRepoDiff(diff, positionDiff);
         }
 
         public static Map<String, Integer> toPositionMap(ByRepo part) {
-            final Map<String, Integer> before = new HashMap<>(part.entries.size());
+            final Map<String, Integer> res = Maps.newMapWithExpectedSize(part.entries.size());
             for (int i = 0; i < part.entries.size(); i++) {
-                before.put(part.entries.get(i).snapshot().getSnapshotId().getUUID(), i);
+                res.put(part.entries.get(i).snapshot().getSnapshotId().getUUID(), i);
             }
-            return before;
+            return res;
         }
 
         public static Map<String, Entry> toMapByUUID(ByRepo part) {
-            final Map<String, Entry> before = new HashMap<>(part.entries.size());
+            final Map<String, Entry> res = Maps.newMapWithExpectedSize(part.entries.size());
             for (Entry entry : part.entries) {
-                before.put(entry.snapshot().getSnapshotId().getUUID(), entry);
+                res.put(entry.snapshot().getSnapshotId().getUUID(), entry);
             }
-            return before;
+            return res;
         }
 
+        /**
+         * @param diffBySnapshotUUID diff of a map of snapshot UUID to snapshot entry
+         * @param positionDiff diff of a map with snapshot UUID keys and positions in {@link ByRepo#entries} as values. Used to efficiently
+         *                     diff an entry moving to another index in the list
+         */
         private record ByRepoDiff(
-            DiffableUtils.MapDiff<String, Entry, Map<String, Entry>> diff,
+            DiffableUtils.MapDiff<String, Entry, Map<String, Entry>> diffBySnapshotUUID,
             DiffableUtils.MapDiff<String, Integer, Map<String, Integer>> positionDiff
         ) implements Diff<ByRepo> {
 
             @Override
             public ByRepo apply(ByRepo part) {
-                final var updated = diff.apply(toMapByUUID(part));
+                final var updated = diffBySnapshotUUID.apply(toMapByUUID(part));
                 final var updatedPositions = positionDiff.apply(toPositionMap(part));
                 final Entry[] arr = new Entry[updated.size()];
                 updatedPositions.forEach((uuid, position) -> arr[position] = updated.get(uuid));
@@ -1665,7 +1676,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                diff.writeTo(out);
+                diffBySnapshotUUID.writeTo(out);
                 positionDiff.writeTo(out);
             }
         }

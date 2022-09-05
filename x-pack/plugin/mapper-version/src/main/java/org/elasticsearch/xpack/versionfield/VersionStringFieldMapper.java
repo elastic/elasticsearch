@@ -40,6 +40,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -52,7 +54,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -180,8 +181,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
-                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes(StandardCharsets.UTF_8);
-                            boolean accepted = compiled.runAutomaton.run(decoded, 0, decoded.length);
+                            BytesRef decoded = VersionEncoder.decodeVersion(term);
+                            boolean accepted = compiled.runAutomaton.run(decoded.bytes, decoded.offset, decoded.length);
                             if (accepted) {
                                 return AcceptStatus.YES;
                             }
@@ -233,8 +234,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
-                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes(StandardCharsets.UTF_8);
-                            boolean accepted = runAutomaton.run(decoded, 0, decoded.length);
+                            BytesRef decoded = VersionEncoder.decodeVersion(term);
+                            boolean accepted = runAutomaton.run(decoded.bytes, decoded.offset, decoded.length);
                             if (accepted) {
                                 return AcceptStatus.YES;
                             }
@@ -379,7 +380,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public String format(BytesRef value) {
-            return VersionEncoder.decodeVersion(value);
+            return VersionEncoder.decodeVersion(value).utf8ToString();
         }
 
         @Override
@@ -396,5 +397,26 @@ public class VersionStringFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName()) {
+            @Override
+            protected BytesRef convert(BytesRef value) {
+                return VersionEncoder.decodeVersion(value);
+            }
+
+            @Override
+            protected BytesRef preserve(BytesRef value) {
+                // Convert copies the underlying bytes
+                return value;
+            }
+        };
     }
 }

@@ -42,6 +42,7 @@ types:
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>> (with a `keyword` sub-field)
+** <<version-synthetic-source,`version`>>
 
 Runtime fields cannot, at this stage, use synthetic `_source`.
 

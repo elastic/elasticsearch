@@ -406,7 +406,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName()) {
+        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName(), null) {
             @Override
             protected BytesRef convert(BytesRef value) {
                 return VersionEncoder.decodeVersion(value);

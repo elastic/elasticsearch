@@ -10,12 +10,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupActionConfig> {
+public class DownsampleActionConfigTests extends AbstractSerializingTestCase<RollupActionConfig> {
 
     @Override
     protected RollupActionConfig createTestInstance() {

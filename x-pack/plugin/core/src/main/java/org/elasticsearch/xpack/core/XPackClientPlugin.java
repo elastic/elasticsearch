@@ -150,8 +150,8 @@ import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleAction;
+import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
@@ -416,7 +416,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         // TSDB Downsampling / Rollup
         if (IndexSettings.isTimeSeriesModeEnabled()) {
             actions.add(RollupIndexerAction.INSTANCE);
-            actions.add(RollupAction.INSTANCE);
+            actions.add(DownsampleAction.INSTANCE);
         }
 
         return actions;

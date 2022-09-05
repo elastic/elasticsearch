@@ -40,12 +40,12 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
+import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
@@ -67,9 +67,9 @@ import org.elasticsearch.xpack.rollup.rest.RestPutRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestRollupSearchAction;
 import org.elasticsearch.xpack.rollup.rest.RestStartRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
-import org.elasticsearch.xpack.rollup.v2.RestRollupAction;
-import org.elasticsearch.xpack.rollup.v2.TransportRollupAction;
-import org.elasticsearch.xpack.rollup.v2.TransportRollupIndexerAction;
+import org.elasticsearch.xpack.downsample.RestDownsampleAction;
+import org.elasticsearch.xpack.downsample.TransportRollupAction;
+import org.elasticsearch.xpack.downsample.TransportRollupIndexerAction;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -144,7 +144,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
         // TSDB Downsampling / Rollup
         if (IndexSettings.isTimeSeriesModeEnabled()) {
-            handlers.add(new RestRollupAction());
+            handlers.add(new RestDownsampleAction());
         }
 
         return handlers;
@@ -169,7 +169,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
         if (IndexSettings.isTimeSeriesModeEnabled()) {
             actions.add(new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class));
-            actions.add(new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class));
+            actions.add(new ActionHandler<>(DownsampleAction.INSTANCE, TransportRollupAction.class));
         }
 
         return actions;

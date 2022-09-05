@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.rollup;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -30,7 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * This class holds the configuration details of a {@link RollupAction} that downsamples time series
+ * This class holds the configuration details of a {@link DownsampleAction} that downsamples time series
  * (TSDB) indices. We have made great effort to simplify the rollup configuration and currently
  * only requires a fixed time interval. So, it has the following format:
  *

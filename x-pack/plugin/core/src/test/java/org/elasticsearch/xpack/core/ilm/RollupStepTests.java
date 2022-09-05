@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.mockito.Mockito;
 
 import java.util.List;
@@ -79,10 +79,10 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             .build();
     }
 
-    private static void assertRollupActionRequest(RollupAction.Request request, String sourceIndex) {
+    private static void assertRollupActionRequest(DownsampleAction.Request request, String sourceIndex) {
         assertNotNull(request);
         assertThat(request.getSourceIndex(), equalTo(sourceIndex));
-        assertThat(request.getRollupIndex(), equalTo("rollup-index"));
+        assertThat(request.getTargetIndex(), equalTo("rollup-index"));
     }
 
     public void testPerformAction() throws Exception {
@@ -245,7 +245,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
     private void mockClientRollupCall(String sourceIndex) {
         Mockito.doAnswer(invocation -> {
-            RollupAction.Request request = (RollupAction.Request) invocation.getArguments()[1];
+            DownsampleAction.Request request = (DownsampleAction.Request) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             assertRollupActionRequest(request, sourceIndex);

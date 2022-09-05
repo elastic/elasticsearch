@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class RollupActionIT extends ESRestTestCase {
+public class DownsampleActionIT extends ESRestTestCase {
 
     private String index;
     private String policy;

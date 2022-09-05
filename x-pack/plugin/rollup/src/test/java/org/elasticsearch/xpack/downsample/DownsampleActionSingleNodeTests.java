@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.rollup.v2;
+package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -70,11 +70,11 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.downsample.DownsampleAction;
+import org.elasticsearch.xpack.core.downsample.RollupActionConfig;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -102,7 +102,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 
-public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
+public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
     public static final String FIELD_TIMESTAMP = "@timestamp";
@@ -329,7 +329,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             ActionRequestValidationException.class,
             () -> rollup(sourceIndex, null, config)
         );
-        assertThat(exception.getMessage(), containsString("rollup index name is missing"));
+        assertThat(exception.getMessage(), containsString("target index name is missing"));
     }
 
     public void testNullRollupConfig() {
@@ -337,7 +337,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             ActionRequestValidationException.class,
             () -> rollup(sourceIndex, rollupIndex, null)
         );
-        assertThat(exception.getMessage(), containsString("rollup configuration is missing"));
+        assertThat(exception.getMessage(), containsString("downsample configuration is missing"));
     }
 
     public void testRollupSparseMetrics() throws IOException {
@@ -461,7 +461,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 fail("Rollup failed: " + e.getMessage());
             }
         };
-        client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config), rollupListener);
+        client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config), rollupListener);
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
@@ -561,7 +561,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
-        assertAcked(client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config)).actionGet());
+        assertAcked(client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config)).actionGet());
     }
 
     private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {

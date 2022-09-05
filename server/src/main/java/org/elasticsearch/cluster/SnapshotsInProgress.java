@@ -1449,15 +1449,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 SHARD_ID_KEY_SERIALIZER,
                 (DiffableUtils.ValueSerializer<ShardId, ShardSnapshotStatus>) SHARD_SNAPSHOT_STATUS_VALUE_SERIALIZER
             );
-            if (in.readBoolean()) {
-                shardsByRepoShardIdDiff = DiffableUtils.readJdkMapDiff(
-                    in,
+            shardsByRepoShardIdDiff = in.readOptionalWriteable(
+                i -> DiffableUtils.readJdkMapDiff(
+                    i,
                     REPO_SHARD_ID_KEY_SERIALIZER,
                     (DiffableUtils.ValueSerializer<RepositoryShardId, ShardSnapshotStatus>) SHARD_SNAPSHOT_STATUS_VALUE_SERIALIZER
-                );
-            } else {
-                shardsByRepoShardIdDiff = null;
-            }
+                )
+            );
         }
 
         @SuppressWarnings("unchecked")

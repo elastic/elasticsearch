@@ -12,12 +12,12 @@
  * <ul>
  *      <li> The root package is org.elasticsearch.plugin</li>
  *      <li> Specialised API jars have their name following the root package.
- *           i.e. org.elasticsearch.analysis
+ *           i.e. org.elasticsearch.plugin.analysis
  *      </li>
  *      <li> Interfaces and annotations used by plugin developers are in `api` package
- *           i.e org.elasticsearch.analysis.api or org.elasticsearch.api
+ *           i.e org.elasticsearch.plugin.analysis.api or org.elasticsearch.plugin.api
  *      <li> packages which are not meant to be used by plugin developers should not be subpackages of api
- *           i.e org.elasticsearch.analysis.internal
+ *           i.e org.elasticsearch.plugin.analysis.internal
  *      </li>
  * </ul>
  */

@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -172,15 +173,20 @@ public class FieldFetcher {
                 documentFields.put(field, docField);
             }
         }
-        collectUnmapped(documentFields, sourceLookup, "", 0);
+        collectUnmapped(documentFields, () -> sourceLookup.source(), "", 0);
         return documentFields;
     }
 
-    private void collectUnmapped(Map<String, DocumentField> documentFields, Map<String, Object> source, String parentPath, int lastState) {
+    private void collectUnmapped(
+        Map<String, DocumentField> documentFields,
+        Supplier<Map<String, Object>> source,
+        String parentPath,
+        int lastState
+    ) {
         // lookup field patterns containing wildcards
         if (this.unmappedFieldsFetchAutomaton != null) {
-            for (String key : source.keySet()) {
-                Object value = source.get(key);
+            for (String key : source.get().keySet()) {
+                Object value = source.get().get(key);
                 String currentPath = parentPath + key;
                 if (this.fieldContexts.containsKey(currentPath)) {
                     continue;
@@ -196,7 +202,7 @@ public class FieldFetcher {
                     Map<String, Object> objectMap = (Map<String, Object>) value;
                     collectUnmapped(
                         documentFields,
-                        objectMap,
+                        () -> objectMap,
                         currentPath + ".",
                         step(this.unmappedFieldsFetchAutomaton, ".", currentState)
                     );
@@ -227,7 +233,7 @@ public class FieldFetcher {
                 if (this.fieldContexts.containsKey(path)) {
                     continue; // this is actually a mapped field
                 }
-                List<Object> values = XContentMapValues.extractRawValues(path, source);
+                List<Object> values = XContentMapValues.extractRawValues(path, source.get());
                 if (values.isEmpty() == false) {
                     documentFields.put(path, new DocumentField(path, values));
                 }
@@ -241,7 +247,7 @@ public class FieldFetcher {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> objectMap = (Map<String, Object>) value;
-                collectUnmapped(documentFields, objectMap, parentPath + ".", step(this.unmappedFieldsFetchAutomaton, ".", lastState));
+                collectUnmapped(documentFields, () -> objectMap, parentPath + ".", step(this.unmappedFieldsFetchAutomaton, ".", lastState));
             } else if (value instanceof List) {
                 // weird case, but can happen for objects with "enabled" : "false"
                 collectUnmappedList(documentFields, (List<?>) value, parentPath, lastState);

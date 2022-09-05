@@ -111,12 +111,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
     @Override
     public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
-        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-            : Thread.currentThread().getName();
-        // assert allocation.debugDecision() == false; set to true when called via the reroute API
+        assert MasterService.assertMasterUpdateOrTestThread() : Thread.currentThread().getName();
         assert allocation.ignoreDisable() == false;
         // TODO add system context assertion
-
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
         queue.pause();

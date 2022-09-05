@@ -72,7 +72,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
 
-    // Signals that all the prerequisites have been fulfilled and the monitoring task can be scheduled.
+    // Signals that all the prerequisites have been fulfilled and the monitoring can be started.
     private volatile boolean prerequisitesFulfilled;
 
     // Keeps the latest health state that was successfully reported to the current health node.
@@ -80,9 +80,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // Keeps the last seen health node. We use this variable to ensure that there wasn't a health node
     // change between the time we send an update until the time we update the lastReportedDiskHealthInfo.
     private final AtomicReference<String> lastSeenHealthNode = new AtomicReference<>();
-    // Using a volatile reference to ensure that there is a single monitoring task running at all times.
+    // Using a volatile reference to ensure that there is a single instance of monitoring running at all times.
     // No need for extra synchronization because all the writes are executed on the cluster applier thread.
-    private volatile Scheduler.Cancellable scheduledMonitoringTask;
+    private volatile Monitoring monitoring;
 
     private LocalHealthMonitor(
         Settings settings,
@@ -118,37 +118,37 @@ public class LocalHealthMonitor implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
-    // When the monitoring interval changed we reschedule the health monitoring task with the new interval.
+    // When the monitoring interval changes, we restart the health monitoring with the new interval.
     void setMonitorInterval(TimeValue monitorInterval) {
         this.monitorInterval = monitorInterval;
-        cancelMonitoringTask();
-        scheduleMonitoringTaskIfNecessary();
+        stopMonitoring();
+        startMonitoringIfNecessary();
     }
 
-    // When the health node is enabled we try to schedule a monitoring task if it is not
-    // already scheduled, no need to reschedule if it is already there since there was
-    // no configuration change. When the health node is disabled we cancel the schedule.
+    // When the health node is enabled we try to start monitoring if it is not
+    // already running, no need to restart it since there was no configuration
+    // change. When the health node is disabled we stop monitoring.
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled) {
-            scheduleMonitoringTaskIfNecessary();
+            startMonitoringIfNecessary();
         } else {
-            cancelMonitoringTask();
+            stopMonitoring();
         }
     }
 
-    private void cancelMonitoringTask() {
+    private void stopMonitoring() {
         // If there is an existing schedule, cancel it
-        Scheduler.Cancellable existingTask = scheduledMonitoringTask;
-        if (existingTask != null) {
-            existingTask.cancel();
+        Scheduler.Cancellable currentMonitoring = monitoring;
+        if (currentMonitoring != null) {
+            currentMonitoring.cancel();
         }
     }
 
-    private void scheduleMonitoringTaskIfNecessary() {
+    private void startMonitoringIfNecessary() {
         if (prerequisitesFulfilled && enabled) {
-            if (isScheduled() == false) {
-                scheduledMonitoringTask = new MonitoringTask(
+            if (isMonitorRunning() == false) {
+                monitoring = new Monitoring(
                     monitorInterval,
                     threadPool,
                     lastReportedDiskHealthInfo,
@@ -157,15 +157,15 @@ public class LocalHealthMonitor implements ClusterStateListener {
                     clusterService,
                     client
                 );
-                logger.debug("Monitoring task started {}", scheduledMonitoringTask);
+                logger.debug("Local health monitoring started {}", monitoring);
             } else {
-                logger.debug("Monitoring task already started {}, skipping", scheduledMonitoringTask);
+                logger.debug("Local health monitoring already started {}, skipping", monitoring);
             }
         }
     }
 
-    private boolean isScheduled() {
-        Scheduler.Cancellable scheduled = this.scheduledMonitoringTask;
+    private boolean isMonitorRunning() {
+        Scheduler.Cancellable scheduled = this.monitoring;
         return scheduled != null && scheduled.isCancelled() == false;
     }
 
@@ -180,22 +180,31 @@ public class LocalHealthMonitor implements ClusterStateListener {
             // health info gets reset to null, to ensure it will be resent.
             lastSeenHealthNode.set(currentHealthNode == null ? null : currentHealthNode.getId());
             lastReportedDiskHealthInfo.set(null);
-            logger.debug(
-                "Change detected, resetting the health monitoring [masterNodeChanged={},healthNodeChanged={},newHealthNode={}]",
-                masterNodeChanged,
-                healthNodeChanged,
-                lastSeenHealthNode.get()
-            );
+            if (logger.isDebugEnabled()) {
+                String reason;
+                if (healthNodeChanged && masterNodeChanged) {
+                    reason = "the master node and the health node";
+                } else if (healthNodeChanged) {
+                    reason = "the health node";
+                } else {
+                    reason = "the master node";
+                }
+                logger.debug(
+                    "Resetting the health monitoring because {} changed, current health node is {}.",
+                    reason,
+                    currentHealthNode == null ? null : format("{{%s}{%s}}", currentHealthNode.getName(), currentHealthNode.getId())
+                );
+            }
         }
         prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
             && HealthMetadata.getFromClusterState(event.state()) != null
             && currentHealthNode != null
             && currentMasterNode != null;
         if (prerequisitesFulfilled == false || healthNodeChanged || masterNodeChanged) {
-            cancelMonitoringTask();
+            stopMonitoring();
         }
         if (prerequisitesFulfilled) {
-            scheduleMonitoringTaskIfNecessary();
+            startMonitoringIfNecessary();
         }
     }
 
@@ -222,11 +231,11 @@ public class LocalHealthMonitor implements ClusterStateListener {
     }
 
     /**
-     * This class is responsible for running the health monitoring in the configured intervals. The first execution happens
-     * upon initialization. If there is an exception, it will log it and continue to schedule the next execution unless it
-     * was a EsRejectedExecutionException which will cancel the task.
+     * This class is responsible for running the health monitoring. It evaluates and checks the health info of this node
+     * in the configured intervals. The first run happens upon initialization. If there is an exception, it will log it
+     * and continue to schedule the next run.
      */
-    static class MonitoringTask implements Runnable, Scheduler.Cancellable {
+    static class Monitoring implements Runnable, Scheduler.Cancellable {
 
         private final TimeValue interval;
         private final String executor;
@@ -239,9 +248,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
         private final AtomicReference<String> lastSeenHealthNode;
 
         private volatile boolean cancelled = false;
-        private volatile Scheduler.ScheduledCancellable scheduledTask;
+        private volatile Scheduler.ScheduledCancellable scheduledRun;
 
-        MonitoringTask(
+        Monitoring(
             TimeValue interval,
             Scheduler scheduler,
             AtomicReference<DiskHealthInfo> lastReportedDiskHealthInfo,
@@ -258,17 +267,17 @@ public class LocalHealthMonitor implements ClusterStateListener {
             this.clusterService = clusterService;
             this.diskCheck = diskCheck;
             this.client = client;
-            scheduledTask = scheduler.schedule(this, TimeValue.ZERO, executor);
+            scheduledRun = scheduler.schedule(this, TimeValue.ZERO, executor);
         }
 
         /**
-         * Attempts to cancel execution of this task. This method has no
-         * effect if the task cancelled. If this task has not started when
-         * {@code cancel} is called, this task should never run anymore.
-         * If the task has already started, then the current execution
-         * will not be interrupted but the task will not be scheduled anymore.
+         * Attempts to cancel monitoring. This method has no effect if
+         * the monitoring is already cancelled. If the {@code scheduledRun}
+         * has not started when {@code cancel} is called, this run should
+         * never run. If the {@code scheduledRun} is already running, then
+         * it will not be interrupted but the next run will not be scheduled.
          *
-         * @return false, if the task was already cancelled; {@code true}
+         * @return false, if the {@code scheduledRun} was already cancelled; true
          * otherwise.
          */
         @Override
@@ -276,7 +285,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             final boolean alreadyCancelled = cancelled;
             cancelled = true;
             if (alreadyCancelled == false) {
-                scheduledTask.cancel();
+                scheduledRun.cancel();
             }
             return alreadyCancelled == false;
         }
@@ -287,7 +296,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         }
 
         /**
-         * This method evaluates the health info of this node and if there is a change it sends an update request to the health node
+         * This method evaluates the health info of this node and if there is a change it sends an update request to the health node.
          */
         @Override
         public void run() {
@@ -295,7 +304,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return;
             }
             boolean nextRunScheduled = false;
-            Runnable runOnceScheduleNextRunIfNecessary = new RunOnce(this::scheduleNextRunIfNecessary);
+            Runnable scheduleNextRun = new RunOnce(this::scheduleNextRunIfNecessary);
             try {
                 ClusterState clusterState = clusterService.state();
                 HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
@@ -318,9 +327,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
                         }, e -> {
                             if (e.getCause() instanceof NodeNotConnectedException
                                 || e.getCause() instanceof HealthNodeNotDiscoveredException) {
-                                logger.warn("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
+                                logger.debug("Failed to connect to the health node [{}], will try again.", e.getCause().getMessage());
                             } else {
-                                logger.error(
+                                logger.debug(
                                     () -> format("Failed to send health info [%s] to health node, will try again.", currentHealth),
                                     e
                                 );
@@ -329,17 +338,17 @@ public class LocalHealthMonitor implements ClusterStateListener {
                         client.execute(
                             UpdateHealthInfoCacheAction.INSTANCE,
                             new UpdateHealthInfoCacheAction.Request(nodeId, currentHealth),
-                            ActionListener.runAfter(listener, runOnceScheduleNextRunIfNecessary)
+                            ActionListener.runAfter(listener, scheduleNextRun)
                         );
                         nextRunScheduled = true;
                     }
                 }
             } catch (Exception e) {
-                logger.warn(() -> format("Failed to run scheduled health monitoring task on thread pool [%s]", executor), e);
+                logger.warn(() -> format("Failed to run scheduled health monitoring on thread pool [%s]", executor), e);
             } finally {
                 // If the next run isn't scheduled because for example the health info hasn't changed, we schedule it here.
                 if (nextRunScheduled == false) {
-                    runOnceScheduleNextRunIfNecessary.run();
+                    scheduleNextRun.run();
                 }
             }
         }
@@ -349,18 +358,15 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return;
             }
             try {
-                scheduledTask = scheduler.schedule(this, interval, executor);
+                scheduledRun = scheduler.schedule(this, interval, executor);
             } catch (final EsRejectedExecutionException e) {
-                cancelled = true;
-                if (logger.isDebugEnabled()) {
-                    logger.debug(() -> format("Scheduled health monitoring task was rejected on thread pool [%s]", executor), e);
-                }
+                logger.debug(() -> format("Scheduled health monitoring was rejected on thread pool [%s]", executor), e);
             }
         }
 
         @Override
         public String toString() {
-            return "MonitoringTask{interval=" + interval + ", cancelled=" + cancelled + "}";
+            return "Monitoring{interval=" + interval + ", cancelled=" + cancelled + "}";
         }
     }
 

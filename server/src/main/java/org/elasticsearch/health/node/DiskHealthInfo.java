@@ -11,6 +11,7 @@ package org.elasticsearch.health.node;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthStatus;
 
 import java.io.IOException;
@@ -18,7 +19,7 @@ import java.io.IOException;
 /**
  * The health status of the disk space of this node along with the cause.
  */
-public record DiskHealthInfo(HealthStatus healthStatus, Cause cause) implements Writeable {
+public record DiskHealthInfo(HealthStatus healthStatus, @Nullable Cause cause) implements Writeable {
     DiskHealthInfo(HealthStatus healthStatus) {
         this(healthStatus, null);
     }
@@ -34,19 +35,9 @@ public record DiskHealthInfo(HealthStatus healthStatus, Cause cause) implements 
     }
 
     public enum Cause {
-        NODE_OVER_HIGH_THRESHOLD((byte) 0),
-        NODE_OVER_THE_FLOOD_STAGE_THRESHOLD((byte) 1),
-        FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD((byte) 2),
-        NODE_HAS_NO_DISK_STATS((byte) 3);
-
-        private final byte value;
-
-        Cause(byte value) {
-            this.value = value;
-        }
-
-        public byte value() {
-            return value;
-        }
+        NODE_OVER_HIGH_THRESHOLD,
+        NODE_OVER_THE_FLOOD_STAGE_THRESHOLD,
+        FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD,
+        NODE_HAS_NO_DISK_STATS
     }
 }

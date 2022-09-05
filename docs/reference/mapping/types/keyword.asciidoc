@@ -153,17 +153,12 @@ preview:[] (Optional, Boolean)
 +
 --
 // tag::dimension[]
-ifeval::["{release-state}"=="unreleased"]
-Marks the field as a `time-series-dimension,time series dimension`. Defaults
+Marks the field as a <<time-series-dimension,time series dimension>>. Defaults
 to `false`.
 
 The
 <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
 index setting limits the number of dimensions in an index.
-endif::[]
-ifeval::["{release-state}"!="unreleased"]
-Marks the field as a time series dimension. Defaults to `false`.
-endif::[]
 
 Dimension fields have the following constraints:
 

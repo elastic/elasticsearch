@@ -357,3 +357,83 @@ teardown:
   - match: { _source.source_field: "bazqux" }
   - match: { _version: 5 }
   - match: { _routing: "myRouting" }
+
+---
+"Write Fields API":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "fields api",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "field('create.depth').set('works');"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "field('append').append('another')"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "def a = field('append'); int i = 0; for (def value : a) { i += value.length(); } field('size').set(100 * a.size() + i);"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "Collections.sort(field('duplicate').deduplicate().get(new ArrayList()));"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "field('numbers').removeValuesIf(x -> x == null).transform(x -> x instanceof String ? Integer.parseInt(x) : x);"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              append:
+                type: keyword
+              duplicate:
+                type: keyword
+              numbers:
+                type: integer
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body:
+          append: ["one", "again", "another", "again"]
+          duplicate: ["aa", "aa", "bb"]
+          numbers: [1, null, "2"]
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.create.depth: "works" }
+  - match: { _source.size: 527 }
+  - match: { _source.duplicate: ["aa", "bb"] }
+  - match: { _source.numbers: [1, 2] }

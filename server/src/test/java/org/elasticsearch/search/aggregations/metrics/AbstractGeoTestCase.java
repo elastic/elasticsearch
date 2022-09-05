@@ -12,8 +12,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.geo.ElasticPoint;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.SearchHit;
@@ -288,7 +288,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         }
     }
 
-    protected void assertSameCentroid(ElasticPoint centroid, ElasticPoint expectedCentroid) {
+    protected void assertSameCentroid(SpatialPoint centroid, SpatialPoint expectedCentroid) {
         String[] names = centroid.getClass() == GeoPoint.class ? new String[] { "longitude", "latitude" } : new String[] { "x", "y" };
         assertThat(
             "Mismatching value for '" + names[0] + "' field of centroid",

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.geo.ElasticPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -27,14 +27,14 @@ import java.util.function.Function;
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
 public abstract class InternalCentroid extends InternalAggregation implements CentroidAggregation {
-    protected final ElasticPoint centroid;
+    protected final SpatialPoint centroid;
     protected final long count;
     private final FieldExtractor firstField;
     private final FieldExtractor secondField;
 
     public InternalCentroid(
         String name,
-        ElasticPoint centroid,
+        SpatialPoint centroid,
         long count,
         Map<String, Object> metadata,
         FieldExtractor firstField,
@@ -49,7 +49,7 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
         this.secondField = secondField;
     }
 
-    protected abstract ElasticPoint centroidFromStream(StreamInput in) throws IOException;
+    protected abstract SpatialPoint centroidFromStream(StreamInput in) throws IOException;
 
     protected abstract void centroidToStream(StreamOutput out) throws IOException;
 
@@ -80,7 +80,7 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     }
 
     @Override
-    public ElasticPoint centroid() {
+    public SpatialPoint centroid() {
         return centroid;
     }
 
@@ -89,7 +89,7 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
         return count;
     }
 
-    protected abstract InternalCentroid copyWith(ElasticPoint result, long count);
+    protected abstract InternalCentroid copyWith(SpatialPoint result, long count);
 
     /** Create a new centroid with by reducing from the sums and total count */
     protected abstract InternalCentroid copyWith(double firstSum, double secondSum, long totalCount);
@@ -127,9 +127,9 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
 
     protected static class FieldExtractor {
         private final String name;
-        private final Function<ElasticPoint, Double> extractor;
+        private final Function<SpatialPoint, Double> extractor;
 
-        public FieldExtractor(String name, Function<ElasticPoint, Double> extractor) {
+        public FieldExtractor(String name, Function<SpatialPoint, Double> extractor) {
             this.name = name;
             this.extractor = extractor;
         }

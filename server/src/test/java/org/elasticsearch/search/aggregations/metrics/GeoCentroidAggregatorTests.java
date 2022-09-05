@@ -15,8 +15,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.geo.ElasticPoint;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -153,7 +153,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
 
             assertEquals("my_agg", result.getName());
-            ElasticPoint centroid = result.centroid();
+            SpatialPoint centroid = result.centroid();
             assertNotNull(centroid);
             assertEquals(expectedCentroid.getX(), centroid.getX(), GEOHASH_TOLERANCE);
             assertEquals(expectedCentroid.getY(), centroid.getY(), GEOHASH_TOLERANCE);

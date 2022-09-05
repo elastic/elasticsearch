@@ -11,7 +11,7 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.ElasticPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -92,10 +92,10 @@ public abstract class ShapeValues {
         private final BoundingBox boundingBox;
         private final Tile2DVisitor tile2DVisitor;
         protected final CoordinateEncoder encoder;
-        private final BiFunction<Double, Double, ElasticPoint> pointMaker;
+        private final BiFunction<Double, Double, SpatialPoint> pointMaker;
         private final LatLonGeometryRelationVisitor component2DRelationVisitor;
 
-        public ShapeValue(CoordinateEncoder encoder, BiFunction<Double, Double, ElasticPoint> pointMaker) {
+        public ShapeValue(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker) {
             this.reader = new GeometryDocValueReader();
             this.boundingBox = new BoundingBox();
             this.tile2DVisitor = new Tile2DVisitor();
@@ -131,7 +131,7 @@ public abstract class ShapeValues {
         /**
          * Select a label position that is within the shape.
          */
-        public ElasticPoint labelPosition() throws IOException {
+        public SpatialPoint labelPosition() throws IOException {
             // For polygons we prefer to use the centroid, as long as it is within the polygon
             if (reader.getDimensionalShapeType() == DimensionalShapeType.POLYGON && centroidWithinShape()) {
                 return pointMaker.apply(getX(), getY());

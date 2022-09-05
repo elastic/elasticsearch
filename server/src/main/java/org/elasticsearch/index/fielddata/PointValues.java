@@ -9,14 +9,14 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.NumericDocValues;
-import org.elasticsearch.common.geo.ElasticPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.io.IOException;
 
 /**
  * Per-document geo-point or point values.
  */
-public abstract class PointValues<T extends ElasticPoint> {
+public abstract class PointValues<T extends SpatialPoint> {
 
     protected final NumericDocValues values;
 

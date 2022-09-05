@@ -106,7 +106,7 @@ public class GeoBoundingBox extends BoundingBox<GeoPoint> {
         }
 
         @Override
-        protected ElasticPoint parsePointWith(XContentParser parser, GeoUtils.EffectivePoint effectivePoint) throws IOException {
+        protected SpatialPoint parsePointWith(XContentParser parser, GeoUtils.EffectivePoint effectivePoint) throws IOException {
             return GeoUtils.parseGeoPoint(parser, false, effectivePoint);
         }
     }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.elasticsearch.common.geo.ElasticPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.util.function.BiFunction;
 
@@ -19,10 +19,10 @@ import java.util.function.BiFunction;
  */
 public class LabelPositionVisitor extends TriangleTreeReader.DecodedVisitor {
 
-    private ElasticPoint labelPosition;
-    private final BiFunction<Double, Double, ElasticPoint> pointMaker;
+    private SpatialPoint labelPosition;
+    private final BiFunction<Double, Double, SpatialPoint> pointMaker;
 
-    public LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, ElasticPoint> pointMaker) {
+    public LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker) {
         super(encoder);
         this.pointMaker = pointMaker;
     }
@@ -77,7 +77,7 @@ public class LabelPositionVisitor extends TriangleTreeReader.DecodedVisitor {
         return labelPosition == null;
     }
 
-    public ElasticPoint labelPosition() {
+    public SpatialPoint labelPosition() {
         return labelPosition;
     }
 }

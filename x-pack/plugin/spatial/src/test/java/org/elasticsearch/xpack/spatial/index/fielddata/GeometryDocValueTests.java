@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.geo.Circle;
-import org.elasticsearch.common.geo.ElasticPoint;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.LinearRing;
@@ -134,7 +134,7 @@ public class GeometryDocValueTests extends ESTestCase {
 
             // Label position is the centroid if within the polygon
             GeoShapeValues.GeoShapeValue shapeValue = GeoTestUtils.geoShapeValue(rectangle);
-            ElasticPoint labelPosition = shapeValue.labelPosition();
+            SpatialPoint labelPosition = shapeValue.labelPosition();
             double labelX = ((double) minX + maxX) / 2;
             double labelY = ((double) minY + maxY) / 2;
             assertEquals(labelX, labelPosition.getX(), 0.0000001);
@@ -156,7 +156,7 @@ public class GeometryDocValueTests extends ESTestCase {
 
         // Label position is calculated as the first triangle
         GeoShapeValues.GeoShapeValue shapeValue = GeoTestUtils.geoShapeValue(geometry);
-        ElasticPoint labelPosition = shapeValue.labelPosition();
+        SpatialPoint labelPosition = shapeValue.labelPosition();
         assertThat(
             "Expect label position to match one of eight triangles in the two rectangles",
             new GeoPoint(labelPosition),
@@ -178,7 +178,7 @@ public class GeometryDocValueTests extends ESTestCase {
 
         // Label position is the centroid if within the polygon
         GeoShapeValues.GeoShapeValue shapeValue = GeoTestUtils.geoShapeValue(geometry);
-        ElasticPoint labelPosition = shapeValue.labelPosition();
+        SpatialPoint labelPosition = shapeValue.labelPosition();
         double centroidX = CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
         double centroidY = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
         assertEquals(centroidX, labelPosition.getX(), 0.0000001);
@@ -193,7 +193,7 @@ public class GeometryDocValueTests extends ESTestCase {
 
         // Label position is the centroid if within the polygon
         GeoShapeValues.GeoShapeValue shapeValue = GeoTestUtils.geoShapeValue(geometry);
-        ElasticPoint labelPosition = shapeValue.labelPosition();
+        SpatialPoint labelPosition = shapeValue.labelPosition();
         double centroidX = CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
         double centroidY = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
         assertEquals(centroidX, labelPosition.getX(), 0.0000001);

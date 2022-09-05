@@ -10,8 +10,8 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.geo.ElasticPoint;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -40,14 +40,14 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
         return GeoEncodingUtils.decodeLongitude((int) (encodedLatLon & 0xFFFFFFFFL));
     }
 
-    public InternalGeoCentroid(String name, ElasticPoint centroid, long count, Map<String, Object> metadata) {
+    public InternalGeoCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
         super(
             name,
             centroid,
             count,
             metadata,
-            new FieldExtractor("lat", ElasticPoint::getY),
-            new FieldExtractor("lon", ElasticPoint::getX)
+            new FieldExtractor("lat", SpatialPoint::getY),
+            new FieldExtractor("lon", SpatialPoint::getX)
         );
     }
 
@@ -55,7 +55,7 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
      * Read from a stream.
      */
     public InternalGeoCentroid(StreamInput in) throws IOException {
-        super(in, new FieldExtractor("lat", ElasticPoint::getY), new FieldExtractor("lon", ElasticPoint::getX));
+        super(in, new FieldExtractor("lat", SpatialPoint::getY), new FieldExtractor("lon", SpatialPoint::getX));
     }
 
     @Override
@@ -94,7 +94,7 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
     }
 
     @Override
-    protected InternalGeoCentroid copyWith(ElasticPoint result, long count) {
+    protected InternalGeoCentroid copyWith(SpatialPoint result, long count) {
         return new InternalGeoCentroid(name, result, count, getMetadata());
     }
 

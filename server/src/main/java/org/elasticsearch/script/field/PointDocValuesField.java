@@ -10,7 +10,7 @@ package org.elasticsearch.script.field;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.geo.BoundingBox;
-import org.elasticsearch.common.geo.ElasticPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.index.fielddata.MultiPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
@@ -19,7 +19,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
 
-public abstract class PointDocValuesField<T extends ElasticPoint> extends AbstractScriptFieldFactory<T>
+public abstract class PointDocValuesField<T extends SpatialPoint> extends AbstractScriptFieldFactory<T>
     implements
         Field<T>,
         DocValuesScriptFieldFactory,

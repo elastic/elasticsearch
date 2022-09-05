@@ -12,10 +12,10 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.BoundingBox;
-import org.elasticsearch.common.geo.ElasticPoint;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
@@ -222,7 +222,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public abstract static class BaseGeometry<T extends ElasticPoint, V> extends ScriptDocValues<V> {
+    public abstract static class BaseGeometry<T extends SpatialPoint, V> extends ScriptDocValues<V> {
 
         public BaseGeometry(Supplier<V> supplier) {
             super(supplier);
@@ -264,7 +264,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         double getMercatorHeight();
     }
 
-    public interface GeometrySupplier<T extends ElasticPoint, V> extends Supplier<V> {
+    public interface GeometrySupplier<T extends SpatialPoint, V> extends Supplier<V> {
 
         T getInternalCentroid();
 

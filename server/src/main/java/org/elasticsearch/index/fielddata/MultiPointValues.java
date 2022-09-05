@@ -8,15 +8,15 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.geo.ElasticPoint;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.io.IOException;
 
 /**
- * A stateful lightweight per document set of {@link ElasticPoint} values.
+ * A stateful lightweight per document set of {@link SpatialPoint} values.
  */
-public abstract class MultiPointValues<T extends ElasticPoint> {
+public abstract class MultiPointValues<T extends SpatialPoint> {
 
     protected final SortedNumericDocValues numericValues;
 

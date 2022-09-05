@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.BoundingBox;
-import org.elasticsearch.common.geo.ElasticPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -29,7 +29,7 @@ public abstract class LeafShapeFieldData implements LeafFieldData {
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
-    public static class Empty<T extends ElasticPoint> extends LeafShapeFieldData {
+    public static class Empty<T extends SpatialPoint> extends LeafShapeFieldData {
         private final ShapeValues emptyValues;
 
         public Empty(ToScriptFieldFactory<ShapeValues> toScriptFieldFactory, ShapeValues emptyValues) {
@@ -71,7 +71,7 @@ public abstract class LeafShapeFieldData implements LeafFieldData {
         return toScriptFieldFactory.getScriptFieldFactory(getShapeValues(), name);
     }
 
-    public static class ShapeScriptValues<T extends ElasticPoint> extends ScriptDocValues.BaseGeometry<T, ShapeValues.ShapeValue> {
+    public static class ShapeScriptValues<T extends SpatialPoint> extends ScriptDocValues.BaseGeometry<T, ShapeValues.ShapeValue> {
 
         private final GeometrySupplier<T, ShapeValues.ShapeValue> gsSupplier;
 

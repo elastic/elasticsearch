@@ -27,7 +27,7 @@ import java.util.Objects;
  * A class representing a Bounding-Box for use by Geo and Cartesian queries and aggregations
  * that deal with extents/rectangles representing rectangular areas of interest.
  */
-public abstract class BoundingBox<T extends ElasticPoint> implements ToXContentFragment, Writeable {
+public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentFragment, Writeable {
     static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
     static final ParseField TOP_FIELD = new ParseField("top");
@@ -86,7 +86,7 @@ public abstract class BoundingBox<T extends ElasticPoint> implements ToXContentF
 
     public abstract XContentBuilder toXContentFragment(XContentBuilder builder, boolean buildLatLonFields) throws IOException;
 
-    protected abstract static class BoundsParser<T extends ElasticPoint> {
+    protected abstract static class BoundsParser<T extends SpatialPoint> {
         protected double top = Double.NaN;
         protected double bottom = Double.NaN;
         protected double left = Double.NaN;
@@ -135,19 +135,19 @@ public abstract class BoundingBox<T extends ElasticPoint> implements ToXContentF
                         right = parser.doubleValue();
                     } else {
                         if (TOP_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            ElasticPoint point = parsePointWith(parser, GeoUtils.EffectivePoint.TOP_LEFT);
+                            SpatialPoint point = parsePointWith(parser, GeoUtils.EffectivePoint.TOP_LEFT);
                             this.top = point.getY();
                             this.left = point.getX();
                         } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            ElasticPoint point = parsePointWith(parser, GeoUtils.EffectivePoint.BOTTOM_RIGHT);
+                            SpatialPoint point = parsePointWith(parser, GeoUtils.EffectivePoint.BOTTOM_RIGHT);
                             this.bottom = point.getY();
                             this.right = point.getX();
                         } else if (TOP_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            ElasticPoint point = parsePointWith(parser, GeoUtils.EffectivePoint.TOP_RIGHT);
+                            SpatialPoint point = parsePointWith(parser, GeoUtils.EffectivePoint.TOP_RIGHT);
                             this.top = point.getY();
                             this.right = point.getX();
                         } else if (BOTTOM_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            ElasticPoint point = parsePointWith(parser, GeoUtils.EffectivePoint.BOTTOM_LEFT);
+                            SpatialPoint point = parsePointWith(parser, GeoUtils.EffectivePoint.BOTTOM_LEFT);
                             this.bottom = point.getY();
                             this.left = point.getX();
                         } else {
@@ -176,7 +176,7 @@ public abstract class BoundingBox<T extends ElasticPoint> implements ToXContentF
 
         protected abstract BoundingBox<T> createWithBounds();
 
-        protected abstract ElasticPoint parsePointWith(XContentParser parser, GeoUtils.EffectivePoint effectivePoint) throws IOException;
+        protected abstract SpatialPoint parsePointWith(XContentParser parser, GeoUtils.EffectivePoint effectivePoint) throws IOException;
     }
 
     @Override

@@ -8,8 +8,8 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.common.geo.ElasticPoint;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -96,7 +96,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
     @Override
     protected InternalGeoCentroid mutateInstance(InternalGeoCentroid instance) {
         String name = instance.getName();
-        ElasticPoint centroid = instance.centroid();
+        SpatialPoint centroid = instance.centroid();
         long count = instance.count();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {

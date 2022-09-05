@@ -12,7 +12,7 @@ package org.elasticsearch.common.geo;
  * To facilitate maximizing the use of common code between GeoPoint and projected CRS
  * we introduced this ElasticPoint as an interface of commonality.
  */
-public interface ElasticPoint {
+public interface SpatialPoint {
     double getX();
 
     double getY();

@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 
-public class GeoPoint implements ElasticPoint, ToXContentFragment {
+public class GeoPoint implements SpatialPoint, ToXContentFragment {
 
     protected double lat;
     protected double lon;
@@ -52,7 +52,7 @@ public class GeoPoint implements ElasticPoint, ToXContentFragment {
         this.lon = lon;
     }
 
-    public GeoPoint(ElasticPoint template) {
+    public GeoPoint(SpatialPoint template) {
         this(template.getY(), template.getX());
     }
 

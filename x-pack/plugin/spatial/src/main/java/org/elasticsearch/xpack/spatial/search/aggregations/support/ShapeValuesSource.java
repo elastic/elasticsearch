@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import java.io.IOException;
 
-public abstract class ShapeValuesProvider extends ValuesSource {
+public abstract class ShapeValuesSource extends ValuesSource {
     public abstract ShapeValues shapeValues(LeafReaderContext context);
 
     @Override

@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import java.io.IOException;
 import java.util.function.Function;
 
-public abstract class GeoShapeValuesSource extends ShapeValuesProvider {
+public abstract class GeoShapeValuesSource extends ShapeValuesSource {
     public static final GeoShapeValuesSource EMPTY = new GeoShapeValuesSource() {
 
         @Override

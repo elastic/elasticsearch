@@ -9,9 +9,9 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
-import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
@@ -47,6 +47,7 @@ import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.AWS_WEB_IDENTITY_ENV_VAR;
 import static java.util.Collections.emptyMap;
+import static java.util.Objects.requireNonNull;
 
 class S3Service implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
@@ -224,8 +225,11 @@ class S3Service implements Closeable {
             if (webIdentityTokenCredentialsProvider.isActive()) {
                 logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials");
                 return new PrivilegedAWSCredentialsProvider(
-                    new CustomAWSCredentialsProviderChain(
-                        List.of(webIdentityTokenCredentialsProvider, new EC2ContainerCredentialsProviderWrapper())
+                    new AWSCredentialsProviderChain(
+                        List.of(
+                            new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER),
+                            new ErrorLoggingCredentialsProvider(new EC2ContainerCredentialsProviderWrapper(), LOGGER)
+                        )
                     )
                 );
             } else {
@@ -360,7 +364,7 @@ class S3Service implements Closeable {
 
         @Override
         public AWSCredentials getCredentials() {
-            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            requireNonNull(credentialsProvider, "credentialsProvider is not set");
             return credentialsProvider.getCredentials();
         }
 
@@ -378,42 +382,34 @@ class S3Service implements Closeable {
         }
     }
 
-    /**
-     * Customized {@link  com.amazonaws.auth.AWSCredentialsProviderChain} that logs
-     * unsuccessful authentication attempts as warnings instead of debug messages
-     */
-    static class CustomAWSCredentialsProviderChain implements AWSCredentialsProvider {
+    static class ErrorLoggingCredentialsProvider implements AWSCredentialsProvider {
 
-        private final List<AWSCredentialsProvider> credentialsProviders;
-        private volatile AWSCredentialsProvider lastUsedProvider;
+        private final AWSCredentialsProvider delegate;
+        private final Logger logger;
 
-        CustomAWSCredentialsProviderChain(List<AWSCredentialsProvider> credentialsProviders) {
-            this.credentialsProviders = List.copyOf(credentialsProviders);
+        ErrorLoggingCredentialsProvider(AWSCredentialsProvider delegate, Logger logger) {
+            this.delegate = requireNonNull(delegate);
+            this.logger = requireNonNull(logger);
         }
 
         @Override
         public AWSCredentials getCredentials() {
-            if (lastUsedProvider != null) {
-                return lastUsedProvider.getCredentials();
+            try {
+                return delegate.getCredentials();
+            } catch (Exception e) {
+                logger.error("Unable to load credentials from " + delegate, e);
+                throw e;
             }
-
-            for (AWSCredentialsProvider provider : credentialsProviders) {
-                try {
-                    AWSCredentials credentials = provider.getCredentials();
-                    if (credentials.getAWSAccessKeyId() != null && credentials.getAWSSecretKey() != null) {
-                        lastUsedProvider = provider;
-                        return credentials;
-                    }
-                } catch (Exception e) {
-                    LOGGER.warn("Unable to load credentials from " + provider, e);
-                }
-            }
-            throw new SdkClientException("Unable to load AWS credentials from any provider in the chain");
         }
 
         @Override
         public void refresh() {
-            credentialsProviders.forEach(AWSCredentialsProvider::refresh);
+            try {
+                delegate.refresh();
+            } catch (Exception e) {
+                logger.error("Unable to refresh " + delegate, e);
+                throw e;
+            }
         }
     }
 

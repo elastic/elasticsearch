@@ -10,24 +10,25 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Assert;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -63,46 +64,32 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         );
         assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAWSCredentialsProvider.class));
         var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAWSCredentialsProvider) credentialsProvider;
-        assertThat(
-            privilegedAWSCredentialsProvider.getCredentialsProvider(),
-            instanceOf(S3Service.CustomAWSCredentialsProviderChain.class)
-        );
+        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(AWSCredentialsProviderChain.class));
         AWSCredentials credentials = privilegedAWSCredentialsProvider.getCredentials();
         assertEquals("sts_access_key_id", credentials.getAWSAccessKeyId());
         assertEquals("sts_secret_key", credentials.getAWSSecretKey());
     }
 
-    public void testCustomCredentialsProviderChainThrowsSdkErrorIfUnableToLoadCredentials() {
-        AWSCredentialsProvider provider1 = Mockito.mock(AWSCredentialsProvider.class);
-        AWSCredentialsProvider provider2 = Mockito.mock(AWSCredentialsProvider.class);
-        Mockito.when(provider1.getCredentials()).thenThrow(new IllegalStateException("credentialProvider1 is unavailable"));
-        Mockito.when(provider2.getCredentials()).thenThrow(new IllegalStateException("credentialProvider2 is unavailable"));
-        var credentialsProvider = new S3Service.CustomAWSCredentialsProviderChain(List.of(provider1, provider2));
+    public void testLoggingCredentialsProviderCatchesErrors() {
+        var mockProvider = Mockito.mock(AWSCredentialsProvider.class);
+        String mockProviderErrorMessage = "mockProvider failed to generate credentials";
+        Mockito.when(mockProvider.getCredentials()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
+        var mockLogger = Mockito.mock(Logger.class);
+
+        var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
         try {
             credentialsProvider.getCredentials();
-            Assert.fail("Shouldn't load any credentials");
-        } catch (SdkClientException e) {
-            assertThat(e.getMessage(), startsWith("Unable to load AWS credentials from any provider in the chain"));
+            fail("Shouldn't successfully get credentials");
+        } catch (IllegalStateException e) {
+            assertEquals(mockProviderErrorMessage, e.getMessage());
         }
-    }
 
-    public void testCustomCredentialsProviderChainReusesSuccessfulProvider() {
-        AWSCredentialsProvider provider1 = Mockito.mock(AWSCredentialsProvider.class);
-        AWSCredentialsProvider provider2 = Mockito.mock(AWSCredentialsProvider.class);
-        Mockito.when(provider1.getCredentials()).thenThrow(new IllegalStateException("credentialProvider1 is unavailable"));
-        Mockito.when(provider2.getCredentials()).thenReturn(new BasicAWSCredentials("sts_access_key_id", "sts_secret_key"));
+        var messageCaptor = ArgumentCaptor.forClass(String.class);
+        var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
+        Mockito.verify(mockLogger).error(messageCaptor.capture(), throwableCaptor.capture());
 
-        var credentialsProviderChain = new S3Service.CustomAWSCredentialsProviderChain(List.of(provider1, provider2));
-        assertCredentials(credentialsProviderChain.getCredentials(), "sts_access_key_id", "sts_secret_key");
-        assertCredentials(credentialsProviderChain.getCredentials(), "sts_access_key_id", "sts_secret_key");
-
-        Mockito.verify(provider1, Mockito.times(1)).getCredentials();
-        Mockito.verify(provider2, Mockito.times(2)).getCredentials();
-    }
-
-    private void assertCredentials(AWSCredentials credentials, String accessKeyId, String secretKey) {
-        assertEquals(accessKeyId, credentials.getAWSAccessKeyId());
-        assertEquals(secretKey, credentials.getAWSSecretKey());
+        assertThat(messageCaptor.getValue(), startsWith("Unable to load credentials from"));
+        assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
     }
 
     public void testAWSCredentialsFromKeystore() {

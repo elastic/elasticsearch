@@ -100,6 +100,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
@@ -110,6 +111,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_DIMENSION_2 = "dimension_long";
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
+    public static final String FIELD_AGG_METRIC = "agg_metric_1";
     public static final String FIELD_METRIC_LABEL_DOUBLE = "metric_label_double";
     public static final String FIELD_LABEL_DOUBLE = "label_double";
     public static final String FIELD_LABEL_INTEGER = "label_integer";
@@ -144,7 +146,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);
         rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
@@ -179,47 +181,74 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
         }
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(sourceIndex)
-                .setSettings(settings.build())
-                .setMapping(
-                    FIELD_TIMESTAMP,
-                    "type=date",
-                    FIELD_DIMENSION_1,
-                    "type=keyword,time_series_dimension=true",
-                    FIELD_DIMENSION_2,
-                    "type=long,time_series_dimension=true",
-                    FIELD_NUMERIC_1,
-                    "type=long,time_series_metric=gauge",
-                    FIELD_NUMERIC_2,
-                    "type=double,time_series_metric=counter",
-                    FIELD_LABEL_DOUBLE,
-                    "type=double",
-                    FIELD_LABEL_INTEGER,
-                    "type=integer",
-                    FIELD_LABEL_KEYWORD,
-                    "type=keyword",
-                    FIELD_LABEL_TEXT,
-                    "type=text",
-                    FIELD_LABEL_BOOLEAN,
-                    "type=boolean",
-                    FIELD_METRIC_LABEL_DOUBLE, /* numeric label indexed as a metric */
-                    "type=double,time_series_metric=counter",
-                    FIELD_LABEL_IPv4_ADDRESS,
-                    "type=ip",
-                    FIELD_LABEL_IPv6_ADDRESS,
-                    "type=ip",
-                    FIELD_LABEL_DATE,
-                    "type=date,format=date_optional_time",
-                    FIELD_LABEL_KEYWORD_ARRAY,
-                    "type=keyword",
-                    FIELD_LABEL_DOUBLE_ARRAY,
-                    "type=double"
-                )
-                .get()
-        );
+
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject(FIELD_TIMESTAMP)
+            .field("type", "date")
+            .endObject()
+            .startObject(FIELD_DIMENSION_1)
+            .field("type", "keyword")
+            .field("time_series_dimension", true)
+            .endObject()
+            .startObject(FIELD_DIMENSION_2)
+            .field("type", "long")
+            .field("time_series_dimension", true)
+            .endObject()
+            .startObject(FIELD_NUMERIC_1)
+            .field("type", "long")
+            .field("time_series_metric", "gauge")
+            .endObject()
+            .startObject(FIELD_NUMERIC_2)
+            .field("type", "double")
+            .field("time_series_metric", "counter")
+            .endObject()
+            // .startObject(FIELD_AGG_METRIC)
+            // .field("type", "aggregate_metric_double")
+            // .field("time_series_metric", "counter")
+            // .array("metrics", new String[] { "min", "max", "sum", "value_count" })
+            // .endObject()
+            .startObject(FIELD_LABEL_DOUBLE)
+            .field("type", "double")
+            .endObject()
+            .startObject(FIELD_LABEL_INTEGER)
+            .field("type", "integer")
+            .endObject()
+            .startObject(FIELD_LABEL_KEYWORD)
+            .field("type", "keyword")
+            .endObject()
+            .startObject(FIELD_LABEL_TEXT)
+            .field("type", "text")
+            .endObject()
+            .startObject(FIELD_LABEL_BOOLEAN)
+            .field("type", "boolean")
+            .endObject()
+            .startObject(FIELD_METRIC_LABEL_DOUBLE)
+            .field("type", "double") /* numeric label indexed as a metric */
+            .field("time_series_metric", "counter")
+            .endObject()
+            .startObject(FIELD_LABEL_IPv4_ADDRESS)
+            .field("type", "ip")
+            .endObject()
+            .startObject(FIELD_LABEL_IPv6_ADDRESS)
+            .field("type", "ip")
+            .endObject()
+            .startObject(FIELD_LABEL_DATE)
+            .field("type", "date")
+            .field("format", "date_optional_time")
+            .endObject()
+            .startObject(FIELD_LABEL_KEYWORD_ARRAY)
+            .field("type", "keyword")
+            .endObject()
+            .startObject(FIELD_LABEL_DOUBLE_ARRAY)
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        assertAcked(client().admin().indices().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
     }
 
     public void testRollupIndex() throws IOException {
@@ -471,7 +500,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertBusy(() -> assertTrue("In progress rollup did not complete", rollupListener.success), 60, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88800")
     public void testRollupDatastream() throws Exception {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         String dataStreamName = createDataStream();

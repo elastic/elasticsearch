@@ -137,7 +137,7 @@ setup:
   - match: { rollup-test.settings.index.time_series.end_time:   2021-04-29T00:00:00Z }
   - match: { rollup-test.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
   - match: { rollup-test.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
-  - match: { rollup-test.settings.index.rollup.source.name: test }
+  - match: { rollup-test.settings.index.downsample.source.name: test }
   - match: { rollup-test.settings.index.number_of_shards: "1" }
   - match: { rollup-test.settings.index.number_of_replicas: "0" }
 

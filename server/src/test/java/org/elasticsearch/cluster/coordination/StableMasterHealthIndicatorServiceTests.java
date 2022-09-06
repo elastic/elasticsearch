@@ -135,11 +135,11 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             assertThat(recentMasterMap.get("name"), not(emptyOrNullString()));
             assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
         }
-        List<Map<String, String>> clusterFormations = (List<Map<String, String>>) detailsMap.get("cluster_formation_details");
+        List<Map<String, String>> clusterFormations = (List<Map<String, String>>) detailsMap.get("cluster_formation");
         assertThat(clusterFormations.size(), equalTo(2));
         Map<String, String> nodeToClusterFormationMap = new HashMap<>();
         for (Map<String, String> clusterFormationMap : clusterFormations) {
-            nodeToClusterFormationMap.put(clusterFormationMap.get("node_id"), clusterFormationMap.get("cluster_formation"));
+            nodeToClusterFormationMap.put(clusterFormationMap.get("node_id"), clusterFormationMap.get("cluster_formation_message"));
         }
         assertThat(nodeToClusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
         assertThat(nodeToClusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));

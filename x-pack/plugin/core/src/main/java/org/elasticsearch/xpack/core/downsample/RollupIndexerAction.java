@@ -33,7 +33,7 @@ import java.util.Objects;
 public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response> {
 
     public static final RollupIndexerAction INSTANCE = new RollupIndexerAction();
-    public static final String NAME = "indices:admin/xpack/dowsample_indexer";
+    public static final String NAME = "indices:admin/xpack/downsample_indexer";
 
     private RollupIndexerAction() {
         super(NAME, RollupIndexerAction.Response::new);

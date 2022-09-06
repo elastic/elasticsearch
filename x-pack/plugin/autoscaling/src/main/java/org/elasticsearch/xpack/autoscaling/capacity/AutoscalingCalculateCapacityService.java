@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.action.PolicyValidator;
 import org.elasticsearch.xpack.autoscaling.capacity.nodeinfo.AutoscalingNodeInfo;
@@ -79,6 +81,26 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
         // check the setting, notice that `get` throws when `configuration` contains an invalid value for `setting`
         setting.get(configuration);
+    }
+
+    public static class Holder {
+        private final Autoscaling autoscaling;
+        private final SetOnce<AutoscalingCalculateCapacityService> servicesSetOnce = new SetOnce<>();
+
+        public Holder(Autoscaling autoscaling) {
+            this.autoscaling = autoscaling;
+        }
+
+        public AutoscalingCalculateCapacityService get() {
+            // defer constructing services until transport action creation time, so that other plugins
+            // can create their deciders in their createComponents.
+            AutoscalingCalculateCapacityService autoscalingCalculateCapacityService = servicesSetOnce.get();
+            if (autoscalingCalculateCapacityService == null) {
+                autoscalingCalculateCapacityService = new AutoscalingCalculateCapacityService(autoscaling.createDeciderServices());
+                servicesSetOnce.set(autoscalingCalculateCapacityService);
+            }
+            return autoscalingCalculateCapacityService;
+        }
     }
 
     public SortedMap<String, AutoscalingDeciderResults> calculate(

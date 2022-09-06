@@ -53,7 +53,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final AutoscalingCalculateCapacityService capacityService,
+        final AutoscalingCalculateCapacityService.Holder capacityServiceHolder,
         final ClusterInfoService clusterInfoService,
         final SnapshotsInfoService snapshotsInfoService,
         final AutoscalingNodeInfoService nodeInfoService,
@@ -72,7 +72,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         );
         this.snapshotsInfoService = snapshotsInfoService;
         this.nodeInfoService = nodeInfoService;
-        this.capacityService = capacityService;
+        this.capacityService = capacityServiceHolder.get();
         this.clusterInfoService = clusterInfoService;
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
         assert this.capacityService != null;

@@ -52,7 +52,27 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final AutoscalingCalculateCapacityService policyValidator,
+        final AutoscalingCalculateCapacityService.Holder policyValidatorHolder,
+        final AutoscalingLicenseChecker autoscalingLicenseChecker
+    ) {
+        this(
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            policyValidatorHolder.get(),
+            autoscalingLicenseChecker
+        );
+    }
+
+    TransportPutAutoscalingPolicyAction(
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final ActionFilters actionFilters,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final PolicyValidator policyValidator,
         final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
         super(

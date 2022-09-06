@@ -22,14 +22,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -41,12 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCase {
-    private static final AutoscalingCalculateCapacityService NO_VALIDATION = new AutoscalingCalculateCapacityService(
-        Set.of(mock(AutoscalingDeciderService.class))
-    ) {
-        @Override
-        public void validate(AutoscalingPolicy policy) {}
-    };
+    private static final PolicyValidator NO_VALIDATION = policy -> {};
 
     public void testWriteBlock() {
         final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(

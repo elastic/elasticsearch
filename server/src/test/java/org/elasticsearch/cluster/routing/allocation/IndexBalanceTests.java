@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 
-import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
@@ -268,9 +267,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Add another node and perform reroute to relocate shards to the new node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        do {
-            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        } while (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0);
+        clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
         assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));

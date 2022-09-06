@@ -39,7 +39,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
@@ -159,9 +158,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
 
         logger.info("Await all shards reallocate");
-        do {
-            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        } while (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0);
+        clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
         assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));

@@ -93,7 +93,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      */
     private final int unacceptableIdentityChanges;
 
-    private final Random random = Randomness.get();
+    // ThreadLocal because our unit testing framework does not like sharing Randoms across threads
+    private final ThreadLocal<Random> random = ThreadLocal.withInitial(Randomness::get);
 
     /*
      * This is a Map of tasks that are periodically reaching out to other master eligible nodes to get their ClusterFormationStates for
@@ -737,7 +738,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         if (masterEligibleNodes.isEmpty()) {
             return null;
         }
-        return masterEligibleNodes.toArray(new DiscoveryNode[0])[random.nextInt(masterEligibleNodes.size())];
+        return masterEligibleNodes.toArray(new DiscoveryNode[0])[random.get().nextInt(masterEligibleNodes.size())];
     }
 
     /**

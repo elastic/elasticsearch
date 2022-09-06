@@ -752,7 +752,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 config.getPrimaryTermSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 config.getLeafSorter(),
-                config.getWriteLoadTracker()
+                config.getShardIndexingTimeStats()
             );
             return new InternalEngine(engineConfigWithCustomAnalyzer) {
                 @Override

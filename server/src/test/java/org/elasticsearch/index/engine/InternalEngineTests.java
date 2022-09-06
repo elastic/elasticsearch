@@ -7244,7 +7244,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getPrimaryTermSupplier(),
                 config.getSnapshotCommitSupplier(),
                 config.getLeafSorter(),
-                config.getWriteLoadTracker()
+                config.getShardIndexingTimeStats()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());

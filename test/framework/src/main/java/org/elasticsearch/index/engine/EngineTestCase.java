@@ -274,7 +274,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
-            config.getWriteLoadTracker()
+            config.getShardIndexingTimeStats()
         );
     }
 
@@ -303,7 +303,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
-            config.getWriteLoadTracker()
+            config.getShardIndexingTimeStats()
         );
     }
 
@@ -332,7 +332,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
-            config.getWriteLoadTracker()
+            config.getShardIndexingTimeStats()
         );
     }
 
@@ -888,7 +888,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
-            config.getWriteLoadTracker()
+            config.getShardIndexingTimeStats()
         );
     }
 

@@ -486,8 +486,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 -1,
                 false,
                 UNASSIGNED_SEQ_NO,
-                0,
-                System.nanoTime()
+                0
             );
         }
     }
@@ -523,8 +522,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 -1,
                 false,
                 UNASSIGNED_SEQ_NO,
-                0,
-                System.nanoTime()
+                0
             );
         }
     }

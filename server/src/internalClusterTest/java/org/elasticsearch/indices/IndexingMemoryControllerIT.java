@@ -78,7 +78,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getPrimaryTermSupplier(),
                 config.getSnapshotCommitSupplier(),
                 config.getLeafSorter(),
-                config.getWriteLoadTracker()
+                config.getShardIndexingTimeStats()
             );
         }
 

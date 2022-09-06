@@ -187,8 +187,6 @@ public class InternalEngine extends Engine {
     @Nullable
     private volatile String forceMergeUUID;
 
-    private final LongSupplier relativeTimeInNanosSupplier;
-
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -209,7 +207,7 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(
                 engineConfig.getShardId(),
                 engineConfig.getIndexSettings(),
-                engineConfig.getWriteLoadTracker()
+                engineConfig.getShardIndexingTimeStats()
             );
             throttle = new IndexThrottle();
             try {
@@ -278,7 +276,6 @@ public class InternalEngine extends Engine {
             }
             completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.externalReaderManager.addListener(completionStatsCache);
-            this.relativeTimeInNanosSupplier = engineConfig.getThreadPool()::rawRelativeTimeInNanos;
             success = true;
         } finally {
             if (success == false) {
@@ -1030,7 +1027,7 @@ public class InternalEngine extends Engine {
                     assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
                 }
-                indexResult.setTook(relativeTimeInNanosSupplier.getAsLong() - index.startTime());
+                indexResult.setTook(System.nanoTime() - index.startTime());
                 indexResult.freeze();
                 return indexResult;
             } finally {
@@ -1447,7 +1444,7 @@ public class InternalEngine extends Engine {
                 assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                 localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
             }
-            deleteResult.setTook(relativeTimeInNanosSupplier.getAsLong() - delete.startTime());
+            deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
             try {

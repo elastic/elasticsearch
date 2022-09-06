@@ -379,7 +379,7 @@ public final class EngineConfig {
         return leafSorter;
     }
 
-    public ShardIndexingTimeStats getWriteLoadTracker() {
+    public ShardIndexingTimeStats getShardIndexingTimeStats() {
         return shardIndexingTimeStats;
     }
 }

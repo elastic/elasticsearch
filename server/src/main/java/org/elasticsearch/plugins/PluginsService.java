@@ -122,7 +122,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory/*, Path modulePath*/) {
         this.settings = settings;
         this.configPath = configPath;
-        stablePluginsRegistry = new StablePluginsRegistry();
+        this.stablePluginsRegistry = new StablePluginsRegistry();
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
 
@@ -463,7 +463,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             privilegedSetContextClassLoader(pluginClassLoader);
             stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
             Map<String, NameToPluginInfo> namedComponents = stablePluginsRegistry.getNamedComponents();
-
+            // System.out.println(namedComponents); some interim assertions would be good here..
             if (bundle.pluginDescriptor().isStable() == false) {
                 Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
                 if (pluginClassLoader != pluginClass.getClassLoader()) {

@@ -48,7 +48,7 @@ public class NamedComponentScannerTests extends ESTestCase {
         assertThat(
             namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("test_named_component"),
             equalTo(
-                new NamedPluginInfo(
+                new PluginInfo(
                     "test_named_component",
                     TestNamedComponent.class.getCanonicalName(),
                     TestNamedComponent.class.getClassLoader()
@@ -58,20 +58,22 @@ public class NamedComponentScannerTests extends ESTestCase {
     }
 
     public void testFindNamedComponentInSingleClass() throws URISyntaxException {
-        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(
-            classReaderStream(TestNamedComponent.class),
-            NamedComponentScannerTests.class.getClassLoader()
-        );
-        assertThat(
-            namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("test_named_component"),
-            equalTo(
-                new NamedPluginInfo(
-                    "test_named_component",
-                    TestNamedComponent.class.getCanonicalName(),
-                    TestNamedComponent.class.getClassLoader()
+        try (Stream<ClassReader> classReaderStream = classReaderStream(TestNamedComponent.class)) {
+            Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(
+                classReaderStream,
+                NamedComponentScannerTests.class.getClassLoader()
+            );
+            assertThat(
+                namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("test_named_component"),
+                equalTo(
+                    new PluginInfo(
+                        "test_named_component",
+                        TestNamedComponent.class.getCanonicalName(),
+                        TestNamedComponent.class.getClassLoader()
+                    )
                 )
-            )
-        );
+            );
+        }
     }
 
     static byte[] bytes(String str) {
@@ -103,19 +105,18 @@ public class NamedComponentScannerTests extends ESTestCase {
             """)));
 
         ClassLoader classLoader = NamedComponentScannerTests.class.getClassLoader();
-        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(
-            ClassReaders.ofDirWithJars(dirWithJar.toString()),
-            classLoader
-        );
+        try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString())) {
+            Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(classReaderStream, classLoader);
 
-        assertThat(
-            namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("b_component"),
-            equalTo(new NamedPluginInfo("b_component", "p.B", classLoader))
-        );
-        assertThat(
-            namedComponents.get(ExtensibleClass.class.getCanonicalName()).getForPluginName("a_component"),
-            equalTo(new NamedPluginInfo("a_component", "p.A", classLoader))
-        );
+            assertThat(
+                namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("b_component"),
+                equalTo(new PluginInfo("b_component", "p.B", classLoader))
+            );
+            assertThat(
+                namedComponents.get(ExtensibleClass.class.getCanonicalName()).getForPluginName("a_component"),
+                equalTo(new PluginInfo("a_component", "p.A", classLoader))
+            );
+        }
     }
 
     public void testFindNamedComponentInJar() throws IOException {
@@ -138,19 +139,18 @@ public class NamedComponentScannerTests extends ESTestCase {
             """)));
 
         ClassLoader classLoader = NamedComponentScannerTests.class.getClassLoader();
-        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(
-            ClassReaders.ofDirWithJars(dirWithJar.toString()),
-            classLoader
-        );
+        try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString())) {
+            Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(classReaderStream, classLoader);
 
-        assertThat(
-            namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("b_component"),
-            equalTo(new NamedPluginInfo("b_component", "p.B", classLoader))
-        );
-        assertThat(
-            namedComponents.get(ExtensibleClass.class.getCanonicalName()).getForPluginName("a_component"),
-            equalTo(new NamedPluginInfo("a_component", "p.A", classLoader))
-        );
+            assertThat(
+                namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("b_component"),
+                equalTo(new PluginInfo("b_component", "p.B", classLoader))
+            );
+            assertThat(
+                namedComponents.get(ExtensibleClass.class.getCanonicalName()).getForPluginName("a_component"),
+                equalTo(new PluginInfo("a_component", "p.A", classLoader))
+            );
+        }
     }
 
     public void testCommonSuperClassInJar() throws IOException {
@@ -203,19 +203,18 @@ public class NamedComponentScannerTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
 
         ClassLoader classLoader = NamedComponentScannerTests.class.getClassLoader();
-        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(
-            ClassReaders.ofDirWithJars(dirWithJar.toString()),
-            classLoader
-        );
+        try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString())) {
+            Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(classReaderStream, classLoader);
 
-        assertThat(
-            namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("b_component"),
-            equalTo(new NamedPluginInfo("b_component", "p.B", classLoader))
-        );
-        assertThat(
-            namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("a_component"),
-            equalTo(new NamedPluginInfo("a_component", "p.A", classLoader))
-        );
+            assertThat(
+                namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("b_component"),
+                equalTo(new PluginInfo("b_component", "p.B", classLoader))
+            );
+            assertThat(
+                namedComponents.get(ExtensibleInterface.class.getCanonicalName()).getForPluginName("a_component"),
+                equalTo(new PluginInfo("a_component", "p.A", classLoader))
+            );
+        }
     }
 
     // duplication

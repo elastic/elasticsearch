@@ -20,7 +20,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
-public class ClassScanner {// rename to registry?
+public class ClassScanner { // rename to registry?
     private final Map<String, String> foundClasses;
     private final AnnotatedHierarchyVisitor annotatedHierarchyVisitor;
 

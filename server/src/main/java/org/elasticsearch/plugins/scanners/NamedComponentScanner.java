@@ -39,17 +39,15 @@ public class NamedComponentScanner {
     }
 
     public Map<String, NameToPluginInfo> findNamedComponents(PluginBundle bundle, ClassLoader pluginClassLoader) {
-        return findNamedComponents(ClassReaders.ofBundle(bundle), pluginClassLoader);
+        try (Stream<ClassReader> classReaderStream = ClassReaders.ofBundle(bundle)) {
+            return scanForNamedClasses(classReaderStream, pluginClassLoader);
+        }
     }
 
     // scope for testing
     Map<String, NameToPluginInfo> findNamedComponents(Stream<ClassReader> classReaderStream, ClassLoader pluginClassLoader) {
         // readFromFile()
-        try {
-            return scanForNamedClasses(classReaderStream, pluginClassLoader);
-        } finally {
-            classReaderStream.close();
-        }
+        return scanForNamedClasses(classReaderStream, pluginClassLoader);
     }
 
     private Map<String, NameToPluginInfo> scanForNamedClasses(Stream<ClassReader> classReaderStream, ClassLoader pluginClassLoader) {
@@ -81,7 +79,7 @@ public class NamedComponentScanner {
                 );
             }
             var named = componentInfo.computeIfAbsent(pathToClassName(extensibleClassnameWithSlashes), k -> new NameToPluginInfo());
-            named.put(name, new NamedPluginInfo(name, pathToClassName(classnameWithSlashes), pluginClassLoader));
+            named.put(name, new PluginInfo(name, pathToClassName(classnameWithSlashes), pluginClassLoader));
         }
         return componentInfo;
     }
@@ -106,7 +104,7 @@ public class NamedComponentScanner {
                         String value = (String) nameToComponent.getValue();
 
                         res.computeIfAbsent(extensibleInterface, k -> new NameToPluginInfo())
-                            .put(name, new NamedPluginInfo(name, value, pluginClassLoader));
+                            .put(name, new PluginInfo(name, value, pluginClassLoader));
                     }
                 }
             }

@@ -8,6 +8,6 @@
 
 package org.elasticsearch.plugins.scanners;
 
-record NamedPluginInfo(String name, String className, ClassLoader loader) {
+record PluginInfo(String name, String className, ClassLoader loader) {
 
 }

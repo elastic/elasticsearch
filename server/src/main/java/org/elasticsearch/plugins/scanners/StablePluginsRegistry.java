@@ -23,13 +23,29 @@ public class StablePluginsRegistry {
     org.elasticsearch.plugin.analysis.api.TokenFilterFactory ->
         {"nori" -> {nori, org.elasticserach.plugin.analysis.new_nori.NoriReadingFormFilterFactory, classloaderInstance}
      */
-    private final Map<String /*Extensible */, NameToPluginInfo> namedComponents = new HashMap<>();
-    private final NamedComponentScanner namedComponentsScanner = new NamedComponentScanner();
+    private final Map<String /*Extensible */, NameToPluginInfo> namedComponents;
+    private final NamedComponentScanner namedComponentsScanner;
+
+    public StablePluginsRegistry() {
+        this(new NamedComponentScanner(), new HashMap<>());
+    }
+
+    // for testing
+    StablePluginsRegistry(NamedComponentScanner namedComponentScanner, HashMap<String /*Extensible */, NameToPluginInfo> namedComponents) {
+        this.namedComponentsScanner = namedComponentScanner;
+        this.namedComponents = namedComponents;
+    }
 
     public void scanBundleForStablePlugins(PluginBundle bundle, ClassLoader pluginClassLoader) {
-
         Map<String, NameToPluginInfo> namedComponentsFromPlugin = namedComponentsScanner.findNamedComponents(bundle, pluginClassLoader);
-        namedComponents.putAll(namedComponentsFromPlugin);
+        for (Map.Entry<String, NameToPluginInfo> entry : namedComponentsFromPlugin.entrySet()) {
+            if (namedComponents.containsKey(entry.getKey())) {
+                NameToPluginInfo nameToPluginInfo = namedComponents.get(entry.getKey());
+                nameToPluginInfo.put(entry.getValue());
+            } else {
+                namedComponents.put(entry.getKey(), entry.getValue());
+            }
+        }
     }
 
     // TODO this will be removed. getPluginForName or similar wil be created

@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
+import org.elasticsearch.index.engine.WriteLoadTracker;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -286,7 +287,8 @@ public class FollowingEngineTests extends ESTestCase {
             () -> RetentionLeases.EMPTY,
             () -> primaryTerm.get(),
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null
+            null,
+            WriteLoadTracker.NO_OP
         );
     }
 
@@ -341,7 +343,8 @@ public class FollowingEngineTests extends ESTestCase {
             VersionType.EXTERNAL,
             origin,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
-            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+            System.nanoTime()
         );
     }
 

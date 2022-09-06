@@ -108,7 +108,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         HealthNode healthNode = (HealthNode) task;
         currentTask.set(healthNode);
         DiscoveryNode node = clusterService.localNode();
-        logger.info("Node [{{}{}}] is selected as the current health node.", node.getName(), node.getId());
+        logger.info("Node [{{}}{{}}] is selected as the current health node.", node.getName(), node.getId());
     }
 
     @Override

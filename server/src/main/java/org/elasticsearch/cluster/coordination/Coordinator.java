@@ -1093,7 +1093,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         + coordinationState.get().getLastCommittedConfiguration();
 
                 if (coordinationState.get().getLastAcceptedState().nodes().size() == 1) {
-                    assert singleNodeClusterChecker != null;
+                    final boolean seedHostsExist = DISCOVERY_SEED_HOSTS_SETTING.exists(settings);
+                    assert singleNodeClusterChecker != null || seedHostsExist == false
+                        : "should have a single-node cluster checker when seed hosts are configured";
                 }
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";

@@ -16,7 +16,7 @@
         <!-- Exclude short methods from this check - we don't want to have to document getters -->
         <property name="minLineCount" value="5" />
         <property name="allowedAnnotations" value="Override,Before,BeforeClass,After,AfterClass,Inject,TaskAction" />
-        <property name="ignoreMethodNamesRegex" value="^main$"/>
+        <property name="ignoreMethodNamesRegex" value="^(main|test.*)$"/>
         <message key="javadoc.missing" value="Public methods should be documented." />
     </module>
 

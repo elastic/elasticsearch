@@ -1186,6 +1186,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional list. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     */
+    public <T> List<T> readOptionalList(final Writeable.Reader<T> reader) throws IOException {
+        final boolean isPresent = readBoolean();
+        return isPresent ? readList(reader) : null;
+    }
+
+    /**
      * Reads an optional list of strings. The list is expected to have been written using
      * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
      * If it is empty it might be immutable.
@@ -1194,12 +1204,7 @@ public abstract class StreamInput extends InputStream {
      * @throws IOException if an I/O exception occurs reading the list
      */
     public List<String> readOptionalStringList() throws IOException {
-        final boolean isPresent = readBoolean();
-        if (isPresent) {
-            return readList(StreamInput::readString);
-        } else {
-            return null;
-        }
+        return readOptionalList(StreamInput::readString);
     }
 
     /**

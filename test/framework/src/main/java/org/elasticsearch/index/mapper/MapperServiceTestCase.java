@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -21,6 +22,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,8 +39,11 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -76,7 +81,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -450,7 +454,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+                return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
             @Override
@@ -624,8 +629,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             }
         }),
-            (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
@@ -643,19 +647,21 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
-        return (mft, lookupSource) -> mft.fielddataBuilder("test", lookupSource)
+    protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo))
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            iw.addDocument(mapper.parse(source(build)).rootDoc());
+            LuceneDocument doc = mapper.parse(source(build)).rootDoc();
+            iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
-                String syntheticSource = loader.leaf(getOnlyLeafReader(reader), new int[] { 0 }).source(null, 0).utf8ToString();
+                String syntheticSource = syntheticSource(mapper, reader, 0);
                 roundTripSyntheticSource(mapper, syntheticSource, reader);
                 return syntheticSource;
             }
@@ -680,14 +686,31 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
-                String roundTripSyntheticSource = loader.leaf(getOnlyLeafReader(roundTripReader), new int[] { 0 })
-                    .source(null, 0)
-                    .utf8ToString();
+                String roundTripSyntheticSource = syntheticSource(mapper, roundTripReader, 0);
                 assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
                 validateRoundTripReader(syntheticSource, reader, roundTripReader);
             }
         }
+    }
+
+    private String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
+        SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+        LeafReader leafReader = getOnlyLeafReader(reader);
+        SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
+        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldsVisitor(mapper, leafReader, loader), docId);
+        return syntheticSourceBytes.utf8ToString();
+    }
+
+    protected static FieldsVisitor syntheticSourceStoredFieldsVisitor(DocumentMapper mapper, LeafReader leafReader, SourceLoader loader)
+        throws IOException {
+        if (loader.requiredStoredFields().isEmpty()) {
+            return null;
+        }
+        FieldsVisitor fieldsVisitor = new CustomFieldsVisitor(loader.requiredStoredFields(), false);
+        fieldsVisitor.reset();
+        leafReader.document(0, fieldsVisitor);
+        fieldsVisitor.postProcess(mapper.mappers().fieldTypesLookup()::get);
+        return fieldsVisitor;
     }
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
@@ -701,7 +724,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected final XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         return topMapping(b -> {
-            b.startObject("_source").field("synthetic", true).endObject();
+            b.startObject("_source").field("mode", "synthetic").endObject();
             b.startObject("properties");
             buildFields.accept(b);
             b.endObject();

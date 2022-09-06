@@ -46,6 +46,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,8 +71,13 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests relating to the loss of the master, but which work with the default fault detection settings which are rather lenient and will
  * not detect a master failure too quickly.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class StableMasterDisruptionIT extends ESIntegTestCase {
+
+    @Before
+    private void setBootstrapMasterNodeIndex() {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -123,19 +130,15 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     }
 
     private void assertGreenMasterStability(Client client) throws Exception {
-        assertMasterStability(client, HealthStatus.GREEN, "The cluster has a stable master node");
+        assertMasterStability(client, HealthStatus.GREEN, containsString("The cluster has a stable master node"));
     }
 
-    private void assertMasterStability(Client client, HealthStatus expectedStatus, String expectedSummarySubstring) throws Exception {
+    private void assertMasterStability(Client client, HealthStatus expectedStatus, Matcher<String> expectedMatcher) throws Exception {
         assertBusy(() -> {
             GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true)).get();
             String debugInformation = xContentToString(healthResponse);
             assertThat(debugInformation, healthResponse.getStatus(), equalTo(expectedStatus));
-            assertThat(
-                debugInformation,
-                healthResponse.findComponent("cluster_coordination").findIndicator("master_is_stable").summary(),
-                containsString(expectedSummarySubstring)
-            );
+            assertThat(debugInformation, healthResponse.findIndicator("master_is_stable").symptom(), expectedMatcher);
         });
     }
 
@@ -317,11 +320,11 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     /**
      * This helper method creates a 3-node cluster where all nodes are master-eligible, and then simulates a long GC on the master node 5
      * times (forcing another node to be elected master 5 times). It then asserts that the master stability health indicator status is
-     * YELLOW, and that expectedMasterStabilitySummarySubstring is contained in the summary.
-     * @param expectedMasterStabilitySummarySubstring A string to expect in the master stability health indictor summary
+     * YELLOW, and that expectedMasterStabilitySymptomSubstring is contained in the symptom.
+     * @param expectedMasterStabilitySymptomSubstring A string to expect in the master stability health indicator symptom
      * @throws Exception
      */
-    public void testRepeatedMasterChanges(String expectedMasterStabilitySummarySubstring) throws Exception {
+    public void testRepeatedMasterChanges(String expectedMasterStabilitySymptomSubstring) throws Exception {
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -407,7 +410,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
          * other node(s) were master, it only saw itself as master. So we want to check with another node.
          */
         Client client = internalCluster().client(randomFrom(nodeNamesExceptFirstMaster));
-        assertMasterStability(client, HealthStatus.YELLOW, expectedMasterStabilitySummarySubstring);
+        assertMasterStability(client, HealthStatus.YELLOW, containsString(expectedMasterStabilitySymptomSubstring));
     }
 
     public void testRepeatedNullMasterRecognizedAsGreenIfMasterDoesNotKnowItIsUnstable() throws Exception {
@@ -426,28 +429,24 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
                 .build()
         );
+        int nullTransitionsThreshold = 1;
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(
             2,
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
-                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), nullTransitionsThreshold)
                 .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(60, TimeUnit.SECONDS))
                 .build()
         );
         ensureStableCluster(3);
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < nullTransitionsThreshold + 1; i++) {
             final String masterNode = masterNodes.get(0);
 
             // Simulating a painful gc by suspending all threads for a long time on the current elected master node.
             SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(random(), masterNode);
 
             final CountDownLatch dataNodeMasterSteppedDown = new CountDownLatch(2);
-            internalCluster().getInstance(ClusterService.class, masterNode).addListener(event -> {
-                if (event.state().nodes().getMasterNodeId() == null) {
-                    dataNodeMasterSteppedDown.countDown();
-                }
-            });
             internalCluster().getInstance(ClusterService.class, dataNodes.get(0)).addListener(event -> {
                 if (event.state().nodes().getMasterNodeId() == null) {
                     dataNodeMasterSteppedDown.countDown();
@@ -466,7 +465,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             // Stop disruption
             logger.info("--> unfreezing node [{}]", masterNode);
             masterNodeDisruption.stopDisrupting();
-            ensureStableCluster(3);
+            ensureStableCluster(3, TimeValue.timeValueSeconds(30), false, randomFrom(dataNodes));
         }
         assertGreenMasterStability(internalCluster().client(randomFrom(dataNodes)));
     }
@@ -500,7 +499,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         assertMasterStability(
             internalCluster().client(randomFrom(dataNodes)),
             HealthStatus.RED,
-            "No master eligible nodes found in the cluster"
+            containsString("No master eligible nodes found in the cluster")
         );
         for (String dataNode : dataNodes) {
             internalCluster().stopNode(dataNode);
@@ -557,7 +556,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         assertMasterStability(
             internalCluster().client(randomFrom(dataNodes)),
             HealthStatus.RED,
-            "has been elected master, but the node being queried"
+            containsString("has been elected master, but the node being queried")
         );
     }
 }

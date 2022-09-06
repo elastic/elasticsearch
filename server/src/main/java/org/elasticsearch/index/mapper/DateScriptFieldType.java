@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -41,7 +43,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
@@ -87,11 +88,22 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name, DateFieldScript.Factory factory, Script script, Map<String, String> meta) {
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DateFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            Version supportedVersion
+        ) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
             Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
-            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
+            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
             return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta);
+        }
+
+        @Override
+        AbstractScriptFieldType<?> createFieldType(String name, DateFieldScript.Factory factory, Script script, Map<String, String> meta) {
+            return createFieldType(name, factory, script, meta, Version.CURRENT);
         }
 
         @Override
@@ -105,10 +117,10 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         }
     }
 
-    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter) {
+    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter, Version supportedVersion) {
         Builder builder = new Builder(name);
         builder.format.setValue(dateTimeFormatter.pattern());
-        return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE);
+        return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE, supportedVersion);
     }
 
     private final DateFormatter dateTimeFormatter;
@@ -159,8 +171,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public DateScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
-        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()), Resolution.MILLISECONDS.getDefaultToScriptFieldFactory());
+    public DateScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new DateScriptFieldData.Builder(
+            name(),
+            leafFactory(fieldDataContext.lookupSupplier().get()),
+            Resolution.MILLISECONDS.getDefaultToScriptFieldFactory()
+        );
     }
 
     @Override

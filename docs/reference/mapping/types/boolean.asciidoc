@@ -215,9 +215,8 @@ The following parameters are accepted by `boolean` fields:
 
     Metadata about the field.
 
-ifeval::["{release-state}"=="unreleased"]
 [[boolean-synthetic-source]]
-==== Synthetic source
+==== Synthetic source preview:[]
 `boolean` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 <<copy-to,`copy_to`>> or with <<doc-values,`doc_values`>> disabled.
@@ -228,7 +227,7 @@ Synthetic source always sorts `boolean` fields. For example:
 PUT idx
 {
   "mappings": {
-    "_source": { "synthetic": true },
+    "_source": { "mode": "synthetic" },
     "properties": {
       "bool": { "type": "boolean" }
     }
@@ -249,4 +248,3 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
-endif::[]

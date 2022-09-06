@@ -28,7 +28,7 @@ setup:
           {"index":{}}
           {"timestamp": "1998-04-30T14:30:53-05:00", "location" : "-7.9, 120.78"}
           {"index":{}}
-           {"timestamp": "1998-04-30T14:30:54-05:00"}
+          {"timestamp": "1998-04-30T14:30:54-05:00"}
           {"index":{}}
           {"timestamp": "1998-04-30T14:30:55-05:00", "location" : ["-8, 120", "-7, 121.0"]}
           {"index":{}}
@@ -62,7 +62,7 @@ setup:
           sort: timestamp
           fields: [location]
   - match: {hits.total.value: 11}
-  - match: {hits.hits.0.fields.location: ["13.499999991618097, 34.889999935403466"] }
+  - match: {hits.hits.0.fields.location: [{type: Point, coordinates: [34.89, 13.5]}] }
 
 ---
 "exists query":

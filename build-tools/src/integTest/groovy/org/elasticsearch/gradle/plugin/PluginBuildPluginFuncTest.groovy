@@ -18,6 +18,11 @@ import java.util.stream.Collectors
 
 class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
+    def setup() {
+        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
+        configurationCacheCompatible = false
+    }
+
     def "can assemble plugin via #taskName"() {
         given:
         buildFile << """plugins {

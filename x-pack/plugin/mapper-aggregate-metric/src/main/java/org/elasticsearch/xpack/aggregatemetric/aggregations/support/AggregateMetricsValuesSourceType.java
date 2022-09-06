@@ -10,6 +10,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnRollupIndex;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -22,6 +23,12 @@ import java.util.Locale;
 public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
 
     AGGREGATE_METRIC() {
+
+        @Override
+        public RuntimeException getUnregisteredException(String message) {
+            return new UnsupportedAggregationOnRollupIndex(message);
+        }
+
         @Override
         public ValuesSource getEmpty() {
             throw new IllegalArgumentException("Can't deal with unmapped AggregateMetricsValuesSource type " + this.value());

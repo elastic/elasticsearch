@@ -238,12 +238,9 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                     throw new IllegalStateException("scheduleTimeout may only be called once");
                 }
                 if (started == false) {
-                    timeoutFuture = timer.schedule(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (remove(TieBreakingPrioritizedRunnable.this)) {
-                                runAndClean(timeoutCallback);
-                            }
+                    timeoutFuture = timer.schedule(() -> {
+                        if (remove(TieBreakingPrioritizedRunnable.this)) {
+                            runAndClean(timeoutCallback);
                         }
                     }, timeValue.nanos(), TimeUnit.NANOSECONDS);
                 }

@@ -1,5 +1,0 @@
-pr: 86361
-summary: "Add new _infer endpoint for all supervised models and deprecate deployment infer api"
-area: Machine Learning
-type: enhancement
-issues: []

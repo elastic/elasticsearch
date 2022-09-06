@@ -41,8 +41,8 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "field [txt] of type [text] doesn't support synthetic source unless"
-                    + " it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                "field [txt] of type [text] doesn't support synthetic source unless it is stored or has a sub-field "
+                    + "of type [keyword] with doc values or stored and without ignore_above or a normalizer"
             )
         );
     }
@@ -74,7 +74,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
 
     public void testNoSubobjectsRootObject() throws IOException {
         XContentBuilder mappings = topMapping(b -> {
-            b.startObject("_source").field("synthetic", true).endObject();
+            b.startObject("_source").field("mode", "synthetic").endObject();
             b.field("subobjects", false);
             b.startObject("properties");
             b.startObject("foo.bar.baz").field("type", "keyword").endObject();

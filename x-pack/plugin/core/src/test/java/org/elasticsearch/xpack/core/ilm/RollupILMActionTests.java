@@ -12,18 +12,17 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ilm.RollupILMAction.CONDITIONAL_DATASTREAM_CHECK_KEY;
 import static org.elasticsearch.xpack.core.ilm.RollupILMAction.GENERATE_ROLLUP_STEP_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction> {
 
     static RollupILMAction randomInstance() {
-        return new RollupILMAction(RollupActionConfigTests.randomConfig(random()), randomBoolean() ? randomAlphaOfLength(5) : null);
+        return new RollupILMAction(ConfigTestHelpers.randomInterval());
     }
 
     @Override
@@ -48,7 +47,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
 
     @Override
     public void testToSteps() {
-        RollupILMAction action = new RollupILMAction(RollupActionConfigTests.randomConfig(random()), null);
+        RollupILMAction action = new RollupILMAction(ConfigTestHelpers.randomInterval());
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -57,15 +56,57 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(4, steps.size());
+        assertEquals(12, steps.size());
+
+        assertTrue(steps.get(0) instanceof CheckNotDataStreamWriteIndexStep);
         assertThat(steps.get(0).getKey().getName(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
-        assertThat(steps.get(0).getNextStepKey().getName(), equalTo(ReadOnlyStep.NAME));
-        assertThat(steps.get(1).getKey().getName(), equalTo(ReadOnlyStep.NAME));
-        assertThat(steps.get(1).getNextStepKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
-        assertThat(steps.get(2).getKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
-        assertThat(steps.get(2).getNextStepKey().getName(), equalTo(RollupStep.NAME));
-        assertThat(steps.get(3).getKey().getName(), equalTo(RollupStep.NAME));
-        assertThat(steps.get(3).getNextStepKey(), equalTo(nextStepKey));
+        assertThat(steps.get(0).getNextStepKey().getName(), equalTo(WaitForNoFollowersStep.NAME));
+
+        assertTrue(steps.get(1) instanceof WaitForNoFollowersStep);
+        assertThat(steps.get(1).getKey().getName(), equalTo(WaitForNoFollowersStep.NAME));
+        assertThat(steps.get(1).getNextStepKey().getName(), equalTo(CleanupTargetIndexStep.NAME));
+
+        assertTrue(steps.get(2) instanceof CleanupTargetIndexStep);
+        assertThat(steps.get(2).getKey().getName(), equalTo(CleanupTargetIndexStep.NAME));
+        assertThat(steps.get(2).getNextStepKey().getName(), equalTo(ReadOnlyStep.NAME));
+
+        assertTrue(steps.get(3) instanceof ReadOnlyStep);
+        assertThat(steps.get(3).getKey().getName(), equalTo(ReadOnlyStep.NAME));
+        assertThat(steps.get(3).getNextStepKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
+
+        assertTrue(steps.get(4) instanceof GenerateUniqueIndexNameStep);
+        assertThat(steps.get(4).getKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
+        assertThat(steps.get(4).getNextStepKey().getName(), equalTo(RollupStep.NAME));
+
+        assertTrue(steps.get(5) instanceof RollupStep);
+        assertThat(steps.get(5).getKey().getName(), equalTo(RollupStep.NAME));
+        assertThat(steps.get(5).getNextStepKey().getName(), equalTo(WaitForIndexColorStep.NAME));
+
+        assertTrue(steps.get(6) instanceof ClusterStateWaitUntilThresholdStep);
+        assertThat(steps.get(6).getKey().getName(), equalTo(WaitForIndexColorStep.NAME));
+        assertThat(steps.get(6).getNextStepKey().getName(), equalTo(CopyExecutionStateStep.NAME));
+
+        assertTrue(steps.get(7) instanceof CopyExecutionStateStep);
+        assertThat(steps.get(7).getKey().getName(), equalTo(CopyExecutionStateStep.NAME));
+        assertThat(steps.get(7).getNextStepKey().getName(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+
+        assertTrue(steps.get(8) instanceof BranchingStep);
+        assertThat(steps.get(8).getKey().getName(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+        expectThrows(IllegalStateException.class, () -> steps.get(8).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(8)).getNextStepKeyOnFalse().getName(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
+        assertThat(((BranchingStep) steps.get(8)).getNextStepKeyOnTrue().getName(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+
+        assertTrue(steps.get(9) instanceof ReplaceDataStreamBackingIndexStep);
+        assertThat(steps.get(9).getKey().getName(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+        assertThat(steps.get(9).getNextStepKey().getName(), equalTo(DeleteStep.NAME));
+
+        assertTrue(steps.get(10) instanceof DeleteStep);
+        assertThat(steps.get(10).getKey().getName(), equalTo(DeleteStep.NAME));
+        assertThat(steps.get(10).getNextStepKey(), equalTo(nextStepKey));
+
+        assertTrue(steps.get(11) instanceof SwapAliasesAndDeleteSourceIndexStep);
+        assertThat(steps.get(11).getKey().getName(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
+        assertThat(steps.get(11).getNextStepKey(), equalTo(nextStepKey));
     }
 
     public void testEqualsAndHashCode() {
@@ -73,23 +114,11 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
     }
 
     RollupILMAction copy(RollupILMAction rollupILMAction) {
-        return new RollupILMAction(rollupILMAction.config(), rollupILMAction.rollupPolicy());
+        return new RollupILMAction(rollupILMAction.fixedInterval());
     }
 
     RollupILMAction notCopy(RollupILMAction rollupILMAction) {
-        RollupActionConfig newConfig = rollupILMAction.config();
-        String newRollupPolicy = rollupILMAction.rollupPolicy();
-        switch (randomIntBetween(0, 1)) {
-            case 0 -> {
-                DateHistogramInterval fixedInterval = randomValueOtherThan(
-                    rollupILMAction.config().getFixedInterval(),
-                    ConfigTestHelpers::randomInterval
-                );
-                newConfig = new RollupActionConfig(fixedInterval);
-            }
-            case 1 -> newRollupPolicy = randomAlphaOfLength(3);
-            default -> throw new IllegalStateException("unreachable branch");
-        }
-        return new RollupILMAction(newConfig, newRollupPolicy);
+        DateHistogramInterval fixedInterval = randomValueOtherThan(rollupILMAction.fixedInterval(), ConfigTestHelpers::randomInterval);
+        return new RollupILMAction(fixedInterval);
     }
 }

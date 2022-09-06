@@ -172,13 +172,12 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             // 1) a shard is being constructed, which means the master will not use a copy of this replica
             // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the master may not
             // reuse local resources.
-            final Store.MetadataSnapshot metadataSnapshot;
-            try {
-                metadataSnapshot = Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
-            } catch (org.apache.lucene.index.CorruptIndexException e) {
-                logger.trace(() -> "[" + shardId + "] node is having corrupted index, responding with empty", e);
-                return StoreFilesMetadata.EMPTY;
-            }
+            final Store.MetadataSnapshot metadataSnapshot = Store.readMetadataSnapshot(
+                shardPath.resolveIndex(),
+                shardId,
+                nodeEnv::shardLock,
+                logger
+            );
             // We use peer recovery retention leases from the primary for allocating replicas. We should always have retention leases when
             // we refresh shard info after the primary has started. Hence, we can ignore retention leases if there is no active shard.
             return new StoreFilesMetadata(metadataSnapshot, emptyList());

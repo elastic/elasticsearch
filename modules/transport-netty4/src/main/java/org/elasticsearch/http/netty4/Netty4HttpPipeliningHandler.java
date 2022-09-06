@@ -227,9 +227,12 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     private void finishChunkedWrite() {
-        currentChunkedWrite.combiner.finish(currentChunkedWrite.onDone);
-        currentChunkedWrite = null;
-        writeSequence++;
+        try {
+            currentChunkedWrite.combiner.finish(currentChunkedWrite.onDone);
+        } finally {
+            currentChunkedWrite = null;
+            writeSequence++;
+        }
     }
 
     private void splitAndWrite(ChannelHandlerContext ctx, Netty4HttpResponse msg, ChannelPromise promise) {
@@ -362,9 +365,10 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         if (ctx.channel().isWritable() && queuedWrites.isEmpty()) {
             ctx.write(msg, promise);
             return true;
+        } else {
+            queuedWrites.add(new WriteOperation(msg, promise));
+            return false;
         }
-        queuedWrites.add(new WriteOperation(msg, promise));
-        return false;
     }
 
     @Override

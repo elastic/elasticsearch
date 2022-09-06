@@ -39,6 +39,10 @@ public class Regex {
         return str.equals("*");
     }
 
+    public static boolean isSuffixMatchPattern(String str) {
+        return str.length() > 1 && str.indexOf("*") == str.length() - 1;
+    }
+
     /** Return an {@link Automaton} that matches the given pattern. */
     public static Automaton simpleMatchToAutomaton(String pattern) {
         List<Automaton> automata = new ArrayList<>();

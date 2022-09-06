@@ -161,13 +161,13 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         builder.total(
             storage ? randomLongBetween(lower, upper) : null,
             memory ? randomLongBetween(lower, upper) : null,
-            processor ? (float) randomIntBetween(lower, upper) : null
+            processor ? (double) randomIntBetween(lower, upper) : null
         );
         if (node) {
             builder.node(
                 storage ? randomLongBetween(lower, upper) : null,
                 memory ? randomLongBetween(lower, upper) : null,
-                processor ? (float) randomIntBetween(lower, upper) : null
+                processor ? (double) randomIntBetween(lower, upper) : null
             );
         }
         return builder.build();

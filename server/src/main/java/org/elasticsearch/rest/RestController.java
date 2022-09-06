@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -707,6 +708,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
             throws IOException {
             return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+        }
+
+        @Override
+        public XContentBuilder newBuilder(
+            XContentType xContentType,
+            XContentType responseContentType,
+            boolean useFiltering,
+            OutputStream out
+        ) throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering, out);
         }
 
         @Override

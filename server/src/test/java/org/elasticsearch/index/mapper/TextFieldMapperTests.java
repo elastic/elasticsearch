@@ -1098,11 +1098,15 @@ public class TextFieldMapperTests extends MapperTestCase {
         boolean storeTextField = randomBoolean();
         boolean storedKeywordField = storeTextField || randomBoolean();
         String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
+        KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
+            storedKeywordField,
+            nullValue,
+            false == storeTextField
+        );
         return new SyntheticSourceSupport() {
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(storedKeywordField, nullValue)
-                    .example(maxValues);
+                SyntheticSourceExample delegate = keywordSupport.example(maxValues);
                 if (storeTextField) {
                     return new SyntheticSourceExample(
                         delegate.inputValue(),
@@ -1126,7 +1130,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
                 Matcher<String> err = equalTo(
                     "field [field] of type [text] doesn't support synthetic source unless it is stored or"
-                        + " has a sub-field of type [keyword] with doc values or stored and without ignore_above or a normalizer"
+                        + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
                 );
                 return List.of(
                     new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
@@ -1136,17 +1140,6 @@ public class TextFieldMapperTests extends MapperTestCase {
                         {
                             b.startObject("l");
                             b.field("type", "long");
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("kwd");
-                            b.field("type", "keyword");
-                            b.field("ignore_above", 10);
                             b.endObject();
                         }
                         b.endObject();

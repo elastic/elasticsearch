@@ -8,21 +8,30 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
-public class Netty4HttpResponse extends DefaultFullHttpResponse implements Netty4RestResponse {
+/**
+ * A http response that will be transferred via chunked encoding when handled by {@link Netty4HttpPipeliningHandler}.
+ */
+public final class Netty4ChunkedHttpResponse extends DefaultHttpResponse implements Netty4RestResponse {
 
     private final int sequence;
 
-    Netty4HttpResponse(int sequence, HttpVersion version, RestStatus status, BytesReference content) {
-        super(version, HttpResponseStatus.valueOf(status.getStatus()), Netty4Utils.toByteBuf(content));
+    private final ChunkedRestResponseBody body;
+
+    Netty4ChunkedHttpResponse(int sequence, HttpVersion version, RestStatus status, ChunkedRestResponseBody body) {
+        super(version, HttpResponseStatus.valueOf(status.getStatus()));
         this.sequence = sequence;
+        this.body = body;
+    }
+
+    public ChunkedRestResponseBody body() {
+        return body;
     }
 
     @Override

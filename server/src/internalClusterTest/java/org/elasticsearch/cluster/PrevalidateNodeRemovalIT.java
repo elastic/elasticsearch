@@ -8,10 +8,10 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation;
-import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalAction;
-import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalRequest;
-import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalResponse;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation;
+import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
+import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalRequest;
+import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.equalTo;

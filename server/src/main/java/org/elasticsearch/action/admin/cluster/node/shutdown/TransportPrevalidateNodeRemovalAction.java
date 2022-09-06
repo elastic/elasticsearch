@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.admin.cluster.node.remove;
+package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -24,8 +24,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation.IsSafe;
-import static org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation.Result;
+import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
+import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
 // TODO: should this instead extend TransportMasterNodeReadAction?
 public class TransportPrevalidateNodeRemovalAction extends TransportAction<PrevalidateNodeRemovalRequest, PrevalidateNodeRemovalResponse> {

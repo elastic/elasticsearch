@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.admin.cluster.node.remove;
+package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
@@ -17,8 +17,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation.IsSafe;
-import static org.elasticsearch.action.admin.cluster.node.remove.NodesRemovalPrevalidation.Result;
+import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
+import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
 public class PrevalidateNodeRemovalResponseTests extends ESTestCase {
 

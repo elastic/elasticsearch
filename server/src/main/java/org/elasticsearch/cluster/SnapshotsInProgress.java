@@ -324,7 +324,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Set<Tuple<String, Integer>> queuedShards = new HashSet<>();
             final List<Entry> entriesForRepository = repoEntries.getValue();
             final String repository = repoEntries.getKey();
-            assert entriesForRepository.isEmpty() == false : "found empty list snapshot snapshots for " + repository + " in " + entries;
+            assert entriesForRepository.isEmpty() == false : "found empty list of snapshots for " + repository + " in " + entries;
             for (Entry entry : entriesForRepository) {
                 assert entry.repository().equals(repository) : "mismatched repository " + entry + " tracked under " + repository;
                 for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId().entrySet()) {

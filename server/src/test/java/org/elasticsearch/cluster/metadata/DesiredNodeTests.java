@@ -25,8 +25,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DesiredNodeTests extends ESTestCase {
-    public static final double MAX_ERROR = 7E-5;
-
     public void testExternalIdIsRequired() {
         final Settings.Builder settings = Settings.builder();
         if (randomBoolean()) {
@@ -278,7 +276,7 @@ public class DesiredNodeTests extends ESTestCase {
     }
 
     private double randomNumberOfProcessors() {
-        return randomDoubleBetween(Math.ulp(0.0), 512.99999999, true);
+        return randomDoubleBetween(Double.MIN_VALUE, 512.99999999, true);
     }
 
     private Double randomInvalidProcessor() {

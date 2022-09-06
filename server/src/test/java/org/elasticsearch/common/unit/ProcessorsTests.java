@@ -21,7 +21,8 @@ public class ProcessorsTests extends ESTestCase {
         final double processorCount = randomNumberOfProcessors();
 
         final Processors processors = Processors.of(processorCount);
-        final String processorsString = Double.toString(processors.count());
+        final double roundedProcessorsCount = processors.count();
+        final String processorsString = Double.toString(roundedProcessorsCount);
         final int decimalPlaces;
         if (processorsString.contains("E")) {
             int exponent = Integer.parseInt(processorsString.substring(processorsString.indexOf("E") + 1));
@@ -31,6 +32,8 @@ public class ProcessorsTests extends ESTestCase {
             decimalPlaces = processorsString.length() - processorsString.indexOf(".") - 1;
         }
         assertThat(decimalPlaces, is(lessThanOrEqualTo(Processors.NUMBER_OF_DECIMAL_PLACES)));
+
+        assertThat(Processors.of(roundedProcessorsCount).count(), is(equalTo(roundedProcessorsCount)));
     }
 
     public void testRounding() {
@@ -38,6 +41,18 @@ public class ProcessorsTests extends ESTestCase {
             final Processors processors = Processors.of(1.2);
             assertThat(processors.roundDown(), is(equalTo(1)));
             assertThat(processors.roundUp(), is(equalTo(2)));
+        }
+
+        {
+            final Processors processors = Processors.of(10.1);
+            assertThat(processors.roundDown(), is(equalTo(10)));
+            assertThat(processors.roundUp(), is(equalTo(11)));
+        }
+
+        {
+            final Processors processors = Processors.of((double) 12);
+            assertThat(processors.roundDown(), is(equalTo(12)));
+            assertThat(processors.roundUp(), is(equalTo(12)));
         }
 
         {

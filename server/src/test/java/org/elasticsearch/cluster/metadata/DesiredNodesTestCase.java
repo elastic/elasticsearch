@@ -186,6 +186,6 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static double randomNumberOfProcessors() {
-        return randomDoubleBetween(Math.ulp(0.0), 512.99999999, true);
+        return randomDoubleBetween(Double.MIN_VALUE, 512.99999999, true);
     }
 }

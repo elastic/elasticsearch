@@ -21,7 +21,7 @@ public class ProcessorsSerializationTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Processors createTestInstance() {
-        return Processors.of(randomDoubleBetween(Math.ulp(0.0), 512.99999999, true));
+        return Processors.of(randomDoubleBetween(Double.MIN_VALUE, 512.99999999, true));
     }
 
     @Override

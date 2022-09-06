@@ -443,7 +443,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
         {
             // chunked response
-            channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, new ChunkedRestResponseBody() {
+            channel.sendResponse(new RestResponse(RestStatus.OK, new ChunkedRestResponseBody() {
 
                 @Override
                 public boolean isDone() {
@@ -453,6 +453,11 @@ public class DefaultRestChannelTests extends ESTestCase {
                 @Override
                 public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
                     throw new AssertionError("should not try to serialize response body for HEAD request");
+                }
+
+                @Override
+                public String getResponseContentTypeString() {
+                    return RestResponse.TEXT_CONTENT_TYPE;
                 }
             }));
             verify(httpChannel, times(2)).sendResponse(requestCaptor.capture(), any());

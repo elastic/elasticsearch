@@ -45,6 +45,11 @@ public interface ChunkedRestResponseBody {
     ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException;
 
     /**
+     * @return the response Content-Type header value for this response body
+     */
+    String getResponseContentTypeString();
+
+    /**
      * Create a chunked response body to be written to a specific {@link RestChannel} from a {@link ChunkedToXContent}.
      *
      * @param chunkedToXContent chunked x-content instance to serialize
@@ -101,6 +106,11 @@ public interface ChunkedRestResponseBody {
                 }
                 this.target = null;
                 return new ReleasableBytesReference(chunkStream.bytes(), () -> IOUtils.closeWhileHandlingException(chunkStream));
+            }
+
+            @Override
+            public String getResponseContentTypeString() {
+                return builder.getResponseContentTypeString();
             }
         };
     }

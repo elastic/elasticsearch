@@ -78,8 +78,8 @@ public class RestResponse {
         this(status, responseMediaType, content, null);
     }
 
-    public RestResponse(RestStatus status, String responseMediaType, ChunkedRestResponseBody content) {
-        this(status, responseMediaType, null, content);
+    public RestResponse(RestStatus status, ChunkedRestResponseBody content) {
+        this(status, content.getResponseContentTypeString(), null, content);
     }
 
     /**

@@ -20,11 +20,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.client.internal.Requests.getSnapshotsRequest;
@@ -91,11 +89,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
                 protected void processResponse(GetSnapshotsResponse getSnapshotsResponse) throws IOException {
                     ensureOpen();
                     channel.sendResponse(
-                        new RestResponse(
-                            RestStatus.OK,
-                            (Objects.requireNonNullElse(request.getXContentType(), XContentType.JSON)).mediaType(),
-                            ChunkedRestResponseBody.fromXContent(getSnapshotsResponse, request, channel)
-                        )
+                        new RestResponse(RestStatus.OK, ChunkedRestResponseBody.fromXContent(getSnapshotsResponse, request, channel))
                     );
                 }
             });

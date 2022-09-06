@@ -461,6 +461,11 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
                 remaining--;
                 return ReleasableBytesReference.wrap(chunk);
             }
+
+            @Override
+            public String getResponseContentTypeString() {
+                return "application/octet-stream";
+            }
         };
     }
 

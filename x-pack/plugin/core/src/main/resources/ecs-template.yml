@@ -1,6 +1,5 @@
 ---
-# This template should serve as a foundation for indices and data streams using ECS.
-
+# This template serves as a foundation for indices and data streams using ECS.
 template:
 
   settings:
@@ -48,28 +47,35 @@ template:
 
     # To ensure no empty mappings are in an index, everything except the properties above are mapped as dynamic templates
     # The dynamic mappings here are a best effort to map ECS core fields: https://github.com/elastic/ecs/blob/8.4/generated/csv/fields.csv
-    # As most fields are keyword, these will be automatically be matched correctly. Only core fields were taken into account.
-    # DISCUSS: Should @timestamp and data_stream.* also be moved under dynamic templates?
+    # As most fields are keyword, these will be automatically be matched correctly. Only ECS core fields were taken into account.
     dynamic_templates:
 
       ### Index mappings
 
       # Message field is always index
-      - message:
+      # DISCUSS: Should only the top level message field always be indexed?
+      - match_message:
           path_match: message
           mapping:
             type: match_only_text
 
       ### Runtime mappings
 
+      # Set the ECS version
+      - match_ecs.version:
+          path_match: ecs.version
+          # DISCUSS: In ECS this is still a keyword field
+          type: version
+          # TODO: Can this somehow be set?
+          #value: ${xpack.stack.template.version}
+
       # Matching all string fields by default to keyword
+      # As it is a runtime field, ignore_above is not needed
       # TODO: Does first / last match win in the list?
       - strings_as_keyword:
           match_mapping_type: string
           runtime:
             type: keyword
-            # As it is a runtime field, ignore_above is not needed
-            #ignore_above: 1024
 
       # Matching all ECS core long fields
       # This matches the following fields: bytes, packets, port, duration, severity, pid
@@ -77,27 +83,27 @@ template:
       # "7" as a string in JSON, it would have the wrong default mapping. As it is a runtime field, the mapping could
       # still be adjusted but not something we should have the user do by default.
       # TODO: if path_match would be an array, this could be defined much nicer and more compact
-      - bytes:
+      - match_bytes:
           path_match: bytes
           runtime:
             type: long
-      - packets:
+      - match_packets:
           path_match: packets
           runtime:
             type: long
-      - port:
+      - match_port:
           path_match: port
           runtime:
             type: long
-      - duration:
+      - match_duration:
           path_match: duration
           runtime:
             type: long
-      - severity:
+      - match_severity:
           path_match: severity
           runtime:
             type: long
-      - pid:
+      - match_pid:
           path_match: pid
           runtime:
             type: long
@@ -105,7 +111,7 @@ template:
       # Matching all float and double fields
       # This matches the following fields: event.risk_score
       # Why path_match is used, see discussion for long. For runtime fields, it does not matter if it is a float or a double
-      - risk_score:
+      - match_risk_score:
           match_path: risk_score
           runtime:
             type: double
@@ -113,35 +119,18 @@ template:
       # Matching all boolean fields
       # This matches the following fields: exists
       # Why path_match is used, see discussion for long.
-      - exists:
+      - match_exists:
           match_path: exists
           runtime:
             type: boolean
 
-      # Matching all string fields by default to keyword
-      # TODO: Does first / last match win in the list?
-      - strings_as_keyword:
-          match_mapping_type: string
-          runtime:
-            type: keyword
-            # Do we need this for runtime?
-            ignore_above: 1024
-
-      # Any message field except the top level one is matched as text but not indexed
-      # TODO: Does this work? Which one has priority?
-      - match_message:
-          path_match: message
-          runtime:
-            type: match_only_text
-
       # Match all ip fields to ip
       # This matches the following fields: ip, network.forwarded_ip
-      - ip:
+      - match_ip:
           match: ip
           runtime:
             type: ip
-
-      - forwarded_ip:
+      - match_forwarded_ip:
           match: forwarded_ip
           runtime:
             type: ip
@@ -156,17 +145,14 @@ template:
             type: flattened
 
       # Match location fields to geopoint
-      - location:
-          # TODO: What is the correct matching type here?
-          match_mapping_type: object
+      - match_location:
+          # TODO: What happens if this is a string and not an object?
           match: location
           runtime:
             type: geo_point
 
       # Match name fields to text_keyword
       - match_name:
-          # TODO: What is the correct matching type here?
-          match_mapping_type: string
           match: name
           runtime:
             # TODO: This is a field type that does not exist today. What ECS does is that for all name fields, it
@@ -189,7 +175,6 @@ template:
           match: created
           runtime:
             type: date
-
       - match_ingested:
           match: ingested
           runtime:
@@ -230,7 +215,7 @@ template:
 
 # Meta information blocks
 _meta:
-  description: Base mappings for indices and data streams using ECS
+  description: Base mappings for indices and data streams using core ECS
   managed: true
 
 # TODO: What should the version here be? Put in brackets for now to make it valid yaml

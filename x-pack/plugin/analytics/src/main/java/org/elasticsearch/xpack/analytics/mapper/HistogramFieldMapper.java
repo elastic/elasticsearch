@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -477,7 +476,6 @@ public class HistogramFieldMapper extends FieldMapper {
             @Override
             public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
                 BinaryDocValues docValues = DocValues.getBinary(leafReader, fieldType().name());
-                LogManager.getLogger(HistogramFieldMapper.class).error("DSAFADFDASFSAF {} {}", fieldType().name(), docValues);
                 if (docValues == null) {
                     // No values in this leaf
                     binaryValue = null;
@@ -485,11 +483,9 @@ public class HistogramFieldMapper extends FieldMapper {
                 }
                 return docId -> {
                     if (docValues.advanceExact(docId)) {
-                        LogManager.getLogger(HistogramFieldMapper.class).error("DSAFADFDASFSAF {} true", fieldType().name());
                         binaryValue = docValues.binaryValue();
                         return true;
                     }
-                    LogManager.getLogger(HistogramFieldMapper.class).error("DSAFADFDASFSAF {} false", fieldType().name());
                     binaryValue = null;
                     return false;
                 };
@@ -502,7 +498,6 @@ public class HistogramFieldMapper extends FieldMapper {
 
             @Override
             public void write(XContentBuilder b) throws IOException {
-                LogManager.getLogger(HistogramFieldMapper.class).error("DSAFADFDASFSAF {} true", binaryValue);
                 if (binaryValue == null) {
                     return;
                 }

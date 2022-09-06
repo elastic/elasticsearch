@@ -532,7 +532,12 @@ public class TextFieldMapperTests extends MapperTestCase {
             IllegalArgumentException.class,
             () -> disabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
         );
-        assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Field data is disabled on [field] in []. Text fields are not optimised for operations that require per-document field data"
+            )
+        );
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
         enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test")); // no exception

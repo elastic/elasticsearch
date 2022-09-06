@@ -28,7 +28,7 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
     public static final String COMPILE_JAVA_CONFIG = """
         tasks.named('compileJava').configure {
             doLast {
-                def sep = org.gradle.internal.os.OperatingSystem.current().isWindows() ? ':' : ';'
+                def sep = org.elasticsearch.gradle.OS.current() == org.elasticsearch.gradle.OS.WINDOWS ? ':' : ';'
                 println "COMPILE_JAVA_COMPILER_ARGS " + options.allCompilerArgs.join(sep)
                 println "COMPILE_JAVA_CLASSPATH "  + classpath.asPath
             }

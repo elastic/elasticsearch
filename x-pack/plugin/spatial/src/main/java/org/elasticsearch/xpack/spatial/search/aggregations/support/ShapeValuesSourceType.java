@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
@@ -16,9 +14,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-import java.io.IOException;
-
-public abstract class ShapeValuesSourceType implements Writeable, ValuesSourceType {
+public abstract class ShapeValuesSourceType implements ValuesSourceType {
 
     @Override
     public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
@@ -28,9 +24,4 @@ public abstract class ShapeValuesSourceType implements Writeable, ValuesSourceTy
 
     @Override
     public abstract ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context);
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-
-    }
 }

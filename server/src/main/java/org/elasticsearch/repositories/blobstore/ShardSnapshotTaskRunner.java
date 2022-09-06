@@ -37,7 +37,7 @@ public class ShardSnapshotTaskRunner {
             this.context = context;
         }
 
-        public abstract short priority();
+        public abstract int priority();
 
         public SnapshotShardContext context() {
             return context;
@@ -64,7 +64,7 @@ public class ShardSnapshotTaskRunner {
         }
 
         @Override
-        public short priority() {
+        public int priority() {
             return 1;
         }
 
@@ -90,7 +90,7 @@ public class ShardSnapshotTaskRunner {
         }
 
         @Override
-        public short priority() {
+        public int priority() {
             return 2;
         }
 

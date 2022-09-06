@@ -308,8 +308,14 @@ public class IndexLifecycleService
 
         // if we're the master, then process deleted indices and trigger policies
         if (this.isMaster) {
-            for (Index index : event.indicesDeleted()) {
-                policyRegistry.delete(index);
+            // cleanup cache in policyRegistry on another thread since its not critical to have it run on the applier thread and computing
+            // the deleted indices becomes expensive for larger cluster states
+            if (event.state().metadata().indices() != event.previousState().metadata().indices()) {
+                clusterService.getClusterApplierService().threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
+                    for (Index index : event.indicesDeleted()) {
+                        policyRegistry.delete(index);
+                    }
+                });
             }
 
             final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);

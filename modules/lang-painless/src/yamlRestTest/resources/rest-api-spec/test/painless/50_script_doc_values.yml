@@ -81,6 +81,8 @@ setup:
                             fielddata: true
                         text_no_field_data:
                             type: text
+                        match_only_text:
+                          type: match_only_text
                         token_count:
                             type: token_count
                             analyzer: standard
@@ -125,6 +127,7 @@ setup:
                 scaled_float_no_doc_values: 3.14
                 text: "Lots of text."
                 text_no_field_data: "Lots of text."
+                match_only_text: "Lots of text."
                 token_count: count all these words please
 
     - do:
@@ -169,7 +172,7 @@ setup:
               scaled_float_no_doc_values: [2.5, -3.5]
               text: ["Lots of text.", "even more text", "SOOOOO much text"]
               text_no_field_data: ["Lots of text.", "even more text", "SOOOOO much text"]
-
+              match_only_text: ["Lots of text.", "even more text", "SOOOOO much text"]
 
     - do:
         indices.refresh: {}
@@ -3230,6 +3233,136 @@ setup:
             field:
               script:
                 source: "String cat = ''; for (String s : field('text_no_field_data')) { cat += s; } cat + field('text_no_field_data').size();"
+  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+  - match: { hits.hits.1.fields.field.0: "0" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
+
+---
+"match_only_text":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['match_only_text'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['match_only_text'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('match_only_text').get('')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('match_only_text', '')"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('match_only_text').get(defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('match_only_text', defaultText)"
+  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('match_only_text').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('match_only_text').get(1, defaultText)"
+  - match: { hits.hits.0.fields.field.0: "default text" }
+  - match: { hits.hits.1.fields.field.0: "default text" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('match_only_text').get(1, '')"
+  - match: { hits.hits.0.fields.field.0: "" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('match_only_text')) { cat += s; } cat + field('match_only_text').size();"
   - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
   - match: { hits.hits.1.fields.field.0: "0" }
   - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }

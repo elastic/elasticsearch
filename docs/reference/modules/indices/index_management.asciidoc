@@ -15,7 +15,7 @@ features.
 // tag::action-destructive-requires-name-tag[]
 `action.destructive_requires_name` {ess-icon}::
 (<<dynamic-cluster-setting,Dynamic>>)
-When set to `true`, you must specify the index name to <<indices-delete-index,delete an index>>. It is not possible to delete all indices with `_all` or use wildcards.
+When set to `true`, you must specify the index name to <<indices-delete-index,delete an index>>. It is not possible to delete all indices with `_all` or use wildcards. Defaults to `true`.
 // end::action-destructive-requires-name-tag[]
 
 [[cluster-indices-close-enable]]

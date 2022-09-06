@@ -910,7 +910,7 @@ public class MasterService extends AbstractLifecycleComponent {
         @Override
         public Releasable captureResponseHeaders() {
             final var threadContext = updateTask.getThreadContext();
-            final var storedContext = threadContext.newStoredContext(false);
+            final var storedContext = threadContext.newStoredContext();
             return Releasables.wrap(() -> {
                 final var newResponseHeaders = threadContext.getResponseHeaders();
                 if (newResponseHeaders.isEmpty()) {
@@ -1044,7 +1044,7 @@ public class MasterService extends AbstractLifecycleComponent {
         ThreadContext threadContext
     ) {
         final var taskContexts = castTaskContexts(executionResults);
-        try (var ignored = threadContext.newStoredContext(false)) {
+        try (var ignored = threadContext.newStoredContext()) {
             // if the executor leaks a response header then this will cause a test failure, but we also store the context here to be sure
             // to avoid leaking headers in production that were missed by tests
 
@@ -1053,7 +1053,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     new ClusterStateTaskExecutor.BatchExecutionContext<>(
                         previousClusterState,
                         taskContexts,
-                        () -> threadContext.newStoredContext(false)
+                        threadContext::newStoredContext
                     )
                 );
             } catch (Exception e) {

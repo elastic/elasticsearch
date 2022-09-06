@@ -487,20 +487,22 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             } else {
                 Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
                 if (resizeSourceIndex != null) {
-                    IndexMetadata sourceIndexMetadata = metadata.getIndexSafe(resizeSourceIndex);
-                    // ResizeAllocationDecider only handles clone or split, do the same here.
+                    IndexMetadata sourceIndexMetadata = metadata.index(resizeSourceIndex);
+                    // source indicators stay on the index even after started and also after source is deleted.
+                    if (sourceIndexMetadata != null) {
+                        // ResizeAllocationDecider only handles clone or split, do the same here.
+                        if (indexMetadata.getNumberOfShards() >= sourceIndexMetadata.getNumberOfShards()) {
+                            IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(resizeSourceIndex);
+                            long max = 0;
+                            for (int s = 0; s < sourceIndexMetadata.getNumberOfShards(); ++s) {
+                                ShardRouting shard = indexRoutingTable.shard(s).primaryShard();
+                                long size = sizeOf(shard);
+                                max = Math.max(max, size);
+                            }
 
-                    if (indexMetadata.getNumberOfShards() >= sourceIndexMetadata.getNumberOfShards()) {
-                        IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(resizeSourceIndex);
-                        long max = 0;
-                        for (int s = 0; s < sourceIndexMetadata.getNumberOfShards(); ++s) {
-                            ShardRouting shard = indexRoutingTable.shard(s).primaryShard();
-                            long size = sizeOf(shard);
-                            max = Math.max(max, size);
+                            // 2x to account for the extra copy residing on the same node
+                            return max * 2;
                         }
-
-                        // 2x to account for the extra copy residing on the same node
-                        return max * 2;
                     }
                 }
             }

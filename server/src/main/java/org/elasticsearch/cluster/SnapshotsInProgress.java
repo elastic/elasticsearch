@@ -297,7 +297,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     /**
      * Checks if all shards in the list have completed
      *
-     * @param shards list snapshot shard statuses
+     * @param shards list of shard statuses
      * @return true if all shards have completed (either successfully or failed), false otherwise
      */
     public static boolean completed(Collection<ShardSnapshotStatus> shards) {

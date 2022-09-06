@@ -19,6 +19,7 @@ import org.elasticsearch.health.ImpactArea;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This indicator reports the health of master stability.
@@ -52,7 +53,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final String DETAILS_CURRENT_MASTER = "current_master";
     private static final String DETAILS_RECENT_MASTERS = "recent_masters";
     private static final String DETAILS_EXCEPTION_FETCHING_HISTORY = "exception_fetching_history";
-    private static final String CLUSTER_FORMATION = "cluster_formation";
+    private static final String CLUSTER_FORMATION = "cluster_formation_details";
 
     // Impacts of having an unstable master:
     private static final String UNSTABLE_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot "
@@ -155,7 +156,14 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 });
             }
             if (coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap() != null) {
-                builder.field(CLUSTER_FORMATION, coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap());
+                builder.field(
+                    CLUSTER_FORMATION,
+                    coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap()
+                        .entrySet()
+                        .stream()
+                        .map(entry -> Map.of("node_id", entry.getKey(), "cluster_formation", entry.getValue()))
+                        .toList()
+                );
             }
             return builder.endObject();
         };

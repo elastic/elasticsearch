@@ -95,6 +95,15 @@ teardown:
   - match: { $errors.count : 1 }
   - match: { $errors.details.does_not_exist.type: "resource_not_found_exception" }
 
+  # Get users with profile uid
+  - do:
+      security.get_user:
+        username: [ 'joe', 'doe' ]
+        with_profile_uid: true
+
+  - match: { "joe.profile_uid": "$profile_uid_1" }
+  - match: { "doe.profile_uid": "$profile_uid_2" }
+
 
 ---
 "Test user profile apis":

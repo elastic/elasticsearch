@@ -52,7 +52,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
         @Override
         public int compareTo(TestTask o) {
-            return Integer.compare(priority, o.priority);
+            return priority - o.priority;
         }
 
         @Override

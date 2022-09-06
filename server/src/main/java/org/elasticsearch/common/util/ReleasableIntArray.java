@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 class ReleasableIntArray implements IntArray {
-    private ReleasableBytesReference ref;
+    private final ReleasableBytesReference ref;
 
     ReleasableIntArray(StreamInput in) throws IOException {
         ref = in.readReleasableBytesReference();
@@ -34,7 +34,8 @@ class ReleasableIntArray implements IntArray {
     @Override
     public int get(long index) {
         if (index > Integer.MAX_VALUE / 4) {
-            throw new UnsupportedOperationException(); // NOCOMMIT Oh god, what do we do here?
+            // We can't serialize messages longer than 2gb anyway
+            throw new ArrayIndexOutOfBoundsException();
         }
         return ref.getIntLE((int) index * 4);
     }
@@ -67,6 +68,5 @@ class ReleasableIntArray implements IntArray {
     @Override
     public void close() {
         ref.decRef();
-        ref = null;
     }
 }

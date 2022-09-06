@@ -135,7 +135,6 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     @Override
     public StreamInput streamInput() throws IOException {
         assert hasReferences();
-        // NOCOMMIT why doesn't this inc the ref?
         return new BytesReferenceStreamInput(this) {
             @Override
             public ReleasableBytesReference readReleasableBytesReference() throws IOException {

@@ -620,7 +620,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
+                    new RolloverAction(null, null, null, 1000L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo, randomBoolean())
                 )

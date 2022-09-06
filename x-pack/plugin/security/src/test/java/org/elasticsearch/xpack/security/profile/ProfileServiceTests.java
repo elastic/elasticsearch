@@ -908,7 +908,6 @@ public class ProfileServiceTests extends ESTestCase {
         verify(service, never()).doUpdate(any(), anyActionListener());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89764")
     public void testActivateWhenShouldSkipUpdateForActivateReturnsFalseFirst() throws IOException {
         final ProfileService service = spy(profileService);
         doAnswer(
@@ -922,10 +921,11 @@ public class ProfileServiceTests extends ESTestCase {
 
         // Throw version conflict on update to force GET document
         final Exception updateException;
+        final VersionConflictEngineException versionConflictException = new VersionConflictEngineException(mock(ShardId.class), "", "");
         if (randomBoolean()) {
-            updateException = new RemoteTransportException("", new VersionConflictEngineException(mock(ShardId.class), "", ""));
+            updateException = new RemoteTransportException("", versionConflictException);
         } else {
-            updateException = new VersionConflictEngineException(mock(ShardId.class), "", "");
+            updateException = versionConflictException;
         }
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -963,7 +963,8 @@ public class ProfileServiceTests extends ESTestCase {
         if (secondCheckResult) {
             assertThat(future.actionGet(), equalTo(versionedDocument.toProfile(Set.of())));
         } else {
-            assertThat(expectThrows(VersionConflictEngineException.class, future::actionGet), sameInstance(updateException));
+            // The actionGet method unwraps ES exception to rethrow the cause of it
+            assertThat(expectThrows(VersionConflictEngineException.class, future::actionGet), sameInstance(versionConflictException));
         }
         verify(service, times(2)).shouldSkipUpdateForActivate(any(), any());
         verify(service).doUpdate(any(), anyActionListener());

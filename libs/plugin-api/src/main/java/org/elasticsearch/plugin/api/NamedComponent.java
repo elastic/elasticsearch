@@ -20,7 +20,7 @@ import java.lang.annotation.Target;
 @Target({ ElementType.TYPE })
 public @interface NamedComponent {
     /**
-     * A name used for registration and lookup
+     * The name used for registration and lookup
      * @return a name
      */
     String name();

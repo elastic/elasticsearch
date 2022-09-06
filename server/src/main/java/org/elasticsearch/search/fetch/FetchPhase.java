@@ -242,6 +242,12 @@ public class FetchPhase {
                 context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
             }
             boolean loadSource = sourceRequired(context);
+            if (loadSource) {
+                if (false == sourceLoader.requiredStoredFields().isEmpty()) {
+                    // add the stored fields needed to load the source mapping to an empty set so they aren't returned
+                    sourceLoader.requiredStoredFields().forEach(fieldName -> storedToRequestedFields.putIfAbsent(fieldName, Set.of()));
+                }
+            }
             return StoredFieldLoader.create(loadSource, sourceLoader.requiredStoredFields());
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
@@ -474,6 +480,7 @@ public class FetchPhase {
     public static List<Object> processStoredField(Function<String, MappedFieldType> fieldTypeLookup, String field, List<Object> input) {
         MappedFieldType ft = fieldTypeLookup.apply(field);
         if (ft == null) {
+            // TODO remove this once we've stopped calling it for accidentally loaded fields
             return input;
         }
         return input.stream().map(ft::valueForDisplay).collect(Collectors.toList());

@@ -160,6 +160,11 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             if (categorizationAnalyzer != null && categorizationFieldIndex != null) {
                 tokenizeForCategorization(categorizationAnalyzer, input[categorizationFieldIndex], record);
             }
+
+            if (categorizationFieldIndex != null) {
+                record[categorizationFieldIndex] = analysisConfig.maybeTruncateCatgeorizationField(record[categorizationFieldIndex]);
+            }
+
             transformTimeAndWrite(record, inputFieldCount);
 
             inputFieldCount = recordReader.read(input, gotFields);

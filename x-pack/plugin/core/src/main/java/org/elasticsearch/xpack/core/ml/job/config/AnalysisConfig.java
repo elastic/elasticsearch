@@ -69,6 +69,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public static final String ML_CATEGORY_FIELD = "mlcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
 
+    public static final int MAX_CATEGORIZATION_FIELD_LENGTH = 1001;
+
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> LENIENT_PARSER = createParser(true);
     public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> STRICT_PARSER = createParser(false);
@@ -334,6 +336,13 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
     public List<String> fields() {
         return collectNonNullAndNonEmptyDetectorFields(Detector::getFieldName);
+    }
+
+    public String maybeTruncateCatgeorizationField(String categorizationField) {
+        if (termFields().contains(categorizationFieldName) == false) {
+            return categorizationField.substring(0, Math.min(categorizationField.length(), MAX_CATEGORIZATION_FIELD_LENGTH));
+        }
+        return categorizationField;
     }
 
     private List<String> collectNonNullAndNonEmptyDetectorFields(Function<Detector, String> fieldGetter) {

@@ -36,8 +36,6 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
     static final ParseField RIGHT_FIELD = new ParseField("right");
     static final ParseField WKT_FIELD = new ParseField("wkt");
     public static final ParseField BOUNDS_FIELD = new ParseField("bounds");
-    public static final ParseField LAT_FIELD = new ParseField("lat");
-    public static final ParseField LON_FIELD = new ParseField("lon");
     public static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
     public static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
     protected final T topLeft;
@@ -79,12 +77,12 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        toXContentFragment(builder, true);
+        toXContentFragment(builder);
         builder.endObject();
         return builder;
     }
 
-    public abstract XContentBuilder toXContentFragment(XContentBuilder builder, boolean buildLatLonFields) throws IOException;
+    public abstract XContentBuilder toXContentFragment(XContentBuilder builder) throws IOException;
 
     protected abstract static class BoundsParser<T extends BoundingBox<? extends SpatialPoint>> {
         protected double top = Double.NaN;

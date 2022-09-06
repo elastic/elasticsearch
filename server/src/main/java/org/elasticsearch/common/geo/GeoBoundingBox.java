@@ -10,6 +10,7 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -20,6 +21,8 @@ import java.io.IOException;
  * that deal with extents/rectangles representing rectangular areas of interest.
  */
 public class GeoBoundingBox extends BoundingBox<GeoPoint> {
+    public static final ParseField LAT_FIELD = new ParseField("lat");
+    public static final ParseField LON_FIELD = new ParseField("lon");
 
     public GeoBoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
         super(topLeft, bottomRight);
@@ -40,23 +43,25 @@ public class GeoBoundingBox extends BoundingBox<GeoPoint> {
     }
 
     @Override
-    public XContentBuilder toXContentFragment(XContentBuilder builder, boolean buildLatLonFields) throws IOException {
-        if (buildLatLonFields) {
-            builder.startObject(TOP_LEFT_FIELD.getPreferredName());
-            builder.field(LAT_FIELD.getPreferredName(), topLeft.getY());
-            builder.field(LON_FIELD.getPreferredName(), topLeft.getX());
-            builder.endObject();
-        } else {
-            builder.array(TOP_LEFT_FIELD.getPreferredName(), topLeft.getX(), topLeft.getY());
-        }
-        if (buildLatLonFields) {
-            builder.startObject(BOTTOM_RIGHT_FIELD.getPreferredName());
-            builder.field(LAT_FIELD.getPreferredName(), bottomRight.getY());
-            builder.field(LON_FIELD.getPreferredName(), bottomRight.getX());
-            builder.endObject();
-        } else {
-            builder.array(BOTTOM_RIGHT_FIELD.getPreferredName(), bottomRight.getX(), bottomRight.getY());
-        }
+    public XContentBuilder toXContentFragment(XContentBuilder builder) throws IOException {
+        builder.startObject(TOP_LEFT_FIELD.getPreferredName());
+        builder.field(LAT_FIELD.getPreferredName(), topLeft.getY());
+        builder.field(LON_FIELD.getPreferredName(), topLeft.getX());
+        builder.endObject();
+        builder.startObject(BOTTOM_RIGHT_FIELD.getPreferredName());
+        builder.field(LAT_FIELD.getPreferredName(), bottomRight.getY());
+        builder.field(LON_FIELD.getPreferredName(), bottomRight.getX());
+        builder.endObject();
+        return builder;
+    }
+
+    /**
+     * There exists a special case where we use an array format for building the XContent for the bounds.
+     * Specifically the GeoBoundingBoxQueryBuilder makes use of this. All other cases build a keyed map.
+     */
+    public XContentBuilder toXContentFragmentWithArray(XContentBuilder builder) throws IOException {
+        builder.array(TOP_LEFT_FIELD.getPreferredName(), topLeft.getX(), topLeft.getY());
+        builder.array(BOTTOM_RIGHT_FIELD.getPreferredName(), bottomRight.getX(), bottomRight.getY());
         return builder;
     }
 

@@ -43,6 +43,13 @@ if [ -f "/etc/os-release" ] ; then
             sudo apt-get install -y --allow-downgrades lintian=2.15.0
         fi
     fi
+    if [[ "$ID" == "rhel" ]] ; then
+      # Downgrade containerd if necessary to work around runc bug
+      # See: https://github.com/opencontainers/runc/issues/3551
+      if containerd -version | grep -sF 1.6.7; then
+        sudo yum downgrade -y containerd.io
+      fi
+    fi
 else
     cat /etc/issue || true
 fi

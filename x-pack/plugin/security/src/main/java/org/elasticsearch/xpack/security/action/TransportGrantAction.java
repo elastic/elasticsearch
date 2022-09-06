@@ -79,7 +79,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                         authorizationService.authorize(
                             authentication,
                             AuthenticateAction.NAME,
-                            new AuthenticateRequest(effectiveUsername),
+                            AuthenticateRequest.INSTANCE,
                             ActionListener.wrap(
                                 ignore2 -> doExecuteWithGrantAuthentication(task, request, authentication, listener),
                                 listener::onFailure

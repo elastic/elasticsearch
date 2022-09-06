@@ -143,14 +143,16 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         long unassignedBytes = unassignedBytesUnassignedShards.sizeInBytes();
         long maxShardSize = allocationState.maxShardSize();
         long maxNodeLockedSize = allocationState.maxNodeLockedSize();
-        long minimumNodeSize = nodeSizeForDataBelowLowWatermark(Math.max(maxShardSize, maxNodeLockedSize), diskThresholdSettings)
-            + NODE_DISK_OVERHEAD;
         assert assignedBytes >= 0;
         assert unassignedBytes >= 0;
         assert maxShardSize >= 0;
         String message = message(unassignedBytes, assignedBytes);
+        long requiredTotalStorage = autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes;
+        long minimumNodeSize = requiredTotalStorage > 0L
+            ? nodeSizeForDataBelowLowWatermark(Math.max(maxShardSize, maxNodeLockedSize), diskThresholdSettings) + NODE_DISK_OVERHEAD
+            : 0L;
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null, null)
+            .total(requiredTotalStorage, null, null)
             .node(minimumNodeSize, null, null)
             .build();
         return new AutoscalingDeciderResult(
@@ -485,20 +487,22 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             } else {
                 Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
                 if (resizeSourceIndex != null) {
-                    IndexMetadata sourceIndexMetadata = metadata.getIndexSafe(resizeSourceIndex);
-                    // ResizeAllocationDecider only handles clone or split, do the same here.
+                    IndexMetadata sourceIndexMetadata = metadata.index(resizeSourceIndex);
+                    // source indicators stay on the index even after started and also after source is deleted.
+                    if (sourceIndexMetadata != null) {
+                        // ResizeAllocationDecider only handles clone or split, do the same here.
+                        if (indexMetadata.getNumberOfShards() >= sourceIndexMetadata.getNumberOfShards()) {
+                            IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(resizeSourceIndex);
+                            long max = 0;
+                            for (int s = 0; s < sourceIndexMetadata.getNumberOfShards(); ++s) {
+                                ShardRouting shard = indexRoutingTable.shard(s).primaryShard();
+                                long size = sizeOf(shard);
+                                max = Math.max(max, size);
+                            }
 
-                    if (indexMetadata.getNumberOfShards() >= sourceIndexMetadata.getNumberOfShards()) {
-                        IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(resizeSourceIndex);
-                        long max = 0;
-                        for (int s = 0; s < sourceIndexMetadata.getNumberOfShards(); ++s) {
-                            ShardRouting shard = indexRoutingTable.shard(s).primaryShard();
-                            long size = sizeOf(shard);
-                            max = Math.max(max, size);
+                            // 2x to account for the extra copy residing on the same node
+                            return max * 2;
                         }
-
-                        // 2x to account for the extra copy residing on the same node
-                        return max * 2;
                     }
                 }
             }

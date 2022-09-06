@@ -521,6 +521,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final String secondSnapshot = "snapshot-two";
         final ActionFuture<CreateSnapshotResponse> secondSnapshotResponse = startFullSnapshotFromMasterClient(repoName, secondSnapshot);
+        awaitNumberOfSnapshotsInProgress(2);
 
         internalCluster().restartNode(dataNode);
 

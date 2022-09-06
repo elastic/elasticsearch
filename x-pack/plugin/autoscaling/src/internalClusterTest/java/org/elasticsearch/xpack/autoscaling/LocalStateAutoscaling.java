@@ -41,8 +41,8 @@ public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin {
         }
 
         @Override
-        public Set<AutoscalingDeciderService> getDeciderServices() {
-            Set<AutoscalingDeciderService> deciderServices = new HashSet<>(super.getDeciderServices());
+        public Set<AutoscalingDeciderService> createDeciderServices() {
+            Set<AutoscalingDeciderService> deciderServices = new HashSet<>(super.createDeciderServices());
             deciderServices.add(syncDeciderService);
             deciderServices.add(new AutoscalingCountTestDeciderService());
             return deciderServices;

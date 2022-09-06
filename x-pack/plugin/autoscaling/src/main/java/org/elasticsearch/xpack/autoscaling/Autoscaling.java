@@ -119,8 +119,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         AllocationDeciders allocationDeciders
     ) {
         this.clusterServiceHolder.set(clusterService);
-        var capacityService = new AutoscalingCalculateCapacityService(getDeciderServices());
         this.allocationDeciders.set(allocationDeciders);
+        var capacityService = new AutoscalingCalculateCapacityService(createDeciderServices());
         return List.of(capacityService, autoscalingLicenseChecker, new AutoscalingNodeInfoService(clusterService, client));
     }
 
@@ -221,7 +221,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         );
     }
 
-    protected Set<AutoscalingDeciderService> getDeciderServices() {
+    protected Set<AutoscalingDeciderService> createDeciderServices() {
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
 }

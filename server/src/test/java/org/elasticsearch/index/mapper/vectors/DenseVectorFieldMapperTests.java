@@ -488,7 +488,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
             List<Float> value = randomList(dims, dims, ESTestCase::randomFloat);
-            System.err.println(value.size());
             return new SyntheticSourceExample(value, value, this::mapping);
         }
 

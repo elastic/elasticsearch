@@ -816,15 +816,21 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         StringBuilder sb = new StringBuilder();
         sb.append("indices[");
         Strings.arrayToDelimitedString(indices, ",", sb);
-        sb.append("], ");
-        sb.append("search_type[").append(searchType).append("], ");
+        sb.append("]");
+        sb.append(", search_type[").append(searchType).append("]");
         if (scroll != null) {
-            sb.append("scroll[").append(scroll.keepAlive()).append("], ");
+            sb.append(", scroll[").append(scroll.keepAlive()).append("]");
         }
         if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            sb.append(", source[").append(source.toString(FORMAT_PARAMS)).append("]");
         } else {
-            sb.append("source[]");
+            sb.append(", source[]");
+        }
+        if (routing != null) {
+            sb.append(", routing[").append(routing).append("]");
+        }
+        if (preference != null) {
+            sb.append(", preference[").append(preference).append("]");
         }
         return sb.toString();
     }

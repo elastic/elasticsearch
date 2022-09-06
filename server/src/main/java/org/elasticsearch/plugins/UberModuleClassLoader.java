@@ -13,6 +13,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.net.URI;
@@ -176,8 +177,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             byte[] bytes = in.readAllBytes();
             return defineClass(name, bytes, 0, bytes.length, codeSource);
         } catch (IOException e) {
-            // TODO
-            throw new IllegalStateException(e);
+            throw new UncheckedIOException(e);
         }
     }
 

@@ -86,7 +86,7 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
 
     public abstract XContentBuilder toXContentFragment(XContentBuilder builder, boolean buildLatLonFields) throws IOException;
 
-    protected abstract static class BoundsParser<T extends SpatialPoint> {
+    protected abstract static class BoundsParser<T extends BoundingBox<? extends SpatialPoint>> {
         protected double top = Double.NaN;
         protected double bottom = Double.NaN;
         protected double left = Double.NaN;
@@ -98,7 +98,7 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
             this.parser = parser;
         }
 
-        public BoundingBox<T> parseBoundingBox() throws IOException, ElasticsearchParseException {
+        public T parseBoundingBox() throws IOException, ElasticsearchParseException {
             XContentParser.Token token = parser.currentToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchParseException("failed to parse bounding box. Expected start object but found [{}]", token);
@@ -172,9 +172,9 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
             return createWithBounds();
         }
 
-        protected abstract BoundingBox<T> createWithEnvelope();
+        protected abstract T createWithEnvelope();
 
-        protected abstract BoundingBox<T> createWithBounds();
+        protected abstract T createWithBounds();
 
         protected abstract SpatialPoint parsePointWith(XContentParser parser, GeoUtils.EffectivePoint effectivePoint) throws IOException;
     }

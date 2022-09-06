@@ -8,6 +8,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -20,7 +21,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-abstract class AbstractPointIndexFieldData<T extends MultiPointValues<?>> implements IndexPointFieldData<T> {
+abstract class AbstractPointIndexFieldData<T extends MultiPointValues<? extends SpatialPoint>> implements IndexPointFieldData<T> {
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;

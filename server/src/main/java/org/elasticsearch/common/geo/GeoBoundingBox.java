@@ -86,7 +86,7 @@ public class GeoBoundingBox extends BoundingBox<GeoPoint> {
         out.writeGeoPoint(bottomRight);
     }
 
-    protected static class GeoBoundsParser extends BoundsParser<GeoPoint> {
+    protected static class GeoBoundsParser extends BoundsParser<GeoBoundingBox> {
         GeoBoundsParser(XContentParser parser) {
             super(parser);
         }
@@ -116,6 +116,6 @@ public class GeoBoundingBox extends BoundingBox<GeoPoint> {
      */
     public static GeoBoundingBox parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
         GeoBoundsParser bounds = new GeoBoundsParser(parser);
-        return (GeoBoundingBox) bounds.parseBoundingBox();
+        return bounds.parseBoundingBox();
     }
 }

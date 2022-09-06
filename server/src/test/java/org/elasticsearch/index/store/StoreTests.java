@@ -1192,6 +1192,7 @@ public class StoreTests extends ESTestCase {
         var shardId = new ShardId("index", "_na_", 1);
         var dir = createTempDir();
         try (Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(dir), new DummyShardLock(shardId))) {
+            store.createEmpty();
             store.markStoreCorrupted(new IOException("test exception"));
             var metadata = Store.readMetadataSnapshot(dir, shardId, (id, l, d) -> new DummyShardLock(id), logger);
             assertThat(metadata, equalTo(Store.MetadataSnapshot.EMPTY));

@@ -125,7 +125,7 @@ public class DownsampleAction implements LifecycleAction {
             cleanupRollupIndexKey,
             readOnlyKey,
             client,
-            (indexMetadata) -> IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.get(indexMetadata.getSettings()),
+            (indexMetadata) -> IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(indexMetadata.getSettings()),
             (indexMetadata) -> indexMetadata.getLifecycleExecutionState().rollupIndexName()
         );
         // Mark source index as read-only
@@ -142,10 +142,10 @@ public class DownsampleAction implements LifecycleAction {
         // Here is where the actual rollup action takes place
         RollupStep rollupStep = new RollupStep(rollupKey, waitForRollupIndexKey, client, fixedInterval);
 
-        // Wait until the rollup index is recovered. We again wait until the configured threshold is breached and
-        // if the rollup index has not successfully recovered until then, we rewind to the "cleanup-rollup-index"
-        // step to delete this unsuccessful rollup index and retry the operation by generating a new rollup index
-        // name and attempting to rollup again
+        // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and
+        // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-rollup-index"
+        // step to delete this unsuccessful downsampled index and retry the operation by generating a new downsampled index
+        // name and attempting to downsample again.
         ClusterStateWaitUntilThresholdStep rollupAllocatedStep = new ClusterStateWaitUntilThresholdStep(
             new WaitForIndexColorStep(
                 waitForRollupIndexKey,
@@ -163,9 +163,9 @@ public class DownsampleAction implements LifecycleAction {
             nextStepKey
         );
 
-        // By the time we get to this step we have 2 indices, the source and the rollup one. We now need to choose an index
-        // swapping strategy such that the rollup index takes the place of the source index (which will also be deleted).
-        // If the source index is part of a data stream it's a matter of replacing it with the rollup index one in the data stream and
+        // By the time we get to this step we have 2 indices, the source and the downsampled one. We now need to choose an index
+        // swapping strategy such that the downsampled index takes the place of the source index (which will also be deleted).
+        // If the source index is part of a data stream it's a matter of replacing it with the downsampled index one in the data stream and
         // then deleting the source index.
         BranchingStep isDataStreamBranchingStep = new BranchingStep(
             dataStreamCheckBranchingKey,

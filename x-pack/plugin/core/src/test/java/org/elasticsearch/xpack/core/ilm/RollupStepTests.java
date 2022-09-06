@@ -174,7 +174,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
         // Create a successfully completed rollup index (index.rollup.status: success)
         IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.SUCCESS))
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.SUCCESS)
+            )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -222,7 +224,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
         // Create an in-progress rollup index (index.rollup.status: started)
         IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.STARTED))
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED)
+            )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

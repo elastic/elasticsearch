@@ -763,16 +763,16 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private void assertRollupIndexSettings(String sourceIndex, String rollupIndex, GetIndexResponse indexSettingsResp) {
         // Assert rollup metadata are set in index settings
-        assertEquals("success", indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_STATUS_KEY));
+        assertEquals("success", indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY));
 
         assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_UUID));
-        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_SOURCE_UUID_KEY));
+        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY));
         assertEquals(
             indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_UUID),
-            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_SOURCE_UUID_KEY)
+            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY)
         );
 
-        assertEquals(sourceIndex, indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY));
+        assertEquals(sourceIndex, indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY));
         assertEquals(
             indexSettingsResp.getSetting(sourceIndex, IndexSettings.MODE.getKey()),
             indexSettingsResp.getSetting(rollupIndex, IndexSettings.MODE.getKey())

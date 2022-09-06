@@ -13,7 +13,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata.RollupTaskStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -159,8 +159,8 @@ public class DownsampleActionIT extends ESRestTestCase {
         );
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
-            assertEquals(index, settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()));
-            assertEquals(RollupTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_ROLLUP_STATUS.getKey()));
+            assertEquals(index, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
         assertBusy(
             () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
@@ -238,8 +238,8 @@ public class DownsampleActionIT extends ESRestTestCase {
         );
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
-            assertEquals(originalIndex, settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()));
-            assertEquals(RollupTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_ROLLUP_STATUS.getKey()));
+            assertEquals(originalIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
     }
 
@@ -275,8 +275,8 @@ public class DownsampleActionIT extends ESRestTestCase {
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
-            assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()));
-            assertEquals(RollupTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_ROLLUP_STATUS.getKey()));
+            assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
     }
 

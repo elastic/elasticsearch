@@ -72,10 +72,12 @@ public class RollupStep extends AsyncActionStep {
 
         IndexMetadata rollupIndexMetadata = currentState.metadata().index(rollupIndexName);
         if (rollupIndexMetadata != null) {
-            IndexMetadata.RollupTaskStatus rollupIndexStatus = IndexMetadata.INDEX_ROLLUP_STATUS.get(rollupIndexMetadata.getSettings());
+            IndexMetadata.DownsampleTaskStatus rollupIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
+                rollupIndexMetadata.getSettings()
+            );
             // Rollup index has already been created with the generated name and its status is "success".
             // So we skip index rollup creation.
-            if (IndexMetadata.RollupTaskStatus.SUCCESS.equals(rollupIndexStatus)) {
+            if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(rollupIndexStatus)) {
                 logger.warn(
                     "skipping [{}] step for index [{}] as part of policy [{}] as the rollup index [{}] already exists",
                     RollupStep.NAME,

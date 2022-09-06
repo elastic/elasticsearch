@@ -153,12 +153,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             );
         }
 
-        if (invalidNumberOfProcessors(processors)) {
-            throw new IllegalArgumentException(
-                format(Locale.ROOT, "Only a positive number of [processors] are allowed and [%f] was provided", processors.count())
-            );
-        }
-
         if (NODE_EXTERNAL_ID_SETTING.get(settings).isBlank()) {
             throw new IllegalArgumentException(
                 format(Locale.ROOT, "[%s] or [%s] is missing or empty", NODE_NAME_SETTING.getKey(), NODE_EXTERNAL_ID_SETTING.getKey())
@@ -368,10 +362,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             + '}';
     }
 
-    private static boolean invalidNumberOfProcessors(Processors processors) {
-        return processors != null && processors.count() <= 0;
-    }
-
     public record ProcessorsRange(Processors min, @Nullable Processors max) implements Writeable, ToXContentObject {
 
         private static final ParseField MIN_FIELD = new ParseField("min");
@@ -407,28 +397,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
 
         public ProcessorsRange {
-            if (invalidNumberOfProcessors(min)) {
-                throw new IllegalArgumentException(
-                    format(
-                        Locale.ROOT,
-                        "Only a positive number of [%s] processors are allowed and [%f] was provided",
-                        MIN_FIELD.getPreferredName(),
-                        min
-                    )
-                );
-            }
-
-            if (invalidNumberOfProcessors(max)) {
-                throw new IllegalArgumentException(
-                    format(
-                        Locale.ROOT,
-                        "Only a positive number of [%s] processors are allowed and [%f] was provided",
-                        MAX_FIELD.getPreferredName(),
-                        max
-                    )
-                );
-            }
-
             if (max != null && min.compareTo(max) > 0) {
                 throw new IllegalArgumentException(
                     "min processors must be less than or equal to max processors and it was: min: " + min + " max: " + max

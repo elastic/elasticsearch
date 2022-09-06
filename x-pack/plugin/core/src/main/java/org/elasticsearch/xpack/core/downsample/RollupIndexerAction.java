@@ -96,7 +96,15 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupTask(id, type, action, parentTaskId, rollupRequest.getTargetIndex(), rollupRequest.getDownsampleConfig(), headers);
+            return new RollupTask(
+                id,
+                type,
+                action,
+                parentTaskId,
+                rollupRequest.getTargetIndex(),
+                rollupRequest.getDownsampleConfig(),
+                headers
+            );
         }
 
         @Override

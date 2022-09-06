@@ -509,6 +509,40 @@ public class CategorizationAnalyzerTests extends ESTestCase {
                 ),
                 categorizationAnalyzer.tokenizeField("nginx_error", NGINX_ERROR_EXAMPLE)
             );
+
+            // Limited to CategorizationAnalyzerConfig.MAX_TOKEN_COUNT (20) tokens
+            assertEquals(
+                Arrays.asList(
+                    "An",
+                    "error",
+                    "occurred",
+                    "during",
+                    "rule",
+                    "execution",
+                    "message",
+                    "verification_exception",
+                    "verification_exception",
+                    "Reason",
+                    "Found",
+                    "problems",
+                    "line",
+                    "Unknown",
+                    "column",
+                    "winlog.event_data.GrantedAccess",
+                    "did",
+                    "you",
+                    "mean",
+                    "any"
+                ),
+                categorizationAnalyzer.tokenizeField(
+                    "multiline",
+                    "An error occurred during rule execution: message: \"verification_exception: [verification_exception] Reason: "
+                        + "Found 2 problems line 4:33: Unknown column [winlog.event_data.GrantedAccess], did you mean any of "
+                        + "[winlog.event_data.StartAddress, winlog.event_data.Contents winlog.event_data.IpAddress, "
+                        + "winlog.event_data.TransmittedServices, winlog.event_data.TargetProcessId, winlog.event_data.ConnectedUser, "
+                        + "winlog.event_data.ContextInfo, winlog.event_data.DriveName, winlog.event_data.DriverName"
+                )
+            );
         }
     }
 

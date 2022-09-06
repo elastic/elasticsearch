@@ -31,8 +31,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.ShardIndexingTimeStats;
 import org.elasticsearch.index.engine.TranslogHandler;
-import org.elasticsearch.index.engine.WriteLoadTracker;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -288,7 +288,7 @@ public class FollowingEngineTests extends ESTestCase {
             () -> primaryTerm.get(),
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            WriteLoadTracker.NO_OP
+            ShardIndexingTimeStats.NO_OP
         );
     }
 

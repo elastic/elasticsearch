@@ -3575,7 +3575,7 @@ public class InternalEngineTests extends EngineTestCase {
             primaryTerm::get,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            WriteLoadTracker.NO_OP
+            ShardIndexingTimeStats.NO_OP
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 

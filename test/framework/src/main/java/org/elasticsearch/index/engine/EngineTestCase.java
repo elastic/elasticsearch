@@ -851,7 +851,7 @@ public abstract class EngineTestCase extends ESTestCase {
             primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            WriteLoadTracker.NO_OP
+            ShardIndexingTimeStats.NO_OP
         );
     }
 

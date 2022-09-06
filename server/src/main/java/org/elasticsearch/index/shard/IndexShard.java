@@ -93,7 +93,7 @@ import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.engine.WriteLoadTracker;
+import org.elasticsearch.index.engine.ShardIndexingTimeStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
@@ -288,7 +288,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final boolean isDataStreamIndex; // if a shard is a part of data stream
 
-    private final WriteLoadTracker writeLoadTracker;
+    private final ShardIndexingTimeStats shardIndexingTimeStats;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -388,7 +388,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
-        this.writeLoadTracker = this.isDataStreamIndex ? new WriteLoadTracker(threadPool::rawRelativeTimeInNanos) : WriteLoadTracker.NO_OP;
+        this.shardIndexingTimeStats = this.isDataStreamIndex
+            ? new ShardIndexingTimeStats(threadPool::rawRelativeTimeInNanos)
+            : ShardIndexingTimeStats.NO_OP;
     }
 
     public ThreadPool getThreadPool() {
@@ -434,8 +436,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.bulkOperationListener;
     }
 
-    public Releasable startTrackingBulkWriteLoad() {
-        return writeLoadTracker.startTrackingBulkLoad();
+    public Releasable startTrackingBulkOperationTime() {
+        return shardIndexingTimeStats.startTrackingBulkOperationTime();
     }
 
     public ShardIndexWarmerService warmerService() {
@@ -1359,15 +1361,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public long getTotalIndexingTimeInNanos() {
-        return writeLoadTracker.totalBulkTimeInNanos();
+        return shardIndexingTimeStats.totalBulkTimeInNanos();
     }
 
     public long getTotalMergeTimeInNanos() {
-        return writeLoadTracker.totalMergeTimeInNanos();
+        return shardIndexingTimeStats.totalMergeTimeInNanos();
     }
 
     public long getTotalRefreshTimeInNanos() {
-        return writeLoadTracker.totalRefreshTimeInNanos();
+        return shardIndexingTimeStats.totalRefreshTimeInNanos();
     }
 
     /**
@@ -3276,7 +3278,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy,
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            List.of(refreshListeners, refreshPendingLocationListener, writeLoadTracker),
+            List.of(refreshListeners, refreshPendingLocationListener, shardIndexingTimeStats),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
             indexSort,
             circuitBreakerService,
@@ -3285,7 +3287,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this::getOperationPrimaryTerm,
             snapshotCommitSupplier,
             isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
-            writeLoadTracker
+            shardIndexingTimeStats
         );
     }
 

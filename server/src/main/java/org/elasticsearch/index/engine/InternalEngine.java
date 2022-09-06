@@ -2504,8 +2504,8 @@ public class InternalEngine extends Engine {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
-        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings, WriteLoadTracker writeLoadTracker) {
-            super(shardId, indexSettings, writeLoadTracker);
+        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings, ShardIndexingTimeStats shardIndexingTimeStats) {
+            super(shardId, indexSettings, shardIndexingTimeStats);
         }
 
         @Override

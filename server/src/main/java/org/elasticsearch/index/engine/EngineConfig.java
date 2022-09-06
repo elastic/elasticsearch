@@ -74,7 +74,7 @@ public final class EngineConfig {
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final Comparator<LeafReader> leafSorter;
 
-    private final WriteLoadTracker writeLoadTracker;
+    private final ShardIndexingTimeStats shardIndexingTimeStats;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -139,7 +139,7 @@ public final class EngineConfig {
         LongSupplier primaryTermSupplier,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Comparator<LeafReader> leafSorter,
-        WriteLoadTracker writeLoadTracker
+        ShardIndexingTimeStats shardIndexingTimeStats
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -179,7 +179,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = primaryTermSupplier;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.leafSorter = leafSorter;
-        this.writeLoadTracker = writeLoadTracker;
+        this.shardIndexingTimeStats = shardIndexingTimeStats;
     }
 
     /**
@@ -379,7 +379,7 @@ public final class EngineConfig {
         return leafSorter;
     }
 
-    public WriteLoadTracker getWriteLoadTracker() {
-        return writeLoadTracker;
+    public ShardIndexingTimeStats getWriteLoadTracker() {
+        return shardIndexingTimeStats;
     }
 }

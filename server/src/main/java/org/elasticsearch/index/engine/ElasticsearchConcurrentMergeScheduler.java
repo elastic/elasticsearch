@@ -54,14 +54,14 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
-    private final WriteLoadTracker writeLoadTracker;
+    private final ShardIndexingTimeStats shardIndexingTimeStats;
 
-    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings, WriteLoadTracker writeLoadTracker) {
+    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings, ShardIndexingTimeStats shardIndexingTimeStats) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
         this.logger = Loggers.getLogger(getClass(), shardId);
-        this.writeLoadTracker = writeLoadTracker;
+        this.shardIndexingTimeStats = shardIndexingTimeStats;
         refreshConfig();
     }
 
@@ -116,7 +116,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                 new ByteSizeValue(merge.estimatedMergeBytes)
             );
         }
-        try (Releasable unused = writeLoadTracker.startTrackingMergeLoad()) {
+        try (Releasable unused = shardIndexingTimeStats.startTrackingMergeTime()) {
             beforeMerge(onGoingMerge);
             super.doMerge(mergeSource, merge);
         } finally {

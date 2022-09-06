@@ -15,8 +15,8 @@ import org.elasticsearch.core.Releasable;
 import java.io.IOException;
 import java.util.function.LongSupplier;
 
-public class WriteLoadTracker implements ReferenceManager.RefreshListener {
-    public static final WriteLoadTracker NO_OP = new WriteLoadTracker(
+public class ShardIndexingTimeStats implements ReferenceManager.RefreshListener {
+    public static final ShardIndexingTimeStats NO_OP = new ShardIndexingTimeStats(
         RunningTimeRecorder.NO_OP,
         RunningTimeRecorder.NO_OP,
         RunningTimeRecorder.NO_OP
@@ -27,7 +27,7 @@ public class WriteLoadTracker implements ReferenceManager.RefreshListener {
 
     private volatile Releasable onGoingRefresh;
 
-    public WriteLoadTracker(LongSupplier relativeTimeSupplier) {
+    public ShardIndexingTimeStats(LongSupplier relativeTimeSupplier) {
         this(
             new RunningTimeRecorder(relativeTimeSupplier),
             new RunningTimeRecorder(relativeTimeSupplier),
@@ -35,7 +35,7 @@ public class WriteLoadTracker implements ReferenceManager.RefreshListener {
         );
     }
 
-    private WriteLoadTracker(
+    private ShardIndexingTimeStats(
         RunningTimeRecorder bulkTimeRecorder,
         RunningTimeRecorder mergeTimeRecorder,
         RunningTimeRecorder refreshTimeRecorder
@@ -45,7 +45,7 @@ public class WriteLoadTracker implements ReferenceManager.RefreshListener {
         this.refreshTimeRecorder = refreshTimeRecorder;
     }
 
-    public Releasable startTrackingBulkLoad() {
+    public Releasable startTrackingBulkOperationTime() {
         return bulkTimeRecorder.trackRunningTime();
     }
 
@@ -53,7 +53,7 @@ public class WriteLoadTracker implements ReferenceManager.RefreshListener {
         return bulkTimeRecorder.totalRunningTimeInNanos();
     }
 
-    Releasable startTrackingMergeLoad() {
+    Releasable startTrackingMergeTime() {
         return mergeTimeRecorder.trackRunningTime();
     }
 

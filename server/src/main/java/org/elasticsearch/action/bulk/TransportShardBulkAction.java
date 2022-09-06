@@ -184,7 +184,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             protected void doRun() throws Exception {
-                try (Releasable unused = primary.startTrackingBulkWriteLoad()) {
+                try (Releasable unused = primary.startTrackingBulkOperationTime()) {
                     while (context.hasMoreOperationsToExecute()) {
                         if (executeBulkItemRequest(
                             context,
@@ -520,7 +520,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            try (Releasable unused = replica.startTrackingBulkWriteLoad()) {
+            try (Releasable unused = replica.startTrackingBulkOperationTime()) {
                 final long startBulkTime = System.nanoTime();
                 final Translog.Location location = performOnReplica(request, replica);
                 replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);

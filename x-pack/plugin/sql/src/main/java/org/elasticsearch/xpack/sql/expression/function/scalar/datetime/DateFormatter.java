@@ -100,7 +100,7 @@ class DateFormatter {
     private Function<TemporalAccessor, String> javaFormat;
     private Function<String, String> additionalMapper;
 
-    public static Function<TemporalAccessor, String> ofPattern(String dateFormatPattern) {
+    protected static Function<TemporalAccessor, String> ofPattern(String dateFormatPattern) {
         if (Strings.isEmpty(dateFormatPattern)) {
             return timestamp -> "";
         }
@@ -151,32 +151,32 @@ class DateFormatter {
         return dateFormatter;
     }
 
-    public static class Builder {
+    private static class Builder {
         private String pattern;
         private Function<TemporalAccessor, String> javaFormat;
         private Function<String, String> additionalMapper;
 
-        public Builder pattern(String pattern) {
+        private Builder pattern(String pattern) {
             this.pattern = pattern;
             return this;
         }
 
-        public Builder javaPattern(String javaPattern) {
+        private Builder javaPattern(String javaPattern) {
             this.javaFormat = temporalAccessor -> DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT).format(temporalAccessor);
             return this;
         }
 
-        public Builder javaFormat(Function<TemporalAccessor, String> javaFormat) {
+        private Builder javaFormat(Function<TemporalAccessor, String> javaFormat) {
             this.javaFormat = javaFormat;
             return this;
         }
 
-        public Builder additionalMapper(Function<String, String> additionalMapper) {
+        private Builder additionalMapper(Function<String, String> additionalMapper) {
             this.additionalMapper = additionalMapper;
             return this;
         }
 
-        public DateFormatter build() {
+        private DateFormatter build() {
             DateFormatter dateFormatter = new DateFormatter();
             dateFormatter.pattern = this.pattern;
             dateFormatter.javaFormat = this.javaFormat;

@@ -667,8 +667,8 @@ schema::birth_date:ts|df_birth_date:s
 SELECT birth_date, DATE_FORMAT(birth_date, 'he was born on the %D of %M') AS df_birth_date FROM test_emp
 WHERE gender = 'M' AND emp_no BETWEEN 10020 AND 10030 ORDER BY emp_no;
 
-birth_date               | df_birth_date
--------------------------+---------------
+      birth_date         |         df_birth_date
+-------------------------+-----------------------------------
 1952-12-24 00:00:00Z     | he was born on the 24th of December
 1960-02-20 00:00:00Z     | he was born on the 20th of February
 1952-07-08 00:00:00Z     | he was born on the 8th of July
@@ -695,6 +695,47 @@ null                     | null           | null
 1961-02-26 00:00:00Z     | 02/26/1961     | February
 1957-04-04 00:00:00Z     | 04/04/1957     | April
 1956-06-06 00:00:00Z     | 06/06/1956     | June
+;
+
+selectDateFormatWithComplexExpressions
+schema::text:s|count:l
+SELECT CONCAT(CONCAT('This is ', CASE WHEN birth_date IS NULL THEN 'no' ELSE DATE_FORMAT(birth_date, 'the %D') END),' day of the month') AS text,
+count(*) AS count FROM test_emp GROUP BY 1 ORDER BY 2 DESC;
+
+             text                    | count
+-------------------------------------+---------------
+This is no day of the month          | 10
+This is the 19th day of the month    | 7
+This is the 23rd day of the month    | 6
+This is the 1st day of the month     | 5
+This is the 21st day of the month    | 5
+This is the 25th day of the month    | 5
+This is the 7th day of the month     | 5
+This is the 13th day of the month    | 4
+This is the 20th day of the month    | 4
+This is the 2nd day of the month     | 4
+This is the 3rd day of the month     | 4
+This is the 6th day of the month     | 4
+This is the 14th day of the month    | 3
+This is the 26th day of the month    | 3
+This is the 4th day of the month     | 3
+This is the 9th day of the month     | 3
+This is the 10th day of the month    | 2
+This is the 15th day of the month    | 2
+This is the 18th day of the month    | 2
+This is the 27th day of the month    | 2
+This is the 28th day of the month    | 2
+This is the 29th day of the month    | 2
+This is the 30th day of the month    | 2
+This is the 5th day of the month     | 2
+This is the 8th day of the month     | 2
+This is the 11th day of the month    | 1
+This is the 12th day of the month    | 1
+This is the 16th day of the month    | 1
+This is the 17th day of the month    | 1
+This is the 22nd day of the month    | 1
+This is the 24th day of the month    | 1
+This is the 31st day of the month    | 1
 ;
 
 dateFormatWhere

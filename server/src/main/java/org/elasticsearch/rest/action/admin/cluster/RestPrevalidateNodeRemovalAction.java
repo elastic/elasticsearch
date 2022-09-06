@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalAction;
-import org.elasticsearch.action.admin.cluster.node.remove.PrevalidateNodeRemovalRequest;
+import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
+import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;

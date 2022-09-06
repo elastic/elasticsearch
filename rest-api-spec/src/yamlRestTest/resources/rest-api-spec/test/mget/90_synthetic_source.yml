@@ -212,5 +212,5 @@ force_synthetic_source_bad_mapping:
         force_synthetic_source: true
         body:
           ids: [ 1, 2 ]
-  - match: {docs.0.error.reason: "field [text] of type [text] doesn't support synthetic source unless it is stored or has a sub-field of type [keyword] with doc values or stored and without ignore_above or a normalizer"}
-  - match: {docs.1.error.reason: "field [text] of type [text] doesn't support synthetic source unless it is stored or has a sub-field of type [keyword] with doc values or stored and without ignore_above or a normalizer"}
+  - match: {docs.0.error.reason: "field [text] of type [text] doesn't support synthetic source unless it is stored or has a sub-field of type [keyword] with doc values or stored and without a normalizer"}
+  - match: {docs.1.error.reason: "field [text] of type [text] doesn't support synthetic source unless it is stored or has a sub-field of type [keyword] with doc values or stored and without a normalizer"}

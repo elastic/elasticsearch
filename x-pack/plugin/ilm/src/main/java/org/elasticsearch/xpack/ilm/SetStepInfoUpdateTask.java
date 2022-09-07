@@ -109,7 +109,7 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof ExceptionWrapper)) return false;
+            if ((o instanceof ExceptionWrapper) == false) return false;
             ExceptionWrapper that = (ExceptionWrapper) o;
             return index.equals(that.index)
                 && policyName.equals(that.policyName)

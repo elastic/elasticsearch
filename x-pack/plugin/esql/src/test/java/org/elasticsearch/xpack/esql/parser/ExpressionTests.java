@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -89,17 +91,17 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testStringLiteralsExceptions() {
-        assertParsingException(() -> expression("\"\"\"\"\"\"foo\"\""), "line 1:7: mismatched input 'foo' expecting {<EOF>,");
-        assertParsingException(() -> expression("\"foo\" == \"\"\"\"\"\"bar\"\"\""), "line 1:16: mismatched input 'bar' expecting {<EOF>,");
+        assertParsingException(() -> expression("\"\"\"\"\"\"foo\"\""), "line 1:22: mismatched input 'foo' expecting {<EOF>,");
+        assertParsingException(() -> expression("\"foo\" == \"\"\"\"\"\"bar\"\"\""), "line 1:31: mismatched input 'bar' expecting {<EOF>,");
         assertParsingException(
             () -> expression("\"\"\"\"\"\\\"foo\"\"\"\"\"\" != \"\"\"bar\"\"\""),
-            "line 1:16: mismatched input '\" != \"' expecting {<EOF>,"
+            "line 1:31: mismatched input '\" != \"' expecting {<EOF>,"
         );
         assertParsingException(
             () -> expression("\"\"\"\"\"\\\"foo\"\"\\\"\"\"\" == \"\"\"\"\"\\\"bar\\\"\\\"\"\"\"\"\""),
-            "line 1:40: token recognition error at: '\"'"
+            "line 1:55: token recognition error at: '\"'"
         );
-        assertParsingException(() -> expression("\"\"\"\"\"\" foo \"\"\"\" == abc"), "line 1:8: mismatched input 'foo' expecting {<EOF>,");
+        assertParsingException(() -> expression("\"\"\"\"\"\" foo \"\"\"\" == abc"), "line 1:23: mismatched input 'foo' expecting {<EOF>,");
     }
 
     public void testBooleanLiteralsCondition() {
@@ -172,8 +174,28 @@ public class ExpressionTests extends ESTestCase {
         assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("a"));
     }
 
+    public void testCommandNamesAsIdentifiers() {
+        Expression expr = expression("from and where");
+        assertThat(expr, instanceOf(And.class));
+        And and = (And) expr;
+
+        assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
+
+        assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) and.right()).name(), equalTo("where"));
+    }
+
+    public void testIdentifiersCaseSensitive() {
+        Expression expr = expression("hElLo");
+
+        assertThat(expr, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) expr).name(), equalTo("hElLo"));
+    }
+
     private Expression expression(String e) {
-        return parser.createExpression(e);
+        LogicalPlan plan = parser.createStatement("from a | where " + e);
+        return ((Filter) plan).condition();
     }
 
     private Literal l(Object value, DataType type) {

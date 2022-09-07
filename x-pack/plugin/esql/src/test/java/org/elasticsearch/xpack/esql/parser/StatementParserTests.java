@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("ALL")
 public class StatementParserTests extends ESTestCase {
 
     EsqlParser parser = new EsqlParser();
@@ -150,6 +149,6 @@ public class StatementParserTests extends ESTestCase {
     }
 
     private LogicalPlan whereCommand(String e) {
-        return parser.createWhereCommand(e);
+        return parser.createStatement("from a | " + e);
     }
 }

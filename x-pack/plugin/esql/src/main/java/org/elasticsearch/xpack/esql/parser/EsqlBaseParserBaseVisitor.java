@@ -3,14 +3,14 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 
 /**
- * This class provides an empty implementation of {@link EsqlBaseVisitor},
+ * This class provides an empty implementation of {@link EsqlBaseParserVisitor},
  * which can be extended to create a visitor which only needs to handle a subset
  * of the available methods.
  *
  * @param <T> The return type of the visit operation. Use {@link Void} for
  * operations with no return type.
  */
-class EsqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EsqlBaseVisitor<T> {
+public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EsqlBaseParserVisitor<T> {
   /**
    * {@inheritDoc}
    *
@@ -18,13 +18,6 @@ class EsqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements Esql
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitSingleExpression(EsqlBaseParser.SingleExpressionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

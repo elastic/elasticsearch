@@ -37,6 +37,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public LogicalPlan visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) {
+        return plan(ctx.query());
+    }
+
+    @Override
     public Row visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
         return new Row(source(ctx), visitFields(ctx.fields()));
     }

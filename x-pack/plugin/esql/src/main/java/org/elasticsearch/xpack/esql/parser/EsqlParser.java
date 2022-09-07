@@ -15,7 +15,6 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
@@ -31,22 +30,6 @@ public class EsqlParser {
             log.debug("Parsing as statement: {}", eql);
         }
         return invokeParser(eql, EsqlBaseParser::singleStatement, AstBuilder::plan);
-    }
-
-    public Expression createExpression(String expression) {
-        if (log.isDebugEnabled()) {
-            log.debug("Parsing as expression: {}", expression);
-        }
-
-        return invokeParser(expression, EsqlBaseParser::singleExpression, AstBuilder::expression);
-    }
-
-    public LogicalPlan createWhereCommand(String expression) {
-        if (log.isDebugEnabled()) {
-            log.debug("Parsing as a 'where' command: {}", expression);
-        }
-
-        return invokeParser(expression, EsqlBaseParser::whereCommand, AstBuilder::plan);
     }
 
     private <T> T invokeParser(

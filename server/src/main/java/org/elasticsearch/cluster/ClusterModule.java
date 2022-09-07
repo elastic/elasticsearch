@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -85,6 +86,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -131,12 +133,17 @@ public class ClusterModule extends AbstractModule {
             threadPool,
             clusterPlugins,
             rerouteServiceSupplier,
-            clusterService
+            clusterService,
+            this::createRoutingAllocation
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
+    }
+
+    private RoutingAllocation createRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
+        return allocationService.createRoutingAllocation(clusterState, currentNanoTime);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -339,7 +346,8 @@ public class ClusterModule extends AbstractModule {
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         Supplier<RerouteService> rerouteServiceSupplier,
-        ClusterService clusterService
+        ClusterService clusterService,
+        BiFunction<ClusterState, Long, RoutingAllocation> routingAllocationCreator
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));
@@ -349,7 +357,8 @@ public class ClusterModule extends AbstractModule {
                 new BalancedShardsAllocator(settings, clusterSettings),
                 threadPool,
                 clusterService,
-                rerouteServiceSupplier
+                rerouteServiceSupplier,
+                routingAllocationCreator
             )
         );
 

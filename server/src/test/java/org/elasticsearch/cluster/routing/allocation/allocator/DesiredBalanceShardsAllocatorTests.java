@@ -132,7 +132,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
-        }, threadPool, () -> rerouteService);
+        }, threadPool, () -> rerouteService, null, null);
 
         final var fetchingShardData = new AtomicBoolean(gatewayAllocatorBehaviour == GatewayAllocatorBehaviour.STILL_FETCHING);
         final var allocationService = new AllocationService(new AllocationDeciders(List.of()), new GatewayAllocator() {
@@ -272,7 +272,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             allocator,
             threadPool,
             clusterService,
-            rerouteServiceSupplier::get
+            rerouteServiceSupplier::get,
+            null
         );
         var allocationService = new AllocationService(new AllocationDeciders(List.of()), new GatewayAllocator() {
             @Override
@@ -388,7 +389,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 throw new AssertionError("only used for allocation explain");
             }
         };
-        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(allocator, threadPool, rerouteServiceSupplier::get);
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            allocator,
+            threadPool,
+            rerouteServiceSupplier::get,
+            null,
+            null
+        );
         var rerouteIsCalled = new CountDownLatch(1);
         rerouteServiceSupplier.set((r, p, l) -> {
             rerouteIsCalled.countDown();
@@ -460,7 +467,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             allocator,
             threadPool,
             clusterService,
-            rerouteServiceSupplier::get
+            rerouteServiceSupplier::get,
+            null
         );
         var allocationService = new AllocationService(new AllocationDeciders(List.of()), new GatewayAllocator() {
             @Override

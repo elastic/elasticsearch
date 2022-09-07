@@ -107,7 +107,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             queue.getThreadPool(),
             () -> (reason, priority, listener) -> {
                 /* noop as reconciliation will await balance calculation result*/
-            }
+            },
+            null,
+            null
         ) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {

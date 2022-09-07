@@ -144,7 +144,7 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
-    private static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
+    public static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         final RoutingTable oldRoutingTable = oldState.routingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
@@ -575,7 +575,7 @@ public class AllocationService {
         }
     }
 
-    private RoutingAllocation createRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
+    public RoutingAllocation createRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
         return new RoutingAllocation(
             allocationDeciders,
             clusterState.mutableRoutingNodes(),

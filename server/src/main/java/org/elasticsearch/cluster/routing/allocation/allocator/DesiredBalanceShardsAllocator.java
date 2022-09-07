@@ -12,9 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -23,7 +26,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -56,9 +59,16 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
         ClusterService clusterService,
-        Supplier<RerouteService> rerouteServiceSupplier
+        Supplier<RerouteService> rerouteServiceSupplier,
+        BiFunction<ClusterState, Long, RoutingAllocation> routingAllocationCreator
     ) {
-        var allocator = new DesiredBalanceShardsAllocator(delegateAllocator, threadPool, rerouteServiceSupplier);
+        var allocator = new DesiredBalanceShardsAllocator(
+            delegateAllocator,
+            threadPool,
+            rerouteServiceSupplier,
+            clusterService,
+            routingAllocationCreator
+        );
         clusterService.addListener(allocator);
         return allocator;
     }
@@ -66,7 +76,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
-        Supplier<RerouteService> rerouteServiceSupplier
+        Supplier<RerouteService> rerouteServiceSupplier,
+        ClusterService clusterService,
+        BiFunction<ClusterState, Long, RoutingAllocation> routingAllocationCreator
     ) {
         this.delegateAllocator = delegateAllocator;
         this.desiredBalanceComputer = new DesiredBalanceComputer(delegateAllocator);
@@ -83,16 +95,37 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 var isFresh = isFresh(desiredBalanceInput);
 
                 if (isFresh) {
-                    if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
-                        logger.trace("Current desired balance is different from applied one, scheduling a reroute");
-                        rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
-                    } else {
-                        var lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
-                        logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
-                        // TODO desired balance this still does not guarantee the correct behaviour in case there is
-                        // extra unrelated allocation between one that triggered this computation and one produced by above reroute.
-                        queue.complete(lastConvergedIndex);
-                    }
+                    // if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
+                    logger.trace("scheduling a reconciliation");
+                    var desiredBalanceForReconcilation = currentDesiredBalance;
+                    clusterService.submitUnbatchedStateUpdateTask("reconcile", new ClusterStateUpdateTask() {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) throws Exception {
+                            final var routingAllocation = routingAllocationCreator.apply(currentState, System.nanoTime());
+                            new DesiredBalanceReconciler(desiredBalanceForReconcilation, routingAllocation).run();
+                            return AllocationService.buildResultAndLogHealthChange(currentState, routingAllocation, "reconcile");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            queue.completeAllAsNotMaster();
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                            queue.complete(desiredBalanceForReconcilation.lastConvergedIndex());
+                            // reconciliation has started, complete listeners
+
+                        }
+                    });
+                    // rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
+                    // } else {
+                    // var lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
+                    // logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
+                    // // TODO desired balance this still does not guarantee the correct behaviour in case there is
+                    // // extra unrelated allocation between one that triggered this computation and one produced by above reroute.
+                    // queue.complete(lastConvergedIndex);
+                    // }
                 }
             }
 
@@ -116,7 +149,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         // TODO add system context assertion
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
-        queue.pause();
+        // queue.pause();
 
         var index = indexGenerator.incrementAndGet();
         logger.trace("Executing allocate for [{}]", index);
@@ -128,17 +161,17 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         maybeAwaitBalance();
 
         appliedDesiredBalance = currentDesiredBalance;
-        logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
-        new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
-
-        queue.complete(appliedDesiredBalance.lastConvergedIndex());
-        if (allocation.routingNodesChanged()) {
-            logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
-            // Execute listeners after cluster state is applied
-        } else {
-            logger.trace("Executing listeners up to [{}] as routing nodes have not changed", queue.getCompletedIndex());
-            queue.resume();
-        }
+        //// logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
+        //// new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
+        ////
+        //// queue.complete(appliedDesiredBalance.lastConvergedIndex());
+        // if (allocation.routingNodesChanged()) {
+        // logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
+        // // Execute listeners after cluster state is applied
+        // } else {
+        // logger.trace("Executing listeners up to [{}] as routing nodes have not changed", queue.getCompletedIndex());
+        // queue.resume();
+        // }
     }
 
     protected void maybeAwaitBalance() {

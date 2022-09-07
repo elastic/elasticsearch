@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rollup.v2;
+package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 

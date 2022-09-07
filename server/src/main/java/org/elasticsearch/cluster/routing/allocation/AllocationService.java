@@ -417,7 +417,7 @@ public class AllocationService {
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
     public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<Void> listener) {
-        return reroute(clusterState, reason, listener, routingAllocation -> shardsAllocator.allocate(routingAllocation, listener));
+        return reroute(clusterState, reason, routingAllocation -> shardsAllocator.allocate(routingAllocation, listener));
     }
 
     /**
@@ -430,12 +430,7 @@ public class AllocationService {
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
-    public ClusterState reroute(
-        ClusterState clusterState,
-        String reason,
-        ActionListener<Void> listener,
-        Consumer<RoutingAllocation> routingAllocationConsumer
-    ) {
+    public ClusterState reroute(ClusterState clusterState, String reason, Consumer<RoutingAllocation> routingAllocationConsumer) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
         RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
         reroute(allocation, routingAllocationConsumer);

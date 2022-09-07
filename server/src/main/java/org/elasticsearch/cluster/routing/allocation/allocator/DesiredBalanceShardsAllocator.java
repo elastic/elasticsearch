@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
@@ -44,20 +43,27 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private static final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
     private final ShardsAllocator delegateAllocator;
+    private final ClusterService clusterService;
     private final DesiredBalanceComputer desiredBalanceComputer;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
-    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
+    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;// TODO convert to local var?
+
+    @FunctionalInterface
+    public interface DesiredBalanceReconcilerAction {
+        ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction);
+    }
 
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
         ClusterService clusterService,
-        BiFunction<ClusterState, Consumer<RoutingAllocation>, ClusterState> reconciler
+        DesiredBalanceReconcilerAction reconciler
     ) {
         this.delegateAllocator = delegateAllocator;
+        this.clusterService = clusterService;
         this.desiredBalanceComputer = new DesiredBalanceComputer(delegateAllocator);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
@@ -69,33 +75,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 setCurrentDesiredBalance(
                     desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, this::isFresh)
                 );
-                var isFresh = isFresh(desiredBalanceInput);
-
-                if (isFresh) {
-                    logger.trace("scheduling a reconciliation");
-                    var desiredBalanceForReconcilation = currentDesiredBalance;
-                    // TODO implement batching
-                    clusterService.submitUnbatchedStateUpdateTask("reconcile", new ClusterStateUpdateTask(Priority.URGENT) {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            logger.trace("Executing reconcile for state [{}]:\n{}", currentState.version(), currentState);
-                            return reconciler.apply(
-                                currentState,
-                                routingAllocation -> new DesiredBalanceReconciler(desiredBalanceForReconcilation, routingAllocation).run()
-                            );
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            assert MasterService.isPublishFailureException(e) : e;
-                            onNoLongerMaster();
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                            queue.complete(desiredBalanceForReconcilation.lastConvergedIndex());
-                        }
-                    });
+                if (isFresh(desiredBalanceInput)) {
+                    logger.trace("Scheduling a reconciliation");
+                    submitReconcileTask(currentDesiredBalance, reconciler);
                 }
             }
 
@@ -105,6 +87,31 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
         };
         this.queue = new PendingListenersQueue(threadPool);
+    }
+
+    public void submitReconcileTask(DesiredBalance desiredBalance, DesiredBalanceReconcilerAction reconciler) {
+        // TODO batch
+        clusterService.submitUnbatchedStateUpdateTask("reconcile", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                logger.trace("Executing reconcile for state [{}]:\n{}", currentState.version(), currentState);
+                return reconciler.apply(
+                    currentState,
+                    routingAllocation -> new DesiredBalanceReconciler(desiredBalance, routingAllocation).run()
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert MasterService.isPublishFailureException(e) : e;
+                onNoLongerMaster();
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                queue.complete(desiredBalance.lastConvergedIndex());
+            }
+        });
     }
 
     @Override

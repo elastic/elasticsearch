@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
@@ -32,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -87,7 +87,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -144,7 +143,7 @@ public class ClusterModule extends AbstractModule {
     }
 
     private ClusterState reconcile(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationConsumer) {
-        return allocationService.reroute(clusterState, "reconcile", ActionListener.noop(), routingAllocationConsumer);
+        return allocationService.reroute(clusterState, "reconcile-desired-balance", routingAllocationConsumer);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -347,7 +346,7 @@ public class ClusterModule extends AbstractModule {
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
-        BiFunction<ClusterState, Consumer<RoutingAllocation>, ClusterState> reconciler
+        DesiredBalanceReconcilerAction reconciler
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));

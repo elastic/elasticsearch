@@ -73,6 +73,8 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
             List.of(model)
         ).computePlan();
 
+        assertThat(plan.satisfiesAllModels(), is(true));
+
         assertThat(plan.assignments(model).isPresent(), is(true));
         Map<Node, Integer> assignments = plan.assignments(model).get();
         assertThat(assignments.keySet(), hasSize(1));
@@ -88,6 +90,8 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
             Map.of(List.of("z_1"), List.of(node1), List.of("z_2"), List.of(node2)),
             List.of(model)
         ).computePlan();
+
+        assertThat(plan.satisfiesAllModels(), is(true));
 
         Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(plan);
         assertThat(indexedBasedPlan.keySet(), hasItems("m_1"));
@@ -158,6 +162,21 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
             }
             assertThat(zonesWithAllocations, equalTo(2));
         }
+    }
+
+    public void testGivenTwoModelsWithSingleAllocation_OneNode_ThreeZones() {
+        Node node1 = new Node("n_1", 100, 4);
+        Node node2 = new Node("n_2", 100, 4);
+        Node node3 = new Node("n_3", 100, 4);
+        Model model1 = new Model("m_1", 25, 1, 1, Map.of(), 0);
+        Model model2 = new Model("m_2", 25, 1, 1, Map.of(), 0);
+
+        AssignmentPlan plan = new ZoneAwareAssignmentPlanner(
+            Map.of(List.of("z1"), List.of(node1), List.of("z2"), List.of(node2), List.of("z3"), List.of(node3)),
+            List.of(model1, model2)
+        ).computePlan();
+
+        assertThat(plan.satisfiesAllModels(), is(true));
     }
 
     public void testPreviousAssignmentsGetAtLeastAsManyAllocationsAfterAddingNewModel() {

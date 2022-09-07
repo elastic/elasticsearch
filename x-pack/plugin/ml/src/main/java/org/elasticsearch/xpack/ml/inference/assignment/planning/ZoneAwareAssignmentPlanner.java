@@ -13,11 +13,13 @@ import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.M
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -40,8 +42,16 @@ public class ZoneAwareAssignmentPlanner {
     private final List<Model> models;
 
     public ZoneAwareAssignmentPlanner(Map<List<String>, List<Node>> nodesByZone, List<Model> models) {
-        this.nodesByZone = Objects.requireNonNull(nodesByZone);
+        this.nodesByZone = sortByZone(Objects.requireNonNull(nodesByZone));
         this.models = Objects.requireNonNull(models);
+    }
+
+    private static Map<List<String>, List<Node>> sortByZone(Map<List<String>, List<Node>> nodesByZone) {
+        Map<List<String>, List<Node>> sortedByZone = new TreeMap<>(
+            Comparator.comparing(zoneAttributes -> zoneAttributes.stream().collect(Collectors.joining()))
+        );
+        sortedByZone.putAll(nodesByZone);
+        return sortedByZone;
     }
 
     public AssignmentPlan computePlan() {
@@ -106,10 +116,11 @@ public class ZoneAwareAssignmentPlanner {
     ) {
         Map<String, Integer> modelIdToTargetAllocations = modelIdToRemainingAllocations.entrySet()
             .stream()
+            .filter(e -> e.getValue() > 0)
             .collect(Collectors.toMap(e -> e.getKey(), e -> (e.getValue() - 1) / remainingZones + 1));
 
         List<Model> modifiedModels = models.stream()
-            .filter(m -> modelIdToTargetAllocations.get(m.id()) > 0)
+            .filter(m -> modelIdToTargetAllocations.getOrDefault(m.id(), 0) > 0)
             .map(
                 m -> new Model(
                     m.id(),

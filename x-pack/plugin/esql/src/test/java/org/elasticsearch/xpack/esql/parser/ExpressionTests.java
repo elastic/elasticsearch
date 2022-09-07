@@ -271,6 +271,22 @@ public class ExpressionTests extends ESTestCase {
         assertThat(((Literal) e.right()).value(), equalTo(5));
     }
 
+    public void testOperatorsPrecedenceExpressionsEquality() {
+        assertThat(expression("a-1>2 or b>=5 and c-1>=5"), equalTo(expression("((a-1)>2 or (b>=5 and (c-1)>=5))")));
+        assertThat(
+            expression("a*5==25 and b>5 and c%4>=1 or true or false"),
+            equalTo(expression("(((((a*5)==25) and (b>5) and ((c%4)>=1)) or true) or false)"))
+        );
+        assertThat(
+            expression("a*4-b*5<100 and b/2+c*6>=50 or c%5+x>=5"),
+            equalTo(expression("((((a*4)-(b*5))<100) and (((b/2)+(c*6))>=50)) or (((c%5)+x)>=5)"))
+        );
+        assertThat(
+            expression("true and false or true and c/12+x*5-y%2>=50"),
+            equalTo(expression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
+        );
+    }
+
     private Expression expression(String e) {
         return parser.createExpression(e);
     }

@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * This class wraps all the data returned by the health node, to be consumed by the HealthIndicatorServices.
+ * This class wraps all the data returned by the health node.
  * @param diskInfoByNode A Map of node id to DiskHealthInfo for that node
  */
 public record HealthInfo(Map<String, DiskHealthInfo> diskInfoByNode) implements Writeable {

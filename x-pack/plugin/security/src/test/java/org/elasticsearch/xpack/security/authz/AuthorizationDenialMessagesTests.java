@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.List;
@@ -77,6 +77,37 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         );
     }
 
+    public void testRolesDescriptionWithIncompatibleRolesField() {
+        // random 0 - 3 uniquely named roles
+        final List<String> assignedRoleNames = IntStream.range(0, randomIntBetween(0, 3))
+            .mapToObj(i -> randomAlphaOfLengthBetween(3, 8) + i)
+            .toList();
+        final Subject subject = AuthenticationTestHelper.builder()
+            .realm()
+            .user(new User(randomAlphaOfLengthBetween(3, 8), assignedRoleNames.toArray(String[]::new)))
+            .build(false)
+            .getEffectiveSubject();
+        final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        when(authorizationInfo.asMap()).thenReturn(
+            Map.of(
+                "user.roles",
+                randomFrom(
+                    randomAlphaOfLength(8),
+                    42,
+                    randomBoolean(),
+                    randomList(3, () -> randomAlphaOfLength(8)),
+                    randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(8)))
+                )
+            )
+        );
+        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, authorizationInfo);
+
+        assertThat(
+            rolesDescription,
+            equalTo(" with assigned roles [%s]".formatted(Strings.collectionToCommaDelimitedString(assignedRoleNames)))
+        );
+    }
+
     public void testRoleDescriptionWithEmptyResolvedRole() {
         // random 0 - 3 uniquely named roles
         final List<String> assignedRoleNames = IntStream.range(0, randomIntBetween(0, 3))
@@ -88,9 +119,9 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             .build(false)
             .getEffectiveSubject();
 
-        final RBACEngine.RBACAuthorizationInfo rbacAuthorizationInfo = mock(RBACEngine.RBACAuthorizationInfo.class);
-        when(rbacAuthorizationInfo.getRole()).thenReturn(Role.EMPTY);
-        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, rbacAuthorizationInfo);
+        final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        when(authorizationInfo.asMap()).thenReturn(Map.of("user.roles", Strings.EMPTY_ARRAY));
+        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, authorizationInfo);
 
         if (assignedRoleNames.isEmpty()) {
             assertThat(rolesDescription, equalTo(" with effective roles []"));

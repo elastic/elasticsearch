@@ -84,6 +84,26 @@ public class ShardStats implements Writeable, ToXContentFragment {
         this.retentionLeaseStats = retentionLeaseStats;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ShardStats that = (ShardStats) o;
+        return Objects.equals(shardRouting, that.shardRouting)
+            && Objects.equals(dataPath, that.dataPath)
+            && Objects.equals(statePath, that.statePath)
+            && isCustomDataPath == that.isCustomDataPath
+            && Objects.equals(commitStats, that.commitStats)
+            && Objects.equals(commonStats, that.commonStats)
+            && Objects.equals(seqNoStats, that.seqNoStats)
+            && Objects.equals(retentionLeaseStats, that.retentionLeaseStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardRouting, dataPath, statePath, isCustomDataPath, commitStats, commonStats, seqNoStats, retentionLeaseStats);
+    }
+
     /**
      * The shard routing information (cluster wide shard state).
      */

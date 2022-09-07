@@ -45,9 +45,15 @@ class org.elasticsearch.script.IngestScript {
 
 class org.elasticsearch.script.field.WriteField {
     String getName()
+<<<<<<< HEAD
     boolean isExists()
     WriteField move(String)
     WriteField overwrite(String)
+=======
+    boolean exists()
+    void move(String)
+    void overwrite(String)
+>>>>>>> b667aa33f00b90f294e3a04fbf10fd5cfa9bdb6c
     void remove()
     WriteField set(def)
     WriteField append(def)
@@ -58,7 +64,11 @@ class org.elasticsearch.script.field.WriteField {
     def get(int, def)
     boolean hasValue(Predicate)
     WriteField transform(Function)
+<<<<<<< HEAD
     WriteField dedupe()
+=======
+    WriteField deduplicate()
+>>>>>>> b667aa33f00b90f294e3a04fbf10fd5cfa9bdb6c
     WriteField removeValuesIf(Predicate)
     WriteField removeValue(int)
 }

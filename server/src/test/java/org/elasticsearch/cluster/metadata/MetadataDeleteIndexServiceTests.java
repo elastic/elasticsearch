@@ -70,7 +70,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
-            new SnapshotsInProgress.Entry(
+            SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 true,
                 false,

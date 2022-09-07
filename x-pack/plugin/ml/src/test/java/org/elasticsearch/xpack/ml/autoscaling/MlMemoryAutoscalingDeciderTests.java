@@ -194,15 +194,6 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                 .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
-        MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder(new MlAutoscalingContext()).setPassedConfiguration(
-            Settings.EMPTY
-        )
-            .setCurrentMlCapacity(
-                AutoscalingCapacity.builder()
-                    .node(null, AUTO_NODE_TIERS_NO_MONITORING.get(0).v1(), null)
-                    .total(null, AUTO_NODE_TIERS_NO_MONITORING.get(0).v1(), null)
-                    .build()
-            );
         MlMemoryAutoscalingDecider decider = buildDecider();
         decider.setUseAuto(true);
         MlMemoryAutoscalingCapacity scaleUpResult = decider.checkForScaleUp(
@@ -244,8 +235,6 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                 .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
-        reasonBuilder = new MlScalingReason.Builder(new MlAutoscalingContext()).setPassedConfiguration(Settings.EMPTY)
-            .setCurrentMlCapacity(AutoscalingCapacity.builder().node(null, 2147483648L, null).total(null, 2147483648L, null).build());
         MlMemoryAutoscalingCapacity result = decider.checkForScaleDown(
             nodeForScaleDown,
             ByteSizeValue.ofMb(200).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
@@ -956,9 +945,6 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(3));
         MlMemoryAutoscalingDecider decider = buildDecider();
         decider.setMaxMachineMemoryPercent(25);
-        MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder(new MlAutoscalingContext()).setPassedConfiguration(
-            Settings.EMPTY
-        ).setCurrentMlCapacity(AutoscalingCapacity.ZERO);
         { // Current capacity allows for smaller node
             List<NodeLoad> nodeLoads = List.of(
                 NodeLoad.builder("foo")

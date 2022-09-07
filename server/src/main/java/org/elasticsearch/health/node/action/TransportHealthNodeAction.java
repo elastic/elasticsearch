@@ -80,7 +80,7 @@ public abstract class TransportHealthNodeAction<Request extends ActionRequest, R
             DiscoveryNode healthNode = HealthNode.findHealthNode(clusterState);
             DiscoveryNode localNode = clusterState.nodes().getLocalNode();
             if (healthNode == null) {
-                listener.onFailure(new HealthNodeNotDiscoveredException("Health node was null"));
+                listener.onFailure(new HealthNodeNotDiscoveredException());
             } else if (localNode.getId().equals(healthNode.getId())) {
                 threadPool.executor(executor).execute(() -> {
                     try {

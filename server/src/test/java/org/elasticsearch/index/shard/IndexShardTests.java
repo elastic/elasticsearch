@@ -3924,10 +3924,7 @@ public class IndexShardTests extends IndexShardTestCase {
             Loggers.addAppender(LogManager.getLogger(Engine.class), mockLogAppender);
 
             // Issue the first flushOnIdle request. The flush happens in the background using the flush threadpool.
-            shard.flushOnIdle(0);
-            assertFalse(shard.isActive());
-
-            // Wait for log message that flush acquired lock immediately
+            // Then wait for log message that flush acquired lock immediately
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "should see first flush getting lock immediately",
@@ -3936,6 +3933,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     "acquired flush lock immediately"
                 )
             );
+            shard.flushOnIdle(0);
+            assertFalse(shard.isActive());
             assertBusy(mockLogAppender::assertAllExpectationsMatched);
 
             // While the first flush is happening, index one more doc (to turn the shard's active flag to true),

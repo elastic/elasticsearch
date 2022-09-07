@@ -918,7 +918,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testEmptyDocumentNoDocValueLoader() throws IOException {
+        assumeFalse("Field will add values even if no fields are supplied", addsValueWhenNotSupplied());
         assertNoDocValueLoader(b -> {});
+    }
+
+    protected boolean addsValueWhenNotSupplied() {
+        return false;
     }
 
     private void assertNoDocValueLoader(CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {

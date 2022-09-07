@@ -9,19 +9,13 @@ import org.antlr.v4.runtime.tree.ParseTreeVisitor;
  * @param <T> The return type of the visit operation. Use {@link Void} for
  * operations with no return type.
  */
-interface EsqlBaseVisitor<T> extends ParseTreeVisitor<T> {
+public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#singleStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#singleExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSingleExpression(EsqlBaseParser.SingleExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#query}.
    * @param ctx the parse tree

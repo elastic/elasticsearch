@@ -6,7 +6,7 @@ import org.antlr.v4.runtime.tree.ParseTreeListener;
  * This interface defines a complete listener for a parse tree produced by
  * {@link EsqlBaseParser}.
  */
-interface EsqlBaseListener extends ParseTreeListener {
+public interface EsqlBaseParserListener extends ParseTreeListener {
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#singleStatement}.
    * @param ctx the parse tree
@@ -17,16 +17,6 @@ interface EsqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitSingleStatement(EsqlBaseParser.SingleStatementContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#singleExpression}.
-   * @param ctx the parse tree
-   */
-  void enterSingleExpression(EsqlBaseParser.SingleExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#singleExpression}.
-   * @param ctx the parse tree
-   */
-  void exitSingleExpression(EsqlBaseParser.SingleExpressionContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#query}.
    * @param ctx the parse tree

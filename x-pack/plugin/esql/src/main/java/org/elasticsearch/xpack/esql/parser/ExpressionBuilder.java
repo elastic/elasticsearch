@@ -36,17 +36,11 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.text;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 
 public class ExpressionBuilder extends IdentifierBuilder {
     protected Expression expression(ParseTree ctx) {
         return typedParsing(this, ctx, Expression.class);
-    }
-
-    @Override
-    public Expression visitSingleExpression(EsqlBaseParser.SingleExpressionContext ctx) {
-        return expression(ctx.booleanExpression());
     }
 
     @Override

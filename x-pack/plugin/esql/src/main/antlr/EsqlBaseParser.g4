@@ -5,14 +5,12 @@
  * 2.0.
  */
 
-grammar EsqlBase;
+parser grammar EsqlBaseParser;
+
+options {tokenVocab=EsqlBaseLexer;}
 
 singleStatement
-    : query
-    ;
-
-singleExpression
-    : booleanExpression EOF
+    : query EOF
     ;
 
 query
@@ -105,89 +103,4 @@ string
 
 comparisonOperator
     : EQ | NEQ | LT | LTE | GT | GTE
-    ;
-
-fragment DIGIT
-    : [0-9]
-    ;
-
-fragment LETTER
-    : [A-Za-z]
-    ;
-
-fragment ESCAPE_SEQUENCE
-    : '\\' [tnr"\\]
-    ;
-
-fragment UNESCAPED_CHARS
-    : ~[\r\n"\\]
-    ;
-
-fragment EXPONENT
-    : [Ee] [+-]? DIGIT+
-    ;
-
-STRING
-    : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
-    | '"""' (~[\r\n])*? '"""' '"'? '"'?
-    ;
-
-INTEGER_LITERAL
-    : DIGIT+
-    ;
-
-DECIMAL_LITERAL
-    : DIGIT+ DOT DIGIT*
-    | DOT DIGIT+
-    | DIGIT+ (DOT DIGIT*)? EXPONENT
-    | DOT DIGIT+ EXPONENT
-    ;
-
-AND : 'and';
-ASSIGN : '=';
-COMMA : ',';
-DOT : '.';
-FALSE : 'false';
-FROM : 'from';
-LP : '(';
-NOT : 'not';
-NULL : 'null';
-OR : 'or';
-ROW : 'row';
-RP : ')';
-PIPE : '|';
-TRUE : 'true';
-WHERE : 'where';
-
-EQ  : '==';
-NEQ : '!=';
-LT  : '<';
-LTE : '<=';
-GT  : '>';
-GTE : '>=';
-
-PLUS : '+';
-MINUS : '-';
-ASTERISK : '*';
-SLASH : '/';
-PERCENT : '%';
-
-UNQUOTED_IDENTIFIER
-    : (LETTER | '_') (LETTER | DIGIT | '_')*
-    ;
-
-QUOTED_IDENTIFIER
-    : '`' ( ~'`' | '``' )* '`'
-    ;
-
-LINE_COMMENT
-    : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
-    ;
-
-MULTILINE_COMMENT
-    : '/*' (MULTILINE_COMMENT|.)*? '*/' -> channel(HIDDEN)
-    ;
-
-WS
-    : [ \r\n\t]+ -> channel(HIDDEN)
     ;

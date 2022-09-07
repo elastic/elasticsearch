@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
-public class IdentifierBuilder extends EsqlBaseBaseVisitor<Object> {
+public class IdentifierBuilder extends EsqlBaseParserBaseVisitor<Object> {
     @Override
     public String visitIdentifier(EsqlBaseParser.IdentifierContext ctx) {
         String identifier;

@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
@@ -98,12 +100,31 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                     // if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
                     logger.trace("scheduling a reconciliation");
                     var desiredBalanceForReconcilation = currentDesiredBalance;
+                    // TODO implement batching
                     clusterService.submitUnbatchedStateUpdateTask("reconcile", new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
-                            final var routingAllocation = routingAllocationCreator.apply(currentState, System.nanoTime());
-                            new DesiredBalanceReconciler(desiredBalanceForReconcilation, routingAllocation).run();
-                            return AllocationService.buildResultAndLogHealthChange(currentState, routingAllocation, "reconcile");
+                            logger.info("--> executing reconcile for state [{}]:\n{}", currentState.version(), currentState);
+                            var success = false;
+                            try {
+                                final var routingAllocation = routingAllocationCreator.apply(currentState, System.nanoTime());
+                                new DesiredBalanceReconciler(desiredBalanceForReconcilation, routingAllocation).run();
+                                final var unassignedIterator = routingAllocation.routingNodes().unassigned().iterator();
+                                while (unassignedIterator.hasNext()) {
+                                    final var shardRouting = unassignedIterator.next();
+                                    logger.info("--> ignoring unassigned [{}]", shardRouting);
+                                    unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                                        routingAllocation.changes());
+                                }
+                                final var newState = routingAllocation.routingNodesChanged() ?
+                                    AllocationService.buildResultAndLogHealthChange(currentState, routingAllocation, "reconcile")
+                                    : currentState;
+                                success = true;
+                                return newState;
+                            } finally {
+                                    logger.info("--> executing reconcile for state [{}] {}", currentState.version(),
+                                        success ? "succeeded" : "failed");
+                            }
                         }
 
                         @Override

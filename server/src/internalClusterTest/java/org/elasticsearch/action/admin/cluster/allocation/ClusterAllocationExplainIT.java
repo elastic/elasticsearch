@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -46,6 +47,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -731,10 +733,17 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
+    @TestLogging(reason="nocommit", value="org.elasticsearch.cluster.service.MasterService:TRACE," +
+                                          "org.elasticsearch.cluster.routing.allocation.allocator:TRACE")
     public void testWorseBalance() throws Exception {
         logger.info("--> starting a single node");
         internalCluster().startNode();
         ensureStableCluster(1);
+
+//        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
+//            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 2)));
+
+        logger.info("--> creating index");
 
         prepareIndex(5, 0);
 
@@ -1265,7 +1274,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     }
 
     private static IndexMetadata.State randomIndexState() {
-        return randomFrom(IndexMetadata.State.values());
+        return IndexMetadata.State.CLOSE; // randomFrom(IndexMetadata.State.values());
     }
 
     private void indexData() {

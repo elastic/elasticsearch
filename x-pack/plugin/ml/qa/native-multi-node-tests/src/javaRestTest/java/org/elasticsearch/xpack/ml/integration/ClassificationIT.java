@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -642,17 +641,24 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(jobId));
         assertThat(e.status().getStatus(), equalTo(400));
-        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [30] distinct values but there were at least [31]"));
+        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [100] distinct values but there were at least [101]"));
     }
 
     public void testDependentVariableCardinalityTooHighButWithQueryMakesItWithinRange() throws Exception {
         initialize("cardinality_too_high_with_query");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
-        // Index one more document with a class different than the two already used.
-        client().execute(
-            IndexAction.INSTANCE,
-            new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+
+        // Index enough documents to have more classes than the allowed limit
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY - 1; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox-" + i);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
         QueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termsQuery(KEYWORD_FIELD, KEYWORD_FIELD_VALUES));
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD), query);

@@ -32,4 +32,14 @@ public class IdentifierBuilder extends EsqlBaseParserBaseVisitor<Object> {
 
         return Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".");
     }
+
+    @Override
+    public String visitSourceIdentifier(EsqlBaseParser.SourceIdentifierContext ctx) {
+        if (ctx.SRC_QUOTED_IDENTIFIER() != null) {
+            String identifier = ctx.SRC_QUOTED_IDENTIFIER().getText();
+            return identifier.substring(1, identifier.length() - 1);
+        } else {
+            return ctx.SRC_UNQUOTED_IDENTIFIER().getText();
+        }
+    }
 }

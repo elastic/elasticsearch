@@ -22,30 +22,32 @@ public class EsqlBaseParser extends Parser {
     ASSIGN=13, COMMA=14, DOT=15, FALSE=16, LP=17, NOT=18, NULL=19, OR=20, 
     RP=21, TRUE=22, EQ=23, NEQ=24, LT=25, LTE=26, GT=27, GTE=28, PLUS=29, 
     MINUS=30, ASTERISK=31, SLASH=32, PERCENT=33, UNQUOTED_IDENTIFIER=34, QUOTED_IDENTIFIER=35, 
-    LINE_COMMENT_EXPR=36, MULTILINE_COMMENT_EXPR=37, WS_EXPR=38;
+    EXPR_LINE_COMMENT=36, EXPR_MULTILINE_COMMENT=37, EXPR_WS=38, SRC_UNQUOTED_IDENTIFIER=39, 
+    SRC_QUOTED_IDENTIFIER=40, SRC_LINE_COMMENT=41, SRC_MULTILINE_COMMENT=42, 
+    SRC_WS=43;
   public static final int
     RULE_singleStatement = 0, RULE_query = 1, RULE_sourceCommand = 2, RULE_processingCommand = 3, 
     RULE_whereCommand = 4, RULE_booleanExpression = 5, RULE_valueExpression = 6, 
     RULE_operatorExpression = 7, RULE_primaryExpression = 8, RULE_rowCommand = 9, 
-    RULE_fields = 10, RULE_field = 11, RULE_fromCommand = 12, RULE_qualifiedName = 13, 
-    RULE_identifier = 14, RULE_constant = 15, RULE_booleanValue = 16, RULE_number = 17, 
-    RULE_string = 18, RULE_comparisonOperator = 19;
+    RULE_fields = 10, RULE_field = 11, RULE_fromCommand = 12, RULE_sourceIdentifier = 13, 
+    RULE_qualifiedName = 14, RULE_identifier = 15, RULE_constant = 16, RULE_booleanValue = 17, 
+    RULE_number = 18, RULE_string = 19, RULE_comparisonOperator = 20;
   private static String[] makeRuleNames() {
     return new String[] {
       "singleStatement", "query", "sourceCommand", "processingCommand", "whereCommand", 
       "booleanExpression", "valueExpression", "operatorExpression", "primaryExpression", 
-      "rowCommand", "fields", "field", "fromCommand", "qualifiedName", "identifier", 
-      "constant", "booleanValue", "number", "string", "comparisonOperator"
+      "rowCommand", "fields", "field", "fromCommand", "sourceIdentifier", "qualifiedName", 
+      "identifier", "constant", "booleanValue", "number", "string", "comparisonOperator"
     };
   }
   public static final String[] ruleNames = makeRuleNames();
 
   private static String[] makeLiteralNames() {
     return new String[] {
-      null, "'from'", "'row'", "'where'", null, null, null, null, "'|'", null, 
-      null, null, "'and'", "'='", "','", "'.'", "'false'", "'('", "'not'", 
-      "'null'", "'or'", "')'", "'true'", "'=='", "'!='", "'<'", "'<='", "'>'", 
-      "'>='", "'+'", "'-'", "'*'", "'/'", "'%'"
+      null, "'from'", "'row'", "'where'", null, null, null, null, null, null, 
+      null, null, "'and'", "'='", null, "'.'", "'false'", "'('", "'not'", "'null'", 
+      "'or'", "')'", "'true'", "'=='", "'!='", "'<'", "'<='", "'>'", "'>='", 
+      "'+'", "'-'", "'*'", "'/'", "'%'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -55,8 +57,9 @@ public class EsqlBaseParser extends Parser {
       "WS", "PIPE", "STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL", "AND", 
       "ASSIGN", "COMMA", "DOT", "FALSE", "LP", "NOT", "NULL", "OR", "RP", "TRUE", 
       "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", 
-      "PERCENT", "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "LINE_COMMENT_EXPR", 
-      "MULTILINE_COMMENT_EXPR", "WS_EXPR"
+      "PERCENT", "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", 
+      "EXPR_MULTILINE_COMMENT", "EXPR_WS", "SRC_UNQUOTED_IDENTIFIER", "SRC_QUOTED_IDENTIFIER", 
+      "SRC_LINE_COMMENT", "SRC_MULTILINE_COMMENT", "SRC_WS"
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -140,9 +143,9 @@ public class EsqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(40);
+      setState(42);
       query();
-      setState(41);
+      setState(43);
       match(EOF);
       }
     }
@@ -197,21 +200,21 @@ public class EsqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(43);
+      setState(45);
       sourceCommand();
-      setState(48);
+      setState(50);
       _errHandler.sync(this);
       _la = _input.LA(1);
       while (_la==PIPE) {
         {
         {
-        setState(44);
+        setState(46);
         match(PIPE);
-        setState(45);
+        setState(47);
         processingCommand();
         }
         }
-        setState(50);
+        setState(52);
         _errHandler.sync(this);
         _la = _input.LA(1);
       }
@@ -258,20 +261,20 @@ public class EsqlBaseParser extends Parser {
     SourceCommandContext _localctx = new SourceCommandContext(_ctx, getState());
     enterRule(_localctx, 4, RULE_sourceCommand);
     try {
-      setState(53);
+      setState(55);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case ROW:
         enterOuterAlt(_localctx, 1);
         {
-        setState(51);
+        setState(53);
         rowCommand();
         }
         break;
       case FROM:
         enterOuterAlt(_localctx, 2);
         {
-        setState(52);
+        setState(54);
         fromCommand();
         }
         break;
@@ -319,7 +322,7 @@ public class EsqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(55);
+      setState(57);
       whereCommand();
       }
     }
@@ -364,9 +367,9 @@ public class EsqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(57);
+      setState(59);
       match(WHERE);
-      setState(58);
+      setState(60);
       booleanExpression(0);
       }
     }
@@ -474,7 +477,7 @@ public class EsqlBaseParser extends Parser {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(64);
+      setState(66);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case NOT:
@@ -483,9 +486,9 @@ public class EsqlBaseParser extends Parser {
         _ctx = _localctx;
         _prevctx = _localctx;
 
-        setState(61);
+        setState(63);
         match(NOT);
-        setState(62);
+        setState(64);
         booleanExpression(4);
         }
         break;
@@ -504,7 +507,7 @@ public class EsqlBaseParser extends Parser {
         _localctx = new BooleanDefaultContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(63);
+        setState(65);
         valueExpression();
         }
         break;
@@ -512,7 +515,7 @@ public class EsqlBaseParser extends Parser {
         throw new NoViableAltException(this);
       }
       _ctx.stop = _input.LT(-1);
-      setState(74);
+      setState(76);
       _errHandler.sync(this);
       _alt = getInterpreter().adaptivePredict(_input,4,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
@@ -520,7 +523,7 @@ public class EsqlBaseParser extends Parser {
           if ( _parseListeners!=null ) triggerExitRuleEvent();
           _prevctx = _localctx;
           {
-          setState(72);
+          setState(74);
           _errHandler.sync(this);
           switch ( getInterpreter().adaptivePredict(_input,3,_ctx) ) {
           case 1:
@@ -528,11 +531,11 @@ public class EsqlBaseParser extends Parser {
             _localctx = new LogicalBinaryContext(new BooleanExpressionContext(_parentctx, _parentState));
             ((LogicalBinaryContext)_localctx).left = _prevctx;
             pushNewRecursionContext(_localctx, _startState, RULE_booleanExpression);
-            setState(66);
-            if (!(precpred(_ctx, 2))) throw new FailedPredicateException(this, "precpred(_ctx, 2)");
-            setState(67);
-            ((LogicalBinaryContext)_localctx).operator = match(AND);
             setState(68);
+            if (!(precpred(_ctx, 2))) throw new FailedPredicateException(this, "precpred(_ctx, 2)");
+            setState(69);
+            ((LogicalBinaryContext)_localctx).operator = match(AND);
+            setState(70);
             ((LogicalBinaryContext)_localctx).right = booleanExpression(3);
             }
             break;
@@ -541,18 +544,18 @@ public class EsqlBaseParser extends Parser {
             _localctx = new LogicalBinaryContext(new BooleanExpressionContext(_parentctx, _parentState));
             ((LogicalBinaryContext)_localctx).left = _prevctx;
             pushNewRecursionContext(_localctx, _startState, RULE_booleanExpression);
-            setState(69);
-            if (!(precpred(_ctx, 1))) throw new FailedPredicateException(this, "precpred(_ctx, 1)");
-            setState(70);
-            ((LogicalBinaryContext)_localctx).operator = match(OR);
             setState(71);
+            if (!(precpred(_ctx, 1))) throw new FailedPredicateException(this, "precpred(_ctx, 1)");
+            setState(72);
+            ((LogicalBinaryContext)_localctx).operator = match(OR);
+            setState(73);
             ((LogicalBinaryContext)_localctx).right = booleanExpression(2);
             }
             break;
           }
           } 
         }
-        setState(76);
+        setState(78);
         _errHandler.sync(this);
         _alt = getInterpreter().adaptivePredict(_input,4,_ctx);
       }
@@ -631,14 +634,14 @@ public class EsqlBaseParser extends Parser {
     ValueExpressionContext _localctx = new ValueExpressionContext(_ctx, getState());
     enterRule(_localctx, 12, RULE_valueExpression);
     try {
-      setState(82);
+      setState(84);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,5,_ctx) ) {
       case 1:
         _localctx = new ValueExpressionDefaultContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(77);
+        setState(79);
         operatorExpression(0);
         }
         break;
@@ -646,11 +649,11 @@ public class EsqlBaseParser extends Parser {
         _localctx = new ComparisonContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(78);
-        ((ComparisonContext)_localctx).left = operatorExpression(0);
-        setState(79);
-        comparisonOperator();
         setState(80);
+        ((ComparisonContext)_localctx).left = operatorExpression(0);
+        setState(81);
+        comparisonOperator();
+        setState(82);
         ((ComparisonContext)_localctx).right = operatorExpression(0);
         }
         break;
@@ -766,7 +769,7 @@ public class EsqlBaseParser extends Parser {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(88);
+      setState(90);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case STRING:
@@ -783,7 +786,7 @@ public class EsqlBaseParser extends Parser {
         _ctx = _localctx;
         _prevctx = _localctx;
 
-        setState(85);
+        setState(87);
         primaryExpression();
         }
         break;
@@ -793,7 +796,7 @@ public class EsqlBaseParser extends Parser {
         _localctx = new ArithmeticUnaryContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(86);
+        setState(88);
         ((ArithmeticUnaryContext)_localctx).operator = _input.LT(1);
         _la = _input.LA(1);
         if ( !(_la==PLUS || _la==MINUS) ) {
@@ -804,7 +807,7 @@ public class EsqlBaseParser extends Parser {
           _errHandler.reportMatch(this);
           consume();
         }
-        setState(87);
+        setState(89);
         operatorExpression(3);
         }
         break;
@@ -812,7 +815,7 @@ public class EsqlBaseParser extends Parser {
         throw new NoViableAltException(this);
       }
       _ctx.stop = _input.LT(-1);
-      setState(98);
+      setState(100);
       _errHandler.sync(this);
       _alt = getInterpreter().adaptivePredict(_input,8,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
@@ -820,7 +823,7 @@ public class EsqlBaseParser extends Parser {
           if ( _parseListeners!=null ) triggerExitRuleEvent();
           _prevctx = _localctx;
           {
-          setState(96);
+          setState(98);
           _errHandler.sync(this);
           switch ( getInterpreter().adaptivePredict(_input,7,_ctx) ) {
           case 1:
@@ -828,9 +831,9 @@ public class EsqlBaseParser extends Parser {
             _localctx = new ArithmeticBinaryContext(new OperatorExpressionContext(_parentctx, _parentState));
             ((ArithmeticBinaryContext)_localctx).left = _prevctx;
             pushNewRecursionContext(_localctx, _startState, RULE_operatorExpression);
-            setState(90);
+            setState(92);
             if (!(precpred(_ctx, 2))) throw new FailedPredicateException(this, "precpred(_ctx, 2)");
-            setState(91);
+            setState(93);
             ((ArithmeticBinaryContext)_localctx).operator = _input.LT(1);
             _la = _input.LA(1);
             if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << ASTERISK) | (1L << SLASH) | (1L << PERCENT))) != 0)) ) {
@@ -841,7 +844,7 @@ public class EsqlBaseParser extends Parser {
               _errHandler.reportMatch(this);
               consume();
             }
-            setState(92);
+            setState(94);
             ((ArithmeticBinaryContext)_localctx).right = operatorExpression(3);
             }
             break;
@@ -850,9 +853,9 @@ public class EsqlBaseParser extends Parser {
             _localctx = new ArithmeticBinaryContext(new OperatorExpressionContext(_parentctx, _parentState));
             ((ArithmeticBinaryContext)_localctx).left = _prevctx;
             pushNewRecursionContext(_localctx, _startState, RULE_operatorExpression);
-            setState(93);
+            setState(95);
             if (!(precpred(_ctx, 1))) throw new FailedPredicateException(this, "precpred(_ctx, 1)");
-            setState(94);
+            setState(96);
             ((ArithmeticBinaryContext)_localctx).operator = _input.LT(1);
             _la = _input.LA(1);
             if ( !(_la==PLUS || _la==MINUS) ) {
@@ -863,14 +866,14 @@ public class EsqlBaseParser extends Parser {
               _errHandler.reportMatch(this);
               consume();
             }
-            setState(95);
+            setState(97);
             ((ArithmeticBinaryContext)_localctx).right = operatorExpression(2);
             }
             break;
           }
           } 
         }
-        setState(100);
+        setState(102);
         _errHandler.sync(this);
         _alt = getInterpreter().adaptivePredict(_input,8,_ctx);
       }
@@ -962,7 +965,7 @@ public class EsqlBaseParser extends Parser {
     PrimaryExpressionContext _localctx = new PrimaryExpressionContext(_ctx, getState());
     enterRule(_localctx, 16, RULE_primaryExpression);
     try {
-      setState(107);
+      setState(109);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case STRING:
@@ -974,7 +977,7 @@ public class EsqlBaseParser extends Parser {
         _localctx = new ConstantDefaultContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(101);
+        setState(103);
         constant();
         }
         break;
@@ -983,7 +986,7 @@ public class EsqlBaseParser extends Parser {
         _localctx = new DereferenceContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(102);
+        setState(104);
         qualifiedName();
         }
         break;
@@ -991,11 +994,11 @@ public class EsqlBaseParser extends Parser {
         _localctx = new ParenthesizedExpressionContext(_localctx);
         enterOuterAlt(_localctx, 3);
         {
-        setState(103);
-        match(LP);
-        setState(104);
-        booleanExpression(0);
         setState(105);
+        match(LP);
+        setState(106);
+        booleanExpression(0);
+        setState(107);
         match(RP);
         }
         break;
@@ -1044,9 +1047,9 @@ public class EsqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(109);
+      setState(111);
       match(ROW);
-      setState(110);
+      setState(112);
       fields();
       }
     }
@@ -1098,21 +1101,21 @@ public class EsqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(112);
+      setState(114);
       field();
-      setState(117);
+      setState(119);
       _errHandler.sync(this);
       _la = _input.LA(1);
       while (_la==COMMA) {
         {
         {
-        setState(113);
+        setState(115);
         match(COMMA);
-        setState(114);
+        setState(116);
         field();
         }
         }
-        setState(119);
+        setState(121);
         _errHandler.sync(this);
         _la = _input.LA(1);
       }
@@ -1160,7 +1163,7 @@ public class EsqlBaseParser extends Parser {
     FieldContext _localctx = new FieldContext(_ctx, getState());
     enterRule(_localctx, 22, RULE_field);
     try {
-      setState(125);
+      setState(127);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case STRING:
@@ -1171,7 +1174,7 @@ public class EsqlBaseParser extends Parser {
       case TRUE:
         enterOuterAlt(_localctx, 1);
         {
-        setState(120);
+        setState(122);
         constant();
         }
         break;
@@ -1179,11 +1182,11 @@ public class EsqlBaseParser extends Parser {
       case QUOTED_IDENTIFIER:
         enterOuterAlt(_localctx, 2);
         {
-        setState(121);
-        qualifiedName();
-        setState(122);
-        match(ASSIGN);
         setState(123);
+        qualifiedName();
+        setState(124);
+        match(ASSIGN);
+        setState(125);
         constant();
         }
         break;
@@ -1204,11 +1207,11 @@ public class EsqlBaseParser extends Parser {
 
   public static class FromCommandContext extends ParserRuleContext {
     public TerminalNode FROM() { return getToken(EsqlBaseParser.FROM, 0); }
-    public List<IdentifierContext> identifier() {
-      return getRuleContexts(IdentifierContext.class);
+    public List<SourceIdentifierContext> sourceIdentifier() {
+      return getRuleContexts(SourceIdentifierContext.class);
     }
-    public IdentifierContext identifier(int i) {
-      return getRuleContext(IdentifierContext.class,i);
+    public SourceIdentifierContext sourceIdentifier(int i) {
+      return getRuleContext(SourceIdentifierContext.class,i);
     }
     public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
     public TerminalNode COMMA(int i) {
@@ -1240,25 +1243,77 @@ public class EsqlBaseParser extends Parser {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(127);
+      setState(129);
       match(FROM);
-      setState(128);
-      identifier();
-      setState(133);
+      setState(130);
+      sourceIdentifier();
+      setState(135);
       _errHandler.sync(this);
       _la = _input.LA(1);
       while (_la==COMMA) {
         {
         {
-        setState(129);
+        setState(131);
         match(COMMA);
-        setState(130);
-        identifier();
+        setState(132);
+        sourceIdentifier();
         }
         }
-        setState(135);
+        setState(137);
         _errHandler.sync(this);
         _la = _input.LA(1);
+      }
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  public static class SourceIdentifierContext extends ParserRuleContext {
+    public TerminalNode SRC_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.SRC_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode SRC_QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.SRC_QUOTED_IDENTIFIER, 0); }
+    public SourceIdentifierContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_sourceIdentifier; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterSourceIdentifier(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitSourceIdentifier(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitSourceIdentifier(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final SourceIdentifierContext sourceIdentifier() throws RecognitionException {
+    SourceIdentifierContext _localctx = new SourceIdentifierContext(_ctx, getState());
+    enterRule(_localctx, 26, RULE_sourceIdentifier);
+    int _la;
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(138);
+      _la = _input.LA(1);
+      if ( !(_la==SRC_UNQUOTED_IDENTIFIER || _la==SRC_QUOTED_IDENTIFIER) ) {
+      _errHandler.recoverInline(this);
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
+        consume();
       }
       }
     }
@@ -1305,28 +1360,28 @@ public class EsqlBaseParser extends Parser {
 
   public final QualifiedNameContext qualifiedName() throws RecognitionException {
     QualifiedNameContext _localctx = new QualifiedNameContext(_ctx, getState());
-    enterRule(_localctx, 26, RULE_qualifiedName);
+    enterRule(_localctx, 28, RULE_qualifiedName);
     try {
       int _alt;
       enterOuterAlt(_localctx, 1);
       {
-      setState(136);
+      setState(140);
       identifier();
-      setState(141);
+      setState(145);
       _errHandler.sync(this);
       _alt = getInterpreter().adaptivePredict(_input,13,_ctx);
       while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
         if ( _alt==1 ) {
           {
           {
-          setState(137);
+          setState(141);
           match(DOT);
-          setState(138);
+          setState(142);
           identifier();
           }
           } 
         }
-        setState(143);
+        setState(147);
         _errHandler.sync(this);
         _alt = getInterpreter().adaptivePredict(_input,13,_ctx);
       }
@@ -1367,12 +1422,12 @@ public class EsqlBaseParser extends Parser {
 
   public final IdentifierContext identifier() throws RecognitionException {
     IdentifierContext _localctx = new IdentifierContext(_ctx, getState());
-    enterRule(_localctx, 28, RULE_identifier);
+    enterRule(_localctx, 30, RULE_identifier);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(144);
+      setState(148);
       _la = _input.LA(1);
       if ( !(_la==UNQUOTED_IDENTIFIER || _la==QUOTED_IDENTIFIER) ) {
       _errHandler.recoverInline(this);
@@ -1483,16 +1538,16 @@ public class EsqlBaseParser extends Parser {
 
   public final ConstantContext constant() throws RecognitionException {
     ConstantContext _localctx = new ConstantContext(_ctx, getState());
-    enterRule(_localctx, 30, RULE_constant);
+    enterRule(_localctx, 32, RULE_constant);
     try {
-      setState(150);
+      setState(154);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case NULL:
         _localctx = new NullLiteralContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(146);
+        setState(150);
         match(NULL);
         }
         break;
@@ -1501,7 +1556,7 @@ public class EsqlBaseParser extends Parser {
         _localctx = new NumericLiteralContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(147);
+        setState(151);
         number();
         }
         break;
@@ -1510,7 +1565,7 @@ public class EsqlBaseParser extends Parser {
         _localctx = new BooleanLiteralContext(_localctx);
         enterOuterAlt(_localctx, 3);
         {
-        setState(148);
+        setState(152);
         booleanValue();
         }
         break;
@@ -1518,7 +1573,7 @@ public class EsqlBaseParser extends Parser {
         _localctx = new StringLiteralContext(_localctx);
         enterOuterAlt(_localctx, 4);
         {
-        setState(149);
+        setState(153);
         string();
         }
         break;
@@ -1561,12 +1616,12 @@ public class EsqlBaseParser extends Parser {
 
   public final BooleanValueContext booleanValue() throws RecognitionException {
     BooleanValueContext _localctx = new BooleanValueContext(_ctx, getState());
-    enterRule(_localctx, 32, RULE_booleanValue);
+    enterRule(_localctx, 34, RULE_booleanValue);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(152);
+      setState(156);
       _la = _input.LA(1);
       if ( !(_la==FALSE || _la==TRUE) ) {
       _errHandler.recoverInline(this);
@@ -1637,16 +1692,16 @@ public class EsqlBaseParser extends Parser {
 
   public final NumberContext number() throws RecognitionException {
     NumberContext _localctx = new NumberContext(_ctx, getState());
-    enterRule(_localctx, 34, RULE_number);
+    enterRule(_localctx, 36, RULE_number);
     try {
-      setState(156);
+      setState(160);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case DECIMAL_LITERAL:
         _localctx = new DecimalLiteralContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(154);
+        setState(158);
         match(DECIMAL_LITERAL);
         }
         break;
@@ -1654,7 +1709,7 @@ public class EsqlBaseParser extends Parser {
         _localctx = new IntegerLiteralContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(155);
+        setState(159);
         match(INTEGER_LITERAL);
         }
         break;
@@ -1696,11 +1751,11 @@ public class EsqlBaseParser extends Parser {
 
   public final StringContext string() throws RecognitionException {
     StringContext _localctx = new StringContext(_ctx, getState());
-    enterRule(_localctx, 36, RULE_string);
+    enterRule(_localctx, 38, RULE_string);
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(158);
+      setState(162);
       match(STRING);
       }
     }
@@ -1743,12 +1798,12 @@ public class EsqlBaseParser extends Parser {
 
   public final ComparisonOperatorContext comparisonOperator() throws RecognitionException {
     ComparisonOperatorContext _localctx = new ComparisonOperatorContext(_ctx, getState());
-    enterRule(_localctx, 38, RULE_comparisonOperator);
+    enterRule(_localctx, 40, RULE_comparisonOperator);
     int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(160);
+      setState(164);
       _la = _input.LA(1);
       if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << EQ) | (1L << NEQ) | (1L << LT) | (1L << LTE) | (1L << GT) | (1L << GTE))) != 0)) ) {
       _errHandler.recoverInline(this);
@@ -1800,52 +1855,53 @@ public class EsqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3(\u00a5\4\2\t\2\4"+
+    "\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3-\u00a9\4\2\t\2\4"+
     "\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13\t"+
     "\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
-    "\4\23\t\23\4\24\t\24\4\25\t\25\3\2\3\2\3\2\3\3\3\3\3\3\7\3\61\n\3\f\3"+
-    "\16\3\64\13\3\3\4\3\4\5\48\n\4\3\5\3\5\3\6\3\6\3\6\3\7\3\7\3\7\3\7\5\7"+
-    "C\n\7\3\7\3\7\3\7\3\7\3\7\3\7\7\7K\n\7\f\7\16\7N\13\7\3\b\3\b\3\b\3\b"+
-    "\3\b\5\bU\n\b\3\t\3\t\3\t\3\t\5\t[\n\t\3\t\3\t\3\t\3\t\3\t\3\t\7\tc\n"+
-    "\t\f\t\16\tf\13\t\3\n\3\n\3\n\3\n\3\n\3\n\5\nn\n\n\3\13\3\13\3\13\3\f"+
-    "\3\f\3\f\7\fv\n\f\f\f\16\fy\13\f\3\r\3\r\3\r\3\r\3\r\5\r\u0080\n\r\3\16"+
-    "\3\16\3\16\3\16\7\16\u0086\n\16\f\16\16\16\u0089\13\16\3\17\3\17\3\17"+
-    "\7\17\u008e\n\17\f\17\16\17\u0091\13\17\3\20\3\20\3\21\3\21\3\21\3\21"+
-    "\5\21\u0099\n\21\3\22\3\22\3\23\3\23\5\23\u009f\n\23\3\24\3\24\3\25\3"+
-    "\25\3\25\2\4\f\20\26\2\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \"$&(\2\7"+
-    "\3\2\37 \3\2!#\3\2$%\4\2\22\22\30\30\3\2\31\36\2\u00a3\2*\3\2\2\2\4-\3"+
-    "\2\2\2\6\67\3\2\2\2\b9\3\2\2\2\n;\3\2\2\2\fB\3\2\2\2\16T\3\2\2\2\20Z\3"+
-    "\2\2\2\22m\3\2\2\2\24o\3\2\2\2\26r\3\2\2\2\30\177\3\2\2\2\32\u0081\3\2"+
-    "\2\2\34\u008a\3\2\2\2\36\u0092\3\2\2\2 \u0098\3\2\2\2\"\u009a\3\2\2\2"+
-    "$\u009e\3\2\2\2&\u00a0\3\2\2\2(\u00a2\3\2\2\2*+\5\4\3\2+,\7\2\2\3,\3\3"+
-    "\2\2\2-\62\5\6\4\2./\7\n\2\2/\61\5\b\5\2\60.\3\2\2\2\61\64\3\2\2\2\62"+
-    "\60\3\2\2\2\62\63\3\2\2\2\63\5\3\2\2\2\64\62\3\2\2\2\658\5\24\13\2\66"+
-    "8\5\32\16\2\67\65\3\2\2\2\67\66\3\2\2\28\7\3\2\2\29:\5\n\6\2:\t\3\2\2"+
-    "\2;<\7\5\2\2<=\5\f\7\2=\13\3\2\2\2>?\b\7\1\2?@\7\24\2\2@C\5\f\7\6AC\5"+
-    "\16\b\2B>\3\2\2\2BA\3\2\2\2CL\3\2\2\2DE\f\4\2\2EF\7\16\2\2FK\5\f\7\5G"+
-    "H\f\3\2\2HI\7\26\2\2IK\5\f\7\4JD\3\2\2\2JG\3\2\2\2KN\3\2\2\2LJ\3\2\2\2"+
-    "LM\3\2\2\2M\r\3\2\2\2NL\3\2\2\2OU\5\20\t\2PQ\5\20\t\2QR\5(\25\2RS\5\20"+
-    "\t\2SU\3\2\2\2TO\3\2\2\2TP\3\2\2\2U\17\3\2\2\2VW\b\t\1\2W[\5\22\n\2XY"+
-    "\t\2\2\2Y[\5\20\t\5ZV\3\2\2\2ZX\3\2\2\2[d\3\2\2\2\\]\f\4\2\2]^\t\3\2\2"+
-    "^c\5\20\t\5_`\f\3\2\2`a\t\2\2\2ac\5\20\t\4b\\\3\2\2\2b_\3\2\2\2cf\3\2"+
-    "\2\2db\3\2\2\2de\3\2\2\2e\21\3\2\2\2fd\3\2\2\2gn\5 \21\2hn\5\34\17\2i"+
-    "j\7\23\2\2jk\5\f\7\2kl\7\27\2\2ln\3\2\2\2mg\3\2\2\2mh\3\2\2\2mi\3\2\2"+
-    "\2n\23\3\2\2\2op\7\4\2\2pq\5\26\f\2q\25\3\2\2\2rw\5\30\r\2st\7\20\2\2"+
-    "tv\5\30\r\2us\3\2\2\2vy\3\2\2\2wu\3\2\2\2wx\3\2\2\2x\27\3\2\2\2yw\3\2"+
-    "\2\2z\u0080\5 \21\2{|\5\34\17\2|}\7\17\2\2}~\5 \21\2~\u0080\3\2\2\2\177"+
-    "z\3\2\2\2\177{\3\2\2\2\u0080\31\3\2\2\2\u0081\u0082\7\3\2\2\u0082\u0087"+
-    "\5\36\20\2\u0083\u0084\7\20\2\2\u0084\u0086\5\36\20\2\u0085\u0083\3\2"+
-    "\2\2\u0086\u0089\3\2\2\2\u0087\u0085\3\2\2\2\u0087\u0088\3\2\2\2\u0088"+
-    "\33\3\2\2\2\u0089\u0087\3\2\2\2\u008a\u008f\5\36\20\2\u008b\u008c\7\21"+
-    "\2\2\u008c\u008e\5\36\20\2\u008d\u008b\3\2\2\2\u008e\u0091\3\2\2\2\u008f"+
-    "\u008d\3\2\2\2\u008f\u0090\3\2\2\2\u0090\35\3\2\2\2\u0091\u008f\3\2\2"+
-    "\2\u0092\u0093\t\4\2\2\u0093\37\3\2\2\2\u0094\u0099\7\25\2\2\u0095\u0099"+
-    "\5$\23\2\u0096\u0099\5\"\22\2\u0097\u0099\5&\24\2\u0098\u0094\3\2\2\2"+
-    "\u0098\u0095\3\2\2\2\u0098\u0096\3\2\2\2\u0098\u0097\3\2\2\2\u0099!\3"+
-    "\2\2\2\u009a\u009b\t\5\2\2\u009b#\3\2\2\2\u009c\u009f\7\r\2\2\u009d\u009f"+
-    "\7\f\2\2\u009e\u009c\3\2\2\2\u009e\u009d\3\2\2\2\u009f%\3\2\2\2\u00a0"+
-    "\u00a1\7\13\2\2\u00a1\'\3\2\2\2\u00a2\u00a3\t\6\2\2\u00a3)\3\2\2\2\22"+
-    "\62\67BJLTZbdmw\177\u0087\u008f\u0098\u009e";
+    "\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\3\2\3\2\3\2\3\3\3\3\3\3\7\3\63"+
+    "\n\3\f\3\16\3\66\13\3\3\4\3\4\5\4:\n\4\3\5\3\5\3\6\3\6\3\6\3\7\3\7\3\7"+
+    "\3\7\5\7E\n\7\3\7\3\7\3\7\3\7\3\7\3\7\7\7M\n\7\f\7\16\7P\13\7\3\b\3\b"+
+    "\3\b\3\b\3\b\5\bW\n\b\3\t\3\t\3\t\3\t\5\t]\n\t\3\t\3\t\3\t\3\t\3\t\3\t"+
+    "\7\te\n\t\f\t\16\th\13\t\3\n\3\n\3\n\3\n\3\n\3\n\5\np\n\n\3\13\3\13\3"+
+    "\13\3\f\3\f\3\f\7\fx\n\f\f\f\16\f{\13\f\3\r\3\r\3\r\3\r\3\r\5\r\u0082"+
+    "\n\r\3\16\3\16\3\16\3\16\7\16\u0088\n\16\f\16\16\16\u008b\13\16\3\17\3"+
+    "\17\3\20\3\20\3\20\7\20\u0092\n\20\f\20\16\20\u0095\13\20\3\21\3\21\3"+
+    "\22\3\22\3\22\3\22\5\22\u009d\n\22\3\23\3\23\3\24\3\24\5\24\u00a3\n\24"+
+    "\3\25\3\25\3\26\3\26\3\26\2\4\f\20\27\2\4\6\b\n\f\16\20\22\24\26\30\32"+
+    "\34\36 \"$&(*\2\b\3\2\37 \3\2!#\3\2)*\3\2$%\4\2\22\22\30\30\3\2\31\36"+
+    "\2\u00a6\2,\3\2\2\2\4/\3\2\2\2\69\3\2\2\2\b;\3\2\2\2\n=\3\2\2\2\fD\3\2"+
+    "\2\2\16V\3\2\2\2\20\\\3\2\2\2\22o\3\2\2\2\24q\3\2\2\2\26t\3\2\2\2\30\u0081"+
+    "\3\2\2\2\32\u0083\3\2\2\2\34\u008c\3\2\2\2\36\u008e\3\2\2\2 \u0096\3\2"+
+    "\2\2\"\u009c\3\2\2\2$\u009e\3\2\2\2&\u00a2\3\2\2\2(\u00a4\3\2\2\2*\u00a6"+
+    "\3\2\2\2,-\5\4\3\2-.\7\2\2\3.\3\3\2\2\2/\64\5\6\4\2\60\61\7\n\2\2\61\63"+
+    "\5\b\5\2\62\60\3\2\2\2\63\66\3\2\2\2\64\62\3\2\2\2\64\65\3\2\2\2\65\5"+
+    "\3\2\2\2\66\64\3\2\2\2\67:\5\24\13\28:\5\32\16\29\67\3\2\2\298\3\2\2\2"+
+    ":\7\3\2\2\2;<\5\n\6\2<\t\3\2\2\2=>\7\5\2\2>?\5\f\7\2?\13\3\2\2\2@A\b\7"+
+    "\1\2AB\7\24\2\2BE\5\f\7\6CE\5\16\b\2D@\3\2\2\2DC\3\2\2\2EN\3\2\2\2FG\f"+
+    "\4\2\2GH\7\16\2\2HM\5\f\7\5IJ\f\3\2\2JK\7\26\2\2KM\5\f\7\4LF\3\2\2\2L"+
+    "I\3\2\2\2MP\3\2\2\2NL\3\2\2\2NO\3\2\2\2O\r\3\2\2\2PN\3\2\2\2QW\5\20\t"+
+    "\2RS\5\20\t\2ST\5*\26\2TU\5\20\t\2UW\3\2\2\2VQ\3\2\2\2VR\3\2\2\2W\17\3"+
+    "\2\2\2XY\b\t\1\2Y]\5\22\n\2Z[\t\2\2\2[]\5\20\t\5\\X\3\2\2\2\\Z\3\2\2\2"+
+    "]f\3\2\2\2^_\f\4\2\2_`\t\3\2\2`e\5\20\t\5ab\f\3\2\2bc\t\2\2\2ce\5\20\t"+
+    "\4d^\3\2\2\2da\3\2\2\2eh\3\2\2\2fd\3\2\2\2fg\3\2\2\2g\21\3\2\2\2hf\3\2"+
+    "\2\2ip\5\"\22\2jp\5\36\20\2kl\7\23\2\2lm\5\f\7\2mn\7\27\2\2np\3\2\2\2"+
+    "oi\3\2\2\2oj\3\2\2\2ok\3\2\2\2p\23\3\2\2\2qr\7\4\2\2rs\5\26\f\2s\25\3"+
+    "\2\2\2ty\5\30\r\2uv\7\20\2\2vx\5\30\r\2wu\3\2\2\2x{\3\2\2\2yw\3\2\2\2"+
+    "yz\3\2\2\2z\27\3\2\2\2{y\3\2\2\2|\u0082\5\"\22\2}~\5\36\20\2~\177\7\17"+
+    "\2\2\177\u0080\5\"\22\2\u0080\u0082\3\2\2\2\u0081|\3\2\2\2\u0081}\3\2"+
+    "\2\2\u0082\31\3\2\2\2\u0083\u0084\7\3\2\2\u0084\u0089\5\34\17\2\u0085"+
+    "\u0086\7\20\2\2\u0086\u0088\5\34\17\2\u0087\u0085\3\2\2\2\u0088\u008b"+
+    "\3\2\2\2\u0089\u0087\3\2\2\2\u0089\u008a\3\2\2\2\u008a\33\3\2\2\2\u008b"+
+    "\u0089\3\2\2\2\u008c\u008d\t\4\2\2\u008d\35\3\2\2\2\u008e\u0093\5 \21"+
+    "\2\u008f\u0090\7\21\2\2\u0090\u0092\5 \21\2\u0091\u008f\3\2\2\2\u0092"+
+    "\u0095\3\2\2\2\u0093\u0091\3\2\2\2\u0093\u0094\3\2\2\2\u0094\37\3\2\2"+
+    "\2\u0095\u0093\3\2\2\2\u0096\u0097\t\5\2\2\u0097!\3\2\2\2\u0098\u009d"+
+    "\7\25\2\2\u0099\u009d\5&\24\2\u009a\u009d\5$\23\2\u009b\u009d\5(\25\2"+
+    "\u009c\u0098\3\2\2\2\u009c\u0099\3\2\2\2\u009c\u009a\3\2\2\2\u009c\u009b"+
+    "\3\2\2\2\u009d#\3\2\2\2\u009e\u009f\t\6\2\2\u009f%\3\2\2\2\u00a0\u00a3"+
+    "\7\r\2\2\u00a1\u00a3\7\f\2\2\u00a2\u00a0\3\2\2\2\u00a2\u00a1\3\2\2\2\u00a3"+
+    "\'\3\2\2\2\u00a4\u00a5\7\13\2\2\u00a5)\3\2\2\2\u00a6\u00a7\t\7\2\2\u00a7"+
+    "+\3\2\2\2\22\649DLNV\\dfoy\u0081\u0089\u0093\u009c\u00a2";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

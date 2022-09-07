@@ -80,6 +80,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
-        return ctx.identifier().stream().map(w -> visitIdentifier(w)).collect(Collectors.joining(","));
+        return ctx.sourceIdentifier().stream().map(this::visitSourceIdentifier).collect(Collectors.joining(","));
     }
 }

@@ -1,6 +1,6 @@
 lexer grammar EsqlBaseLexer;
 
-FROM : 'from' -> pushMode(EXPRESSION);
+FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
 ROW : 'row' -> pushMode(EXPRESSION);
 WHERE : 'where' -> pushMode(EXPRESSION);
 UNKNOWN_COMMAND : ~[ \r\n\t]+ -> pushMode(EXPRESSION);
@@ -92,14 +92,41 @@ QUOTED_IDENTIFIER
     : '`' ( ~'`' | '``' )* '`'
     ;
 
-LINE_COMMENT_EXPR
-    : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
+EXPR_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
     ;
 
-MULTILINE_COMMENT_EXPR
-    : '/*' (MULTILINE_COMMENT|.)*? '*/' -> channel(HIDDEN)
+EXPR_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
     ;
 
-WS_EXPR
-    : [ \r\n\t]+ -> channel(HIDDEN)
+EXPR_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+
+
+mode SOURCE_IDENTIFIERS;
+
+SRC_PIPE : '|' -> type(PIPE), popMode;
+SRC_COMMA : ',' -> type(COMMA);
+
+SRC_UNQUOTED_IDENTIFIER
+    : ~[`|., \t\r\n]+
+    ;
+
+SRC_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER
+    ;
+
+SRC_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SRC_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SRC_WS
+    : WS -> channel(HIDDEN)
     ;

@@ -49,6 +49,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCase {
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89852")
     public void testMultiplePoliciesFixedCapacity() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         Set<String> policyNames = IntStream.range(0, randomIntBetween(1, 10))

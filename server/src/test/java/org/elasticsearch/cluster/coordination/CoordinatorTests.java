@@ -1903,6 +1903,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89867")
     public void testSingleNodeDiscoveryStabilisesEvenWhenDisrupted() {
         try (
             Cluster cluster = new Cluster(

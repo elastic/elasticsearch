@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCase {
+
     public void testMultiplePoliciesFixedCapacity() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         Set<String> policyNames = IntStream.range(0, randomIntBetween(1, 10))
@@ -149,7 +150,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             settings.put(FixedAutoscalingDeciderService.MEMORY.getKey(), randomByteSizeValue());
         }
         if (randomBoolean()) {
-            settings.put(FixedAutoscalingDeciderService.PROCESSORS.getKey(), randomInt(64));
+            settings.put(FixedAutoscalingDeciderService.PROCESSORS.getKey(), randomIntBetween(1, 64));
         }
         settings.put(FixedAutoscalingDeciderService.NODES.getKey(), randomIntBetween(1, 10));
         return new TreeMap<>(Map.of(FixedAutoscalingDeciderService.NAME, settings.build()));

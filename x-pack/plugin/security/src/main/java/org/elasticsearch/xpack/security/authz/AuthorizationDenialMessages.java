@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
@@ -134,16 +133,16 @@ class AuthorizationDenialMessages {
         if (authorizationInfo == null) {
             return null;
         }
-        final Role role = RBACEngine.maybeGetRBACEngineRole(authorizationInfo);
-        if (role == Role.EMPTY) {
-            return List.of();
-        } else {
-            final Map<String, Object> info = authorizationInfo.asMap();
-            if (false == info.containsKey(PRINCIPAL_ROLES_FIELD_NAME)) {
-                return null;
-            }
-            return Arrays.stream((String[]) info.get(PRINCIPAL_ROLES_FIELD_NAME)).sorted().toList();
+
+        final Map<String, Object> info = authorizationInfo.asMap();
+        final Object roleNames = info.get(PRINCIPAL_ROLES_FIELD_NAME);
+        // AuthorizationInfo from custom authorization engine may not have this field or have it as a different data type
+        if (false == roleNames instanceof String[]) {
+            assert false == authorizationInfo instanceof RBACEngine.RBACAuthorizationInfo
+                : "unexpected user.roles field [" + roleNames + "] for RBACAuthorizationInfo";
+            return null;
         }
+        return Arrays.stream((String[]) roleNames).sorted().toList();
     }
 
     private static String actionIsUnauthorizedMessage(String action, String userText) {

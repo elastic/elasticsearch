@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 
 import java.util.Objects;
 
@@ -72,10 +72,12 @@ public class RollupStep extends AsyncActionStep {
 
         IndexMetadata rollupIndexMetadata = currentState.metadata().index(rollupIndexName);
         if (rollupIndexMetadata != null) {
-            IndexMetadata.RollupTaskStatus rollupIndexStatus = IndexMetadata.INDEX_ROLLUP_STATUS.get(rollupIndexMetadata.getSettings());
+            IndexMetadata.DownsampleTaskStatus rollupIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
+                rollupIndexMetadata.getSettings()
+            );
             // Rollup index has already been created with the generated name and its status is "success".
             // So we skip index rollup creation.
-            if (IndexMetadata.RollupTaskStatus.SUCCESS.equals(rollupIndexStatus)) {
+            if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(rollupIndexStatus)) {
                 logger.warn(
                     "skipping [{}] step for index [{}] as part of policy [{}] as the rollup index [{}] already exists",
                     RollupStep.NAME,
@@ -124,11 +126,13 @@ public class RollupStep extends AsyncActionStep {
     }
 
     private void performRollupIndex(String indexName, String rollupIndexName, ActionListener<Void> listener) {
-        RollupActionConfig config = new RollupActionConfig(fixedInterval);
-        RollupAction.Request request = new RollupAction.Request(indexName, rollupIndexName, config).masterNodeTimeout(TimeValue.MAX_VALUE);
-        // Currently, RollupAction always acknowledges action was complete when no exceptions are thrown.
+        DownsampleConfig config = new DownsampleConfig(fixedInterval);
+        DownsampleAction.Request request = new DownsampleAction.Request(indexName, rollupIndexName, config).masterNodeTimeout(
+            TimeValue.MAX_VALUE
+        );
+        // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.
         getClient().execute(
-            RollupAction.INSTANCE,
+            DownsampleAction.INSTANCE,
             request,
             ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
         );

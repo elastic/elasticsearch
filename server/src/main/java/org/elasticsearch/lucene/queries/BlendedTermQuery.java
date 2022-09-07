@@ -148,7 +148,10 @@ public abstract class BlendedTermQuery extends Query {
             if (prev > current) {
                 actualDf++;
             }
-            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, Math.min(maxDoc, actualDf));
+
+            int docCount = reader.getDocCount(terms[i].field());
+            int newDocFreq = Math.min(actualDf, docCount);
+            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, newDocFreq);
             prev = current;
             sumTTF += ctx.totalTermFreq();
         }

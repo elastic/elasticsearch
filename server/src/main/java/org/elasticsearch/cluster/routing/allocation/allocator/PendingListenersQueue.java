@@ -53,21 +53,8 @@ public class PendingListenersQueue {
         executeListeners(Long.MAX_VALUE, false);
     }
 
-    public void pause() {
-        paused = true;
-    }
-
-    public void resume() {
-        paused = false;
-        executeListeners(completedIndex, true);
-    }
-
     public long getCompletedIndex() {
         return completedIndex;
-    }
-
-    public boolean isPaused() {
-        return paused;
     }
 
     private void executeListeners(long convergedIndex, boolean isMaster) {

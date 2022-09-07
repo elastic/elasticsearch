@@ -102,20 +102,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
-        return new DesiredBalanceShardsAllocator(
-            new BalancedShardsAllocator(settings),
-            queue.getThreadPool(),
-            () -> (reason, priority, listener) -> {
-                /* noop as reconciliation will await balance calculation result*/
-            },
-            null,
-            null
-        ) {
+        return new DesiredBalanceShardsAllocator(new BalancedShardsAllocator(settings), queue.getThreadPool(), null, null) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 super.allocate(allocation, listener);
                 // We have to call clusterChanged to resume listener queue execution. Otherwise, reroute listeners will never be executed.
-                clusterChanged(new ClusterChangedEvent("test", allocation.getClusterState(), allocation.getClusterState()));
+                // TODO fix
+                // clusterChanged(new ClusterChangedEvent("test", allocation.getClusterState(), allocation.getClusterState()));
             }
 
             @Override

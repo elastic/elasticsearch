@@ -242,8 +242,13 @@ public class AllocationService {
             allocator.applyFailedShards(failedShards, allocation);
         }
 
-        reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation,
-            rerouteCompletionIsNotRequired() /* this is not triggered by a user request */));
+        reroute(
+            allocation,
+            routingAllocation -> shardsAllocator.allocate(
+                routingAllocation,
+                rerouteCompletionIsNotRequired() /* this is not triggered by a user request */
+            )
+        );
 
         String failedShardsAsString = firstListElementsToCommaDelimitedString(
             failedShards,
@@ -425,8 +430,12 @@ public class AllocationService {
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
-    public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<Void> listener,
-                                Consumer<RoutingAllocation> routingAllocationConsumer) {
+    public ClusterState reroute(
+        ClusterState clusterState,
+        String reason,
+        ActionListener<Void> listener,
+        Consumer<RoutingAllocation> routingAllocationConsumer
+    ) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
         RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
         reroute(allocation, routingAllocationConsumer);

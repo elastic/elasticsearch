@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -132,7 +131,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
-        }, threadPool, () -> rerouteService, null, null);
+        }, threadPool, null, null);
 
         final var fetchingShardData = new AtomicBoolean(gatewayAllocatorBehaviour == GatewayAllocatorBehaviour.STILL_FETCHING);
         final var allocationService = new AllocationService(new AllocationDeciders(List.of()), new GatewayAllocator() {
@@ -268,13 +267,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             }
         };
 
-        var desiredBalanceShardsAllocator = DesiredBalanceShardsAllocator.create(
-            allocator,
-            threadPool,
-            clusterService,
-            rerouteServiceSupplier::get,
-            null
-        );
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(allocator, threadPool, clusterService, null);
         var allocationService = new AllocationService(new AllocationDeciders(List.of()), new GatewayAllocator() {
             @Override
             public void beforeAllocation(RoutingAllocation allocation) {}
@@ -389,17 +382,11 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 throw new AssertionError("only used for allocation explain");
             }
         };
-        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
-            allocator,
-            threadPool,
-            rerouteServiceSupplier::get,
-            null,
-            null
-        );
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(allocator, threadPool, null, null);
         var rerouteIsCalled = new CountDownLatch(1);
         rerouteServiceSupplier.set((r, p, l) -> {
             rerouteIsCalled.countDown();
-            desiredBalanceShardsAllocator.clusterChanged(new ClusterChangedEvent("reroute", noLongerMasterState, noLongerMasterState));
+            // desiredBalanceShardsAllocator.clusterChanged(new ClusterChangedEvent("reroute", noLongerMasterState, noLongerMasterState));
         });
 
         var allocationListenerIsCalled = new CountDownLatch(1);
@@ -463,13 +450,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 throw new AssertionError("only used for allocation explain");
             }
         };
-        var desiredBalanceShardsAllocator = DesiredBalanceShardsAllocator.create(
-            allocator,
-            threadPool,
-            clusterService,
-            rerouteServiceSupplier::get,
-            null
-        );
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(allocator, threadPool, clusterService, null);
         var allocationService = new AllocationService(new AllocationDeciders(List.of()), new GatewayAllocator() {
             @Override
             public void beforeAllocation(RoutingAllocation allocation) {}

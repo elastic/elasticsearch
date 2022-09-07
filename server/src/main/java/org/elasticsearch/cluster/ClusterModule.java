@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -135,7 +134,6 @@ public class ClusterModule extends AbstractModule {
             clusterService.getClusterSettings(),
             threadPool,
             clusterPlugins,
-            rerouteServiceSupplier,
             clusterService,
             this::reconcile
         );
@@ -348,7 +346,6 @@ public class ClusterModule extends AbstractModule {
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
-        Supplier<RerouteService> rerouteServiceSupplier,
         ClusterService clusterService,
         BiFunction<ClusterState, Consumer<RoutingAllocation>, ClusterState> reconciler
     ) {
@@ -356,11 +353,10 @@ public class ClusterModule extends AbstractModule {
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
-            () -> DesiredBalanceShardsAllocator.create(
+            () -> new DesiredBalanceShardsAllocator(
                 new BalancedShardsAllocator(settings, clusterSettings),
                 threadPool,
                 clusterService,
-                rerouteServiceSupplier,
                 reconciler
             )
         );

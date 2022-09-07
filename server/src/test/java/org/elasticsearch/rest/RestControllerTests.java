@@ -13,11 +13,16 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -27,7 +32,9 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -342,6 +349,30 @@ public class RestControllerTests extends ESTestCase {
         // we will produce an error in the rest handler and one more when sending the error response
         RestRequest request = testRestRequest("/error", content, XContentType.JSON);
         ExceptionThrowingChannel channel = new ExceptionThrowingChannel(request, true);
+
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+
+        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testDispatchRequestAddsAndFreesBytesOnlyOnceOnErrorDuringSend() {
+        int contentLength = Math.toIntExact(BREAKER_LIMIT.getBytes());
+        String content = randomAlphaOfLength((int) Math.round(contentLength / inFlightRequestsBreaker.getOverhead()));
+        // use a real recycler that tracks leaks and create some content bytes in the test handler to check for leaks
+        final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        restController.registerHandler(
+            new Route(GET, "/foo"),
+            (request, c, client) -> new RestToXContentListener<>(c).onResponse((b, p) -> b.startObject().endObject())
+        );
+        // we will produce an error in the rest handler and one more when sending the error response
+        RestRequest request = testRestRequest("/foo", content, XContentType.JSON);
+        ExceptionThrowingChannel channel = new ExceptionThrowingChannel(request, true) {
+            @Override
+            protected BytesStreamOutput newBytesOutput() {
+                return new ReleasableBytesStreamOutput(bigArrays);
+            }
+        };
 
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
 
@@ -737,7 +768,7 @@ public class RestControllerTests extends ESTestCase {
 
     }
 
-    private static final class ExceptionThrowingChannel extends AbstractRestChannel {
+    private static class ExceptionThrowingChannel extends AbstractRestChannel {
 
         protected ExceptionThrowingChannel(RestRequest request, boolean detailedErrorsEnabled) {
             super(request, detailedErrorsEnabled);

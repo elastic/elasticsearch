@@ -14,10 +14,15 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -191,6 +196,116 @@ public class ExpressionTests extends ESTestCase {
 
         assertThat(expr, instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) expr).name(), equalTo("hElLo"));
+    }
+
+    /*
+     * a > 1 and b > 1 + 2 => (a > 1) and (b > (1 + 2))
+     */
+    public void testOperatorsPrecedenceWithConjunction() {
+        Expression expression = expression("a > 1 and b > 1 + 2");
+        assertThat(expression, instanceOf(And.class));
+        And and = (And) expression;
+
+        assertThat(and.left(), instanceOf(GreaterThan.class));
+        GreaterThan gt = (GreaterThan) and.left();
+        assertThat(gt.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) gt.left()).name(), equalTo("a"));
+        assertThat(gt.right(), instanceOf(Literal.class));
+        assertThat(((Literal) gt.right()).value(), equalTo(1));
+
+        assertThat(and.right(), instanceOf(GreaterThan.class));
+        gt = (GreaterThan) and.right();
+        assertThat(gt.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) gt.left()).name(), equalTo("b"));
+        assertThat(gt.right(), instanceOf(Add.class));
+        Add add = (Add) gt.right();
+        assertThat(((Literal) add.right()).value(), equalTo(2));
+        assertThat(((Literal) add.left()).value(), equalTo(1));
+    }
+
+    /*
+     * a <= 1 or b >= 5 / 2 and c != 5 => (a <= 1) or (b >= (5 / 2) and not(c == 5))
+     */
+    public void testOperatorsPrecedenceWithDisjunction() {
+        Expression expression = expression("a <= 1 or b >= 5 / 2 and c != 5");
+        assertThat(expression, instanceOf(Or.class));
+        Or or = (Or) expression;
+
+        assertThat(or.left(), instanceOf(LessThanOrEqual.class));
+        LessThanOrEqual lte = (LessThanOrEqual) or.left();
+        assertThat(lte.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) lte.left()).name(), equalTo("a"));
+        assertThat(lte.right(), instanceOf(Literal.class));
+        assertThat(((Literal) lte.right()).value(), equalTo(1));
+
+        assertThat(or.right(), instanceOf(And.class));
+        And and = (And) or.right();
+        assertThat(and.left(), instanceOf(GreaterThanOrEqual.class));
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) and.left();
+        assertThat(gte.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) gte.left()).name(), equalTo("b"));
+        assertThat(gte.right(), instanceOf(Div.class));
+        Div div = (Div) gte.right();
+        assertThat(div.right(), instanceOf(Literal.class));
+        assertThat(((Literal) div.right()).value(), equalTo(2));
+        assertThat(div.left(), instanceOf(Literal.class));
+        assertThat(((Literal) div.left()).value(), equalTo(5));
+
+        assertThat(and.right(), instanceOf(Not.class));
+        assertThat(((Not) and.right()).field(), instanceOf(Equals.class));
+        Equals e = (Equals) ((Not) and.right()).field();
+        assertThat(e.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) e.left()).name(), equalTo("c"));
+        assertThat(e.right(), instanceOf(Literal.class));
+        assertThat(((Literal) e.right()).value(), equalTo(5));
+    }
+
+    /*
+     * not a == 1 or not b >= 5 and c == 5 => (not (a == 1)) or ((not (b >= 5)) and c == 5)
+     */
+    public void testOperatorsPrecedenceWithNegation() {
+        Expression expression = expression("not a == 1 or not b >= 5 and c == 5");
+        assertThat(expression, instanceOf(Or.class));
+        Or or = (Or) expression;
+
+        assertThat(or.left(), instanceOf(Not.class));
+        assertThat(((Not) or.left()).field(), instanceOf(Equals.class));
+        Equals e = (Equals) ((Not) or.left()).field();
+        assertThat(e.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) e.left()).name(), equalTo("a"));
+        assertThat(e.right(), instanceOf(Literal.class));
+        assertThat(((Literal) e.right()).value(), equalTo(1));
+
+        assertThat(or.right(), instanceOf(And.class));
+        And and = (And) or.right();
+        assertThat(and.left(), instanceOf(Not.class));
+        assertThat(((Not) and.left()).field(), instanceOf(GreaterThanOrEqual.class));
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) ((Not) and.left()).field();
+        assertThat(gte.right(), instanceOf(Literal.class));
+        assertThat(((Literal) gte.right()).value(), equalTo(5));
+
+        assertThat(and.right(), instanceOf(Equals.class));
+        e = (Equals) and.right();
+        assertThat(e.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) e.left()).name(), equalTo("c"));
+        assertThat(e.right(), instanceOf(Literal.class));
+        assertThat(((Literal) e.right()).value(), equalTo(5));
+    }
+
+    public void testOperatorsPrecedenceExpressionsEquality() {
+        assertThat(expression("a-1>2 or b>=5 and c-1>=5"), equalTo(expression("((a-1)>2 or (b>=5 and (c-1)>=5))")));
+        assertThat(
+            expression("a*5==25 and b>5 and c%4>=1 or true or false"),
+            equalTo(expression("(((((a*5)==25) and (b>5) and ((c%4)>=1)) or true) or false)"))
+        );
+        assertThat(
+            expression("a*4-b*5<100 and b/2+c*6>=50 or c%5+x>=5"),
+            equalTo(expression("((((a*4)-(b*5))<100) and (((b/2)+(c*6))>=50)) or (((c%5)+x)>=5)"))
+        );
+        assertThat(
+            expression("true and false or true and c/12+x*5-y%2>=50"),
+            equalTo(expression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
+        );
     }
 
     private Expression expression(String e) {

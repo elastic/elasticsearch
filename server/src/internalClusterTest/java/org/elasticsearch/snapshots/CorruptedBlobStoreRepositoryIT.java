@@ -61,10 +61,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
     public void testRecreateCorruptedRepositoryUnblocksIt() throws Exception {
         Path repo = randomRepoPath();
         final String repoName = "test-repo";
-        Settings.Builder settings = Settings.builder()
-            .put("location", repo)
-            // Don't cache repository data because the test manually modifies the repository data
-            .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false);
+        Settings.Builder settings = Settings.builder().put("location", repo);
         createRepository(repoName, "fs", settings);
 
         createIndex("test-idx-1");
@@ -115,8 +112,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             Settings.builder()
                 .put("location", repo)
                 .put("compress", false)
-                // Don't cache repository data because the test manually modifies the repository data
-                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
         );
 
@@ -821,7 +816,21 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
     }
 
+    private long getRepositoryGeneration(Client client, String repo, String existingSnapshot) {
+        ClusterState clusterState = clusterService().state();
+        Metadata metadata = clusterState.metadata();
+        RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories()
+                .stream()
+                .filter(x -> x.name().equals(repo))
+                .findFirst();
+        assertTrue(repositoryMetadata.isPresent());
+        return repositoryMetadata.get().generation();
+    }
+
     private void assertRepositoryBlocked(Client client, String repo, String existingSnapshot) {
+        if (getRepositoryGeneration(client, repo, existingSnapshot) == RepositoryData.CORRUPTED_REPO_GEN) return;
+
         logger.info("--> try to delete snapshot");
         final RepositoryException repositoryException3 = expectThrows(
             RepositoryException.class,
@@ -829,7 +838,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
         assertThat(
             repositoryException3.getMessage(),
-            containsString("Could not read repository data because the contents of the repository do not match its expected state.")
+            containsString("concurrent modification of the index-N file")
         );
 
         logger.info("--> try to create snapshot");
@@ -843,14 +852,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
 
         logger.info("--> confirm corrupt flag in cluster state");
-        ClusterState clusterState = clusterService().state();
-        Metadata metadata = clusterState.metadata();
-        RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories()
-            .stream()
-            .filter(x -> x.name().equals(repo))
-            .findFirst();
-        assertTrue(repositoryMetadata.isPresent());
-        assertEquals(RepositoryData.CORRUPTED_REPO_GEN, repositoryMetadata.get().generation());
+        assertEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryGeneration(client, repo, existingSnapshot));
     }
 }

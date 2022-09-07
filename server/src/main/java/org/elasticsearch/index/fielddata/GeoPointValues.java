@@ -16,28 +16,20 @@ import java.io.IOException;
 /**
  * Per-document geo-point values.
  */
-public final class GeoPointValues {
+public final class GeoPointValues extends PointValues<GeoPoint> {
 
     private final GeoPoint point = new GeoPoint();
-    private final NumericDocValues values;
 
     GeoPointValues(NumericDocValues values) {
-        this.values = values;
-    }
-
-    /**
-     * Advance this instance to the given document id
-     * @return true if there is a value for this document
-     */
-    public boolean advanceExact(int doc) throws IOException {
-        return values.advanceExact(doc);
+        super(values);
     }
 
     /**
      * Get the {@link GeoPoint} associated with the current document.
      * The returned {@link GeoPoint} might be reused across calls.
      */
-    public GeoPoint geoPointValue() throws IOException {
+    @Override
+    public GeoPoint pointValue() throws IOException {
         return point.resetFromEncoded(values.longValue());
     }
 }

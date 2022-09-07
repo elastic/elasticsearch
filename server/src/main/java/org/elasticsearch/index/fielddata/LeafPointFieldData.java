@@ -8,21 +8,20 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 /**
- * {@link LeafFieldData} specialization for geo points.
+ * {@link LeafFieldData} specialization for geo points and points.
  */
-public abstract class LeafGeoPointFieldData implements LeafFieldData {
+public abstract class LeafPointFieldData<T extends MultiPointValues<? extends SpatialPoint>> implements LeafFieldData {
 
     /**
-     * Return geo-point values.
+     * Return geo-point or point values.
      */
-    public final MultiGeoPointValues getGeoPointValues() {
-        return new MultiGeoPointValues(getSortedNumericDocValues());
-    }
+    public abstract T getPointValues();
 
     /**
-     * Return the internal representation of geo_point doc values as a {@link SortedNumericDocValues}.
+     * Return the internal representation of geo_point or point doc values as a {@link SortedNumericDocValues}.
      * A point is encoded as a long that can be decoded by using
      * {@link org.elasticsearch.common.geo.GeoPoint#resetFromEncoded(long)}
      */

@@ -8,6 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -15,7 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-public class NodesRemovalPrevalidation implements ToXContentFragment {
+public class NodesRemovalPrevalidation implements ToXContentFragment, Writeable {
 
     private final Result overallResult;
     private final Map<String, Result> perNodeResult;
@@ -23,6 +26,11 @@ public class NodesRemovalPrevalidation implements ToXContentFragment {
     public NodesRemovalPrevalidation(Result overallResult, Map<String, Result> perNodeResult) {
         this.overallResult = overallResult;
         this.perNodeResult = perNodeResult;
+    }
+
+    public NodesRemovalPrevalidation(final StreamInput in) throws IOException {
+        this.overallResult = Result.readFrom(in);
+        this.perNodeResult = in.readMap(StreamInput::readString, Result::readFrom);
     }
 
     public Result getOverallResult() {
@@ -48,13 +56,28 @@ public class NodesRemovalPrevalidation implements ToXContentFragment {
         return builder;
     }
 
-    // TODO: implement writable but throw exception?
-    public record Result(IsSafe isSafe, String reason) implements ToXContentObject {
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        overallResult.writeTo(out);
+        out.writeMap(perNodeResult, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+    }
+
+    public record Result(IsSafe isSafe, String reason) implements ToXContentObject, Writeable {
+        public static Result readFrom(final StreamInput in) throws IOException {
+            return new Result(IsSafe.readFrom(in), in.readString());
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("is_safe", isSafe.name());
             builder.field("reason", reason);
             return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(isSafe.isSafe());
+            out.writeString(reason);
         }
     }
 
@@ -71,6 +94,19 @@ public class NodesRemovalPrevalidation implements ToXContentFragment {
 
         public String isSafe() {
             return isSafe;
+        }
+
+        public static IsSafe readFrom(final StreamInput in) throws IOException {
+            return fromString(in.readString());
+        }
+
+        public static IsSafe fromString(String s) {
+            return switch (s) {
+                case "yes" -> YES;
+                case "no" -> NO;
+                case "unknown" -> UNKNOWN;
+                default -> throw new IllegalArgumentException("unexpected IsSafe value [" + s + "]");
+            };
         }
     }
 }

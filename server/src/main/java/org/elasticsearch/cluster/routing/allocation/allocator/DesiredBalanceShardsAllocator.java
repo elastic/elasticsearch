@@ -125,14 +125,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
-
-        maybeAwaitBalance();
-    }
-
-    protected void maybeAwaitBalance() {
-        // TODO remove
-        // TODO possibly add a bounded wait for the computation to complete?
-        // Otherwise we will have to do a second cluster state update straight away.
     }
 
     @Override

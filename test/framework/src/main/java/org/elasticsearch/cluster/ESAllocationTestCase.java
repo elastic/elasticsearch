@@ -106,14 +106,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 super.allocate(allocation, listener);
+                queue.runAllTasks();
                 // We have to call clusterChanged to resume listener queue execution. Otherwise, reroute listeners will never be executed.
                 // TODO fix
                 // clusterChanged(new ClusterChangedEvent("test", allocation.getClusterState(), allocation.getClusterState()));
-            }
-
-            @Override
-            protected void maybeAwaitBalance() {
-                queue.runAllTasks();
             }
         };
     }

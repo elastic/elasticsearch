@@ -28,7 +28,6 @@ public class PendingListenersQueue {
     private final ThreadPool threadPool;
     private final Queue<PendingListener> pendingListeners = new LinkedList<>();
     private volatile long completedIndex = -1;
-    private volatile boolean paused = false;
 
     public PendingListenersQueue(ThreadPool threadPool) {
         this.threadPool = threadPool;
@@ -42,14 +41,11 @@ public class PendingListenersQueue {
 
     public void complete(long index) {
         advance(index);
-        if (paused == false) {
-            executeListeners(completedIndex, true);
-        }
+        executeListeners(completedIndex, true);
     }
 
     public void completeAllAsNotMaster() {
         completedIndex = -1;
-        paused = false;
         executeListeners(Long.MAX_VALUE, false);
     }
 

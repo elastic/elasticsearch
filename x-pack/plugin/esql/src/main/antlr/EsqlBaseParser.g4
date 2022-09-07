@@ -1,3 +1,4 @@
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -69,7 +70,12 @@ field
     ;
 
 fromCommand
-    : FROM identifier (COMMA identifier)*
+    : FROM sourceIdentifier (COMMA sourceIdentifier)*
+    ;
+
+sourceIdentifier
+    : SRC_UNQUOTED_IDENTIFIER
+    | SRC_QUOTED_IDENTIFIER
     ;
 
 qualifiedName

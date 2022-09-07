@@ -8,13 +8,16 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
@@ -29,21 +32,17 @@ public class DataStreamMetadataTests extends AbstractNamedWriteableTestCase<Data
     @Override
     protected DataStreamMetadata createTestInstance() {
         if (randomBoolean()) {
-            return new DataStreamMetadata(ImmutableOpenMap.of(), ImmutableOpenMap.of());
+            return new DataStreamMetadata(Map.of(), Map.of());
         }
-        ImmutableOpenMap.Builder<String, DataStream> dataStreams = ImmutableOpenMap.builder();
-        for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            dataStreams.put(randomAlphaOfLength(5), DataStreamTestHelper.randomInstance());
-        }
+        Map<String, DataStream> dataStreams = IntStream.range(0, randomIntBetween(1, 5))
+            .boxed()
+            .collect(Collectors.toUnmodifiableMap(i -> randomAlphaOfLength(5), i -> DataStreamTestHelper.randomInstance()));
 
-        ImmutableOpenMap.Builder<String, DataStreamAlias> dataStreamsAliases = ImmutableOpenMap.builder();
-        if (randomBoolean()) {
-            for (int i = 0; i < randomIntBetween(1, 5); i++) {
-                DataStreamAlias alias = DataStreamTestHelper.randomAliasInstance();
-                dataStreamsAliases.put(alias.getName(), alias);
-            }
-        }
-        return new DataStreamMetadata(dataStreams.build(), dataStreamsAliases.build());
+        Map<String, DataStreamAlias> dataStreamsAliases = IntStream.range(0, randomIntBetween(1, 5))
+            .mapToObj(i -> DataStreamTestHelper.randomAliasInstance())
+            .collect(Collectors.toUnmodifiableMap(DataStreamAlias::getName, Function.identity()));
+
+        return new DataStreamMetadata(dataStreams, dataStreamsAliases);
     }
 
     @Override

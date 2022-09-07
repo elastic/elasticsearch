@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.MapDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,7 +86,7 @@ public class DiffableTests extends ESTestCase {
     }
 
     public void testImmutableOpenMapDiff() throws IOException {
-        new ImmutableOpenMapDriver<TestDiffable>() {
+        new ImmutableMapDriver<TestDiffable>() {
             @Override
             protected boolean diffableValues() {
                 return true;
@@ -99,26 +98,26 @@ public class DiffableTests extends ESTestCase {
             }
 
             @Override
-            protected MapDiff<Integer, TestDiffable, ImmutableOpenMap<Integer, TestDiffable>> diff(
-                ImmutableOpenMap<Integer, TestDiffable> before,
-                ImmutableOpenMap<Integer, TestDiffable> after
+            protected MapDiff<Integer, TestDiffable, Map<Integer, TestDiffable>> diff(
+                Map<Integer, TestDiffable> before,
+                Map<Integer, TestDiffable> after
             ) {
                 return DiffableUtils.diff(before, after, keySerializer);
             }
 
             @Override
-            protected MapDiff<Integer, TestDiffable, ImmutableOpenMap<Integer, TestDiffable>> readDiff(StreamInput in) throws IOException {
+            protected MapDiff<Integer, TestDiffable, Map<Integer, TestDiffable>> readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                    ? DiffableUtils.readImmutableOpenMapDiff(
+                    ? DiffableUtils.readJdkMapDiff(
                         in,
                         keySerializer,
                         new DiffableUtils.DiffableValueReader<>(TestDiffable::readFrom, TestDiffable::readDiffFrom)
                     )
-                    : DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, diffableValueSerializer());
+                    : DiffableUtils.readJdkMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
 
-        new ImmutableOpenMapDriver<String>() {
+        new ImmutableMapDriver<String>() {
             @Override
             protected boolean diffableValues() {
                 return false;
@@ -130,16 +129,13 @@ public class DiffableTests extends ESTestCase {
             }
 
             @Override
-            protected MapDiff<Integer, String, ImmutableOpenMap<Integer, String>> diff(
-                ImmutableOpenMap<Integer, String> before,
-                ImmutableOpenMap<Integer, String> after
-            ) {
+            protected MapDiff<Integer, String, Map<Integer, String>> diff(Map<Integer, String> before, Map<Integer, String> after) {
                 return DiffableUtils.diff(before, after, keySerializer, nonDiffableValueSerializer());
             }
 
             @Override
-            protected MapDiff<Integer, String, ImmutableOpenMap<Integer, String>> readDiff(StreamInput in) throws IOException {
-                return DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, nonDiffableValueSerializer());
+            protected MapDiff<Integer, String, Map<Integer, String>> readDiff(StreamInput in) throws IOException {
+                return DiffableUtils.readJdkMapDiff(in, keySerializer, nonDiffableValueSerializer());
             }
         }.execute();
     }
@@ -315,20 +311,20 @@ public class DiffableTests extends ESTestCase {
         }
     }
 
-    abstract class ImmutableOpenMapDriver<V> extends MapDriver<ImmutableOpenMap<Integer, V>, V> {
+    abstract class ImmutableMapDriver<V> extends MapDriver<Map<Integer, V>, V> {
 
         @Override
-        protected ImmutableOpenMap<Integer, V> createMap(Map<Integer, V> values) {
-            return ImmutableOpenMap.<Integer, V>builder().putAllFromMap(values).build();
+        protected Map<Integer, V> createMap(Map<Integer, V> values) {
+            return Map.copyOf(values);
         }
 
         @Override
-        protected V get(ImmutableOpenMap<Integer, V> map, Integer key) {
+        protected V get(Map<Integer, V> map, Integer key) {
             return map.get(key);
         }
 
         @Override
-        protected int size(ImmutableOpenMap<Integer, V> map) {
+        protected int size(Map<Integer, V> map) {
             return map.size();
         }
     }

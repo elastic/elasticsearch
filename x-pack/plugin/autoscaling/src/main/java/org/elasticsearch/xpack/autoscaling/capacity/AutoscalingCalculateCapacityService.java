@@ -332,7 +332,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             return new AutoscalingCapacity.AutoscalingResources(
                 storage == -1 ? ByteSizeValue.ZERO : new ByteSizeValue(storage),
                 memoryAndProcessors.map(AutoscalingNodeInfo::memory).map(ByteSizeValue::new).orElse(ByteSizeValue.ZERO),
-                memoryAndProcessors.map(AutoscalingNodeInfo::processors).orElse(0f)
+                memoryAndProcessors.map(AutoscalingNodeInfo::processors).orElse(null)
             );
         }
 

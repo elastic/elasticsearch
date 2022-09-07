@@ -475,7 +475,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
             @Override
             public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-                BinaryDocValues docValues = DocValues.getBinary(leafReader, fieldType().name());
+                BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
                 if (docValues == null) {
                     // No values in this leaf
                     binaryValue = null;

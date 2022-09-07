@@ -35,12 +35,35 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return getDecision(allocation, node.nodeId());
+    }
+
+    /**
+     * Applies the same rules as {@link NodeShutdownAllocationDecider#canAllocate(ShardRouting, RoutingNode, RoutingAllocation)} to
+     * determine if shards can remain on their current node.
+     */
+    @Override
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
+    }
+
+    /**
+     * Prevents indices from being auto-expanded to nodes which are in the process of shutting down, regardless of whether they're shutting
+     * down for restart or removal.
+     */
+    @Override
+    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+        return getDecision(allocation, node.getId());
+    }
+
+
+    private static Decision getDecision(RoutingAllocation allocation, String nodeId) {
         final var nodeShutdowns = allocation.nodeShutdowns();
         if (nodeShutdowns.isEmpty()) {
             return YES_EMPTY_SHUTDOWN_METADATA;
         }
 
-        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = nodeShutdowns.get(node.nodeId());
+        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = nodeShutdowns.get(nodeId);
         if (thisNodeShutdownMetadata == null) {
             return YES_NODE_NOT_SHUTTING_DOWN;
         }
@@ -50,56 +73,14 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
                 Decision.NO,
                 NAME,
                 "node [%s] is preparing to be removed from the cluster",
-                node.nodeId()
+                nodeId
             );
             case RESTART -> allocation.decision(
                 Decision.YES,
                 NAME,
                 "node [%s] is preparing to restart, but will remain in the cluster",
-                node.nodeId()
+                nodeId
             );
         };
     }
-
-    /**
-     * Applies the same rules as {@link NodeShutdownAllocationDecider#canAllocate(ShardRouting, RoutingNode, RoutingAllocation)} to
-     * determine if shards can remain on their current node.
-     */
-    @Override
-    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return this.canAllocate(shardRouting, node, allocation);
-    }
-
-    /**
-     * Prevents indices from being auto-expanded to nodes which are in the process of shutting down, regardless of whether they're shutting
-     * down for restart or removal.
-     */
-    @Override
-    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        final var nodeShutdowns = allocation.nodeShutdowns();
-        if (nodeShutdowns.isEmpty()) {
-            return YES_EMPTY_SHUTDOWN_METADATA;
-        }
-
-        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = nodeShutdowns.get(node.getId());
-        if (thisNodeShutdownMetadata == null) {
-            return YES_NODE_NOT_SHUTTING_DOWN;
-        }
-
-        return switch (thisNodeShutdownMetadata.getType()) {
-            case RESTART -> allocation.decision(
-                Decision.YES,
-                NAME,
-                "node [%s] is not preparing for removal from the cluster (is " + "restarting)",
-                node.getId()
-            );
-            case REPLACE, REMOVE -> allocation.decision(
-                Decision.NO,
-                NAME,
-                "node [%s] is preparing for removal from the cluster",
-                node.getId()
-            );
-        };
-    }
-
 }

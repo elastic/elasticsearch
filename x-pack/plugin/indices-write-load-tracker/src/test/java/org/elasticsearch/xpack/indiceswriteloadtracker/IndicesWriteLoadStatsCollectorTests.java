@@ -245,7 +245,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
                 final HistogramSnapshot indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
 
-                assertThat(indexingLoadHistogramSnapshot.max(), is(lessThanOrEqualTo(0.5)));
+                assertThat(indexingLoadHistogramSnapshot.max(), is(lessThanOrEqualTo(0.6)));
             }
 
             // Run a few bulk operations with a slow fsync, increasing the max cpu usage.

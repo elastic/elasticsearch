@@ -736,8 +736,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         internalCluster().startNode();
         ensureStableCluster(1);
 
-        logger.info("--> creating index");
-
         prepareIndex(5, 0);
 
         logger.info("--> setting balancing threshold really high, so it won't be met");
@@ -1267,7 +1265,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     }
 
     private static IndexMetadata.State randomIndexState() {
-        return IndexMetadata.State.CLOSE; // randomFrom(IndexMetadata.State.values());
+        return randomFrom(IndexMetadata.State.values());
     }
 
     private void indexData() {

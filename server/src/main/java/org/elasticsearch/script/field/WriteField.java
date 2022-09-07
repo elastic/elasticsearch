@@ -333,6 +333,28 @@ public class WriteField implements Field<Object> {
     }
 
     /**
+     * Append a {@link NestedDocument} to this field and return it.
+     */
+    public NestedDocument doc() {
+        throw new UnsupportedOperationException("unimplemented");
+    }
+
+    /**
+     *  Returns a {@link NestedDocument} at the index, if index is beyond the end of the List, creates empty
+     *  NestedDocument through the end of the array to the index.
+     */
+    public NestedDocument doc(int index) {
+        throw new UnsupportedOperationException("unimplemented");
+    }
+
+    /**
+     * Iterable over all {@link NestedDocument}s in this field.
+     */
+    public Iterable<NestedDocument> docs() {
+        throw new UnsupportedOperationException("unimplemented");
+    }
+
+    /**
      * Change the path and clear the existing resolution by setting {@link #leaf} and {@link #container} to null.
      * Caller needs to re-resolve after this call.
      */

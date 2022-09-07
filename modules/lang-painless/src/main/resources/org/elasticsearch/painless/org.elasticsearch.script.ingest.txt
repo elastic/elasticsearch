@@ -61,4 +61,13 @@ class org.elasticsearch.script.field.WriteField {
     WriteField deduplicate()
     WriteField removeValuesIf(Predicate)
     WriteField removeValue(int)
+    NestedDocument doc()
+    NestedDocument doc(int)
+    Iterable docs()
+}
+
+class org.elasticsearch.script.field.NestedDocument {
+    WriteField field(String)
+    Stream fields(String)
+    int index()
 }

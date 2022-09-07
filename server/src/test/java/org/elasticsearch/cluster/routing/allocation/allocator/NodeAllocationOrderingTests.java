@@ -15,7 +15,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class NodeAllocationOrderingTest extends ESTestCase {
+public class NodeAllocationOrderingTests extends ESTestCase {
 
     public void testSortNodeIds() {
         var order = new NodeAllocationOrdering();

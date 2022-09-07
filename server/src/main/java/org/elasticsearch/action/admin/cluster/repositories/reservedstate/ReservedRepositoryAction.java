@@ -97,10 +97,10 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
 
         Map<String, ?> source = parser.map();
 
-        for (String name : source.keySet()) {
-            PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(name);
+        for (var entry : source.entrySet()) {
+            PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(entry.getKey());
             @SuppressWarnings("unchecked")
-            Map<String, ?> content = (Map<String, ?>) source.get(name);
+            Map<String, ?> content = (Map<String, ?>) entry.getValue();
             try (XContentParser repoParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
                 putRepositoryRequest.source(repoParser.mapOrdered());
             }

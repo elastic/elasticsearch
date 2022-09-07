@@ -16,9 +16,6 @@ String snakeyamlVersion = "1.30"
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
   compileOnly project(':libs:elasticsearch-x-content')
-  compileOnly project(':libs:elasticsearch-logging')
-  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-
   implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"

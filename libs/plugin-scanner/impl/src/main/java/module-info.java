@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 module org.elasticsearch.plugin.scanner.impl {
     requires org.objectweb.asm;
     requires com.fasterxml.jackson.core;
@@ -23,5 +22,6 @@ module org.elasticsearch.plugin.scanner.impl {
     exports org.elasticsearch.plugin.scanner.impl to org.elasticsearch.plugin.scanner;
 
     provides org.elasticsearch.plugin.scanner.spi.StablePluginRegistryProvider
-        with  org.elasticsearch.plugin.scanner.impl.StablePluginRegistryProviderImpl;
+        with
+            org.elasticsearch.plugin.scanner.impl.StablePluginRegistryProviderImpl;
 }

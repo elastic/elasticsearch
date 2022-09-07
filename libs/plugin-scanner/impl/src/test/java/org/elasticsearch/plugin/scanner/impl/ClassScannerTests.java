@@ -9,8 +9,6 @@
 package org.elasticsearch.plugin.scanner.impl;
 
 import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugin.scanner.impl.ClassReaders;
-import org.elasticsearch.plugin.scanner.impl.ClassScanner;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 

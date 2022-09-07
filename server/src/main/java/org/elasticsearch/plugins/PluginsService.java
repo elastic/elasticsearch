@@ -119,7 +119,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
-    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory/*, Path modulePath*/) {
+    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
         this.settings = settings;
         this.configPath = configPath;
         this.stablePluginsRegistry = StablePluginRegistry.INSTANCE;
@@ -463,7 +463,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             privilegedSetContextClassLoader(pluginClassLoader);
             stablePluginsRegistry.scanBundleForStablePlugins(bundle.allUrls, pluginClassLoader);
             Map<String, NameToPluginInfo> namedComponents = stablePluginsRegistry.getNamedComponents();
-             System.out.println(namedComponents);// some interim assertions would be good here..
+            // System.out.println(namedComponents);// some interim assertions would be good here..
             if (bundle.pluginDescriptor().isStable() == false) {
                 Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
                 if (pluginClassLoader != pluginClass.getClassLoader()) {

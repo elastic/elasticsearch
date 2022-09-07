@@ -9,7 +9,6 @@
 package org.elasticsearch.plugin.scanner.impl;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.plugin.scanner.impl.ClassReaders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;

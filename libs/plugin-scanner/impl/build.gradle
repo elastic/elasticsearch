@@ -32,7 +32,9 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-server'
   }
 }
-
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}
 tasks.named('forbiddenApisMain').configure {
   // :libs:elasticsearch-logging does not depend on server
   replaceSignatureFiles 'jdk-signatures'

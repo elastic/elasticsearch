@@ -216,7 +216,7 @@ configurations {
 
 dependencies {
   constraints {
-      integTestImplementation('org.ow2.asm:asm:9.2')
+      integTestImplementation('org.ow2.asm:asm:9.3')
   }
   components.all(JacksonAlignmentRule)
   constraints {

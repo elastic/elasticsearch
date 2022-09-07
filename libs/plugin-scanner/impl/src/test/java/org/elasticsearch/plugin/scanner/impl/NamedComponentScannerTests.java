@@ -42,8 +42,9 @@ public class NamedComponentScannerTests extends ESTestCase {
 
     @Before
     public void init() throws IOException {
-        try(Stream<Path> pathStream = ClassUtil.ofClassPath()) {
-            ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("file_does_not_exist.txt", pathStream);// forcing to do classpath scan
+        try (Stream<Path> pathStream = ClassUtil.ofClassPath()) {
+            // forcing to do classpath scan
+            ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("file_does_not_exist.txt", pathStream);
             namedComponentScanner = new NamedComponentScanner(extensiblesRegistry);
         }
 
@@ -51,8 +52,7 @@ public class NamedComponentScannerTests extends ESTestCase {
 
     public void testReadNamedComponentsFromFile() throws IOException {
 
-        try (InputStream resource = this.getClass().getClassLoader()
-            .getResourceAsStream("named_components.json")) {
+        try (InputStream resource = this.getClass().getClassLoader().getResourceAsStream("named_components.json")) {
             Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.readFromFile(
                 resource,
                 TestNamedComponent.class.getClassLoader()

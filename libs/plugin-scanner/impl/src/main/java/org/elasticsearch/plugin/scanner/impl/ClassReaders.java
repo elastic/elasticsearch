@@ -32,8 +32,7 @@ import java.util.zip.ZipFile;
  * @see ClassReader
  */
 public class ClassReaders {
-//TODO javadoc on closing a stream
-
+    // TODO javadoc on closing a stream
 
     public static Stream<ClassReader> ofModuleAndClassPaths() throws IOException {
         return Stream.concat(ofClassPath(), ofModulePath());
@@ -131,7 +130,7 @@ public class ClassReaders {
         return ofPaths(pluginsUrls.stream().map(ClassReaders::uncheckedToURI).map(PathUtils::get));
     }
 
-    //Duplication from PluginsService::uncheckedToURI
+    // Duplication from PluginsService::uncheckedToURI
     public static final URI uncheckedToURI(URL url) {
         try {
             return url.toURI();

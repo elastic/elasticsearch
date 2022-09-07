@@ -7,11 +7,13 @@
  */
 
 package org.elasticsearch.plugin.scanner.spi;
+
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 
 import java.util.Collections;
 import java.util.ServiceConfigurationError;
 import java.util.Set;
+
 public class StablePluginRegistryLocator {
     static final String PROVIDER_NAME = "plugin-scanner";
 

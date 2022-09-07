@@ -8,8 +8,6 @@
 
 package org.elasticsearch.xcontent.provider;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -25,8 +23,7 @@ import java.io.IOException;
 
 public class XContentProviderImpl implements XContentProvider {
 
-    public XContentProviderImpl() {
-    }
+    public XContentProviderImpl() {}
 
     @Override
     public FormatProvider getCborXContent() {

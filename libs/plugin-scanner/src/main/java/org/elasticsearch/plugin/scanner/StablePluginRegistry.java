@@ -17,16 +17,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
-
 public interface StablePluginRegistry {
 
     StablePluginRegistry INSTANCE = getInstance();
 
-    private  static StablePluginRegistry getInstance() {
-        try(Stream<Path> pathStream = ClassUtil.ofModulePath()) {
+    private static StablePluginRegistry getInstance() {
+        try (Stream<Path> pathStream = ClassUtil.ofModulePath()) {
             return StablePluginRegistryLocator.STABLE_PLUGIN_REGISTRY_PROVIDER.getInstance(pathStream);
         } catch (IOException e) {
-            e.printStackTrace();
+            // e.printStackTrace();
             return StablePluginRegistryLocator.STABLE_PLUGIN_REGISTRY_PROVIDER.getInstance(Stream.empty());
         }
     }

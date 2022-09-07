@@ -14,7 +14,7 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 
 def isImplAttr = Attribute.of("is.impl", Boolean)
-
+tasks.named("jarHell").configure { enabled = false } //TODO FIX
 configurations {
   providerImpl {
     attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)

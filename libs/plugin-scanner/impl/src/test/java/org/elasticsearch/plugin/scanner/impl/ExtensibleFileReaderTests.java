@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugin.scanner.impl;
 
-import org.elasticsearch.plugin.scanner.impl.ExtensibleFileReader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;

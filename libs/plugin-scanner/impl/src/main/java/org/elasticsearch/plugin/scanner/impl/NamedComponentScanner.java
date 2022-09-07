@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugin.scanner.NameToPluginInfo;
 import org.elasticsearch.plugin.scanner.PluginInfo;
-
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
@@ -25,9 +24,7 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class NamedComponentScanner {
     ObjectMapper mapper = new ObjectMapper();
@@ -108,21 +105,21 @@ public class NamedComponentScanner {
                 }
             }
 
-//            try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-//                Map<String, Object> map = parser.map();
-//                for (Map.Entry<String, Object> fileAsMap : map.entrySet()) {
-//                    String extensibleInterface = fileAsMap.getKey();
-//
-//                    Map<String, Object> components = (Map<String, Object>) fileAsMap.getValue();
-//                    for (Map.Entry<String, Object> nameToComponent : components.entrySet()) {
-//                        String name = nameToComponent.getKey();
-//                        String value = (String) nameToComponent.getValue();
-//
-//                        res.computeIfAbsent(extensibleInterface, k -> new NameToPluginInfo())
-//                            .put(name, new PluginInfo(name, value, pluginClassLoader));
-//                    }
-//                }
-//            }
+            // try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            // Map<String, Object> map = parser.map();
+            // for (Map.Entry<String, Object> fileAsMap : map.entrySet()) {
+            // String extensibleInterface = fileAsMap.getKey();
+            //
+            // Map<String, Object> components = (Map<String, Object>) fileAsMap.getValue();
+            // for (Map.Entry<String, Object> nameToComponent : components.entrySet()) {
+            // String name = nameToComponent.getKey();
+            // String value = (String) nameToComponent.getValue();
+            //
+            // res.computeIfAbsent(extensibleInterface, k -> new NameToPluginInfo())
+            // .put(name, new PluginInfo(name, value, pluginClassLoader));
+            // }
+            // }
+            // }
         }
         return res;
     }

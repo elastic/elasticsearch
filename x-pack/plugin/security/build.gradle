@@ -75,7 +75,7 @@ dependencies {
   api "net.jcip:jcip-annotations:1.0"
   api "net.minidev:json-smart:2.4.2"
   api "net.minidev:accessors-smart:2.4.2"
-  api "org.ow2.asm:asm:9.2"
+  api "org.ow2.asm:asm:8.0.1"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 

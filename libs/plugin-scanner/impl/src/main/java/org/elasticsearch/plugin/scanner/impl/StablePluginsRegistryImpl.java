@@ -34,15 +34,20 @@ public class StablePluginsRegistryImpl implements StablePluginRegistry {
     }
 
     // for testing
-    StablePluginsRegistryImpl(NamedComponentScanner namedComponentScanner, HashMap<String /*Extensible */, NameToPluginInfo> namedComponents) {
+    StablePluginsRegistryImpl(
+        NamedComponentScanner namedComponentScanner,
+        HashMap<String /*Extensible */, NameToPluginInfo> namedComponents
+    ) {
         this.namedComponentsScanner = namedComponentScanner;
         this.namedComponents = namedComponents;
     }
 
     @Override
     public void scanBundleForStablePlugins(Set<URL> pluginsUrls, ClassLoader pluginClassLoader) {
-        Map<String, NameToPluginInfo> namedComponentsFromPlugin =
-            namedComponentsScanner.findNamedComponents(pluginsUrls, pluginClassLoader);
+        Map<String, NameToPluginInfo> namedComponentsFromPlugin = namedComponentsScanner.findNamedComponents(
+            pluginsUrls,
+            pluginClassLoader
+        );
         for (Map.Entry<String, NameToPluginInfo> entry : namedComponentsFromPlugin.entrySet()) {
             if (namedComponents.containsKey(entry.getKey())) {
                 NameToPluginInfo nameToPluginInfo = namedComponents.get(entry.getKey());

@@ -19,15 +19,14 @@ import java.util.stream.Stream;
 
 //todo api note
 public class ClassUtil {
-    //try catch
+    // try catch
     public static Stream<Path> ofClassPath() throws IOException {
         String classpath = System.getProperty("java.class.path");
         return ofClassPath(classpath);
     }
 
-
     @SuppressForbidden(reason = "converting classpath")
-    //try catch
+    // try catch
     static Stream<Path> ofClassPath(String classpath) {
         if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
             String[] pathelements = classpath.split(":");
@@ -35,7 +34,8 @@ public class ClassUtil {
         }
         return Stream.empty();
     }
-    //try catch
+
+    // try catch
     public static Stream<Path> ofModulePath() throws IOException {
         // TODO should we use this? or should we use Environment#modulePath?
         String modulePath = System.getProperty("jdk.module.path");
@@ -43,7 +43,7 @@ public class ClassUtil {
     }
 
     @SuppressForbidden(reason = "converting modulePaths")
-    //try catch
+    // try catch
     public static Stream<Path> ofDirWithJars(String path) throws IOException {
         if (path == null) {
             return Stream.empty();

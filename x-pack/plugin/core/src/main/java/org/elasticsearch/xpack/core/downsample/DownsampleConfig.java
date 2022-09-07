@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.rollup;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -30,7 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * This class holds the configuration details of a {@link RollupAction} that downsamples time series
+ * This class holds the configuration details of a {@link DownsampleAction} that downsamples time series
  * (TSDB) indices. We have made great effort to simplify the rollup configuration and currently
  * only requires a fixed time interval. So, it has the following format:
  *
@@ -45,13 +44,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * Also, the rollup configuration uses the UTC time zone by default and the "@timestamp" field as
  * the index field that stores the timestamp of the time series index.
  *
- * Finally, we have left methods such as {@link RollupActionConfig#getTimestampField()},
- * {@link RollupActionConfig#getTimeZone()} and  {@link RollupActionConfig#getIntervalType()} for
+ * Finally, we have left methods such as {@link DownsampleConfig#getTimestampField()},
+ * {@link DownsampleConfig#getTimeZone()} and  {@link DownsampleConfig#getIntervalType()} for
  * future extensions.
  */
-public class RollupActionConfig implements NamedWriteable, ToXContentObject {
+public class DownsampleConfig implements NamedWriteable, ToXContentObject {
 
-    private static final String NAME = "rollup/action/config";
+    private static final String NAME = "downsample/action/config";
     public static final String FIXED_INTERVAL = "fixed_interval";
     public static final String TIME_ZONE = "time_zone";
     public static final String DEFAULT_TIMEZONE = ZoneId.of("UTC").getId();
@@ -61,12 +60,12 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
     private final String timeZone = DEFAULT_TIMEZONE;
     private final String intervalType = FIXED_INTERVAL;
 
-    private static final ConstructingObjectParser<RollupActionConfig, Void> PARSER;
+    private static final ConstructingObjectParser<DownsampleConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, a -> {
             DateHistogramInterval fixedInterval = (DateHistogramInterval) a[0];
             if (fixedInterval != null) {
-                return new RollupActionConfig(fixedInterval);
+                return new DownsampleConfig(fixedInterval);
             } else {
                 throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
             }
@@ -81,10 +80,10 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
     }
 
     /**
-     * Create a new {@link RollupActionConfig} using the given configuration parameters.
+     * Create a new {@link DownsampleConfig} using the given configuration parameters.
      * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
      */
-    public RollupActionConfig(final DateHistogramInterval fixedInterval) {
+    public DownsampleConfig(final DateHistogramInterval fixedInterval) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
         }
@@ -94,7 +93,7 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         createRounding(this.fixedInterval.toString(), this.timeZone);
     }
 
-    public RollupActionConfig(final StreamInput in) throws IOException {
+    public DownsampleConfig(final StreamInput in) throws IOException {
         fixedInterval = new DateHistogramInterval(in);
     }
 
@@ -160,7 +159,7 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         return builder.endObject();
     }
 
-    public static RollupActionConfig fromXContent(final XContentParser parser) throws IOException {
+    public static DownsampleConfig fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -169,10 +168,10 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         if (this == other) {
             return true;
         }
-        if (other == null || other instanceof RollupActionConfig == false) {
+        if (other == null || other instanceof DownsampleConfig == false) {
             return false;
         }
-        final RollupActionConfig that = (RollupActionConfig) other;
+        final DownsampleConfig that = (DownsampleConfig) other;
         return Objects.equals(fixedInterval, that.fixedInterval)
             && Objects.equals(intervalType, that.intervalType)
             && ZoneId.of(timeZone, ZoneId.SHORT_IDS).getRules().equals(ZoneId.of(that.timeZone, ZoneId.SHORT_IDS).getRules());

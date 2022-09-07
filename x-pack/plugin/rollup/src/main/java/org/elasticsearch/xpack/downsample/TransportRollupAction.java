@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.rollup.v2;
+package org.elasticsearch.xpack.downsample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,10 +60,10 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
+import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
-import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
  *  -  calling {@link TransportRollupIndexerAction} to index rollup documents
  *  -  cleaning up state
  */
-public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
+public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportRollupAction.class);
 
@@ -120,12 +120,12 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         IndexScopedSettings indexScopedSettings
     ) {
         super(
-            RollupAction.NAME,
+            DownsampleAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            RollupAction.Request::new,
+            DownsampleAction.Request::new,
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
@@ -139,7 +139,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     @Override
     protected void masterOperation(
         Task task,
-        RollupAction.Request request,
+        DownsampleAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -177,7 +177,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             return;
         }
 
-        final String rollupIndexName = request.getRollupIndex();
+        final String rollupIndexName = request.getTargetIndex();
         // Assert rollup index does not exist
         MetadataCreateIndexService.validateIndexName(rollupIndexName, state);
 
@@ -213,7 +213,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 indicesService,
                 sourceIndexMappings,
                 sourceIndexMetadata
-            ).build(request.getRollupConfig().getTimestampField());
+            ).build(request.getDownsampleConfig().getTimestampField());
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
                 if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);
@@ -243,7 +243,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             final String mapping;
             try {
-                mapping = createRollupIndexMapping(helper, request.getRollupConfig(), mapperService, sourceIndexMappings);
+                mapping = createRollupIndexMapping(helper, request.getDownsampleConfig(), mapperService, sourceIndexMappings);
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;
@@ -381,7 +381,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(RollupAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DownsampleAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
@@ -396,7 +396,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      */
     public static String createRollupIndexMapping(
         final TimeseriesFieldTypeHelper helper,
-        final RollupActionConfig config,
+        final DownsampleConfig config,
         final MapperService mapperService,
         final Map<String, Object> sourceIndexMappings
     ) throws IOException {
@@ -437,7 +437,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         });
     }
 
-    private static void addTimestampField(final RollupActionConfig config, final XContentBuilder builder) throws IOException {
+    private static void addTimestampField(final DownsampleConfig config, final XContentBuilder builder) throws IOException {
         final String timestampField = config.getTimestampField();
         final String dateIntervalType = config.getIntervalType();
         final String dateInterval = config.getInterval().toString();
@@ -447,7 +447,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .field("type", DateFieldMapper.CONTENT_TYPE)
             .startObject("meta")
             .field(dateIntervalType, dateInterval)
-            .field(RollupActionConfig.TIME_ZONE, timezone)
+            .field(DownsampleConfig.TIME_ZONE, timezone)
             .endObject()
             .endObject();
     }
@@ -505,11 +505,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
          * If the source index is a rollup index, we will add the name and UUID
          * of the first index that we initially rolled up.
          */
-        if (IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(sourceIndexMetadata.getSettings()) == false
-            || IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.exists(sourceIndexMetadata.getSettings()) == false) {
+        if (IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.exists(sourceIndexMetadata.getSettings()) == false
+            || IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.exists(sourceIndexMetadata.getSettings()) == false) {
             Index sourceIndex = sourceIndexMetadata.getIndex();
-            targetSettings.put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), sourceIndex.getName())
-                .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), sourceIndex.getUUID());
+            targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), sourceIndex.getName())
+                .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey(), sourceIndex.getUUID());
         }
 
         return IndexMetadata.builder(rollupIndexMetadata).settings(targetSettings);
@@ -535,7 +535,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         String rollupIndexName,
         IndexMetadata sourceIndexMetadata,
         String mapping,
-        RollupAction.Request request,
+        DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
@@ -557,7 +557,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-                .put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.STARTED)
+                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED)
                 .build()
         ).mappings(mapping);
         clusterService.submitStateUpdateTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
@@ -574,7 +574,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }, ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()), STATE_UPDATE_TASK_EXECUTOR);
     }
 
-    private void updateRollupMetadata(String rollupIndexName, RollupAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    private void updateRollupMetadata(
+        String rollupIndexName,
+        DownsampleAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         // 6. Mark rollup index as "completed successfully" ("index.rollup.status": "success")
         clusterService.submitStateUpdateTask(
             "update-rollup-metadata [" + rollupIndexName + "]",
@@ -590,7 +594,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     metadataBuilder.updateSettings(
                         Settings.builder()
                             .put(rollupIndexMetadata.getSettings())
-                            .put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.SUCCESS)
+                            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.SUCCESS)
                             .build(),
                         rollupIndexName
                     );

@@ -20,13 +20,13 @@ import java.io.IOException;
  * Downsampling uses specific types while aggregating some fields (like 'aggregate_metric_double').
  * Such field types do not support some aggregations.
  */
-public class UnsupportedAggregationOnRollupIndex extends AggregationExecutionException {
+public class UnsupportedAggregationOnDownsampledIndex extends AggregationExecutionException {
 
-    public UnsupportedAggregationOnRollupIndex(final String msg) {
+    public UnsupportedAggregationOnDownsampledIndex(final String msg) {
         super(msg);
     }
 
-    public UnsupportedAggregationOnRollupIndex(final StreamInput in) throws IOException {
+    public UnsupportedAggregationOnDownsampledIndex(final StreamInput in) throws IOException {
         super(in);
     }
 

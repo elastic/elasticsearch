@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -24,7 +24,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,20 +33,20 @@ import java.util.Objects;
 public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response> {
 
     public static final RollupIndexerAction INSTANCE = new RollupIndexerAction();
-    public static final String NAME = "indices:admin/xpack/rollup_indexer";
+    public static final String NAME = "indices:admin/xpack/downsample_indexer";
 
     private RollupIndexerAction() {
         super(NAME, RollupIndexerAction.Response::new);
     }
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
-        private RollupAction.Request rollupRequest;
+        private DownsampleAction.Request rollupRequest;
         private String[] dimensionFields;
         private String[] metricFields;
         private String[] labelFields;
 
         public Request(
-            RollupAction.Request rollupRequest,
+            DownsampleAction.Request rollupRequest,
             final String[] dimensionFields,
             final String[] metricFields,
             final String[] labelFields
@@ -63,7 +62,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.rollupRequest = new RollupAction.Request(in);
+            this.rollupRequest = new DownsampleAction.Request(in);
             this.dimensionFields = in.readStringArray();
             this.metricFields = in.readStringArray();
             this.labelFields = in.readStringArray();
@@ -79,7 +78,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             return rollupRequest.indicesOptions();
         }
 
-        public RollupAction.Request getRollupRequest() {
+        public DownsampleAction.Request getRollupRequest() {
             return rollupRequest;
         }
 
@@ -97,7 +96,15 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupTask(id, type, action, parentTaskId, rollupRequest.getRollupIndex(), rollupRequest.getRollupConfig(), headers);
+            return new RollupTask(
+                id,
+                type,
+                action,
+                parentTaskId,
+                rollupRequest.getTargetIndex(),
+                rollupRequest.getDownsampleConfig(),
+                headers
+            );
         }
 
         @Override
@@ -117,7 +124,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("rollup_request", rollupRequest);
+            builder.field("downsample_request", rollupRequest);
             builder.array("dimension_fields", dimensionFields);
             builder.array("metric_fields", metricFields);
             builder.array("label_fields", labelFields);
@@ -227,11 +234,11 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         }
 
         public String getRollupIndex() {
-            return request.getRollupRequest().getRollupIndex();
+            return request.getRollupRequest().getTargetIndex();
         }
 
-        public RollupActionConfig getRollupConfig() {
-            return request.getRollupRequest().getRollupConfig();
+        public DownsampleConfig getRollupConfig() {
+            return request.getRollupRequest().getDownsampleConfig();
         }
 
         public String[] getDimensionFields() {

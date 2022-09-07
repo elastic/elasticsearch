@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.rollup.action;
+package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -20,7 +20,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,23 +27,23 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class RollupAction extends ActionType<AcknowledgedResponse> {
-    public static final RollupAction INSTANCE = new RollupAction();
-    public static final String NAME = "indices:admin/xpack/rollup";
+public class DownsampleAction extends ActionType<AcknowledgedResponse> {
+    public static final DownsampleAction INSTANCE = new DownsampleAction();
+    public static final String NAME = "indices:admin/xpack/downsample";
 
-    private RollupAction() {
+    private DownsampleAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest, ToXContentObject {
         private String sourceIndex;
-        private String rollupIndex;
-        private RollupActionConfig rollupConfig;
+        private String targetIndex;
+        private DownsampleConfig downsampleConfig;
 
-        public Request(String sourceIndex, String rollupIndex, RollupActionConfig rollupConfig) {
+        public Request(String sourceIndex, String targetIndex, DownsampleConfig downsampleConfig) {
             this.sourceIndex = sourceIndex;
-            this.rollupIndex = rollupIndex;
-            this.rollupConfig = rollupConfig;
+            this.targetIndex = targetIndex;
+            this.downsampleConfig = downsampleConfig;
         }
 
         public Request() {}
@@ -52,8 +51,8 @@ public class RollupAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             sourceIndex = in.readString();
-            rollupIndex = in.readString();
-            rollupConfig = new RollupActionConfig(in);
+            targetIndex = in.readString();
+            downsampleConfig = new DownsampleConfig(in);
         }
 
         @Override
@@ -68,27 +67,27 @@ public class RollupAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupTask(id, type, action, parentTaskId, rollupIndex, rollupConfig, headers);
+            return new RollupTask(id, type, action, parentTaskId, targetIndex, downsampleConfig, headers);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(sourceIndex);
-            out.writeString(rollupIndex);
-            rollupConfig.writeTo(out);
+            out.writeString(targetIndex);
+            downsampleConfig.writeTo(out);
         }
 
         public String getSourceIndex() {
             return sourceIndex;
         }
 
-        public String getRollupIndex() {
-            return rollupIndex;
+        public String getTargetIndex() {
+            return targetIndex;
         }
 
-        public RollupActionConfig getRollupConfig() {
-            return rollupConfig;
+        public DownsampleConfig getDownsampleConfig() {
+            return downsampleConfig;
         }
 
         @Override
@@ -97,11 +96,11 @@ public class RollupAction extends ActionType<AcknowledgedResponse> {
             if (sourceIndex == null) {
                 validationException = addValidationError("source index is missing", validationException);
             }
-            if (rollupIndex == null) {
-                validationException = addValidationError("rollup index name is missing", validationException);
+            if (targetIndex == null) {
+                validationException = addValidationError("target index name is missing", validationException);
             }
-            if (rollupConfig == null) {
-                validationException = addValidationError("rollup configuration is missing", validationException);
+            if (downsampleConfig == null) {
+                validationException = addValidationError("downsample configuration is missing", validationException);
             }
             return validationException;
         }
@@ -110,15 +109,15 @@ public class RollupAction extends ActionType<AcknowledgedResponse> {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("source_index", sourceIndex);
-            builder.field("rollup_index", rollupIndex);
-            rollupConfig.toXContent(builder, params);
+            builder.field("target_index", targetIndex);
+            downsampleConfig.toXContent(builder, params);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(sourceIndex, rollupIndex, rollupConfig);
+            return Objects.hash(sourceIndex, targetIndex, downsampleConfig);
         }
 
         @Override
@@ -131,14 +130,14 @@ public class RollupAction extends ActionType<AcknowledgedResponse> {
             }
             Request other = (Request) obj;
             return Objects.equals(sourceIndex, other.sourceIndex)
-                && Objects.equals(rollupIndex, other.rollupIndex)
-                && Objects.equals(rollupConfig, other.rollupConfig);
+                && Objects.equals(targetIndex, other.targetIndex)
+                && Objects.equals(downsampleConfig, other.downsampleConfig);
         }
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
 
-        protected RequestBuilder(ElasticsearchClient client, RollupAction action) {
+        protected RequestBuilder(ElasticsearchClient client, DownsampleAction action) {
             super(client, action, new Request());
         }
     }

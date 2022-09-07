@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -449,7 +450,7 @@ public final class DataStreamTestHelper {
         Environment env = mock(Environment.class);
         when(env.sharedDataFile()).thenReturn(null);
         AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), any(String.class), any(ActionListener.class))).then(i -> i.getArguments()[0]);
         MappingLookup mappingLookup = null;
         if (dataStream != null) {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);

@@ -54,7 +54,7 @@ setup:
       features: close_to
 
   - do:
-      downsample.downsample:
+      indices.downsample:
         index: test
         target_index: rollup-test
         body:  >

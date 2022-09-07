@@ -93,7 +93,7 @@ setup:
       reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
-      downsample.downsample:
+      indices.downsample:
         index: test
         target_index: rollup-test
         body:  >
@@ -154,7 +154,7 @@ setup:
 
   - do:
       catch: /no such index \[non-existing-index\]/
-      downsample.downsample:
+      indices.downsample:
         index: non-existing-index
         target_index: rollup-test
         body:  >
@@ -174,7 +174,7 @@ setup:
 
   - do:
       catch: /resource_already_exists_exception/
-      downsample.downsample:
+      indices.downsample:
         index: test
         target_index: rollup-test
         body:  >

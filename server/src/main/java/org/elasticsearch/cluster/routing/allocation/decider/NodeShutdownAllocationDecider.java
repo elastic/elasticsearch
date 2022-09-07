@@ -27,16 +27,22 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
 
     private static final String NAME = "node_shutdown";
 
+    private static final Decision YES_EMPTY_SHUTDOWN_METADATA = Decision.single(Decision.Type.YES, NAME, "no nodes are shutting down");
+    private static final Decision YES_NODE_NOT_SHUTTING_DOWN = Decision.single(Decision.Type.YES, NAME, "this node is not shutting down");
+
     /**
      * Determines if a shard can be allocated to a particular node, based on whether that node is shutting down or not.
      */
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = allocation.nodeShutdowns().get(node.nodeId());
+        final var nodeShutdowns = allocation.nodeShutdowns();
+        if (nodeShutdowns.isEmpty()) {
+            return YES_EMPTY_SHUTDOWN_METADATA;
+        }
 
+        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = nodeShutdowns.get(node.nodeId());
         if (thisNodeShutdownMetadata == null) {
-            // There's no shutdown metadata for this node, return yes.
-            return allocation.decision(Decision.YES, NAME, "this node is not currently shutting down");
+            return YES_NODE_NOT_SHUTTING_DOWN;
         }
 
         return switch (thisNodeShutdownMetadata.getType()) {
@@ -70,10 +76,14 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        SingleNodeShutdownMetadata thisNodeShutdownMetadata = allocation.nodeShutdowns().get(node.getId());
+        final var nodeShutdowns = allocation.nodeShutdowns();
+        if (nodeShutdowns.isEmpty()) {
+            return YES_EMPTY_SHUTDOWN_METADATA;
+        }
 
+        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = nodeShutdowns.get(node.getId());
         if (thisNodeShutdownMetadata == null) {
-            return allocation.decision(Decision.YES, NAME, "node [%s] is not preparing for removal from the cluster", node.getId());
+            return YES_NODE_NOT_SHUTTING_DOWN;
         }
 
         return switch (thisNodeShutdownMetadata.getType()) {

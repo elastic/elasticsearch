@@ -47,6 +47,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         assertThat(e.getMessage(), equalTo("results can not be empty"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89854")
     public void testRequiredCapacity() {
         AutoscalingCapacity single = randomBoolean() ? randomAutoscalingCapacity() : null;
         verifyRequiredCapacity(single, single);

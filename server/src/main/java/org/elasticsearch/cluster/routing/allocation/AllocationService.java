@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -487,6 +489,25 @@ public class AllocationService {
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
         shardsAllocator.allocate(allocation, listener);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
+    }
+
+    public ClusterState reconcile(ClusterState clusterState, DesiredBalance desiredBalance) {
+        ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
+        RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
+        assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
+        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
+            : "auto-expand replicas out of sync with number of nodes in the cluster";
+        assert assertInitialized();
+
+        removeDelayMarkers(allocation);
+
+        allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
+        ((DesiredBalanceShardsAllocator)shardsAllocator).reconcile(allocation, desiredBalance);
+        assert RoutingNodes.assertShardStats(allocation.routingNodes());
+        if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
+            return clusterState;
+        }
+        return buildResultAndLogHealthChange(clusterState, allocation, "reconcile");
     }
 
     private void allocateExistingUnassignedShards(RoutingAllocation allocation) {

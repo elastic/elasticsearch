@@ -16,10 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -28,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,14 +60,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         ThreadPool threadPool,
         ClusterService clusterService,
         Supplier<RerouteService> rerouteServiceSupplier,
-        BiFunction<ClusterState, Long, RoutingAllocation> routingAllocationCreator
+        BiFunction<ClusterState, DesiredBalance, ClusterState> reconciler
     ) {
         var allocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,
             rerouteServiceSupplier,
             clusterService,
-            routingAllocationCreator
+            reconciler
         );
         clusterService.addListener(allocator);
         return allocator;
@@ -80,7 +78,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         ThreadPool threadPool,
         Supplier<RerouteService> rerouteServiceSupplier,
         ClusterService clusterService,
-        BiFunction<ClusterState, Long, RoutingAllocation> routingAllocationCreator
+        BiFunction<ClusterState, DesiredBalance, ClusterState> reconciler
     ) {
         this.delegateAllocator = delegateAllocator;
         this.desiredBalanceComputer = new DesiredBalanceComputer(delegateAllocator);
@@ -101,30 +99,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                     logger.trace("scheduling a reconciliation");
                     var desiredBalanceForReconcilation = currentDesiredBalance;
                     // TODO implement batching
-                    clusterService.submitUnbatchedStateUpdateTask("reconcile", new ClusterStateUpdateTask() {
+                    clusterService.submitUnbatchedStateUpdateTask("reconcile", new ClusterStateUpdateTask(Priority.URGENT) {
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
                             logger.info("--> executing reconcile for state [{}]:\n{}", currentState.version(), currentState);
-                            var success = false;
-                            try {
-                                final var routingAllocation = routingAllocationCreator.apply(currentState, System.nanoTime());
-                                new DesiredBalanceReconciler(desiredBalanceForReconcilation, routingAllocation).run();
-                                final var unassignedIterator = routingAllocation.routingNodes().unassigned().iterator();
-                                while (unassignedIterator.hasNext()) {
-                                    final var shardRouting = unassignedIterator.next();
-                                    logger.info("--> ignoring unassigned [{}]", shardRouting);
-                                    unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                                        routingAllocation.changes());
-                                }
-                                final var newState = routingAllocation.routingNodesChanged() ?
-                                    AllocationService.buildResultAndLogHealthChange(currentState, routingAllocation, "reconcile")
-                                    : currentState;
-                                success = true;
-                                return newState;
-                            } finally {
-                                    logger.info("--> executing reconcile for state [{}] {}", currentState.version(),
-                                        success ? "succeeded" : "failed");
-                            }
+                            return reconciler.apply(currentState, desiredBalanceForReconcilation);
                         }
 
                         @Override
@@ -276,5 +255,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
         }
         return builder.append(newLine).toString();
+    }
+
+    public void reconcile(RoutingAllocation allocation, DesiredBalance desiredBalance) {
+        new DesiredBalanceReconciler(desiredBalance, allocation).run();
     }
 }

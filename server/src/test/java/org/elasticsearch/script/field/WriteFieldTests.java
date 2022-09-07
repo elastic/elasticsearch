@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 
 public class WriteFieldTests extends ESTestCase {
 
@@ -85,27 +86,83 @@ public class WriteFieldTests extends ESTestCase {
     }
 
     public void testMove() {
+        String src = "a.b.c";
+        String dst = "d.e.f";
         Map<String, Object> root = new HashMap<>();
-        root.put("a.b.c", "foo");
-        WriteField wf = new WriteField("a.b.c", () -> root);
-        UnsupportedOperationException err = expectThrows(UnsupportedOperationException.class, () -> wf.move("b.c.d"));
-        assertEquals("unimplemented", err.getMessage());
+        MapOfMaps branches = addPath(root, src, "src");
+        branches.putAll(addPath(root, dst, "dst"));
+
+        // All of dst exists, expect failure
+        WriteField wf = new WriteField(src, () -> root);
+        assertEquals("dst", new WriteField(dst, () -> root).get("dne"));
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> wf.move(dst));
+        assertEquals("Cannot move to non-empty destination [" + dst + "]", err.getMessage());
+
+        // All of dst other than leaf exists
+        root.clear();
+        branches = addPath(root, src, "src");
+        branches.putAll(addPath(root, dst, "dst"));
+        // dst missing value
+        branches.get("e").remove("f");
+        WriteField wf2 = new WriteField(src, () -> root);
+        wf2.move(dst);
+        assertEquals("src", wf2.get("dne"));
+        assertEquals("src", new WriteField(dst, () -> root).get("dne"));
+        assertFalse(branches.get("b").containsKey("c"));
+
+        // Construct all of dst
+        root.clear();
+        branches = addPath(root, src, "src");
+        WriteField wf3 = new WriteField(src, () -> root);
+        wf3.move(dst);
+        assertEquals("src", wf3.get("dne"));
+        assertEquals("src", new WriteField(dst, () -> root).get("dne"));
+        assertFalse(branches.get("b").containsKey("c"));
     }
 
     public void testOverwrite() {
+        String src = "a.b.c";
+        String dst = "d.e.f";
         Map<String, Object> root = new HashMap<>();
-        root.put("a.b.c", "foo");
-        WriteField wf = new WriteField("a.b.c", () -> root);
-        UnsupportedOperationException err = expectThrows(UnsupportedOperationException.class, () -> wf.overwrite("b.c.d"));
-        assertEquals("unimplemented", err.getMessage());
+        MapOfMaps branches = addPath(root, src, "src");
+        branches.putAll(addPath(root, dst, "dst"));
+
+        WriteField wf = new WriteField(src, () -> root);
+        assertEquals("dst", new WriteField(dst, () -> root).get("dne"));
+        wf.overwrite(dst);
+        assertEquals("src", wf.get("dne"));
+        assertEquals("src", new WriteField(dst, () -> root).get("dne"));
+        assertFalse(branches.get("b").containsKey("c"));
+
+        root.clear();
+        branches = addPath(root, src, "src");
+        branches.putAll(addPath(root, dst, "dst"));
+        // src missing value
+        branches.get("b").remove("c");
+        wf = new WriteField(src, () -> root);
+        wf.overwrite(dst);
+        assertEquals("dne", wf.get("dne"));
+        assertEquals("dne", new WriteField(dst, () -> root).get("dne"));
+        assertFalse(branches.get("e").containsKey("f"));
     }
 
     public void testRemove() {
         Map<String, Object> root = new HashMap<>();
-        root.put("a.b.c", "foo");
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> b = new HashMap<>();
+        b.put("c", "foo");
+        a.put("b", b);
+        root.put("a", a);
         WriteField wf = new WriteField("a.b.c", () -> root);
-        UnsupportedOperationException err = expectThrows(UnsupportedOperationException.class, wf::remove);
-        assertEquals("unimplemented", err.getMessage());
+        assertEquals("foo", wf.get("dne"));
+        wf.remove();
+        assertEquals("dne", wf.get("dne"));
+        assertThat(b.containsKey("c"), equalTo(false));
+
+        root.clear();
+        wf = new WriteField("a.b.c", () -> root);
+        wf.remove();
+        assertEquals("dne", wf.get("dne"));
     }
 
     @SuppressWarnings("unchecked")
@@ -328,5 +385,38 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals(100, new WriteField("c.d", () -> root).get(3, 100));
         assertEquals("bar", new WriteField("a.c", () -> root).get(1, "bar"));
         assertEquals("foo", new WriteField("a.c", () -> root).get(0, "bar"));
+    }
+
+    public MapOfMaps addPath(Map<String, Object> root, String path, Object value) {
+        String[] elements = path.split("\\.");
+
+        MapOfMaps containers = new MapOfMaps();
+        Map<String, Object> container = root;
+
+        for (int i = 0; i < elements.length - 1; i++) {
+            Map<String, Object> next = new HashMap<>();
+            assertNull(container.put(elements[i], next));
+            assertNull(containers.put(elements[i], next));
+            container = next;
+        }
+
+        container.put(elements[elements.length - 1], value);
+        return containers;
+    }
+
+    private static class MapOfMaps {
+        Map<String, Map<String, Object>> maps = new HashMap<>();
+
+        public Object put(String key, Map<String, Object> value) {
+            return maps.put(key, value);
+        }
+
+        public Map<String, Object> get(String key) {
+            return maps.get(key);
+        }
+
+        public void putAll(MapOfMaps all) {
+            maps.putAll(all.maps);
+        }
     }
 }

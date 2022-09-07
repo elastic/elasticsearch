@@ -57,10 +57,13 @@ public class WriteField implements Field<Object> {
      * Move this path to another path in the map.
      *
      * @throws IllegalArgumentException if the other path has contents
-     * @throws UnsupportedOperationException
      */
-    public void move(String path) {
-        throw new UnsupportedOperationException("unimplemented");
+    public WriteField move(String path) {
+        WriteField dest = new WriteField(path, rootSupplier);
+        if (dest.isEmpty() == false) {
+            throw new IllegalArgumentException("Cannot move to non-empty destination [" + path + "]");
+        }
+        return overwrite(path);
     }
 
     /**
@@ -68,19 +71,31 @@ public class WriteField implements Field<Object> {
      *
      * @throws UnsupportedOperationException
      */
-    public void overwrite(String path) {
-        throw new UnsupportedOperationException("unimplemented");
+    public WriteField overwrite(String path) {
+        Object value = get(MISSING);
+        remove();
+        setPath(path);
+        if (value == MISSING) {
+            // remove existing mapping if it exists
+            remove();
+        } else {
+            getOrCreateLeaf();
+            set(value);
+        }
+        return this;
     }
 
     // Path Delete
 
     /**
      * Removes this path from the map.
-     *
-     * @throws UnsupportedOperationException
      */
     public void remove() {
-        throw new UnsupportedOperationException("unimplemented");
+        resolveDepthFlat();
+        if (leaf == null) {
+            return;
+        }
+        container.remove(leaf);
     }
 
     // Value Create
@@ -299,6 +314,16 @@ public class WriteField implements Field<Object> {
             container.remove(leaf);
         }
         return this;
+    }
+
+    /**
+     * Change the path and clear the existing resolution by setting {@link #leaf} and {@link #container} to null.
+     * Caller needs to re-resolve after this call.
+     */
+    protected void setPath(String path) {
+        this.path = path;
+        this.leaf = null;
+        this.container = null;
     }
 
     /**

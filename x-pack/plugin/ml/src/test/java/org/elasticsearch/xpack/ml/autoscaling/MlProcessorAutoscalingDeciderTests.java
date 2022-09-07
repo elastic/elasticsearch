@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
@@ -56,9 +57,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         String mlNodeId1 = "ml-node-id-1";
         String mlNodeId2 = "ml-node-id-2";
         String dataNodeId = "data-node-id";
-        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, 8);
-        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, 8);
-        DiscoveryNode dataNode = buildNode(dataNodeId, false, 24);
+        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, 7.8);
+        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, 7.6);
+        DiscoveryNode dataNode = buildNode(dataNodeId, false, 24.0);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(DiscoveryNodes.builder().add(mlNode1).add(mlNode2).add(dataNode).build())
@@ -95,8 +96,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             new MlAutoscalingContext(clusterState)
         );
 
-        assertThat(capacity.nodeProcessors(), equalTo(8));
-        assertThat(capacity.tierProcessors(), equalTo(16));
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(7.8)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(15.4)));
         assertThat(capacity.reason(), equalTo("passing currently perceived capacity as it is fully used"));
     }
 
@@ -146,8 +147,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             new MlAutoscalingContext(clusterState)
         );
 
-        assertThat(capacity.nodeProcessors(), equalTo(8));
-        assertThat(capacity.tierProcessors(), equalTo(20));
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(8.0)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(20.0)));
         assertThat(capacity.reason(), equalTo("requesting scale up as there are unsatisfied deployments"));
     }
 
@@ -199,8 +200,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             new MlAutoscalingContext(clusterState)
         );
 
-        assertThat(capacity.nodeProcessors(), equalTo(8));
-        assertThat(capacity.tierProcessors(), equalTo(8));
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(8.0)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(8.0)));
         assertThat(capacity.reason(), equalTo("requesting scale up as there are unsatisfied deployments"));
     }
 
@@ -252,8 +253,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             new MlAutoscalingContext(clusterState)
         );
 
-        assertThat(capacity.nodeProcessors(), equalTo(8));
-        assertThat(capacity.tierProcessors(), equalTo(11));
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(8.0)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(11.0)));
         assertThat(capacity.reason(), equalTo("requesting scale up as there are unsatisfied deployments"));
     }
 
@@ -264,8 +265,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         String mlNodeId1 = "ml-node-id-1";
         String mlNodeId2 = "ml-node-id-2";
         String dataNodeId = "data-node-id";
-        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, 4);
-        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, 4);
+        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, 3.8);
+        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, 3.8);
         DiscoveryNode dataNode = buildNode(dataNodeId, false, 24);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
@@ -301,8 +302,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             new MlAutoscalingContext(clusterState)
         );
 
-        assertThat(capacity.nodeProcessors(), equalTo(4));
-        assertThat(capacity.tierProcessors(), equalTo(8));
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(3.8)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(7.6)));
         assertThat(
             capacity.reason(),
             equalTo("not scaling down as model assignments require more than half of the ML tier's allocated processors")
@@ -316,8 +317,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         String mlNodeId1 = "ml-node-id-1";
         String mlNodeId2 = "ml-node-id-2";
         String dataNodeId = "data-node-id";
-        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, 8);
-        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, 8);
+        DiscoveryNode mlNode1 = buildNode(mlNodeId1, true, 7.9);
+        DiscoveryNode mlNode2 = buildNode(mlNodeId2, true, 7.9);
         DiscoveryNode dataNode = buildNode(dataNodeId, false, 24);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
@@ -354,8 +355,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             new MlAutoscalingContext(clusterState)
         );
 
-        assertThat(capacity.nodeProcessors(), equalTo(8));
-        assertThat(capacity.tierProcessors(), equalTo(16));
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(7.9)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(15.8)));
         assertThat(capacity.reason(), containsString("Passing currently perceived capacity as down scale delay has not been satisfied"));
     }
 
@@ -408,12 +409,12 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
             new MlAutoscalingContext(clusterState)
         );
 
-        assertThat(capacity.nodeProcessors(), equalTo(2));
-        assertThat(capacity.tierProcessors(), equalTo(5));
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(2.0)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(5.0)));
         assertThat(capacity.reason(), containsString("requesting scale down as tier and/or node size could be smaller"));
     }
 
-    private static DiscoveryNode buildNode(String name, boolean isML, int allocatedProcessors) {
+    private static DiscoveryNode buildNode(String name, boolean isML, double allocatedProcessors) {
         return new DiscoveryNode(
             name,
             name,

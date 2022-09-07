@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -56,7 +57,7 @@ class MlProcessorAutoscalingDecider {
 
         final MlProcessorAutoscalingCapacity requiredCapacity = computeRequiredCapacity(trainedModelAssignmentMetadata).build();
 
-        if (requiredCapacity.tierProcessors() == currentCapacity.tierProcessors()) {
+        if (requiredCapacity.tierProcessors().roundUp() == currentCapacity.tierProcessors().roundUp()) {
             return MlProcessorAutoscalingCapacity.builder(currentCapacity.nodeProcessors(), currentCapacity.tierProcessors())
                 .setReason("passing currently perceived capacity as it is fully used")
                 .build();
@@ -127,34 +128,39 @@ class MlProcessorAutoscalingDecider {
         }
         processorCount = Math.max(processorCount, maxThreadsPerAllocation);
 
-        return MlProcessorAutoscalingCapacity.builder(maxThreadsPerAllocation, processorCount);
+        return MlProcessorAutoscalingCapacity.builder(
+            Processors.of(Double.valueOf(maxThreadsPerAllocation)),
+            Processors.of(Double.valueOf(processorCount))
+        );
     }
 
     MlProcessorAutoscalingCapacity computeCurrentCapacity(List<DiscoveryNode> mlNodes) {
-        int maxNodeProcessors = 0;
-        int tierProcessors = 0;
+        Processors maxNodeProcessors = Processors.ZERO;
+        Processors tierProcessors = Processors.ZERO;
         for (DiscoveryNode node : mlNodes) {
-            int nodeProcessors = getProcessors(node);
-            maxNodeProcessors = Math.max(maxNodeProcessors, nodeProcessors);
-            tierProcessors += nodeProcessors;
+            Processors nodeProcessors = getProcessors(node);
+            if (nodeProcessors.compareTo(maxNodeProcessors) > 0) {
+                maxNodeProcessors = nodeProcessors;
+            }
+            tierProcessors = tierProcessors.plus(nodeProcessors);
         }
         return MlProcessorAutoscalingCapacity.builder(maxNodeProcessors, tierProcessors).build();
     }
 
-    private int getProcessors(DiscoveryNode node) {
+    private Processors getProcessors(DiscoveryNode node) {
         String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
         if (allocatedProcessorsString == null) {
-            return 0;
+            return Processors.ZERO;
         }
         try {
-            return Integer.parseInt(allocatedProcessorsString);
+            return Processors.of(Double.parseDouble(allocatedProcessorsString));
         } catch (NumberFormatException e) {
             assert e == null
                 : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
                     + " should parse because we set it internally: invalid value was ["
                     + allocatedProcessorsString
                     + "]";
-            return 0;
+            return Processors.ZERO;
         }
     }
 }

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-public record MlProcessorAutoscalingCapacity(int nodeProcessors, int tierProcessors, String reason) {
+import org.elasticsearch.common.unit.Processors;
 
-    public static Builder builder(int nodeProcessors, int tierProcessors) {
+public record MlProcessorAutoscalingCapacity(Processors nodeProcessors, Processors tierProcessors, String reason) {
+
+    public static Builder builder(Processors nodeProcessors, Processors tierProcessors) {
         return new Builder(nodeProcessors, tierProcessors);
     }
 
@@ -28,11 +30,11 @@ public record MlProcessorAutoscalingCapacity(int nodeProcessors, int tierProcess
 
     public static class Builder {
 
-        private int nodeProcessors;
-        private int tierProcessors;
+        private Processors nodeProcessors;
+        private Processors tierProcessors;
         private String reason;
 
-        public Builder(int nodeProcessors, int tierProcessors) {
+        public Builder(Processors nodeProcessors, Processors tierProcessors) {
             this.nodeProcessors = nodeProcessors;
             this.tierProcessors = tierProcessors;
         }

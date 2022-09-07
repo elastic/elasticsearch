@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -255,6 +256,8 @@ class MlMemoryAutoscalingDecider {
                 if (capacity == null) {
                     return null;
                 }
+                // We should keep this check here as well as in the processor decider while cloud is not
+                // reacting to processor autoscaling.
                 if (modelAssignmentsRequireMoreThanHalfCpu(mlContext.modelAssignments.values(), mlContext.mlNodes)) {
                     logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
                     return null;
@@ -819,7 +822,7 @@ class MlMemoryAutoscalingDecider {
         int totalMlProcessors = mlNodes.stream().mapToInt(node -> {
             String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
             try {
-                return Integer.parseInt(allocatedProcessorsString);
+                return Processors.of(Double.parseDouble(allocatedProcessorsString)).roundUp();
             } catch (NumberFormatException e) {
                 assert e == null
                     : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR

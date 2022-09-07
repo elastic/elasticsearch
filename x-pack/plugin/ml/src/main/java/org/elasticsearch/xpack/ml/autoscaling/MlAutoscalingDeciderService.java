@@ -101,12 +101,12 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     new AutoscalingCapacity.AutoscalingResources(
                         null,
                         currentMemoryCapacity.tierSize(),
-                        Integer.valueOf(currentProcessorCapacity.tierProcessors()).floatValue()
+                        currentProcessorCapacity.tierProcessors()
                     ),
                     new AutoscalingCapacity.AutoscalingResources(
                         null,
                         currentMemoryCapacity.nodeSize(),
-                        Integer.valueOf(currentProcessorCapacity.nodeProcessors()).floatValue()
+                        currentProcessorCapacity.nodeProcessors()
                     )
                 )
             )
@@ -127,16 +127,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         return new AutoscalingDeciderResult(
             new AutoscalingCapacity(
-                new AutoscalingCapacity.AutoscalingResources(
-                    null,
-                    memoryCapacity.tierSize(),
-                    Integer.valueOf(processorCapacity.tierProcessors()).floatValue()
-                ),
-                new AutoscalingCapacity.AutoscalingResources(
-                    null,
-                    memoryCapacity.nodeSize(),
-                    Integer.valueOf(processorCapacity.nodeProcessors()).floatValue()
-                )
+                new AutoscalingCapacity.AutoscalingResources(null, memoryCapacity.tierSize(), processorCapacity.tierProcessors()),
+                new AutoscalingCapacity.AutoscalingResources(null, memoryCapacity.nodeSize(), processorCapacity.nodeProcessors())
             ),
             reasonBuilder.build()
         );

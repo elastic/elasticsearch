@@ -30,8 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -54,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -243,7 +242,9 @@ public class AllocationService {
             allocator.applyFailedShards(failedShards, allocation);
         }
 
-        reroute(allocation, rerouteCompletionIsNotRequired());// this is not triggered by a user request
+        reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation,
+            rerouteCompletionIsNotRequired() /* this is not triggered by a user request */));
+
         String failedShardsAsString = firstListElementsToCommaDelimitedString(
             failedShards,
             s -> s.routingEntry().shardId().toString(),
@@ -393,7 +394,7 @@ public class AllocationService {
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
         if (dryRun == false) {
-            reroute(allocation, reroute);
+            reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, reroute));
         } else {
             reroute.onResponse(null);
         }
@@ -411,9 +412,24 @@ public class AllocationService {
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
     public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<Void> listener) {
+        return reroute(clusterState, reason, listener, routingAllocation -> shardsAllocator.allocate(routingAllocation, listener));
+    }
+
+    /**
+     * Computes the next step towards a fully allocated and balanced cluster and records this step in the routing table of the returned
+     * state. Should be called after every change to the cluster that affects the routing table and/or the balance of shards.
+     * <p>
+     * This method is expensive in larger clusters. Wherever possible you should invoke this method asynchronously using
+     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly. The node's reroute service is
+     * typically obtained from {@link ClusterService#getRerouteService}.
+     *
+     * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
+     */
+    public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<Void> listener,
+                                Consumer<RoutingAllocation> routingAllocationConsumer) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
         RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
-        reroute(allocation, listener);
+        reroute(allocation, routingAllocationConsumer);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;
         }
@@ -478,7 +494,7 @@ public class AllocationService {
         return false;
     }
 
-    private void reroute(RoutingAllocation allocation, ActionListener<Void> listener) {
+    private void reroute(RoutingAllocation allocation, Consumer<RoutingAllocation> routingAllocationConsumer) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
@@ -487,27 +503,8 @@ public class AllocationService {
         removeDelayMarkers(allocation);
 
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
-        shardsAllocator.allocate(allocation, listener);
+        routingAllocationConsumer.accept(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
-    }
-
-    public ClusterState reconcile(ClusterState clusterState, DesiredBalance desiredBalance) {
-        ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
-        RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
-        assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
-        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
-            : "auto-expand replicas out of sync with number of nodes in the cluster";
-        assert assertInitialized();
-
-        removeDelayMarkers(allocation);
-
-        allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
-        ((DesiredBalanceShardsAllocator)shardsAllocator).reconcile(allocation, desiredBalance);
-        assert RoutingNodes.assertShardStats(allocation.routingNodes());
-        if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
-            return clusterState;
-        }
-        return buildResultAndLogHealthChange(clusterState, allocation, "reconcile");
     }
 
     private void allocateExistingUnassignedShards(RoutingAllocation allocation) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
@@ -88,6 +89,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -143,8 +145,8 @@ public class ClusterModule extends AbstractModule {
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
     }
 
-    private ClusterState reconcile(ClusterState clusterState, DesiredBalance desiredBalance) {
-        return allocationService.reconcile(clusterState, desiredBalance);
+    private ClusterState reconcile(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationConsumer) {
+        return allocationService.reroute(clusterState, "reconcile", ActionListener.noop(), routingAllocationConsumer);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -348,7 +350,7 @@ public class ClusterModule extends AbstractModule {
         List<ClusterPlugin> clusterPlugins,
         Supplier<RerouteService> rerouteServiceSupplier,
         ClusterService clusterService,
-        BiFunction<ClusterState, DesiredBalance, ClusterState> reconciler
+        BiFunction<ClusterState, Consumer<RoutingAllocation>, ClusterState> reconciler
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));

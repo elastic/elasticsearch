@@ -36,6 +36,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -60,7 +61,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         ThreadPool threadPool,
         ClusterService clusterService,
         Supplier<RerouteService> rerouteServiceSupplier,
-        BiFunction<ClusterState, DesiredBalance, ClusterState> reconciler
+        BiFunction<ClusterState, Consumer<RoutingAllocation>, ClusterState> reconciler
     ) {
         var allocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
@@ -78,7 +79,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         ThreadPool threadPool,
         Supplier<RerouteService> rerouteServiceSupplier,
         ClusterService clusterService,
-        BiFunction<ClusterState, DesiredBalance, ClusterState> reconciler
+        BiFunction<ClusterState, Consumer<RoutingAllocation>, ClusterState> reconciler
     ) {
         this.delegateAllocator = delegateAllocator;
         this.desiredBalanceComputer = new DesiredBalanceComputer(delegateAllocator);
@@ -101,9 +102,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                     // TODO implement batching
                     clusterService.submitUnbatchedStateUpdateTask("reconcile", new ClusterStateUpdateTask(Priority.URGENT) {
                         @Override
-                        public ClusterState execute(ClusterState currentState) throws Exception {
+                        public ClusterState execute(ClusterState currentState) {
                             logger.info("--> executing reconcile for state [{}]:\n{}", currentState.version(), currentState);
-                            return reconciler.apply(currentState, desiredBalanceForReconcilation);
+                            return reconciler.apply(currentState, routingAllocation ->
+                                new DesiredBalanceReconciler(desiredBalanceForReconcilation, routingAllocation).run());
                         }
 
                         @Override
@@ -255,9 +257,5 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
         }
         return builder.append(newLine).toString();
-    }
-
-    public void reconcile(RoutingAllocation allocation, DesiredBalance desiredBalance) {
-        new DesiredBalanceReconciler(desiredBalance, allocation).run();
     }
 }

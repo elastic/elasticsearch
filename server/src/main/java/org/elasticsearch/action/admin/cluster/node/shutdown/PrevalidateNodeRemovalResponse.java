@@ -19,16 +19,22 @@ import java.io.IOException;
 public class PrevalidateNodeRemovalResponse extends ActionResponse implements ToXContentObject {
     private final NodesRemovalPrevalidation prevalidation;
 
-    public PrevalidateNodeRemovalResponse(StreamInput in) {
-        throw new AssertionError("PrevalidateNodeRemovalAction should not be sent over the wire.");
-    }
-
     public PrevalidateNodeRemovalResponse(final NodesRemovalPrevalidation prevalidation) {
         this.prevalidation = prevalidation;
     }
 
     public NodesRemovalPrevalidation getPrevalidation() {
         return prevalidation;
+    }
+
+    public PrevalidateNodeRemovalResponse(StreamInput in) throws IOException {
+        super(in);
+        prevalidation = new NodesRemovalPrevalidation(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        prevalidation.writeTo(out);
     }
 
     @Override
@@ -38,8 +44,4 @@ public class PrevalidateNodeRemovalResponse extends ActionResponse implements To
         return builder.endObject();
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new AssertionError("PrevalidateNodeRemovalAction should not be sent over the wire.");
-    }
 }

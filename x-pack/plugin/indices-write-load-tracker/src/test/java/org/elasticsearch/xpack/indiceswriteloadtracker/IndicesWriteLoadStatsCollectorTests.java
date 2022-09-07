@@ -86,8 +86,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -267,7 +269,8 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
                 final HistogramSnapshot indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
 
-                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(1, MAX_ERROR)));
+                assertThat(indexingLoadHistogramSnapshot.max(), is(greaterThanOrEqualTo(1.0)));
+                assertThat(indexingLoadHistogramSnapshot.max(), is(lessThan(2.0)));
             }
         }
     }
@@ -319,7 +322,8 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             assertThat(shardWriteLoadDistribution, is(notNullValue()));
 
             final HistogramSnapshot refreshLoadHistogramSnapshot = shardWriteLoadDistribution.refreshLoadHistogramSnapshot();
-            assertThat(refreshLoadHistogramSnapshot.max(), is(closeTo(1.0, MAX_ERROR)));
+            assertThat(refreshLoadHistogramSnapshot.max(), is(greaterThanOrEqualTo(1.0)));
+            assertThat(refreshLoadHistogramSnapshot.max(), is(lessThan(2.0)));
         }
     }
 

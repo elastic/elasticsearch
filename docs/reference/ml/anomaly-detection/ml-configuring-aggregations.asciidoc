@@ -87,9 +87,28 @@ type of analysis.
 <<ml-rare-functions,rare>> functions, set the interval to the same value as the 
 bucket span.
 
-* If you have multiple infulencers or partition fields or if your field 
+* If you have multiple influencers or partition fields or if your field 
 cardinality is more than 1000, use 
 {ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregations].
++
+--
+To determine the cardinality of your data, you can run searches such as:
+
+[source,js]
+--------------------------------------------------
+GET .../_search
+{
+  "aggs": {
+    "service_cardinality": {
+      "cardinality": {
+        "field": "service"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+--
 
 
 [discrete]

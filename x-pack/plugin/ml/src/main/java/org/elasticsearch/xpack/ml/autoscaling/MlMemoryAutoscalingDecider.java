@@ -822,7 +822,8 @@ class MlMemoryAutoscalingDecider {
         int totalMlProcessors = mlNodes.stream().mapToInt(node -> {
             String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
             try {
-                return Processors.of(Double.parseDouble(allocatedProcessorsString)).roundUp();
+                double allocatedProcessorsAsDouble = Double.parseDouble(allocatedProcessorsString);
+                return allocatedProcessorsAsDouble > 0 ? Processors.of(allocatedProcessorsAsDouble).roundUp() : 0;
             } catch (NumberFormatException e) {
                 assert e == null
                     : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR

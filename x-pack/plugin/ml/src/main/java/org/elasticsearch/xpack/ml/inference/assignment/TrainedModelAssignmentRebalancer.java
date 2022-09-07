@@ -133,8 +133,8 @@ class TrainedModelAssignmentRebalancer {
     private static Processors getNodeAllocatedProcessors(DiscoveryNode node) {
         String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
         try {
-
-            return allocatedProcessorsString == null ? Processors.ZERO : Processors.of(Double.parseDouble(allocatedProcessorsString));
+            double allocatedProcessorsAsDouble = allocatedProcessorsString == null ? 0.0 : Double.parseDouble(allocatedProcessorsString);
+            return allocatedProcessorsAsDouble > 0 ? Processors.of(allocatedProcessorsAsDouble) : Processors.ZERO;
         } catch (NumberFormatException e) {
             assert e == null
                 : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR

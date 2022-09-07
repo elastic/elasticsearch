@@ -129,8 +129,8 @@ class MlProcessorAutoscalingDecider {
         processorCount = Math.max(processorCount, maxThreadsPerAllocation);
 
         return MlProcessorAutoscalingCapacity.builder(
-            Processors.of(Double.valueOf(maxThreadsPerAllocation)),
-            Processors.of(Double.valueOf(processorCount))
+            maxThreadsPerAllocation > 0 ? Processors.of(Double.valueOf(maxThreadsPerAllocation)) : Processors.ZERO,
+            processorCount > 0 ? Processors.of(Double.valueOf(processorCount)) : Processors.ZERO
         );
     }
 
@@ -153,7 +153,8 @@ class MlProcessorAutoscalingDecider {
             return Processors.ZERO;
         }
         try {
-            return Processors.of(Double.parseDouble(allocatedProcessorsString));
+            double processorsAsDouble = Double.parseDouble(allocatedProcessorsString);
+            return processorsAsDouble > 0 ? Processors.of(processorsAsDouble) : Processors.ZERO;
         } catch (NumberFormatException e) {
             assert e == null
                 : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR

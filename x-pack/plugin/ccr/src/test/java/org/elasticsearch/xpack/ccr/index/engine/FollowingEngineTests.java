@@ -31,6 +31,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.ShardIndexingTimeStats;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
@@ -286,7 +287,8 @@ public class FollowingEngineTests extends ESTestCase {
             () -> RetentionLeases.EMPTY,
             () -> primaryTerm.get(),
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null
+            null,
+            ShardIndexingTimeStats.NO_OP
         );
     }
 

@@ -160,7 +160,6 @@ public class InternalEngine extends Engine {
     private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
-
     private final CompletionStatsCache completionStatsCache;
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
@@ -205,7 +204,11 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
+            mergeScheduler = scheduler = new EngineMergeScheduler(
+                engineConfig.getShardId(),
+                engineConfig.getIndexSettings(),
+                engineConfig.getShardIndexingTimeStats()
+            );
             throttle = new IndexThrottle();
             try {
                 store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
@@ -2498,8 +2501,8 @@ public class InternalEngine extends Engine {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
-        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
-            super(shardId, indexSettings);
+        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings, ShardIndexingTimeStats shardIndexingTimeStats) {
+            super(shardId, indexSettings, shardIndexingTimeStats);
         }
 
         @Override

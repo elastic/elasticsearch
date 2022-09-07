@@ -38,6 +38,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -183,24 +184,26 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             protected void doRun() throws Exception {
-                while (context.hasMoreOperationsToExecute()) {
-                    if (executeBulkItemRequest(
-                        context,
-                        updateHelper,
-                        nowInMillisSupplier,
-                        mappingUpdater,
-                        waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)
-                    ) == false) {
-                        // We are waiting for a mapping update on another thread, that will invoke this action again once its done
-                        // so we just break out here.
-                        return;
+                try (Releasable unused = primary.startTrackingBulkOperationTime()) {
+                    while (context.hasMoreOperationsToExecute()) {
+                        if (executeBulkItemRequest(
+                            context,
+                            updateHelper,
+                            nowInMillisSupplier,
+                            mappingUpdater,
+                            waitForMappingUpdate,
+                            ActionListener.wrap(v -> executor.execute(this), this::onRejection)
+                        ) == false) {
+                            // We are waiting for a mapping update on another thread, that will invoke this action again once its done
+                            // so we just break out here.
+                            return;
+                        }
+                        assert context.isInitial(); // either completed and moved to next or reset
                     }
-                    assert context.isInitial(); // either completed and moved to next or reset
+                    primary.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
+                    // We're done, there's no more operations to execute so we resolve the wrapped listener
+                    finishRequest();
                 }
-                primary.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
-                // We're done, there's no more operations to execute so we resolve the wrapped listener
-                finishRequest();
             }
 
             @Override
@@ -517,10 +520,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            final long startBulkTime = System.nanoTime();
-            final Translog.Location location = performOnReplica(request, replica);
-            replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
-            return new WriteReplicaResult<>(request, location, null, replica, logger);
+            try (Releasable unused = replica.startTrackingBulkOperationTime()) {
+                final long startBulkTime = System.nanoTime();
+                final Translog.Location location = performOnReplica(request, replica);
+                replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
+                return new WriteReplicaResult<>(request, location, null, replica, logger);
+            }
         });
     }
 

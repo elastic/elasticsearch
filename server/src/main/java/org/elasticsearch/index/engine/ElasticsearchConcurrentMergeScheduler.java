@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -53,12 +54,14 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
+    private final ShardIndexingTimeStats shardIndexingTimeStats;
 
-    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings, ShardIndexingTimeStats shardIndexingTimeStats) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.shardIndexingTimeStats = shardIndexingTimeStats;
         refreshConfig();
     }
 
@@ -113,7 +116,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                 new ByteSizeValue(merge.estimatedMergeBytes)
             );
         }
-        try {
+        try (Releasable unused = shardIndexingTimeStats.startTrackingMergeTime()) {
             beforeMerge(onGoingMerge);
             super.doMerge(mergeSource, merge);
         } finally {

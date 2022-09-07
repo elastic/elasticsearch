@@ -4500,7 +4500,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.retentionLeasesSupplier(),
                 config.getPrimaryTermSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                config.getLeafSorter()
+                config.getLeafSorter(),
+                config.getShardIndexingTimeStats()
             );
             return new InternalEngine(configWithWarmer);
         });

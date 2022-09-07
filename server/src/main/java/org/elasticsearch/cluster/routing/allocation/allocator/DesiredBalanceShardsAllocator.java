@@ -46,6 +46,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     private final ShardsAllocator delegateAllocator;
     private final DesiredBalanceComputer desiredBalanceComputer;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
+    private final NodeAllocationOrdering allocationOrdering;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
@@ -101,6 +102,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 return "DesiredBalanceShardsAllocator#updateDesiredBalanceAndReroute";
             }
         };
+        this.allocationOrdering = new NodeAllocationOrdering();
         this.queue = new PendingListenersQueue(threadPool);
     }
 
@@ -129,7 +131,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
         appliedDesiredBalance = currentDesiredBalance;
         logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
-        new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
+        new DesiredBalanceReconciler(appliedDesiredBalance, allocation, allocationOrdering).run();
 
         queue.complete(appliedDesiredBalance.lastConvergedIndex());
         if (allocation.routingNodesChanged()) {
@@ -173,6 +175,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             queue.resume();
         } else {
             reset();
+            allocationOrdering.onNoLongerMaster();
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
         }

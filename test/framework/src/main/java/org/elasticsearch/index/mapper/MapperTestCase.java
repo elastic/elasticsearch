@@ -929,6 +929,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leafReader = getOnlyLeafReader(reader);
                 SourceLoader.SyntheticFieldLoader fieldLoader = mapper.mapping().getRoot().getMapper("field").syntheticFieldLoader();
+                /*
+                 * null means "there are no values for this field, don't call me".
+                 * Empty fields are common enough that we need to make sure this
+                 * optimization kicks in.
+                 */
                 assertThat(fieldLoader.docValuesLoader(leafReader, new int[] { 0 }), nullValue());
             }
         }

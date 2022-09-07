@@ -58,7 +58,6 @@ public class WriteField implements Field<Object> {
      * Move this path to another path in the map.
      *
      * @throws IllegalArgumentException if the other path has contents
-     * @throws UnsupportedOperationException
      */
     public WriteField move(String path) {
         WriteField dest = new WriteField(path, rootSupplier);

@@ -37,6 +37,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public LogicalPlan visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) {
+        return plan(ctx.query());
+    }
+
+    @Override
     public Row visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
         return new Row(source(ctx), visitFields(ctx.fields()));
     }
@@ -75,6 +80,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
-        return ctx.identifier().stream().map(w -> visitIdentifier(w)).collect(Collectors.joining(","));
+        return ctx.sourceIdentifier().stream().map(this::visitSourceIdentifier).collect(Collectors.joining(","));
     }
 }

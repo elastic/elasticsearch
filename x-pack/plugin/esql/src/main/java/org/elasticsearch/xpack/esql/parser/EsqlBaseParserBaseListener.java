@@ -6,11 +6,11 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 /**
- * This class provides an empty implementation of {@link EsqlBaseListener},
+ * This class provides an empty implementation of {@link EsqlBaseParserListener},
  * which can be extended to create a listener which only needs to handle a subset
  * of the available methods.
  */
-class EsqlBaseBaseListener implements EsqlBaseListener {
+public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
   /**
    * {@inheritDoc}
    *
@@ -23,18 +23,6 @@ class EsqlBaseBaseListener implements EsqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterSingleExpression(EsqlBaseParser.SingleExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSingleExpression(EsqlBaseParser.SingleExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -263,6 +251,18 @@ class EsqlBaseBaseListener implements EsqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitFromCommand(EsqlBaseParser.FromCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterSourceIdentifier(EsqlBaseParser.SourceIdentifierContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSourceIdentifier(EsqlBaseParser.SourceIdentifierContext ctx) { }
   /**
    * {@inheritDoc}
    *

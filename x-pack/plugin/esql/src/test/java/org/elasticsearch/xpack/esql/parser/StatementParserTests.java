@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("ALL")
 public class StatementParserTests extends ESTestCase {
 
     EsqlParser parser = new EsqlParser();
@@ -82,6 +81,8 @@ public class StatementParserTests extends ESTestCase {
     public void testIdentifiersAsIndexPattern() {
         assertIdentifierAsIndexPattern("foo", "from `foo`");
         assertIdentifierAsIndexPattern("foo,test-*", "from `foo`,`test-*`");
+        assertIdentifierAsIndexPattern("foo,test-*", "from foo,test-*");
+        assertIdentifierAsIndexPattern("123-test@foo_bar+baz=1", "from 123-test@foo_bar+baz=1");
         assertIdentifierAsIndexPattern("foo,test-*,abc", "from `foo`,`test-*`,abc");
         assertIdentifierAsIndexPattern("foo,     test-*, abc, xyz", "from `foo,     test-*, abc, xyz`");
         assertIdentifierAsIndexPattern("foo,     test-*, abc, xyz,test123", "from `foo,     test-*, abc, xyz`,     test123");
@@ -150,6 +151,6 @@ public class StatementParserTests extends ESTestCase {
     }
 
     private LogicalPlan whereCommand(String e) {
-        return parser.createWhereCommand(e);
+        return parser.createStatement("from a | " + e);
     }
 }

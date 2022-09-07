@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
-public class IdentifierBuilder extends EsqlBaseBaseVisitor<Object> {
+public class IdentifierBuilder extends EsqlBaseParserBaseVisitor<Object> {
     @Override
     public String visitIdentifier(EsqlBaseParser.IdentifierContext ctx) {
         String identifier;
@@ -31,5 +31,15 @@ public class IdentifierBuilder extends EsqlBaseBaseVisitor<Object> {
         }
 
         return Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".");
+    }
+
+    @Override
+    public String visitSourceIdentifier(EsqlBaseParser.SourceIdentifierContext ctx) {
+        if (ctx.SRC_QUOTED_IDENTIFIER() != null) {
+            String identifier = ctx.SRC_QUOTED_IDENTIFIER().getText();
+            return identifier.substring(1, identifier.length() - 1);
+        } else {
+            return ctx.SRC_UNQUOTED_IDENTIFIER().getText();
+        }
     }
 }

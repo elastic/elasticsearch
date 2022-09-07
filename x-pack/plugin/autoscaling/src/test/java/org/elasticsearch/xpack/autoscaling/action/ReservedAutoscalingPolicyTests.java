@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,20 +17,17 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 /**
- * Tests that the ReservedAutoscalingPolicyAction does validation, can add and remove autoscaling polcies
+ * Tests that the ReservedAutoscalingPolicyAction does validation, can add and remove autoscaling policies
  */
 public class ReservedAutoscalingPolicyTests extends ESTestCase {
     private TransformState processJSON(ReservedAutoscalingPolicyAction action, TransformState prevState, String json) throws Exception {
@@ -40,14 +36,12 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
         }
     }
 
-    private static final AllocationDeciders DECIDERS = new AllocationDeciders(List.of(DataTierAllocationDecider.INSTANCE));
-
     public void testValidation() {
         var mocks = createMockServices();
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks, () -> DECIDERS);
+        ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks);
 
         String badPolicyJSON = """
             {
@@ -78,7 +72,7 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks, () -> DECIDERS);
+        ReservedAutoscalingPolicyAction action = new ReservedAutoscalingPolicyAction(mocks);
 
         String emptyJSON = "";
 
@@ -128,7 +122,7 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
 
     private AutoscalingCalculateCapacityService.Holder createMockServices() {
         Autoscaling autoscaling = mock(Autoscaling.class);
-        doReturn(Set.of(new FixedAutoscalingDeciderService())).when(autoscaling).createDeciderServices(any());
+        doReturn(Set.of(new FixedAutoscalingDeciderService())).when(autoscaling).createDeciderServices();
 
         return new AutoscalingCalculateCapacityService.Holder(autoscaling);
     }

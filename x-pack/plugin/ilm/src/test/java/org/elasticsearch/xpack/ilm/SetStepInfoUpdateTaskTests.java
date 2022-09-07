@@ -115,25 +115,33 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
     }
 
     public void testExecuteNoPolicy() throws Exception {
-
         StepKey currentStepKey1 = new StepKey("hot", "complete", "complete");
         StepKey currentStepKey2 = new StepKey("hot", "complete", "complete");
         ToXContentObject stepInfo = new SetStepInfoUpdateTask.ExceptionWrapper(
             index,
             policy,
-            new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist"));
-        setStateToKey(currentStepKey1);
-        SetStepInfoUpdateTask task1 = new SetStepInfoUpdateTask(index, policy, currentStepKey1,
-            new SetStepInfoUpdateTask.ExceptionWrapper(
-                index,
-                policy,
-                new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist"))
+            new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist")
         );
-        SetStepInfoUpdateTask task2= new SetStepInfoUpdateTask(index, policy, currentStepKey2,
+        setStateToKey(currentStepKey1);
+        SetStepInfoUpdateTask task1 = new SetStepInfoUpdateTask(
+            index,
+            policy,
+            currentStepKey1,
             new SetStepInfoUpdateTask.ExceptionWrapper(
                 index,
                 policy,
-                new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist"))
+                new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist")
+            )
+        );
+        SetStepInfoUpdateTask task2 = new SetStepInfoUpdateTask(
+            index,
+            policy,
+            currentStepKey2,
+            new SetStepInfoUpdateTask.ExceptionWrapper(
+                index,
+                policy,
+                new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist")
+            )
         );
 
         Set<IndexLifecycleClusterStateUpdateTask> executingTasks = Collections.synchronizedSet(new HashSet<>());
@@ -148,7 +156,6 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.phaseTime(), nullValue());
         assertThat(lifecycleState.actionTime(), nullValue());
         assertThat(lifecycleState.stepTime(), nullValue());
-
 
         XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder();
         stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);

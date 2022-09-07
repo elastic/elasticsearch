@@ -111,9 +111,9 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
             if (this == o) return true;
             if (!(o instanceof ExceptionWrapper)) return false;
             ExceptionWrapper that = (ExceptionWrapper) o;
-            return index.equals(that.index) &&
-                policyName.equals(that.policyName) &&
-                Objects.equals(exception.getMessage(), that.exception.getMessage());
+            return index.equals(that.index)
+                && policyName.equals(that.policyName)
+                && Objects.equals(exception.getMessage(), that.exception.getMessage());
         }
 
         @Override

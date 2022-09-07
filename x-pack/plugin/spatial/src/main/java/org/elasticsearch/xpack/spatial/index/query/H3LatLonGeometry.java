@@ -58,12 +58,7 @@ public class H3LatLonGeometry extends LatLonGeometry {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("H3 : ");
-        sb.append("\"");
-        sb.append(h3Address);
-        sb.append("\"");
-        return sb.toString();
+        return "H3 : " + "\"" + h3Address + "\"";
     }
 
     /**
@@ -259,7 +254,7 @@ public class H3LatLonGeometry extends LatLonGeometry {
                 return WithinRelation.NOTWITHIN;
             }
             // If the line is part of the outside of the shape, and it crosses the hexagon, then the hexagon is not within the shape
-            if (ab == true && crossesLine(aX, aY, bX, bY)) {
+            if (ab && crossesLine(aX, aY, bX, bY)) {
                 return WithinRelation.NOTWITHIN;
             }
             return WithinRelation.DISJOINT;

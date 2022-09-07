@@ -44,7 +44,7 @@ class GeoRegularConvexPolygon extends GeoBasePolygon {
      * @param planetModel is the planet model.
      * @param points an array of at least three points in CCW orientation.
      */
-    public GeoRegularConvexPolygon(final PlanetModel planetModel, GeoPoint... points) {
+    GeoRegularConvexPolygon(final PlanetModel planetModel, GeoPoint... points) {
         super(planetModel);
         assert points.length >= 3;
         this.points = points;
@@ -67,7 +67,7 @@ class GeoRegularConvexPolygon extends GeoBasePolygon {
      * @param planetModel is the planet model.
      * @param inputStream is the input stream.
      */
-    public GeoRegularConvexPolygon(final PlanetModel planetModel, final InputStream inputStream) throws IOException {
+    GeoRegularConvexPolygon(final PlanetModel planetModel, final InputStream inputStream) throws IOException {
         this(planetModel, readGeoPointsFromStream(inputStream));
     }
 
@@ -150,17 +150,17 @@ class GeoRegularConvexPolygon extends GeoBasePolygon {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof GeoRegularConvexPolygon other)) {
-            return false;
+        if (o instanceof GeoRegularConvexPolygon other) {
+            if (other.points.length != this.points.length) {
+                return false;
+            }
+            boolean ans = super.equals(other);
+            for (int i = 0; i < points.length; i++) {
+                ans &= other.points[i].equals(points[i]);
+            }
+            return ans;
         }
-        if (other.points.length != this.points.length) {
-            return false;
-        }
-        boolean ans = super.equals(other);
-        for (int i = 0; i < points.length; i++) {
-            ans &= other.points[i].equals(points[i]);
-        }
-        return ans;
+        return false;
     }
 
     @Override

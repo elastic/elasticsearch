@@ -104,6 +104,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
+import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -822,6 +823,13 @@ public class Node implements Closeable {
                 transportService,
                 indicesService
             );
+
+            FileSettingsService fileSettingsService = new FileSettingsService(
+                clusterService,
+                actionModule.getReservedClusterStateService(),
+                environment
+            );
+
             RestoreService restoreService = new RestoreService(
                 clusterService,
                 repositoryService,
@@ -831,7 +839,8 @@ public class Node implements Closeable {
                 indexMetadataVerifier,
                 shardLimitValidator,
                 systemIndices,
-                indicesService
+                indicesService,
+                fileSettingsService
             );
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,
@@ -857,7 +866,8 @@ public class Node implements Closeable {
                 environment.configFile(),
                 gatewayMetaState,
                 rerouteService,
-                fsHealthService
+                fsHealthService,
+                circuitBreakerService
             );
             this.nodeService = new NodeService(
                 settings,
@@ -901,7 +911,7 @@ public class Node implements Closeable {
                 settingsModule.getIndexScopedSettings()
             );
             final HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNode.isEnabled()
-                ? new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings, clusterService.getClusterSettings())
+                ? HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterService.getClusterSettings())
                 : null;
             final List<PersistentTasksExecutor<?>> builtinTaskExecutors = HealthNode.isEnabled()
                 ? List.of(systemIndexMigrationExecutor, healthNodeTaskExecutor)
@@ -948,17 +958,12 @@ public class Node implements Closeable {
             );
             HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);
             HealthMetadataService healthMetadataService = HealthNode.isEnabled()
-                ? new HealthMetadataService(clusterService, settings)
+                ? HealthMetadataService.create(clusterService, settings)
                 : null;
             LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
-                ? new LocalHealthMonitor(settings, clusterService, nodeService, threadPool)
+                ? LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client)
                 : null;
-
-            FileSettingsService fileSettingsService = new FileSettingsService(
-                clusterService,
-                actionModule.getReservedClusterStateService(),
-                environment
-            );
+            HealthInfoCache nodeHealthOverview = HealthNode.isEnabled() ? HealthInfoCache.create(clusterService) : null;
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1047,6 +1052,7 @@ public class Node implements Closeable {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                     b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                     b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
+                    b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
                 }
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
@@ -1323,6 +1329,11 @@ public class Node implements Closeable {
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
+        /*
+         * CoordinationDiagnosticsService expects to be able to send transport requests and use the cluster state, so it is important to
+         * start it here after the clusterService and transportService have been started.
+         */
+        injector.getInstance(CoordinationDiagnosticsService.class).start();
         coordinator.startInitialJoin();
         final TimeValue initialStateTimeout = INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);

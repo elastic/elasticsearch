@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.749'
+  'aws': '1.12.270'
 ]
 
 dependencies {
@@ -40,7 +40,7 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  api "joda-time:joda-time:2.8.1"
+  api "joda-time:joda-time:2.10.14"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
@@ -368,6 +368,7 @@ tasks.named("thirdPartyAudit").configure {
           // We don't use the kms dependency
           'com.amazonaws.services.kms.AWSKMS',
           'com.amazonaws.services.kms.AWSKMSClient',
+          'com.amazonaws.services.kms.AWSKMSClientBuilder',
           'com.amazonaws.services.kms.model.DecryptRequest',
           'com.amazonaws.services.kms.model.DecryptResult',
           'com.amazonaws.services.kms.model.EncryptRequest',

@@ -212,7 +212,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         final List<Object> components = new ArrayList<>();
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(

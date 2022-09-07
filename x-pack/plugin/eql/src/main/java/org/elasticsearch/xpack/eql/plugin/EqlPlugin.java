@@ -83,7 +83,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         return createComponents(client, environment.settings(), clusterService);
     }

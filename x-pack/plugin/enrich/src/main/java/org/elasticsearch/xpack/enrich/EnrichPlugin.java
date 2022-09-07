@@ -201,7 +201,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(

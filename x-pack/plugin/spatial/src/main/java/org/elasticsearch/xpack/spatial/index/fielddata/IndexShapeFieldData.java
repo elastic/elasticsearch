@@ -10,6 +10,6 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 /**
- * Specialization of {@link IndexFieldData} for geo shapes.
+ * Specialization of {@link IndexFieldData} for geo shapes and shapes.
  */
-public interface IndexGeoShapeFieldData extends IndexFieldData<LeafGeoShapeFieldData> {}
+public interface IndexShapeFieldData extends IndexFieldData<LeafShapeFieldData> {}

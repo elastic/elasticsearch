@@ -201,7 +201,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -218,7 +218,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 expressionResolver,
                 repositoriesServiceSupplier,
                 tracer,
-                allocationDecidersSupplier
+                allocationDeciders
             )
         );
 
@@ -238,7 +238,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         expressionResolver,
                         repositoriesServiceSupplier,
                         tracer,
-                        allocationDecidersSupplier
+                        allocationDeciders
                     )
                 )
             );

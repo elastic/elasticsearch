@@ -306,7 +306,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         if (enabled == false) {
             return Collections.emptyList();

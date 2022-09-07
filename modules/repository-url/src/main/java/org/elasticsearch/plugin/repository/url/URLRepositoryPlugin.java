@@ -88,7 +88,7 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
 
         final URLHttpClient.Factory apacheURLHttpClientFactory = new URLHttpClient.Factory();

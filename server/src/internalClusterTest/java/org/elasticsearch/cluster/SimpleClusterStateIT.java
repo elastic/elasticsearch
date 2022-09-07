@@ -443,7 +443,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            Supplier<AllocationDeciders> allocationDecidersSupplier
+            AllocationDeciders allocationDeciders
         ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();

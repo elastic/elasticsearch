@@ -102,7 +102,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         service.set(s3Service(environment));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));

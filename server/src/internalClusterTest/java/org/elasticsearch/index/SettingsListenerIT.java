@@ -75,7 +75,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            Supplier<AllocationDeciders> allocationDecidersSupplier
+            AllocationDeciders allocationDeciders
         ) {
             return Collections.singletonList(service);
         }

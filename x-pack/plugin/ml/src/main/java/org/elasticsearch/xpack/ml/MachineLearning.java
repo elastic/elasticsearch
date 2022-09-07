@@ -827,7 +827,7 @@ public class MachineLearning extends Plugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         if (enabled == false) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
@@ -1121,7 +1121,8 @@ public class MachineLearning extends Plugin
                 clusterService,
                 threadPool,
                 new NodeLoadDetector(memoryTracker),
-                new SystemAuditor(client, clusterService)
+                new SystemAuditor(client, clusterService),
+                nodeAvailabilityZoneMapper
             )
         );
 

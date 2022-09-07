@@ -307,7 +307,7 @@ public class XPackPlugin extends XPackClientPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         List<Object> components = new ArrayList<>();
 

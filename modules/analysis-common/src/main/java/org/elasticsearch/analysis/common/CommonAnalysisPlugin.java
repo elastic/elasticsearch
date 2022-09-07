@@ -166,7 +166,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         this.scriptServiceHolder.set(scriptService);
         return Collections.emptyList();

@@ -74,7 +74,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            Supplier<AllocationDeciders> allocationDecidersSupplier
+            AllocationDeciders allocationDeciders
         ) {
             return List.of(service);
         }

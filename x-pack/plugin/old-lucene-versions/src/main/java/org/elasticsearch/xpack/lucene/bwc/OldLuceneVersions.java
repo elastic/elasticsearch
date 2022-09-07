@@ -99,7 +99,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
         if (DiscoveryNode.isMasterNode(environment.settings())) {

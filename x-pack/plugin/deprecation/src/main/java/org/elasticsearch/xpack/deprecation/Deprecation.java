@@ -100,7 +100,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         final DeprecationIndexingTemplateRegistry templateRegistry = new DeprecationIndexingTemplateRegistry(
             environment.settings(),

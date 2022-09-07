@@ -95,7 +95,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();

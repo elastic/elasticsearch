@@ -187,7 +187,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         this.client = client;
         if (enabled == false) {

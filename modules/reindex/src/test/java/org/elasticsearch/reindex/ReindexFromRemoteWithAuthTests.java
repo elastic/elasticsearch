@@ -170,7 +170,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            Supplier<AllocationDeciders> allocationDecidersSupplier
+            AllocationDeciders allocationDeciders
         ) {
             testFilter.set(new ReindexFromRemoteWithAuthTests.TestFilter(threadPool));
             return Collections.emptyList();

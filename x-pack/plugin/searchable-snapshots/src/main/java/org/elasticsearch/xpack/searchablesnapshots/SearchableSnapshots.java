@@ -331,7 +331,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;

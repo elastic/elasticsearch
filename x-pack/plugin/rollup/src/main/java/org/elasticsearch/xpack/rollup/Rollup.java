@@ -116,7 +116,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         return emptyList();
     }

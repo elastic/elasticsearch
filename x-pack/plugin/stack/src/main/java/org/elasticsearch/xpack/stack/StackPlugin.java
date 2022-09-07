@@ -55,7 +55,7 @@ public class StackPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         StackTemplateRegistry templateRegistry = new StackTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
         templateRegistry.initialize();

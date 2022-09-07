@@ -95,7 +95,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         FleetTemplateRegistry registry = new FleetTemplateRegistry(
             environment.settings(),

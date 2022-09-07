@@ -99,7 +99,7 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            Supplier<AllocationDeciders> allocationDecidersSupplier
+            AllocationDeciders allocationDeciders
         ) {
             this.threadPool = threadPool;
             return List.of();

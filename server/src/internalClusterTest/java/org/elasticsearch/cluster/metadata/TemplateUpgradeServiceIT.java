@@ -77,7 +77,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            Supplier<AllocationDeciders> allocationDecidersSupplier
+            AllocationDeciders allocationDeciders
         ) {
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(
@@ -97,7 +97,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                 expressionResolver,
                 repositoriesServiceSupplier,
                 tracer,
-                allocationDecidersSupplier
+                allocationDeciders
             );
         }
 

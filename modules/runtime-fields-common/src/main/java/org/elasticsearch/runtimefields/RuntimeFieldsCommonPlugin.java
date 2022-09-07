@@ -76,7 +76,7 @@ public final class RuntimeFieldsCommonPlugin extends Plugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         grokHelper.finishInitializing(threadPool);
         return List.of();

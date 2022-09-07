@@ -97,7 +97,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         AzureClientProvider azureClientProvider = AzureClientProvider.create(threadPool, settings);
         azureStoreService.set(createAzureStorageService(settings, azureClientProvider));

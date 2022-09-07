@@ -184,7 +184,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         return singletonList(usage);
     }

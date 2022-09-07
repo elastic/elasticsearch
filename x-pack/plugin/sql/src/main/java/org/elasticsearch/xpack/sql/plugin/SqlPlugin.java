@@ -99,7 +99,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
 
         return createComponents(client, environment.settings(), clusterService, namedWriteableRegistry);

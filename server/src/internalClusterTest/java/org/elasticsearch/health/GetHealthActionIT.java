@@ -103,7 +103,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            Supplier<AllocationDeciders> allocationDecidersSupplier
+            AllocationDeciders allocationDeciders
         ) {
             healthIndicatorServices.add(new IlmHealthIndicatorService(clusterService));
             healthIndicatorServices.add(new SlmHealthIndicatorService(clusterService));

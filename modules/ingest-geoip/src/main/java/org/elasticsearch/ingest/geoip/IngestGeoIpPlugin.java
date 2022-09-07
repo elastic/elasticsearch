@@ -116,7 +116,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         try {
             String nodeId = nodeEnvironment.nodeId();

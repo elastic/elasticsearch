@@ -91,7 +91,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         if (enabled == false) {
             extender.set(null);

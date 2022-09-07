@@ -272,7 +272,7 @@ public class PluginIntrospectorTests extends ESTestCase {
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 Supplier<RepositoriesService> repositoriesServiceSupplier,
                 Tracer tracer,
-                Supplier<AllocationDeciders> allocationDecidersSupplier
+                AllocationDeciders allocationDeciders
             ) {
                 return null;
             }

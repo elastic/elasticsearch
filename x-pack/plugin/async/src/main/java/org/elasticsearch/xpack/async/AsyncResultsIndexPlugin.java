@@ -73,7 +73,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         List<Object> components = new ArrayList<>();
         if (DiscoveryNode.canContainData(environment.settings())) {

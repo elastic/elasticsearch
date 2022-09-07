@@ -350,7 +350,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            Supplier<AllocationDeciders> allocationDecidersSupplier
+            AllocationDeciders allocationDeciders
         ) {
             return List.of();
         }

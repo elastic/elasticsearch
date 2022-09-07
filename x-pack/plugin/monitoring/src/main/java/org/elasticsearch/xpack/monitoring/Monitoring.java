@@ -130,7 +130,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());

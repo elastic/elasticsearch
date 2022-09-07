@@ -146,7 +146,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            Supplier<AllocationDeciders> allocationDecidersSupplier
+            AllocationDeciders allocationDeciders
         ) {
             taskExecutor = new TaskExecutor(client, clusterService, threadPool);
             return Collections.singletonList(taskExecutor);

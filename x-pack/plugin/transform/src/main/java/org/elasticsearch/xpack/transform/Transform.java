@@ -235,7 +235,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,

@@ -81,7 +81,7 @@ public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer unused,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         final APMTracer apmTracer = tracer.get();
 

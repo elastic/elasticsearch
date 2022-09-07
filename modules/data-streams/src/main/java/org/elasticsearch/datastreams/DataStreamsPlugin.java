@@ -122,7 +122,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        Supplier<AllocationDeciders> allocationDecidersSupplier
+        AllocationDeciders allocationDeciders
     ) {
         if (IndexSettings.isTimeSeriesModeEnabled() == false) {
             return List.of();

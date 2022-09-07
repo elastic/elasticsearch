@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -766,7 +768,7 @@ public class MachineLearning extends Plugin
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
-            addMlNodeAttribute(additionalSettings, allocatedProcessorsAttrName, Integer.toString(getAllocatedProcessors()));
+            addMlNodeAttribute(additionalSettings, allocatedProcessorsAttrName, Double.toString(getAllocatedProcessors().count()));
             // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
@@ -784,8 +786,8 @@ public class MachineLearning extends Plugin
         }
     }
 
-    private int getAllocatedProcessors() {
-        return EsExecutors.allocatedProcessors(settings);
+    private Processors getAllocatedProcessors() {
+        return EsExecutors.nodeProcessors(settings);
     }
 
     private void disallowMlNodeAttributes(String... mlNodeAttributes) {
@@ -825,7 +827,8 @@ public class MachineLearning extends Plugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         if (enabled == false) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
@@ -1119,7 +1122,8 @@ public class MachineLearning extends Plugin
                 clusterService,
                 threadPool,
                 new NodeLoadDetector(memoryTracker),
-                new SystemAuditor(client, clusterService)
+                new SystemAuditor(client, clusterService),
+                nodeAvailabilityZoneMapper
             )
         );
 
@@ -1445,7 +1449,7 @@ public class MachineLearning extends Plugin
         ScalingExecutorBuilder pytorchComms = new ScalingExecutorBuilder(
             NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
             3,
-            getAllocatedProcessors() * 3,
+            getAllocatedProcessors().roundUp() * 3,
             TimeValue.timeValueMinutes(1),
             false,
             "xpack.ml.native_inference_comms_thread_pool"

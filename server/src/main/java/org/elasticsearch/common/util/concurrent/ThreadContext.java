@@ -135,12 +135,9 @@ public final class ThreadContext implements Writeable {
         }
         threadLocal.set(threadContextStruct);
 
-        return () -> {
-            // If the node and thus the threadLocal get closed while this task
-            // is still executing, we don't want this runnable to fail with an
-            // uncaught exception
-            threadLocal.set(context);
-        };
+        // If the node and thus the threadLocal get closed while this task is still executing, we don't want this runnable to fail with an
+        // uncaught exception
+        return storedOriginalContext(context);
     }
 
     /**
@@ -171,22 +168,21 @@ public final class ThreadContext implements Writeable {
             newTransientHeaders.put("parent_" + Task.APM_TRACE_CONTEXT, previousTraceContext);
         }
 
-        threadLocal.set(
-            new ThreadContextStruct(
-                newRequestHeaders,
-                originalContext.responseHeaders,
-                newTransientHeaders,
-                originalContext.isSystemContext,
-                originalContext.warningHeadersSize
-            )
-        );
         // this is the context when this method returns
-        final ThreadContextStruct newContext = threadLocal.get();
+        final ThreadContextStruct newContext = new ThreadContextStruct(
+            newRequestHeaders,
+            originalContext.responseHeaders,
+            newTransientHeaders,
+            originalContext.isSystemContext,
+            originalContext.warningHeadersSize
+        );
+        threadLocal.set(newContext);
+        // Tracing shouldn't interrupt the propagation of response headers, so in the same as
+        // #newStoredContextPreservingResponseHeaders(), pass on any potential changes to the response headers.
         return () -> {
-            if (threadLocal.get() != newContext) {
-                // Tracing shouldn't interrupt the propagation of response headers, so in the same as #newStoredContext(...),
-                // pass on any potential changes to the response headers.
-                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
+            var found = threadLocal.get();
+            if (found != newContext) {
+                threadLocal.set(originalContext.putResponseHeaders(found.responseHeaders));
             } else {
                 threadLocal.set(originalContext);
             }
@@ -229,7 +225,11 @@ public final class ThreadContext implements Writeable {
                 context.warningHeadersSize
             )
         );
-        return () -> threadLocal.set(context);
+        return storedOriginalContext(context);
+    }
+
+    private StoredContext storedOriginalContext(ThreadContextStruct originalContext) {
+        return () -> threadLocal.set(originalContext);
     }
 
     private static Map<String, String> getHeadersToCopy(ThreadContextStruct context) {
@@ -286,15 +286,28 @@ public final class ThreadContext implements Writeable {
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);
         threadLocal.set(DEFAULT_CONTEXT.putHeaders(newHeader));
-        return () -> threadLocal.set(context);
+        return storedOriginalContext(context);
+    }
+
+    /**
+     * Just like {@link #stashContext()} but no default context is set and the response headers of the restore thread will be preserved.
+     */
+    public StoredContext newStoredContextPreservingResponseHeaders() {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        return () -> {
+            var found = threadLocal.get();
+            if (found != originalContext) {
+                threadLocal.set(originalContext.putResponseHeaders(found.responseHeaders));
+            }
+        };
     }
 
     /**
      * Just like {@link #stashContext()} but no default context is set.
-     * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
-    public StoredContext newStoredContext(boolean preserveResponseHeaders) {
-        return newStoredContext(preserveResponseHeaders, List.of());
+    public StoredContext newStoredContext() {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        return storedOriginalContext(originalContext);
     }
 
     /**
@@ -302,9 +315,8 @@ public final class ThreadContext implements Writeable {
      * to clear specific transient headers in the new context. All headers (with the possible exception of {@code responseHeaders}) are
      * restored by closing the returned {@link StoredContext}.
      *
-     * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
-    public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
+    public StoredContext newStoredContext(Collection<String> transientHeadersToClear) {
         final ThreadContextStruct originalContext = threadLocal.get();
         // clear specific transient headers from the current context
         Map<String, Object> newTransientHeaders = null;
@@ -316,6 +328,7 @@ public final class ThreadContext implements Writeable {
                 newTransientHeaders.remove(transientHeaderToClear);
             }
         }
+        // this is the context when this method returns
         if (newTransientHeaders != null) {
             ThreadContextStruct threadContextStruct = new ThreadContextStruct(
                 originalContext.requestHeaders,
@@ -326,19 +339,11 @@ public final class ThreadContext implements Writeable {
             );
             threadLocal.set(threadContextStruct);
         }
-        // this is the context when this method returns
-        final ThreadContextStruct newContext = threadLocal.get();
-        return () -> {
-            if (preserveResponseHeaders && threadLocal.get() != newContext) {
-                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
-            } else {
-                threadLocal.set(originalContext);
-            }
-        };
+        return storedOriginalContext(originalContext);
     }
 
     /**
-     * Returns a supplier that gathers a {@link #newStoredContext(boolean)} and restores it once the
+     * Returns a supplier that gathers a {@link #newStoredContextPreservingResponseHeaders()} and restores it once the
      * returned supplier is invoked. The context returned from the supplier is a stored version of the
      * suppliers callers context that should be restored once the originally gathered context is not needed anymore.
      * For instance this method should be used like this:
@@ -359,7 +364,7 @@ public final class ThreadContext implements Writeable {
      * @return a restorable context supplier
      */
     public Supplier<StoredContext> newRestorableContext(boolean preserveResponseHeaders) {
-        return wrapRestorable(newStoredContext(preserveResponseHeaders));
+        return wrapRestorable(preserveResponseHeaders ? newStoredContextPreservingResponseHeaders() : newStoredContext());
     }
 
     /**
@@ -368,7 +373,7 @@ public final class ThreadContext implements Writeable {
      */
     public Supplier<StoredContext> wrapRestorable(StoredContext storedContext) {
         return () -> {
-            StoredContext context = newStoredContext(false);
+            StoredContext context = newStoredContext();
             storedContext.restore();
             return context;
         };
@@ -809,7 +814,7 @@ public final class ThreadContext implements Writeable {
         private final ThreadContext.StoredContext ctx;
 
         private ContextPreservingRunnable(Runnable in) {
-            ctx = newStoredContext(false);
+            ctx = newStoredContext();
             this.in = in;
         }
 
@@ -844,7 +849,7 @@ public final class ThreadContext implements Writeable {
         private ThreadContext.StoredContext threadsOriginalContext = null;
 
         private ContextPreservingAbstractRunnable(AbstractRunnable in, boolean useNewTraceContext) {
-            creatorsContext = newStoredContext(false);
+            creatorsContext = newStoredContext();
             this.in = in;
             this.useNewTraceContext = useNewTraceContext;
         }

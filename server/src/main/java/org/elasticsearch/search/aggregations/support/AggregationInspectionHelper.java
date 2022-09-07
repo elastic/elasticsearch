@@ -29,9 +29,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.UnmappedSignificantTer
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
+import org.elasticsearch.search.aggregations.metrics.InternalCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
@@ -167,7 +167,7 @@ public class AggregationInspectionHelper {
         return (agg.topLeft() == null && agg.bottomRight() == null) == false;
     }
 
-    public static boolean hasValue(InternalGeoCentroid agg) {
+    public static boolean hasValue(InternalCentroid agg) {
         return agg.centroid() != null && agg.count() > 0;
     }
 

@@ -436,6 +436,14 @@ public abstract class DocumentParserContext {
         return null;
     }
 
+    /**
+     * Is this index configured to use synthetic source?
+     */
+    public final boolean isSyntheticSource() {
+        SourceFieldMapper sft = mappingLookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
+        return sft == null ? false : sft.isSynthetic();
+    }
+
     // XContentParser that wraps an existing parser positioned on a value,
     // and a field name, and returns a stream that looks like { 'field' : 'value' }
     private static class CopyToParser extends FilterXContentParserWrapper {

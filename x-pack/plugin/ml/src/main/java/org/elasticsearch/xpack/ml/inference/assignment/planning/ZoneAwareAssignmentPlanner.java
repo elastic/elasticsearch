@@ -63,8 +63,8 @@ public class ZoneAwareAssignmentPlanner {
     private AssignmentPlan computePlan(boolean tryAssigningPreviouslyAssignedModels) {
         logger.debug(
             () -> format(
-                "computing plan %s trying to assign previously assigned models",
-                tryAssigningPreviouslyAssignedModels ? "" : "without"
+                "computing plan%s trying to assign previously assigned models",
+                tryAssigningPreviouslyAssignedModels ? "" : " without"
             )
         );
         // The idea here is that we solve per zone trying to distribute allocations evenly.

@@ -29,6 +29,26 @@
             }
           }
         },
+        "outputs": {
+          "properties": {
+            "api_key": {
+              "type": "keyword"
+            },
+            "api_key_id": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            },
+            "policy_permissions_hash": {
+              "type": "keyword"
+            },
+            "to_retire_api_key_ids": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        },
         "default_api_key": {
           "type": "keyword"
         },

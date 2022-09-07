@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -49,6 +50,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger allocationNodeIdsRotation = new AtomicInteger();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
 
@@ -129,7 +131,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
         appliedDesiredBalance = currentDesiredBalance;
         logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
-        new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
+        new DesiredBalanceReconciler(appliedDesiredBalance, allocation, allocationNodeIdsRotation).run();
 
         queue.complete(appliedDesiredBalance.lastConvergedIndex());
         if (allocation.routingNodesChanged()) {

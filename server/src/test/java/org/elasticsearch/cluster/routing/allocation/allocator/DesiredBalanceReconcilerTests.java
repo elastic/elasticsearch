@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -948,7 +949,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     }
 
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
-        new DesiredBalanceReconciler(desiredBalance, routingAllocation).run();
+        new DesiredBalanceReconciler(desiredBalance, routingAllocation, new AtomicInteger(0)).run();
     }
 
     private static AllocationService createTestAllocationService(

@@ -25,10 +25,14 @@ import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.elasticsearch.common.util.CollectionUtils.rotate;
 
 /**
  * Given the current allocation of shards and the desired balance, performs the next (legal) shard movements towards the goal.
@@ -40,11 +44,13 @@ public class DesiredBalanceReconciler {
     private final DesiredBalance desiredBalance;
     private final RoutingAllocation allocation; // name chosen to align with code in BalancedShardsAllocator but TODO rename
     private final RoutingNodes routingNodes;
+    private final AtomicInteger nodeIdsRotation;
 
-    DesiredBalanceReconciler(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
+    DesiredBalanceReconciler(DesiredBalance desiredBalance, RoutingAllocation routingAllocation, AtomicInteger nodeIdsRotation) {
         this.desiredBalance = desiredBalance;
         this.allocation = routingAllocation;
         this.routingNodes = routingAllocation.routingNodes();
+        this.nodeIdsRotation = nodeIdsRotation;
     }
 
     void run() {
@@ -211,7 +217,7 @@ public class DesiredBalanceReconciler {
                         }
                     }
 
-                    for (final var desiredNodeId : assignmentNodeIds) {
+                    for (final var desiredNodeId : order(assignmentNodeIds)) {
                         final var routingNode = routingNodes.node(desiredNodeId);
                         if (routingNode == null) {
                             // desired node no longer exists
@@ -421,4 +427,7 @@ public class DesiredBalanceReconciler {
         return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
     }
 
+    private Iterable<String> order(Set<String> nodeIds) {
+        return rotate(List.copyOf(nodeIds), nodeIdsRotation.incrementAndGet());
+    }
 }

@@ -83,11 +83,6 @@ public class DataStreamMetadata implements Metadata.Custom {
         this.dataStreamAliases = dataStreamAliases;
     }
 
-    public DataStreamMetadata(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
-        this.dataStreams = ImmutableOpenMap.builder(dataStreams).build();
-        this.dataStreamAliases = ImmutableOpenMap.builder(dataStreamAliases).build();
-    }
-
     public DataStreamMetadata(StreamInput in) throws IOException {
         this(
             in.readImmutableOpenMap(StreamInput::readString, DataStream::new),

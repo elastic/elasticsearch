@@ -1,0 +1,80 @@
+import org.elasticsearch.gradle.transform.UnzipTransform
+
+import java.util.stream.Collectors
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
+
+def isImplAttr = Attribute.of("is.impl", Boolean)
+
+configurations {
+  providerImpl {
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    attributes.attribute(isImplAttr, true)
+  }
+}
+
+dependencies {
+  registerTransform(
+    UnzipTransform.class, transformSpec -> {
+    transformSpec.getFrom()
+      .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE)
+      .attribute(isImplAttr, true)
+    transformSpec.getTo()
+      .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+      .attribute(isImplAttr, true)
+    transformSpec.parameters(parameters -> {
+      parameters.includeArtifactName.set(true)
+    })
+
+  })
+
+  api project(':libs:elasticsearch-core')
+  api project(":libs:elasticsearch-logging")
+  providerImpl project(':libs:elasticsearch-plugin-scanner:impl')
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // :libs:elasticsearch-logging does not depend on server
+  replaceSignatureFiles 'jdk-signatures'
+}
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-requires-automatic,-requires-transitive-automatic")
+  options.compilerArgs.add("-Xlint:-module") // qualified exports
+  options.compilerArgs.add("-Xlint:-exports") // implements Message!!
+}
+
+
+File generatedResourcesDir = new File(buildDir, 'generated-resources')
+def generateProviderManifest = tasks.register("generateProviderManifest") {
+  File manifestFile = new File(generatedResourcesDir, "LISTING.TXT")
+  inputs.property('jars', configurations.providerImpl)
+  outputs.file(manifestFile)
+  doLast {
+    manifestFile.parentFile.mkdirs()
+    manifestFile.setText(configurations.providerImpl.files.stream()
+      .map(f -> f.name).collect(Collectors.joining('\n')), 'UTF-8')
+  }
+}
+
+def generateProviderImpl = tasks.register("generateProviderImpl", Copy) {
+  destinationDir = new File(generatedResourcesDir, "impl")
+  into("IMPL-JARS/plugin-scanner") {
+    from(configurations.providerImpl)
+    from(generateProviderManifest)
+  }
+}
+sourceSets.main.output.dir(generateProviderImpl)
+

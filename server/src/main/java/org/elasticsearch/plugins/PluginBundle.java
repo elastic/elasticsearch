@@ -8,8 +8,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.plugins.scanners.NameToPluginInfo;
-
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.DirectoryStream;
@@ -71,10 +69,6 @@ public class PluginBundle {
             return spiUrls;
         }
         return urls;
-    }
-
-    public Map<String, NameToPluginInfo> getNamedComponents() {
-        return null;
     }
 
     @Override

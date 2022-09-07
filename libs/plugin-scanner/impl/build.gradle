@@ -1,0 +1,45 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.java'
+
+
+archivesBaseName = "plugin-scanner-impl"
+
+tasks.named("loggerUsageCheck").configure {enabled = false }
+String jacksonVersion = "2.13.2"
+String asmVersion = "9.2"
+
+dependencies {
+  compileOnly project(":libs:elasticsearch-plugin-api")
+  compileOnly project(":libs:elasticsearch-logging")
+//  api project(":libs:elasticsearch-x-content")
+  compileOnly project(":libs:elasticsearch-plugin-scanner")
+  implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}"
+  implementation "org.ow2.asm:asm:${asmVersion}"
+
+  // logging
+  compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-server'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // :libs:elasticsearch-logging does not depend on server
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-requires-automatic,-requires-transitive-automatic")
+  options.compilerArgs.add("-Xlint:-module") // qualified exports
+  options.compilerArgs.add("-Xlint:-exports") // implements Message!!
+}

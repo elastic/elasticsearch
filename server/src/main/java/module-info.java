@@ -24,6 +24,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin.api;
     requires org.elasticsearch.plugin.analysis.api;
+    requires org.elasticsearch.plugin.scanner;
 
     requires com.sun.jna;
     requires hppc;
@@ -48,7 +49,6 @@ module org.elasticsearch.server {
     requires org.apache.lucene.queryparser;
     requires org.apache.lucene.sandbox;
     requires org.apache.lucene.suggest;
-    requires org.objectweb.asm;
 
     exports org.elasticsearch;
     exports org.elasticsearch.action;
@@ -356,8 +356,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.watcher;
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
-
-    exports org.elasticsearch.plugins.scanners;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

@@ -32,6 +32,7 @@ dependencies {
   api project(":libs:elasticsearch-lz4")
   api project(":libs:elasticsearch-plugin-api")
   api project(":libs:elasticsearch-plugin-analysis-api")
+  api project(":libs:elasticsearch-plugin-scanner")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
 
@@ -52,7 +53,6 @@ dependencies {
   // utilities
   api project(":libs:elasticsearch-cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
-  implementation 'org.ow2.asm:asm:9.2'
 
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.2'

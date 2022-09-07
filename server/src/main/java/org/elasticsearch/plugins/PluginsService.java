@@ -28,8 +28,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.plugins.scanners.NameToPluginInfo;
-import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
+import org.elasticsearch.plugin.scanner.NameToPluginInfo;
+import org.elasticsearch.plugin.scanner.StablePluginRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
@@ -104,7 +104,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
 
-    private final StablePluginsRegistry stablePluginsRegistry;
+    private final StablePluginRegistry stablePluginsRegistry;
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
         "plugin.mandatory",
@@ -122,7 +122,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory/*, Path modulePath*/) {
         this.settings = settings;
         this.configPath = configPath;
-        this.stablePluginsRegistry = new StablePluginsRegistry();
+        this.stablePluginsRegistry = StablePluginRegistry.INSTANCE;
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
 
@@ -461,9 +461,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
-            stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
+            stablePluginsRegistry.scanBundleForStablePlugins(bundle.allUrls, pluginClassLoader);
             Map<String, NameToPluginInfo> namedComponents = stablePluginsRegistry.getNamedComponents();
-            // System.out.println(namedComponents); some interim assertions would be good here..
+             System.out.println(namedComponents);// some interim assertions would be good here..
             if (bundle.pluginDescriptor().isStable() == false) {
                 Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
                 if (pluginClassLoader != pluginClass.getClassLoader()) {

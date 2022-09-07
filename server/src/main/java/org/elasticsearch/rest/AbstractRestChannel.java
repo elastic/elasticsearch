@@ -10,7 +10,6 @@ package org.elasticsearch.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -99,6 +98,26 @@ public abstract class AbstractRestChannel implements RestChannel {
         @Nullable XContentType responseContentType,
         boolean useFiltering
     ) throws IOException {
+        return newBuilder(
+            requestContentType,
+            responseContentType,
+            useFiltering,
+            org.elasticsearch.common.io.Streams.flushOnCloseStream(bytesOutput())
+        );
+    }
+
+    /**
+     * Creates a new {@link XContentBuilder} for a response to be sent using this channel. The builder's type can be sent as a parameter,
+     * through {@code responseContentType} or it can fallback to {@link #newBuilder(XContentType, boolean)} logic if the sent type value
+     * is {@code null}.
+     */
+    @Override
+    public XContentBuilder newBuilder(
+        @Nullable XContentType requestContentType,
+        @Nullable XContentType responseContentType,
+        boolean useFiltering,
+        OutputStream outputStream
+    ) throws IOException {
 
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
@@ -129,8 +148,6 @@ public abstract class AbstractRestChannel implements RestChannel {
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
-        OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
-
         Map<String, String> parameters = request.getParsedAccept() != null
             ? request.getParsedAccept().getParameters()
             : Collections.emptyMap();
@@ -138,7 +155,7 @@ public abstract class AbstractRestChannel implements RestChannel {
 
         XContentBuilder builder = new XContentBuilder(
             XContentFactory.xContent(responseContentType),
-            unclosableOutputStream,
+            outputStream,
             includes,
             excludes,
             responseMediaType,

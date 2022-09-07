@@ -250,10 +250,11 @@ setup:
   - match: { aggregations.the_filter.meta.foo: "bar" }
 
 ---
-"Unexpected metadata test":
+no meta:
   - skip:
       version: " - 8.4.99"
       reason: "Fixed in 8.5"
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -274,6 +275,56 @@ setup:
   - match: { aggregations.the_filter.buckets.first_filter.doc_count: 1 }
   - match: { aggregations.the_filter.buckets.second_filter.doc_count: 1 }
   - is_false: aggregations.the_filter.meta
+
+---
+empty meta:
+  - skip:
+      version: " - 8.4.99"
+      reason: "Fixed in 8.5"
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            the_filter:
+              meta: {}
+              filters:
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.the_filter.buckets.first_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.second_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.meta: {} }
+
+---
+null meta:
+  - skip:
+      version: " - 8.4.99"
+      reason: "Fixed in 8.5"
+
+  - do:
+      catch: /Expected \[START_OBJECT\] under \[meta\], but got a \[VALUE_NULL\] in \[the_filter\]/
+      search:
+        size: 0
+        body:
+          aggs:
+            the_filter:
+              meta: null
+              filters:
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
 
 ---
 "Bad params":

@@ -1119,7 +1119,8 @@ public class MachineLearning extends Plugin
                 clusterService,
                 threadPool,
                 new NodeLoadDetector(memoryTracker),
-                new SystemAuditor(client, clusterService)
+                new SystemAuditor(client, clusterService),
+                nodeAvailabilityZoneMapper
             )
         );
 

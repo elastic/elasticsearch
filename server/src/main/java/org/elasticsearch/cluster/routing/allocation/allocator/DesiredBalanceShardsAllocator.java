@@ -96,7 +96,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 var isFresh = isFresh(desiredBalanceInput);
 
                 if (isFresh) {
-                    // if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
                     logger.trace("scheduling a reconciliation");
                     var desiredBalanceForReconcilation = currentDesiredBalance;
                     // TODO implement batching
@@ -110,6 +109,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                         @Override
                         public void onFailure(Exception e) {
+                            assert MasterService.isPublishFailureException(e) : e;
+                            pendingDesiredBalanceMoves.clear();
                             queue.completeAllAsNotMaster();
                         }
 
@@ -120,14 +121,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                         }
                     });
-                    // rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
-                    // } else {
-                    // var lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
-                    // logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
-                    // // TODO desired balance this still does not guarantee the correct behaviour in case there is
-                    // // extra unrelated allocation between one that triggered this computation and one produced by above reroute.
-                    // queue.complete(lastConvergedIndex);
-                    // }
                 }
             }
 
@@ -163,17 +156,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         maybeAwaitBalance();
 
         appliedDesiredBalance = currentDesiredBalance;
-        //// logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
-        //// new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
-        ////
-        //// queue.complete(appliedDesiredBalance.lastConvergedIndex());
-        // if (allocation.routingNodesChanged()) {
-        // logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
-        // // Execute listeners after cluster state is applied
-        // } else {
-        // logger.trace("Executing listeners up to [{}] as routing nodes have not changed", queue.getCompletedIndex());
-        // queue.resume();
-        // }
     }
 
     protected void maybeAwaitBalance() {

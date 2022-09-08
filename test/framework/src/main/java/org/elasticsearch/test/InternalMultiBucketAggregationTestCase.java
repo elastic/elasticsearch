@@ -99,6 +99,11 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations);
 
+    /**
+     * The parsed version used by the deprecated high level rest client or
+     * {@code null} if the deprecated high level rest client isn't supported
+     * by this agg.
+     */
     protected abstract Class<? extends ParsedMultiBucketAggregation<?>> implementationClass();
 
     @Override
@@ -118,6 +123,13 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     public void testIterators() throws IOException {
         final T aggregation = createTestInstanceForXContent();
         assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false, false), true);
+    }
+
+    @Override
+    protected <P extends ParsedAggregation> P parseAndAssert(InternalAggregation aggregation, boolean shuffled, boolean addRandomFields)
+        throws IOException {
+        assumeFalse("deprecated high level rest client not supported", implementationClass() == null);
+        return super.parseAndAssert(aggregation, shuffled, addRandomFields);
     }
 
     @Override

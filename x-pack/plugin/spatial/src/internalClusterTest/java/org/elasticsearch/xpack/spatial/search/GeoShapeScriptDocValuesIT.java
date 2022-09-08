@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.spatial.search;
 import org.apache.lucene.geo.Circle;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.BoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -20,7 +21,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -79,52 +81,53 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptHeight(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
-                GeoBoundingBox boundingBox = geometry.getBoundingBox();
+                BoundingBox<GeoPoint> boundingBox = geometry.getBoundingBox();
                 return boundingBox.topLeft().lat() - boundingBox.bottomRight().lat();
             }
         }
 
         private double scriptWidth(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
-                GeoBoundingBox boundingBox = geometry.getBoundingBox();
+                BoundingBox<GeoPoint> boundingBox = geometry.getBoundingBox();
                 return boundingBox.bottomRight().lon() - boundingBox.topLeft().lon();
             }
         }
 
         private double scriptLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lat();
         }
 
         private double scriptLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lon();
         }
 
         private double scriptLabelLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lat();
         }
 
         private double scriptLabelLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lon();
         }
 
-        private ScriptDocValues.Geometry<?> assertGeometry(Map<?, ?> doc) {
-            ScriptDocValues.Geometry<?> geometry = (ScriptDocValues.Geometry<?>) doc.get("location");
+        private LeafShapeFieldData.ShapeScriptValues<GeoPoint> assertGeometry(Map<?, ?> doc) {
+            AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues geometry =
+                (AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues) doc.get("location");
             if (geometry.size() == 0) {
                 assertThat(geometry.getBoundingBox(), Matchers.nullValue());
                 assertThat(geometry.getCentroid(), Matchers.nullValue());
@@ -267,8 +270,8 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             .get();
         assertSearchResponse(searchResponse);
         Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
-        assertThat(fields.get("lat").getValue(), equalTo(value.lat()));
-        assertThat(fields.get("lon").getValue(), equalTo(value.lon()));
+        assertThat(fields.get("lat").getValue(), equalTo(value.getY()));
+        assertThat(fields.get("lon").getValue(), equalTo(value.getX()));
         assertThat(fields.get("height").getValue(), equalTo(value.boundingBox().maxY() - value.boundingBox().minY()));
         assertThat(fields.get("width").getValue(), equalTo(value.boundingBox().maxX() - value.boundingBox().minX()));
 
@@ -285,16 +288,21 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             doTestLabelPosition(fields, expectedLabelPosition);
         } else if (fallbackToCentroid && value.dimensionalShapeType() == DimensionalShapeType.POLYGON) {
             // Use the centroid for all polygons, unless overwritten for specific cases
-            doTestLabelPosition(fields, GeoTestUtils.geoShapeValue(new Point(value.lon(), value.lat())));
+            doTestLabelPosition(fields, GeoTestUtils.geoShapeValue(new Point(value.getX(), value.getY())));
         }
     }
 
     private void doTestLabelPosition(Map<String, DocumentField> fields, GeoShapeValues.GeoShapeValue expectedLabelPosition)
         throws IOException {
-        assertEquals("Unexpected latitude for label position,", expectedLabelPosition.lat(), fields.get("label_lat").getValue(), 0.0000001);
+        assertEquals(
+            "Unexpected latitude for label position,",
+            expectedLabelPosition.getY(),
+            fields.get("label_lat").getValue(),
+            0.0000001
+        );
         assertEquals(
             "Unexpected longitude for label position,",
-            expectedLabelPosition.lon(),
+            expectedLabelPosition.getX(),
             fields.get("label_lon").getValue(),
             0.0000001
         );

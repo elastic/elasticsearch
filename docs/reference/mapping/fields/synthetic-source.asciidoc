@@ -35,6 +35,7 @@ types:
 ** <<numeric-synthetic-source,`float`>>
 ** <<geo-point-synthetic-source,`geo_point`>>
 ** <<numeric-synthetic-source,`half_float`>>
+** <<histogram-synthetic-source,`histogram`>>
 ** <<numeric-synthetic-source,`integer`>>
 ** <<ip-synthetic-source,`ip`>>
 ** <<keyword-synthetic-source,`keyword`>>
@@ -42,6 +43,7 @@ types:
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>> (with a `keyword` sub-field)
+** <<version-synthetic-source,`version`>>
 
 Runtime fields cannot, at this stage, use synthetic `_source`.
 

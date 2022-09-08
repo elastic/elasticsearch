@@ -29,6 +29,7 @@ keyword:
           query:
             ids:
               values: [1]
+  - is_false: hits.hits.0.fields
   - match:
       hits.hits.0._source:
         kwd: foo
@@ -66,6 +67,7 @@ stored text:
           query:
             ids:
               values: [1]
+  - is_false: hits.hits.0.fields
   - match:
       hits.hits.0._source:
         text: the quick brown fox
@@ -103,6 +105,7 @@ stored keyword:
           query:
             ids:
               values: [1]
+  - is_false: hits.hits.0.fields
   - match:
       hits.hits.0._source:
         kwd: the quick brown fox
@@ -140,6 +143,8 @@ stored keyword without sibling fields:
         index: test
         body:
           sort: s
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
   - match:
       hits.hits.0._source:
         kwd: the quick brown fox
@@ -252,3 +257,141 @@ force_synthetic_source_bad_mapping:
           query:
             ids:
               values: [1]
+
+---
+doc values keyword with ignore_above:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                ignore_above: 10
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          s: 1
+          kwd: the quick brown fox
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          s: 2
+          kwd: short
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          s: 3
+          kwd:
+            - jumped over the lazy dog
+            - short
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: s
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+  - is_false: hits.hits.2.fields
+  - match:
+      hits.hits.0._source:
+        s: 1
+        kwd: the quick brown fox
+  - match:
+      hits.hits.1._source:
+        s: 2
+        kwd: short
+  - match:
+      hits.hits.2._source:
+        s: 3
+        kwd:
+          - short
+          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
+
+---
+stored keyword with ignore_above:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false
+                store: true
+                ignore_above: 10
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          s: 1
+          kwd: the quick brown fox
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          s: 2
+          kwd: short
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          s: 3
+          kwd:
+            - jumped over the lazy dog
+            - short
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: s
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+  - is_false: hits.hits.2.fields
+  - match:
+      hits.hits.0._source:
+        s: 1
+        kwd: the quick brown fox
+  - match:
+      hits.hits.1._source:
+        s: 2
+        kwd: short
+  - match:
+      hits.hits.2._source:
+        s: 3
+        kwd:
+          - short
+          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields

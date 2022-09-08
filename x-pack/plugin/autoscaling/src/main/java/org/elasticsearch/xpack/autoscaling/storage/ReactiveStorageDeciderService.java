@@ -294,7 +294,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     .filter(e -> e.nodeAllocationResults.size() > 0)
                     .min(Comparator.comparing(e -> e.shard.shardId()))
                     .map(e -> e.nodeAllocationResults)
-                    .orElse(null)
+                    .orElse(List.of())
             );
         }
 
@@ -342,7 +342,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     .filter(e -> e.nodeAllocationResults.size() > 0)
                     .min(Comparator.comparing(e -> e.shard.shardId()))
                     .map(e -> e.nodeAllocationResults)
-                    .orElse(null)
+                    .orElse(List.of())
             );
         }
 

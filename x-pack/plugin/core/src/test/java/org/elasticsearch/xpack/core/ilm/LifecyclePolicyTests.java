@@ -66,7 +66,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new)
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new)
             )
         );
     }
@@ -101,7 +101,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     new ParseField(SearchableSnapshotAction.NAME),
                     SearchableSnapshotAction::parse
                 ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupILMAction.NAME), RollupILMAction::parse)
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
             )
         );
         return new NamedXContentRegistry(entries);
@@ -259,7 +259,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             case UnfollowAction.NAME -> UnfollowAction.INSTANCE;
             case SearchableSnapshotAction.NAME -> new SearchableSnapshotAction("repo", randomBoolean());
             case MigrateAction.NAME -> MigrateAction.DISABLED;
-            case RollupILMAction.NAME -> RollupILMActionTests.randomInstance();
+            case DownsampleAction.NAME -> DownsampleActionTests.randomInstance();
             default -> throw new IllegalArgumentException("invalid action [" + action + "]");
         };
     }

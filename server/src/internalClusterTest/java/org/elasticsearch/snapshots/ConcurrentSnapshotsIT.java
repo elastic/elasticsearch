@@ -162,12 +162,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> recreating the repository in order to reset corrupted state, which should fail due to ongoing snapshot");
         try {
-            final RepositoryConflictException repositoryException5 = expectThrows(
+            final RepositoryConflictException ex = expectThrows(
                     RepositoryConflictException.class,
                     () -> createRepository(repoName, "mock", Settings.builder().put(repoSettings))
             );
             assertThat(
-                    repositoryException5.getMessage(),
+                    ex.getMessage(),
                     containsString("trying to modify or unregister repository that is currently used")
             );
         } catch (Exception ex) {
@@ -178,13 +178,13 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(slowFuture.isDone(), is(false));
         unblockNode(repoName, slowDataNode);
         try {
-            final ExecutionException repositoryException6 = expectThrows(
+            final ExecutionException ex = expectThrows(
                     ExecutionException.class,
                     () -> slowFuture.get().getSnapshotInfo()
             );
             assertThat(
                     // Inner exceptions: RemoteTransportExeception > RepositoryException (whose message we check)
-                    repositoryException6.getCause().getCause().getMessage(),
+                    ex.getCause().getCause().getMessage(),
                     containsString("Could not read repository data because the contents of the repository do not match its expected state")
             );
         } catch (Exception ex) {

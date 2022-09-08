@@ -12,9 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
@@ -53,6 +53,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
+    private final ReconcileDesiredBalanceExecutor executor = new ReconcileDesiredBalanceExecutor();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;// TODO convert to local var?
 
     @FunctionalInterface
@@ -92,66 +93,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
         };
         this.queue = new PendingListenersQueue(threadPool);
-    }
-
-    private record ReconcileDesiredBalanceTask(DesiredBalance desiredBalance) implements ClusterStateTaskListener {
-
-        @Override
-        public void onFailure(Exception e) {
-            // TODO reset state
-        }
-    }
-
-    private final class ReconcileDesiredBalanceExecutor implements ClusterStateTaskExecutor<ReconcileDesiredBalanceTask> {
-
-        @Override
-        public ClusterState execute(BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext) {
-            var latestBalance = batchExecutionContext.taskContexts()
-                .stream()
-                .max(Comparator.comparing(it -> it.getTask().desiredBalance().lastConvergedIndex()))
-                .get();
-            var newState = reconciler.apply(
-                batchExecutionContext.initialState(),
-                routingAllocation -> new DesiredBalanceReconciler(latestBalance.getTask().desiredBalance(), routingAllocation).run()
-            );
-            for (TaskContext<ReconcileDesiredBalanceTask> taskContext : batchExecutionContext.taskContexts()) {
-                taskContext.success(() -> {});
-            }
-            return newState;
-        }
-    }
-
-    private final ReconcileDesiredBalanceExecutor executor = new ReconcileDesiredBalanceExecutor();
-
-    public void submitReconcileTask(DesiredBalance desiredBalance) {
-        // clusterService.submitStateUpdateTask(
-        // "reconcile-desired-balance",
-        // new ReconcileDesiredBalanceTask(desiredBalance),
-        // ClusterStateTaskConfig.build(Priority.URGENT),
-        // executor
-        // );
-
-        clusterService.submitUnbatchedStateUpdateTask("reconcile", new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                logger.trace("Executing reconcile for state [{}]:\n{}", currentState.version(), currentState);
-                return reconciler.apply(
-                    currentState,
-                    routingAllocation -> new DesiredBalanceReconciler(desiredBalance, routingAllocation).run()
-                );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert MasterService.isPublishFailureException(e) : e;
-                onNoLongerMaster();
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                queue.complete(desiredBalance.lastConvergedIndex());
-            }
-        });
     }
 
     @Override
@@ -218,6 +159,64 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
         currentDesiredBalance = newDesiredBalance;
         return hasChanges;
+    }
+
+    private void submitReconcileTask(DesiredBalance desiredBalance) {
+        clusterService.submitStateUpdateTask(
+            "reconcile-desired-balance",
+            new ReconcileDesiredBalanceTask(desiredBalance),
+            ClusterStateTaskConfig.build(Priority.URGENT),
+            executor
+        );
+    }
+
+    private final class ReconcileDesiredBalanceTask implements ClusterStateTaskListener {
+        private final DesiredBalance desiredBalance;
+
+        private ReconcileDesiredBalanceTask(DesiredBalance desiredBalance) {
+            this.desiredBalance = desiredBalance;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            assert MasterService.isPublishFailureException(e) : e;
+            onNoLongerMaster();
+        }
+    }
+
+    private final class ReconcileDesiredBalanceExecutor implements ClusterStateTaskExecutor<ReconcileDesiredBalanceTask> {
+
+        @Override
+        public ClusterState execute(BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext) {
+            var latest = findLatest(batchExecutionContext.taskContexts());
+            var newState = applyBalance(batchExecutionContext.initialState(), latest);
+            discardSupersededTasks(batchExecutionContext.taskContexts(), latest);
+            return newState;
+        }
+
+        private TaskContext<ReconcileDesiredBalanceTask> findLatest(List<TaskContext<ReconcileDesiredBalanceTask>> taskContexts) {
+            return taskContexts.stream().max(Comparator.comparing(context -> context.getTask().desiredBalance.lastConvergedIndex())).get();
+        }
+
+        private ClusterState applyBalance(ClusterState initialState, TaskContext<ReconcileDesiredBalanceTask> latest) {
+            var newState = reconciler.apply(
+                initialState,
+                routingAllocation -> new DesiredBalanceReconciler(latest.getTask().desiredBalance, routingAllocation).run()
+            );
+            latest.success(() -> queue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
+            return newState;
+        }
+
+        private void discardSupersededTasks(
+            List<TaskContext<ReconcileDesiredBalanceTask>> taskContexts,
+            TaskContext<ReconcileDesiredBalanceTask> latest
+        ) {
+            for (TaskContext<ReconcileDesiredBalanceTask> taskContext : taskContexts) {
+                if (taskContext != latest) {
+                    latest.success(() -> {});
+                }
+            }
+        }
     }
 
     private static String diff(DesiredBalance old, DesiredBalance updated) {

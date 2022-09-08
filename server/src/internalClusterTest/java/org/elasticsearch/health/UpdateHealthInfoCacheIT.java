@@ -42,7 +42,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
             DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
             assertThat(healthNode, notNullValue());
-            assertBusy(() -> { assertResultsCanBeFetched(internalCluster, healthNode, List.of(nodeIds), null); });
+            assertBusy(() -> assertResultsCanBeFetched(internalCluster, healthNode, List.of(nodeIds), null));
         } catch (IOException e) {
             throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
         }
@@ -61,14 +61,14 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
                 return isMaster == false && isHealthNode == false;
             }).findAny().orElseThrow();
             internalCluster.stopNode(nodeToLeave.getName());
-            assertBusy(() -> {
-                assertResultsCanBeFetched(
+            assertBusy(
+                () -> assertResultsCanBeFetched(
                     internalCluster,
                     healthNode,
                     nodes.stream().filter(node -> node.equals(nodeToLeave) == false).map(DiscoveryNode::getId).toList(),
                     nodeToLeave.getId()
-                );
-            });
+                )
+            );
         } catch (IOException e) {
             throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
         }
@@ -85,7 +85,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
             assertThat(newHealthNode, notNullValue());
             logger.info("Previous health node {}, new health node {}.", healthNodeToBeShutDown, newHealthNode);
-            assertBusy(() -> { assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null); });
+            assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
         } catch (IOException e) {
             throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
         }
@@ -103,7 +103,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             ensureStableCluster(nodeIds.length);
             DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
             assertThat(newHealthNode, notNullValue());
-            assertBusy(() -> { assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null); });
+            assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
         } catch (IOException e) {
             throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
         }

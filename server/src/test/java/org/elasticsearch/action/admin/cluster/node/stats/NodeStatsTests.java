@@ -8,10 +8,17 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
@@ -22,7 +29,28 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.bulk.stats.BulkStats;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardCountStats;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.stats.IndexingPressureStats;
+import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.ingest.IngestStats;
@@ -36,12 +64,14 @@ import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.script.TimeSeries;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -63,6 +93,13 @@ public class NodeStatsTests extends ESTestCase {
                 NodeStats deserializedNodeStats = new NodeStats(in);
                 assertEquals(nodeStats.getNode(), deserializedNodeStats.getNode());
                 assertEquals(nodeStats.getTimestamp(), deserializedNodeStats.getTimestamp());
+                if (nodeStats.getIndices() == null) {
+                    assertNull(deserializedNodeStats.getIndices());
+                } else {
+                    NodeIndicesStats indicesStats = nodeStats.getIndices();
+                    NodeIndicesStats deserializedIndicesStats = deserializedNodeStats.getIndices();
+                    assertEquals(indicesStats, deserializedIndicesStats);
+                }
                 if (nodeStats.getOs() == null) {
                     assertNull(deserializedNodeStats.getOs());
                 } else {
@@ -512,6 +549,93 @@ public class NodeStatsTests extends ESTestCase {
         }
     }
 
+    private static CommonStats createCommonStats() {
+        int iota = 0;
+
+        final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
+        indicesCommonStats.getDocs().add(new DocsStats(++iota, ++iota, ++iota));
+        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        indicesCommonStats.getStore().add(new StoreStats(++iota, ++iota, ++iota));
+
+        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            false,
+            ++iota
+        );
+        indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));
+        indicesCommonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, ++iota));
+        indicesCommonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
+
+        final SearchStats.Stats searchStats = new SearchStats.Stats(
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
+            ++iota
+        );
+        Map<String, SearchStats.Stats> groupStats = new HashMap<>();
+        groupStats.put("group", searchStats);
+        indicesCommonStats.getSearch().add(new SearchStats(searchStats, ++iota, groupStats));
+
+        final SegmentsStats segmentsStats = new SegmentsStats();
+        segmentsStats.add(++iota);
+        segmentsStats.addIndexWriterMemoryInBytes(++iota);
+        segmentsStats.addVersionMapMemoryInBytes(++iota);
+        segmentsStats.addBitsetMemoryInBytes(++iota);
+        indicesCommonStats.getSegments().add(segmentsStats);
+
+        indicesCommonStats.getGet().add(new GetStats(++iota, ++iota, ++iota, ++iota, ++iota));
+
+        MergeStats mergeStats = new MergeStats();
+        mergeStats.add(++iota, ++iota, ++iota, ++iota, ++iota, ++iota, ++iota, ++iota, ++iota, 1.0 * ++iota);
+
+        indicesCommonStats.getMerge().add(mergeStats);
+        indicesCommonStats.getRefresh().add(new RefreshStats(++iota, ++iota, ++iota, ++iota, ++iota));
+        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota));
+        indicesCommonStats.getWarmer().add(new WarmerStats(++iota, ++iota, ++iota));
+        indicesCommonStats.getCompletion().add(new CompletionStats(++iota, null));
+        indicesCommonStats.getTranslog().add(new TranslogStats(++iota, ++iota, ++iota, ++iota, ++iota));
+
+        RecoveryStats recoveryStats = new RecoveryStats();
+        recoveryStats.incCurrentAsSource();
+        recoveryStats.incCurrentAsTarget();
+        recoveryStats.addThrottleTime(++iota);
+        indicesCommonStats.getRecoveryStats().add(recoveryStats);
+
+        indicesCommonStats.getBulk().add(new BulkStats(++iota, ++iota, ++iota, ++iota, ++iota));
+        indicesCommonStats.getShards().add(new ShardCountStats(++iota));
+
+        return indicesCommonStats;
+    }
+
+    private static ShardStats createShardStats(ShardId shardId) {
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message")
+        );
+        Path path = createTempDir().resolve("indices")
+            .resolve(shardRouting.shardId().getIndex().getUUID())
+            .resolve(String.valueOf(shardRouting.shardId().id()));
+        ShardPath shardPath = new ShardPath(false, path, path, shardRouting.shardId());
+        return new ShardStats(shardRouting, shardPath, createCommonStats(), null, null, null);
+    }
+
     public static NodeStats createNodeStats() {
         DiscoveryNode node = new DiscoveryNode(
             "test_node",
@@ -520,6 +644,20 @@ public class NodeStatsTests extends ESTestCase {
             emptySet(),
             VersionUtils.randomVersion(random())
         );
+        NodeIndicesStats nodeIndicesStats = null;
+        if (frequently()) {
+            final Index indexTest = new Index("test", "_na_");
+            ShardId shardId = new ShardId(indexTest, 0);
+            ShardStats shardStat = createShardStats(shardId);
+            IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[] { shardStat });
+            Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
+            List<IndexShardStats> indexShardStats = new ArrayList<>();
+            indexShardStats.add(shardStats);
+            statsByShard.put(indexTest, indexShardStats);
+
+            CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
+            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByShard);
+        }
         OsStats osStats = null;
         if (frequently()) {
             double loadAverages[] = new double[3];
@@ -884,11 +1022,10 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
         }
-        // TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(
             node,
             randomNonNegativeLong(),
-            null,
+            nodeIndicesStats,
             osStats,
             processStats,
             jvmStats,

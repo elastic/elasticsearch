@@ -2166,6 +2166,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    public void testInvariantWhenTwoNodeClusterBecomesSingleNodeCluster() {
+        try (Cluster cluster = new Cluster(2)) {
+            cluster.stabilise();
+            assertTrue(cluster.getAnyNodeExcept(cluster.getAnyLeader()).disconnect()); // Remove non-leader node
+            cluster.stabilise();
+        }
+    }
+
     @TestLogging(
         reason = "testing LagDetector and CoordinatorPublication logging",
         value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG,"

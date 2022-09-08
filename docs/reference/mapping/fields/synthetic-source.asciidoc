@@ -31,6 +31,7 @@ types:
 ** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
 ** <<boolean-synthetic-source,`boolean`>>
 ** <<numeric-synthetic-source,`byte`>>
+** <<dense-vector-synthetic-source,`dense_vector`>>
 ** <<numeric-synthetic-source,`double`>>
 ** <<numeric-synthetic-source,`float`>>
 ** <<geo-point-synthetic-source,`geo_point`>>

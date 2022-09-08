@@ -175,12 +175,136 @@ setup:
           match_only_text: [ "Lots of text.", "even more text", "SOOOOO much text" ]
 
   - do:
+      indices.create:
+        index: test_synthetic
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              boolean:
+                type: boolean
+              date:
+                type: date
+              nanos:
+                type: date_nanos
+              geo_point:
+                type: geo_point
+              ip:
+                type: ip
+              keyword:
+                type: keyword
+              keyword_stored:
+                type: keyword
+                doc_values: false
+                store: true
+              long:
+                type: long
+              integer:
+                type: integer
+              short:
+                type: short
+              byte:
+                type: byte
+              double:
+                type: double
+              float:
+                type: float
+              half_float:
+                type: half_float
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 100
+              text:
+                type: text
+                fielddata: true
+                fields:
+                  raw:
+                    type: keyword
+              text_sub_stored_keyword:
+                type: text
+                fields:
+                  raw:
+                    type: keyword
+                    doc_values: false
+                    store: true
+              text_stored:
+                type: text
+                store: true
+              match_only_text:
+                type: match_only_text
+              rank:
+                type: integer
+
+  - do:
+      index:
+        index: test_synthetic
+        id: "1"
+        body:
+          rank: 1
+          boolean: true
+          date: 2017-01-01T12:11:12
+          nanos: 2015-01-01T12:10:30.123456789Z
+          geo_point: 41.12,-71.34
+          ip: 192.168.0.19
+          keyword: not split at all
+          keyword_stored: no doc values
+          long: 12348732141234
+          integer: 134134566
+          short: 1324
+          byte: 12
+          double: 3.14159265358979
+          float: 3.141592654
+          half_float: 3.140625
+          scaled_float: 3.14
+          text: "Lots of text."
+          text_sub_stored_keyword: "Lots of text."
+          text_stored: "Lots of text."
+          match_only_text: "Lots of text."
+
+  - do:
+      index:
+        index: test_synthetic
+        id: "2"
+        body:
+          rank: 2
+
+  - do:
+      index:
+        index: test_synthetic
+        id: "3"
+        body:
+          rank: 3
+          boolean: [ true, false, true ]
+          ip: [ "10.1.2.3", "2001:db8::2:1" ]
+          date: [ 2017-01-01T12:11:12, 2018-01-01T12:11:12 ]
+          nanos: [ 2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z ]
+          geo_point: [ [ -71.34,41.12 ],[ 60.32,21.25 ] ]
+          keyword: [ "one string", "another string" ]
+          keyword_stored: [ "no doc values 1", "no doc values 0", "no doc values 2" ]
+          long: [ 1152921504606846976, 576460752303423488 ]
+          integer: [ 5, 17, 29 ]
+          short: [ 6, 18, 30, 45 ]
+          byte: [ 16, 32, 64, 8, 4 ]
+          double: [ 3.141592653588, 2.141592653587 ]
+          float: [ 1.123, 2.234 ]
+          half_float: [ 1.123, 2.234 ]
+          scaled_float: [ -3.5, 2.5 ]
+          text: [ "Lots of text.", "even more text", "SOOOOO much text" ]
+          text_sub_stored_keyword: [ "Lots of text.", "even more text", "SOOOOO much text" ]
+          text_stored: [ "Lots of text.", "even more text", "SOOOOO much text" ]
+          match_only_text: [ "Lots of text.", "even more text", "SOOOOO much text" ]
+
+  - do:
       indices.refresh: { }
 
 ---
 boolean:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -191,6 +315,7 @@ boolean:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -201,6 +326,7 @@ boolean:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -211,6 +337,7 @@ boolean:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -221,6 +348,7 @@ boolean:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -231,6 +359,7 @@ boolean:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -241,6 +370,7 @@ boolean:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -251,6 +381,7 @@ boolean:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -261,6 +392,7 @@ boolean:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -271,6 +403,7 @@ boolean:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -284,6 +417,7 @@ boolean_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -295,6 +429,7 @@ boolean_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -305,6 +440,7 @@ boolean_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -315,6 +451,7 @@ boolean_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -325,6 +462,7 @@ boolean_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -335,6 +473,7 @@ boolean_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -345,6 +484,7 @@ boolean_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -355,6 +495,7 @@ boolean_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -365,6 +506,7 @@ boolean_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -375,6 +517,7 @@ boolean_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -384,12 +527,125 @@ boolean_no_doc_values:
   - match: { hits.hits.0.fields.field.0: 0 }
 
 ---
+boolean_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['boolean'].get(0)"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['boolean'].value"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean').get(false)"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash for '$' */ $('boolean', false)"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean').get(false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash for '$' */ $('boolean', false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean').get(1, false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (boolean b : field('boolean')) { total += b ? 1 : 0; } total;"
+  - match: { hits.hits.0.fields.field.0: 1 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (boolean b : field('boolean')) { total += b ? 1 : 0; } total + field('boolean').size();"
+  - match: { hits.hits.0.fields.field.0: 5 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean').size()"
+  - match: { hits.hits.0.fields.field.0: 0 }
+
+---
 date:
   - skip:
       features: "warnings"
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -400,6 +656,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -410,6 +667,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -420,6 +678,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -430,6 +689,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -440,6 +700,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -450,6 +711,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -460,6 +722,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -470,6 +733,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -480,6 +744,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -490,6 +755,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -500,6 +766,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -510,6 +777,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -520,6 +788,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -530,6 +799,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -540,6 +810,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -550,6 +821,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -560,6 +832,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -570,6 +843,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -580,6 +854,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -590,6 +865,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -600,6 +876,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -610,6 +887,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -620,6 +898,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -630,6 +909,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -640,6 +920,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -650,6 +931,7 @@ date:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -666,6 +948,7 @@ date_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -677,6 +960,7 @@ date_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -687,6 +971,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -697,6 +982,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -707,6 +993,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -717,6 +1004,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -727,6 +1015,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -737,6 +1026,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: 1 } }
           script_fields:
@@ -747,6 +1037,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -757,6 +1048,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -767,6 +1059,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -777,6 +1070,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -787,6 +1081,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -797,6 +1092,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -807,6 +1103,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -817,6 +1114,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -827,6 +1125,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -837,6 +1136,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -847,6 +1147,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -857,6 +1158,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -867,6 +1169,7 @@ date_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -876,9 +1179,312 @@ date_no_doc_values:
   - match: { hits.hits.0.fields.field: [ "2015-01-01T12:10:30.123456789Z", "2015-01-01T12:10:30.987654321Z" ] }
 
 ---
+date_synthetic:
+  - skip:
+      features: "warnings"
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date.get(0)"
+  - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date.value"
+  - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('date').get(null)"
+  - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date', null)"
+  - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date.get(0).getMillis()"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date.value.getMillis()"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('date').get(null).getMillis()"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date', null).getMillis()"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date.get(0).millis"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "doc.date.value.millis"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('date').get(null).millis"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date', null).millis"
+  - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('date').get(ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+  - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('date', ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+  - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['nanos'].value"
+  - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos').get(null)"
+  - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('nanos', null)"
+  - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+  - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('nanos', ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+  - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['nanos'].value.getNano()"
+  - match: { hits.hits.0.fields.field.0: 123456789 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos').get(null).getNano()"
+  - match: { hits.hits.0.fields.field.0: 123456789 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('nanos', null).getNano()"
+  - match: { hits.hits.0.fields.field.0: 123456789 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z')).getNano()"
+  - match: { hits.hits.0.fields.field.0: 123000000 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('date').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: "2018-01-01T12:11:12.000Z" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('nanos').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: "2015-01-01T12:10:30.987654321Z" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('date')) times.add(zdt); times"
+  - match: { hits.hits.0.fields.field: [ "2017-01-01T12:11:12.000Z", "2018-01-01T12:11:12.000Z" ] }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('nanos')) times.add(zdt); times"
+  - match: { hits.hits.0.fields.field: [ "2015-01-01T12:10:30.123456789Z", "2015-01-01T12:10:30.987654321Z" ] }
+
+---
 geo_point:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -890,6 +1496,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -901,6 +1508,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -912,6 +1520,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -923,6 +1532,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -934,6 +1544,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -945,6 +1556,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -956,6 +1568,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -967,6 +1580,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -978,6 +1592,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -991,6 +1606,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1002,6 +1618,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1018,6 +1635,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1028,6 +1646,7 @@ geo_point:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1045,6 +1664,7 @@ geo_point_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1056,6 +1676,7 @@ geo_point_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1066,6 +1687,7 @@ geo_point_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1077,6 +1699,7 @@ geo_point_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1088,6 +1711,7 @@ geo_point_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -1099,6 +1723,7 @@ geo_point_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -1110,6 +1735,7 @@ geo_point_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "3" } }
           script_fields:
@@ -1121,6 +1747,7 @@ geo_point_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "2" } }
           script_fields:
@@ -1131,9 +1758,189 @@ geo_point_no_doc_values:
   - match: { hits.hits.0.fields.field.0.lon: 2.0 }
 
 ---
+geo_point_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['geo_point'].get(0)"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['geo_point'].value"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('geo_point').get(new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('geo_point', new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('geo_point').get(new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 21.249999990686774 }
+  - match: { hits.hits.0.fields.field.0.lon: 60.319999968633056 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('geo_point', new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 21.249999990686774 }
+  - match: { hits.hits.0.fields.field.0.lon: 60.319999968633056 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('geo_point').get(1, new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('geo_point', new GeoPoint(1.0, 2.0))"
+  - match: { hits.hits.0.fields.field.0.lat: 1.0 }
+  - match: { hits.hits.0.fields.field.0.lon: 2.0 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            centroid:
+              script:
+                source: "doc['geo_point'].getCentroid()"
+  - match: { hits.hits.0.fields.centroid.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.centroid.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            bbox:
+              script:
+                source: "doc['geo_point'].getBoundingBox()"
+  - match: { hits.hits.0.fields.bbox.0.top_left.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.bbox.0.top_left.lon: -71.34000004269183 }
+  - match: { hits.hits.0.fields.bbox.0.bottom_right.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.bbox.0.bottom_right.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            label_position:
+              script:
+                source: "doc['geo_point'].getLabelPosition()"
+  - match: { hits.hits.0.fields.label_position.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.label_position.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            topLeft:
+              script:
+                source: "doc['geo_point'].getBoundingBox().topLeft()"
+            bottomRight:
+              script:
+                source: "doc['geo_point'].getBoundingBox().bottomRight()"
+  - match: { hits.hits.0.fields.topLeft.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.topLeft.0.lon: -71.34000004269183 }
+  - match: { hits.hits.0.fields.bottomRight.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.bottomRight.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            type:
+              script:
+                source: "doc['geo_point'].getDimensionalType()"
+  - match: { hits.hits.0.fields.type.0: 0 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            width:
+              script:
+                source: "doc['geo_point'].getMercatorWidth()"
+            height:
+              script:
+                source: "doc['geo_point'].getMercatorHeight()"
+  - match: { hits.hits.0.fields.width.0: 0.0 }
+  - match: { hits.hits.0.fields.height.0: 0.0 }
+
+---
 ip:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1144,6 +1951,7 @@ ip:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1154,6 +1962,7 @@ ip:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1172,6 +1981,7 @@ ip:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1190,6 +2000,7 @@ ip:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1202,6 +2013,100 @@ ip:
 
   - do:
       search:
+        index: test
+        body:
+          sort: [ { rank: asc } ]
+          runtime_mappings:
+            ip_script_field:
+              type: ip
+              script:
+                source: "for (IPAddress addr : field('ip')) { String ip = addr.toString(); emit(ip.substring(0, ip.length() - 1) + field('ip').size()) }"
+          script_fields:
+            field:
+              script:
+                source: "field('ip_script_field').get(new IPAddress('1.2.3.4'))"
+  - match: { hits.hits.0.fields.field.0: "192.168.0.11" }
+  - match: { hits.hits.1.fields.field.0: "1.2.3.4" }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.2" }
+
+---
+ip_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['ip'].get(0)"
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['ip'].value"
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('ip').get(new IPAddress('127.0.0.1'))"
+            field_string:
+              script:
+                source: "field('ip').asString('127.0.0.1')"
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.0.fields.field_string.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: "127.0.0.1" }
+  - match: { hits.hits.1.fields.field_string.0: "127.0.0.1" }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3" }
+  - match: { hits.hits.2.fields.field_string.0: "10.1.2.3" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('ip').get(1, new IPAddress('127.0.0.1'))"
+            field_string:
+              script:
+                source: "field('ip').asString(1, '127.0.0.1')"
+  - match: { hits.hits.0.fields.field.0: "127.0.0.1" }
+  - match: { hits.hits.0.fields.field_string.0: "127.0.0.1" }
+  - match: { hits.hits.1.fields.field.0: "127.0.0.1" }
+  - match: { hits.hits.1.fields.field_string.0: "127.0.0.1" }
+  - match: { hits.hits.2.fields.field.0: "2001:db8::2:1" }
+  - match: { hits.hits.2.fields.field_string.0: "2001:db8::2:1" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String.join(',', field('ip').asStrings())"
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3,2001:db8::2:1" }
+
+  - do:
+      search:
+        index: test_synthetic
         body:
           sort: [ { rank: asc } ]
           runtime_mappings:
@@ -1221,6 +2126,7 @@ ip:
 keyword:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1231,6 +2137,7 @@ keyword:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1241,6 +2148,7 @@ keyword:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1253,6 +2161,7 @@ keyword:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1266,6 +2175,7 @@ keyword:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1278,6 +2188,7 @@ keyword:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1293,6 +2204,7 @@ keyword_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1304,6 +2216,7 @@ keyword_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1314,6 +2227,7 @@ keyword_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1326,6 +2240,7 @@ keyword_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1339,6 +2254,7 @@ keyword_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1351,6 +2267,7 @@ keyword_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1362,12 +2279,177 @@ keyword_no_doc_values:
   - match: { hits.hits.2.fields.field.0: "no doc values 0, no doc values 1, no doc values 2" }
 
 ---
+keyword_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['keyword'].get(0)"
+  - match: { hits.hits.0.fields.field.0: "not split at all" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['keyword'].value"
+  - match: { hits.hits.0.fields.field.0: "not split at all" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('keyword').get('missing')"
+  - match: { hits.hits.0.fields.field.0: "not split at all" }
+  - match: { hits.hits.1.fields.field.0: "missing" }
+  - match: { hits.hits.2.fields.field.0: "another string" } # doc values are sorted
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('keyword', 'missing')"
+  # same as `field('keyword').get('missing')`
+  - match: { hits.hits.0.fields.field.0: "not split at all" }
+  - match: { hits.hits.1.fields.field.0: "missing" }
+  - match: { hits.hits.2.fields.field.0: "another string" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('keyword').get(1, 'dne')"
+  - match: { hits.hits.0.fields.field.0: "dne" }
+  - match: { hits.hits.1.fields.field.0: "dne" }
+  - match: { hits.hits.2.fields.field.0: "one string" } # doc values are sorted
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String.join(', ', field('keyword'))"
+  - match: { hits.hits.0.fields.field.0: "not split at all" }
+  - match: { hits.hits.1.fields.field.0: "" }
+  - match: { hits.hits.2.fields.field.0: "another string, one string" }
+
+---
+keyword_stored_synthetic:
+  - do:
+      catch: bad_request
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['keyword_stored'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['keyword_stored'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO make this work in a follow up
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('keyword_stored').get('missing')"
+#  - match: { hits.hits.0.fields.field.0: "no doc values" }
+#  - match: { hits.hits.1.fields.field.0: "missing" }
+#  - match: { hits.hits.2.fields.field.0: "no doc values 0" } # doc values are sorted
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO make this work in a follow up
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('keyword_stored', 'missing')"
+  # same as `field('keyword').get('missing')`
+#  - match: { hits.hits.0.fields.field.0: "no doc values" }
+#  - match: { hits.hits.1.fields.field.0: "missing" }
+#  - match: { hits.hits.2.fields.field.0: "no doc values 0" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO make this work in a follow up
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('keyword_stored').get(1, 'dne')"
+#  - match: { hits.hits.0.fields.field.0: "dne" }
+#  - match: { hits.hits.1.fields.field.0: "dne" }
+#  - match: { hits.hits.2.fields.field.0: "no doc values 1" } # doc values are sorted
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO make this work in a follow up
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String.join(', ', field('keyword_stored'))"
+#  - match: { hits.hits.0.fields.field.0: "no doc values" }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "no doc values 0, no doc values 1, no doc values 2" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+---
 long:
   - skip:
       features: "warnings"
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1378,6 +2460,7 @@ long:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1391,6 +2474,7 @@ long_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1402,6 +2486,7 @@ long_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1412,6 +2497,7 @@ long_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1424,6 +2510,7 @@ long_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1436,6 +2523,7 @@ long_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1448,6 +2536,7 @@ long_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1459,9 +2548,37 @@ long_no_doc_values:
   - match: { hits.hits.2.fields.field.0: 576460752303423491 }
 
 ---
+long_synthetic:
+  - skip:
+      features: "warnings"
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['long'].get(0)"
+  - match: { hits.hits.0.fields.field.0: 12348732141234 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['long'].value"
+  - match: { hits.hits.0.fields.field.0: 12348732141234 }
+
+---
 integer:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1472,6 +2589,7 @@ integer:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1482,6 +2600,7 @@ integer:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1493,6 +2612,7 @@ integer:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1504,6 +2624,7 @@ integer:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1516,6 +2637,7 @@ integer:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1531,6 +2653,7 @@ integer_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1542,6 +2665,7 @@ integer_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1552,6 +2676,7 @@ integer_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1563,6 +2688,7 @@ integer_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1574,6 +2700,7 @@ integer_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1586,6 +2713,7 @@ integer_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1597,9 +2725,84 @@ integer_no_doc_values:
   - match: { hits.hits.2.fields.field.0: 54 }
 
 ---
+integer_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['integer'].get(0)"
+  - match: { hits.hits.0.fields.field.0: 134134566 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['integer'].value"
+  - match: { hits.hits.0.fields.field.0: 134134566 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('integer').get(-1)"
+  - match: { hits.hits.0.fields.field.0: 134134566 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('integer', -1)"
+  - match: { hits.hits.0.fields.field.0: 134134566 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('integer').get(1, -3)"
+  - match: { hits.hits.0.fields.field.0: -3 }
+  - match: { hits.hits.1.fields.field.0: -3 }
+  - match: { hits.hits.2.fields.field.0: 17 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (int i : field('integer')) { total += i; } total + field('integer').size();"
+  - match: { hits.hits.0.fields.field.0: 134134567 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 54 }
+
+---
 short:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1610,6 +2813,7 @@ short:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1620,6 +2824,7 @@ short:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1631,6 +2836,7 @@ short:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1642,6 +2848,7 @@ short:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1653,6 +2860,7 @@ short:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1664,6 +2872,7 @@ short:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1676,6 +2885,7 @@ short:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1688,6 +2898,7 @@ short:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1703,6 +2914,7 @@ short_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1714,6 +2926,7 @@ short_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1724,6 +2937,7 @@ short_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1736,6 +2950,7 @@ short_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1748,6 +2963,7 @@ short_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1760,6 +2976,7 @@ short_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1772,6 +2989,7 @@ short_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1784,6 +3002,7 @@ short_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1796,6 +3015,7 @@ short_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1807,9 +3027,121 @@ short_no_doc_values:
   - match: { hits.hits.2.fields.field.0: 103 }
 
 ---
+short_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['short'].get(0)"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['short'].value"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('short').get(-1)"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('short', -1)"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "short defaultShort = -1; field('short').get(defaultShort)"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "short defaultShort = -1; $('short', defaultShort)"
+  - match: { hits.hits.0.fields.field.0: 1324 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('short').get(1, -3)"
+  - match: { hits.hits.0.fields.field.0: -3 }
+  - match: { hits.hits.1.fields.field.0: -3 }
+  - match: { hits.hits.2.fields.field.0: 18 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "short defaultShort = -3; field('short').get(1, defaultShort)"
+  - match: { hits.hits.0.fields.field.0: -3 }
+  - match: { hits.hits.1.fields.field.0: -3 }
+  - match: { hits.hits.2.fields.field.0: 18 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (short s : field('short')) { total += s; } total + field('short').size();"
+  - match: { hits.hits.0.fields.field.0: 1325 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 103 }
+
+---
 byte:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1820,6 +3152,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1830,6 +3163,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1842,6 +3176,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1854,6 +3189,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1866,6 +3202,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1878,6 +3215,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1890,6 +3228,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1902,6 +3241,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1914,6 +3254,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1926,6 +3267,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1938,6 +3280,7 @@ byte:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1953,6 +3296,7 @@ byte_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1964,6 +3308,7 @@ byte_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -1974,6 +3319,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1986,6 +3332,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -1998,6 +3345,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2010,6 +3358,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2022,6 +3371,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2034,6 +3384,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2046,6 +3397,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2058,6 +3410,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2070,6 +3423,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2082,6 +3436,7 @@ byte_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2093,9 +3448,164 @@ byte_no_doc_values:
   - match: { hits.hits.2.fields.field.0: 129 }
 
 ---
+byte_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['byte'].get(0)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['byte'].value"
+  - match: { hits.hits.0.fields.field.0: 12 }
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('byte').get((byte) 5)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('byte', (byte) 5)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "byte defaultByte = 5; field('byte').get(defaultByte)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "byte defaultByte = 5; $('byte', defaultByte)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('byte').get(5)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('byte', 5)"
+  - match: { hits.hits.0.fields.field.0: 12 }
+  - match: { hits.hits.1.fields.field.0: 5 }
+  - match: { hits.hits.2.fields.field.0: 4 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('byte').get(1, (byte) 7)"
+  - match: { hits.hits.0.fields.field.0: 7 }
+  - match: { hits.hits.1.fields.field.0: 7 }
+  - match: { hits.hits.2.fields.field.0: 8 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "byte defaultByte = 7; field('byte').get(1, defaultByte)"
+  - match: { hits.hits.0.fields.field.0: 7 }
+  - match: { hits.hits.1.fields.field.0: 7 }
+  - match: { hits.hits.2.fields.field.0: 8 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('byte').get(1, 7)"
+  - match: { hits.hits.0.fields.field.0: 7 }
+  - match: { hits.hits.1.fields.field.0: 7 }
+  - match: { hits.hits.2.fields.field.0: 8 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "int total = 0; for (byte s : field('byte')) { total += s; } total + field('byte').size();"
+  - match: { hits.hits.0.fields.field.0: 13 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 129 }
+
+---
 double:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2106,6 +3616,7 @@ double:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2116,6 +3627,7 @@ double:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2128,6 +3640,7 @@ double:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2140,6 +3653,7 @@ double:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2152,6 +3666,7 @@ double:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2164,6 +3679,7 @@ double:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2179,6 +3695,7 @@ double_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2190,6 +3707,7 @@ double_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2200,6 +3718,7 @@ double_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2212,6 +3731,7 @@ double_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2224,6 +3744,7 @@ double_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2236,6 +3757,7 @@ double_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2248,6 +3770,7 @@ double_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2259,9 +3782,99 @@ double_no_doc_values:
   - match: { hits.hits.2.fields.field.0: 7.283185307175 }
 
 ---
+double_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['double'].get(0)"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['double'].value"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('double').get(-1)"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 2.141592653587 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('double', -1)"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 2.141592653587 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "double defaultDouble = 7.8; field('double').get(1, defaultDouble)"
+  - match: { hits.hits.0.fields.field.0: 7.8 }
+  - match: { hits.hits.1.fields.field.0: 7.8 }
+  - match: { hits.hits.2.fields.field.0: 3.141592653588 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('double').get(1, 9.2)"
+  - match: { hits.hits.0.fields.field.0: 9.2 }
+  - match: { hits.hits.1.fields.field.0: 9.2 }
+  - match: { hits.hits.2.fields.field.0: 3.141592653588 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "double total = 0; for (double d : field('double')) { total += d; } total + field('double').size();"
+  - match: { hits.hits.0.fields.field.0: 4.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 7.283185307175 }
+
+---
 float:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2272,6 +3885,7 @@ float:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2282,6 +3896,7 @@ float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2294,6 +3909,7 @@ float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2306,6 +3922,7 @@ float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2318,6 +3935,7 @@ float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2330,6 +3948,7 @@ float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2345,6 +3964,7 @@ float_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2356,6 +3976,7 @@ float_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2366,6 +3987,7 @@ float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2378,6 +4000,7 @@ float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2390,6 +4013,7 @@ float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2402,6 +4026,7 @@ float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2414,6 +4039,7 @@ float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2425,12 +4051,102 @@ float_no_doc_values:
   - match: { hits.hits.2.fields.field.0: "5.357" }
 
 ---
+float_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['float'].get(0)"
+  - match: { hits.hits.0.fields.field.0: 3.1415927410125732 } # this ends up as a double
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['float'].value"
+  - match: { hits.hits.0.fields.field.0: 3.1415927410125732 } # this ends up as a double
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('float').get(-1).toString()" # toString to avoid making this a double
+  - match: { hits.hits.0.fields.field.0: "3.1415927" }
+  - match: { hits.hits.1.fields.field.0: "-1.0" }
+  - match: { hits.hits.2.fields.field.0: "1.123" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "return $('float', -1).toString()" # toString to avoid making this a double
+  - match: { hits.hits.0.fields.field.0: "3.1415927" }
+  - match: { hits.hits.1.fields.field.0: "-1.0" }
+  - match: { hits.hits.2.fields.field.0: "1.123" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "float defaultFloat = 7.8f; field('float').get(1, defaultFloat).toString()"
+  - match: { hits.hits.0.fields.field.0: "7.8" }
+  - match: { hits.hits.1.fields.field.0: "7.8" }
+  - match: { hits.hits.2.fields.field.0: "2.234" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('float').get(1, 9.2f).toString()"
+  - match: { hits.hits.0.fields.field.0: "9.2" }
+  - match: { hits.hits.1.fields.field.0: "9.2" }
+  - match: { hits.hits.2.fields.field.0: "2.234" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "float total = 0; for (float f : field('float')) { total += f; } Float.toString(total + field('float').size());"
+  - match: { hits.hits.0.fields.field.0: "4.141593" }
+  - match: { hits.hits.1.fields.field.0: "0.0" }
+  - match: { hits.hits.2.fields.field.0: "5.357" }
+
+---
 half_float:
   - skip:
       features: close_to
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2441,6 +4157,7 @@ half_float:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2451,6 +4168,7 @@ half_float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2463,6 +4181,7 @@ half_float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2475,6 +4194,7 @@ half_float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2487,6 +4207,7 @@ half_float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2499,6 +4220,7 @@ half_float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2517,6 +4239,7 @@ half_float_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2528,6 +4251,7 @@ half_float_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2538,6 +4262,7 @@ half_float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2550,6 +4275,7 @@ half_float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2562,6 +4288,7 @@ half_float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2574,6 +4301,7 @@ half_float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2586,6 +4314,7 @@ half_float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2597,9 +4326,102 @@ half_float_no_doc_values:
   - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
 
 ---
+half_float_synthetic:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['half_float'].get(0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['half_float'].value"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float').get(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('half_float', 0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float').get(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float').asDouble(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.0001 } }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('half_float').asDouble(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
+
+---
 scaled_float:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2610,6 +4432,7 @@ scaled_float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2622,6 +4445,7 @@ scaled_float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2634,6 +4458,7 @@ scaled_float:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2646,6 +4471,7 @@ scaled_float:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2659,6 +4485,7 @@ scaled_float_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2670,6 +4497,7 @@ scaled_float_no_doc_values:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2680,6 +4508,7 @@ scaled_float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2692,6 +4521,7 @@ scaled_float_no_doc_values:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2701,6 +4531,69 @@ scaled_float_no_doc_values:
   - match: { hits.hits.0.fields.field.0: 0.0 }
   - match: { hits.hits.1.fields.field.0: 0.0 }
   - match: { hits.hits.2.fields.field.0: 2.5 }
+
+---
+scaled_float_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['scaled_float'].get(0)"
+  - match: { hits.hits.0.fields.field.0: 3.14 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('scaled_float').get(0.0)"
+  - match: { hits.hits.0.fields.field.0: 3.14 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - match: { hits.hits.2.fields.field.0: -3.5 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('scaled_float', 0.0)"
+  - match: { hits.hits.0.fields.field.0: 3.14 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - match: { hits.hits.2.fields.field.0: -3.5 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('scaled_float').get(1, 0.0)"
+  - match: { hits.hits.0.fields.field.0: 0.0 }
+  - match: { hits.hits.1.fields.field.0: 0.0 }
+  - match: { hits.hits.2.fields.field.0: 2.5 }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['scaled_float'].value"
+  - match: { hits.hits.0.fields.field.0: 3.14 }
 
 ---
 token_count:
@@ -2757,6 +4650,7 @@ empty:
 text:
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2767,6 +4661,7 @@ text:
 
   - do:
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2777,6 +4672,7 @@ text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2789,6 +4685,7 @@ text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2801,6 +4698,7 @@ text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2813,6 +4711,7 @@ text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2825,6 +4724,7 @@ text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2837,6 +4737,7 @@ text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2849,6 +4750,7 @@ text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2861,6 +4763,7 @@ text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2876,6 +4779,7 @@ text_no_field_data:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2887,6 +4791,7 @@ text_no_field_data:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -2897,6 +4802,7 @@ text_no_field_data:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2909,6 +4815,7 @@ text_no_field_data:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2921,6 +4828,7 @@ text_no_field_data:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2933,6 +4841,7 @@ text_no_field_data:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2945,6 +4854,7 @@ text_no_field_data:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2957,6 +4867,7 @@ text_no_field_data:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2969,6 +4880,7 @@ text_no_field_data:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2981,6 +4893,7 @@ text_no_field_data:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -2992,10 +4905,447 @@ text_no_field_data:
   - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
 
 ---
+text_synthetic:
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text'].get(0)"
+  - match: { hits.hits.0.fields.field.0: lots }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text'].value"
+  - match: { hits.hits.0.fields.field.0: lots }
+
+  - do:
+      catch: bad_request    #TODO support in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text').get('')"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request    #TODO support in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('text', '')"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request    #TODO support in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text').get(defaultText)"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "default text" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request    #TODO support in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('text', defaultText)"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "default text" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request    #TODO support in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text').get(1, '')"
+#  - match: { hits.hits.0.fields.field.0: "" }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request    #TODO support in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text').get(1, defaultText)"
+#  - match: { hits.hits.0.fields.field.0: "default text" }
+#  - match: { hits.hits.1.fields.field.0: "default text" }
+#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request    #TODO support in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text').get(1, '')"
+#  - match: { hits.hits.0.fields.field.0: "" }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request    #TODO support in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('text')) { cat += s; } cat + field('text').size();"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+#  - match: { hits.hits.1.fields.field.0: "0" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+---
+text_sub_stored_keyword_synthetic:
+  - do:
+      catch: bad_request
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text_sub_stored_keyword'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text_sub_stored_keyword'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_sub_stored_keyword').get('')"
+  #  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  #  - match: { hits.hits.1.fields.field.0: "" }
+  #  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('text_sub_stored_keyword', '')"
+  #  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  #  - match: { hits.hits.1.fields.field.0: "" }
+  #  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text_sub_stored_keyword').get(defaultText)"
+  #  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  #  - match: { hits.hits.1.fields.field.0: "default text" }
+  #  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('text_sub_stored_keyword', defaultText)"
+  #  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+  #  - match: { hits.hits.1.fields.field.0: "default text" }
+  #  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_sub_stored_keyword').get(1, '')"
+  #  - match: { hits.hits.0.fields.field.0: "" }
+  #  - match: { hits.hits.1.fields.field.0: "" }
+  #  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text_sub_stored_keyword').get(1, defaultText)"
+  #  - match: { hits.hits.0.fields.field.0: "default text" }
+  #  - match: { hits.hits.1.fields.field.0: "default text" }
+  #  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_sub_stored_keyword').get(1, '')"
+  #  - match: { hits.hits.0.fields.field.0: "" }
+  #  - match: { hits.hits.1.fields.field.0: "" }
+  #  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('text_sub_stored_keyword')) { cat += s; } cat + field('text_no_field_data').size();"
+  #  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+  #  - match: { hits.hits.1.fields.field.0: "0" }
+  #  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+---
+text_stored_synthetic:
+  - do:
+      catch: bad_request
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text_stored'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['text_stored'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_stored').get('')"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('text_stored', '')"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text_stored').get(defaultText)"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "default text" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('text_stored', defaultText)"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "default text" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_stored').get(1, '')"
+#  - match: { hits.hits.0.fields.field.0: "" }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('text_stored').get(1, defaultText)"
+#  - match: { hits.hits.0.fields.field.0: "default text" }
+#  - match: { hits.hits.1.fields.field.0: "default text" }
+#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('text_stored').get(1, '')"
+#  - match: { hits.hits.0.fields.field.0: "" }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('text_stored')) { cat += s; } cat + field('text_no_field_data').size();"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+#  - match: { hits.hits.1.fields.field.0: "0" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+---
 match_only_text:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -3007,6 +5357,7 @@ match_only_text:
   - do:
       catch: bad_request
       search:
+        index: test
         body:
           query: { term: { _id: "1" } }
           script_fields:
@@ -3017,6 +5368,7 @@ match_only_text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -3029,6 +5381,7 @@ match_only_text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -3041,6 +5394,7 @@ match_only_text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -3053,6 +5407,7 @@ match_only_text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -3065,6 +5420,7 @@ match_only_text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -3077,6 +5433,7 @@ match_only_text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -3089,6 +5446,7 @@ match_only_text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -3101,6 +5459,7 @@ match_only_text:
 
   - do:
       search:
+        index: test
         body:
           sort: [ { rank: asc } ]
           script_fields:
@@ -3112,6 +5471,152 @@ match_only_text:
   - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
 
 ---
+match_only_text_synthetic:
+  - do:
+      catch: bad_request
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['match_only_text'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['match_only_text'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('match_only_text').get('')"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('match_only_text', '')"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('match_only_text').get(defaultText)"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "default text" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; $('match_only_text', defaultText)"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text." }
+#  - match: { hits.hits.1.fields.field.0: "default text" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text." }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('match_only_text').get(1, '')"
+#  - match: { hits.hits.0.fields.field.0: "" }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String defaultText = 'default text'; field('match_only_text').get(1, defaultText)"
+#  - match: { hits.hits.0.fields.field.0: "default text" }
+#  - match: { hits.hits.1.fields.field.0: "default text" }
+#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('match_only_text').get(1, '')"
+#  - match: { hits.hits.0.fields.field.0: "" }
+#  - match: { hits.hits.1.fields.field.0: "" }
+#  - match: { hits.hits.2.fields.field.0: "SOOOOO much text" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request  # TODO fix in a followup
+      search:
+        index: test_synthetic
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "String cat = ''; for (String s : field('match_only_text')) { cat += s; } cat + field('match_only_text').size();"
+#  - match: { hits.hits.0.fields.field.0: "Lots of text.1" }
+#  - match: { hits.hits.1.fields.field.0: "0" }
+#  - match: { hits.hits.2.fields.field.0: "Lots of text.SOOOOO much texteven more text3" }
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+---
 version and sequence number:
   - do:
       indices.create:
@@ -3120,6 +5625,86 @@ version and sequence number:
           settings:
             number_of_shards: 1
           mappings:
+            properties:
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index: versiontest
+        id: "3000"
+        version: 50
+        version_type: external
+        body:
+          keyword: "3k"
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: versiontest
+        body:
+          query: { term: { _id: "3000" } }
+          script_fields:
+            ver:
+              script:
+                source: "field('_version').get(10000)"
+            seq:
+              script:
+                source: "field('_seq_no').get(10000)"
+  - match: { hits.hits.0.fields.ver.0: 50 }
+  - match: { hits.hits.0.fields.seq.0: 0 }
+
+  - do:
+      index:
+        index: versiontest
+        id: "3000"
+        version: 60
+        version_type: external
+        body:
+          keyword: "3k+1"
+  - do:
+      indices.refresh: { }
+
+  - do:
+      catch: conflict
+      index:
+        index: versiontest
+        id: "3000"
+        version: 55
+        version_type: external
+        body:
+          keyword: "3k+2"
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: versiontest
+        body:
+          query: { term: { _id: "3000" } }
+          script_fields:
+            ver:
+              script:
+                source: "field('_version').get(10000)"
+            seq:
+              script:
+                source: "field('_seq_no').get(10000)"
+  - match: { hits.hits.0.fields.ver.0: 60 }
+  - match: { hits.hits.0.fields.seq.0: 1 }
+
+---
+version and sequence number synthetic _source:
+  - do:
+      indices.create:
+        index: versiontest
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            _source:
+              mode: synthetic
             properties:
               keyword:
                 type: keyword

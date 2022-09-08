@@ -284,13 +284,16 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCopyIndexSettings() throws IOException {
-        int totalFieldsLimit = randomIntBetween(100, 10_000);
-        Settings settings = Settings.builder()
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5))
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey(), randomAlphaOfLength(5))
-            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean())
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldsLimit)
-            .build();
+            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
+
+        final Integer totalFieldsLimit = randomBoolean() ? randomIntBetween(100, 10_000) : null;
+        if (totalFieldsLimit != null) {
+            settingsBuilder.put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldsLimit);
+        }
+        final Settings settings = settingsBuilder.build();
         logger.info("Updating index [{}] with settings [{}]", sourceIndex, settings);
 
         var updateSettingsReq = new UpdateSettingsRequest(settings, sourceIndex);

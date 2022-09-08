@@ -72,6 +72,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
+        Boolean isHidden = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
         AliasMetadata.Builder aliasBuilder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             aliasBuilder.routing(randomAlphaOfLengthBetween(1, 10));
@@ -83,6 +84,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             aliasBuilder.indexRouting(randomAlphaOfLengthBetween(1, 10));
         }
         aliasBuilder.writeIndex(randomBoolean());
+        aliasBuilder.isHidden(isHidden);
         AliasMetadata aliasMetadata = aliasBuilder.build();
         IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.putAlias(aliasMetadata).build();
 
@@ -98,6 +100,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 .searchRouting(aliasMetadata.searchRouting())
                 .indexRouting(aliasMetadata.indexRouting())
                 .writeIndex(null)
+                .isHidden(isHidden)
         );
 
         try (NoOpClient client = getIndicesAliasAssertingClient(expectedAliasActions)) {

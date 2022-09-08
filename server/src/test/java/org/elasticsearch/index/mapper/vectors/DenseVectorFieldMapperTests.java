@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.IndexableField;
@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -40,8 +41,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -455,8 +456,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        assertThat(knnVectorsFormat, instanceOf(Lucene92HnswVectorsFormat.class));
-        String expectedString = "lucene92HnswVectorsFormat(name = lucene92HnswVectorsFormat, maxConn = "
+        assertThat(knnVectorsFormat, instanceOf(Lucene94HnswVectorsFormat.class));
+        String expectedString = "Lucene94HnswVectorsFormat(name=Lucene94HnswVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
@@ -465,12 +466,50 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
 
     @Override
-    protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new DenseVectorSyntheticSourceSupport();
+    }
+
+    @Override
+    protected boolean supportsEmptyInputArray() {
+        return false;
+    }
+
+    private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final int dims = between(5, 1000);
+        private final boolean indexed = randomBoolean();
+        private final boolean indexOptionsSet = indexed && randomBoolean();
+
+        @Override
+        public SyntheticSourceExample example(int maxValues) throws IOException {
+            List<Float> value = randomList(dims, dims, ESTestCase::randomFloat);
+            return new SyntheticSourceExample(value, value, this::mapping);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "dense_vector");
+            b.field("dims", dims);
+            if (indexed) {
+                b.field("index", true);
+                b.field("similarity", "l2_norm");
+                if (indexOptionsSet) {
+                    b.startObject("index_options");
+                    b.field("type", "hnsw");
+                    b.field("m", 5);
+                    b.field("ef_construction", 50);
+                    b.endObject();
+                }
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of();
+        }
     }
 }

@@ -489,7 +489,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             ) {
                 @Override
                 public void execute() {
-                    for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
+                    for (Object timestamp : (List<?>) lookup.source().source().get("timestamp")) {
                         Parse parse = new Parse(this);
                         emit(parse.parse(timestamp));
                     }
@@ -504,7 +504,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             ) {
                 @Override
                 public void execute() {
-                    for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
+                    for (Object timestamp : (List<?>) lookup.source().source().get("timestamp")) {
                         long epoch = (Long) timestamp;
                         ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
                         dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);

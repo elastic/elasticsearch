@@ -9,7 +9,7 @@ The `version` field type is a specialization of the `keyword` field for
 handling software version values and to support specialized precedence
 rules for them. Precedence is defined following the rules outlined by
 https://semver.org/[Semantic Versioning], which for example means that
-major, minor and patch version parts are sorted numerically (i.e. 
+major, minor and patch version parts are sorted numerically (i.e.
 "2.1.0" < "2.4.1" < "2.11.2") and pre-release versions are sorted before
 release versions (i.e. "1.0.0-alpha" < "1.0.0").
 
@@ -30,7 +30,7 @@ PUT my-index-000001
 
 --------------------------------------------------
 
-The field offers the same search capabilities as a regular keyword field. It 
+The field offers the same search capabilities as a regular keyword field. It
 can e.g. be searched for exact matches using `match` or `term` queries and
 supports prefix and wildcard searches. The main benefit is that `range` queries
 will honor Semver ordering, so a `range` query between "1.0.0" and "1.5.0"
@@ -67,3 +67,37 @@ This field type isn't optimized for heavy wildcard, regex or fuzzy searches. Whi
 type of queries work in this field, you should consider using a regular `keyword` field if
 you strongly rely on these kind of queries.
 
+
+[[version-synthetic-source]]
+==== Synthetic source preview:[]
+`version` fields support <<synthetic-source,synthetic `_source`>> so long as they don't
+declare <<copy-to,`copy_to`>>.
+
+Synthetic source always sorts `version` fields and removes duplicates. For example:
+[source,console,id=synthetic-source-version-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "versions": { "type": "version" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "versions": ["8.0.0-beta1", "8.5.0", "0.90.12", "2.6.1", "1.3.4", "1.3.4"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "versions": ["0.90.12", "1.3.4", "2.6.1", "8.0.0-beta1", "8.5.0"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

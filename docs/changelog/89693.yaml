@@ -1,0 +1,7 @@
+pr: 89693
+summary: Extend the date rounding logic to be conditional
+area: Infra/Core
+type: bug
+issues:
+ - 89096
+ - 58986

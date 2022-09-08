@@ -8,27 +8,25 @@
 
 package org.elasticsearch.script;
 
-import java.io.IOException;
-
 /**
- * A string template rendered as a script.
+ * A script compiled into it's raw executable form
+ * <p>
+ * The raw executable script can be used by other scripting engines as a
+ * base for their internal execution. This class provides the means for building
+ * scripting engines on top of other scripting engines.
  */
-public abstract class BinaryScript<T> {
+public abstract class RawScript<T> {
 
-    public BinaryScript() {}
+    public RawScript() {}
 
     /** Compile a script and return the resulting compiled representation of the script. */
     public abstract T execute();
 
-    /** A factory to construct {@link BinaryScript} instances. */
-    public interface LeafFactory<T> {
-        BinaryScript<T> newInstance() throws IOException;
-    }
-
+    /** A factory to construct {@link RawScript} instances. */
     public interface Factory<T> extends ScriptFactory {
-        BinaryScript.LeafFactory<T> newFactory();
+        RawScript<T> newInstance();
     }
 
     @SuppressWarnings("rawtypes")
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("binary", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("raw", Factory.class);
 }

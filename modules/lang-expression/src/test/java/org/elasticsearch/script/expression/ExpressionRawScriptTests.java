@@ -11,7 +11,7 @@ package org.elasticsearch.script.expression;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.BinaryScript;
+import org.elasticsearch.script.RawScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptModule;
@@ -24,7 +24,10 @@ import java.text.ParseException;
 import java.util.Collections;
 import java.util.Map;
 
-public class ExpressionBinaryScriptTests extends ESTestCase {
+/**
+ * Tests compiling of scripts into their raw {@link Expression} form through the {@link ScriptService}
+ */
+public class ExpressionRawScriptTests extends ESTestCase {
     private ExpressionScriptEngine engine;
     private ScriptService scriptService;
 
@@ -37,9 +40,9 @@ public class ExpressionBinaryScriptTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private BinaryScript<Expression> compile(String expression) throws IOException {
+    private RawScript<Expression> compile(String expression) {
         var script = new Script(ScriptType.INLINE, "expression", expression, Collections.emptyMap());
-        return scriptService.compile(script, BinaryScript.CONTEXT).newFactory().newInstance();
+        return scriptService.compile(script, RawScript.CONTEXT).newInstance();
     }
 
     public void testCompileError() {

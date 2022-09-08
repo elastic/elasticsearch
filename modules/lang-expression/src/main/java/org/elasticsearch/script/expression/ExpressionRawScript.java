@@ -9,28 +9,27 @@
 package org.elasticsearch.script.expression;
 
 import org.apache.lucene.expressions.Expression;
-import org.elasticsearch.script.BinaryScript;
-import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.RawScript;
 
-import java.io.IOException;
-
-public class ExpressionBinaryScript implements BinaryScript.LeafFactory<Expression> {
+/**
+ * A factory for raw compiled {@link Expression} scripts
+ * <p>
+ * Instead of an execution result, we return the compiled {@link Expression} object, which
+ * can later be used for other execution engines based on lucene expressions.
+ */
+public class ExpressionRawScript implements RawScript.Factory<Expression> {
     private final Expression exprScript;
 
-    ExpressionBinaryScript(Expression e) {
+    ExpressionRawScript(Expression e) {
         this.exprScript = e;
     }
 
     @Override
-    public BinaryScript<Expression> newInstance() throws IOException {
-        return new BinaryScript<>() {
+    public RawScript<Expression> newInstance() {
+        return new RawScript<>() {
             @Override
             public Expression execute() {
-                try {
-                    return exprScript;
-                } catch (Exception exception) {
-                    throw new GeneralScriptException("Error evaluating " + exprScript, exception);
-                }
+                return exprScript;
             }
         };
     }

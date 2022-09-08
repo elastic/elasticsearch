@@ -69,7 +69,7 @@ public class ScriptModule {
                 ScriptedMetricAggContexts.CombineScript.CONTEXT,
                 ScriptedMetricAggContexts.ReduceScript.CONTEXT,
                 IntervalFilterScript.CONTEXT,
-                BinaryScript.CONTEXT
+                RawScript.CONTEXT
             ),
             RUNTIME_FIELDS_CONTEXTS.stream()
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));

@@ -21,13 +21,13 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.script.BinaryScript;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.NumberSortScript;
+import org.elasticsearch.script.RawScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -139,13 +139,8 @@ public class ExpressionScriptEngine implements ScriptEngine {
             }
         },
 
-        BinaryScript.CONTEXT,
-        (Expression expr) -> new BinaryScript.Factory<Expression>() {
-            @Override
-            public BinaryScript.LeafFactory<Expression> newFactory() {
-                return new ExpressionBinaryScript(expr);
-            }
-
+        RawScript.CONTEXT,
+        (Expression expr) -> new ExpressionRawScript(expr) {
             @Override
             public boolean isResultDeterministic() {
                 return true;

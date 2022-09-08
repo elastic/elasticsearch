@@ -124,6 +124,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_LABEL_UNMAPPED = "label_unmapped";
     public static final String FIELD_LABEL_KEYWORD_ARRAY = "label_keyword_array";
     public static final String FIELD_LABEL_DOUBLE_ARRAY = "label_double_array";
+    public static final String FIELD_LABEL_AGG_METRIC = "label_agg_metric";
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
@@ -204,11 +205,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .field("type", "double")
             .field("time_series_metric", "counter")
             .endObject()
-            // .startObject(FIELD_AGG_METRIC)
-            // .field("type", "aggregate_metric_double")
-            // .field("time_series_metric", "counter")
-            // .array("metrics", new String[] { "min", "max", "sum", "value_count" })
-            // .endObject()
+            .startObject(FIELD_AGG_METRIC)
+            .field("type", "aggregate_metric_double")
+            .field("time_series_metric", "gauge")
+            .array("metrics", new String[] { "min", "max", "sum", "value_count" })
+            .field("default_metric", "value_count")
+            .endObject()
             .startObject(FIELD_LABEL_DOUBLE)
             .field("type", "double")
             .endObject()
@@ -243,6 +245,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .endObject()
             .startObject(FIELD_LABEL_DOUBLE_ARRAY)
             .field("type", "double")
+            .endObject()
+            .startObject(FIELD_LABEL_AGG_METRIC)
+            .field("type", "aggregate_metric_double")
+            .array("metrics", new String[] { "min", "max", "sum", "value_count" })
+            .field("default_metric", "value_count")
             .endObject()
             .endObject()
             .endObject()

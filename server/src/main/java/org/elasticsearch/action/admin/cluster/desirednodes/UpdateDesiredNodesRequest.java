@@ -58,7 +58,11 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         this.historyID = in.readString();
         this.version = in.readLong();
         this.nodes = in.readList(DesiredNode::readFrom);
-        dryRun = in.getVersion().onOrAfter(DRY_RUN_VERSION) ? in.readBoolean() : false;
+        if (in.getVersion().onOrAfter(DRY_RUN_VERSION)) {
+            this.dryRun = in.readBoolean();
+        } else {
+            this.dryRun = false;
+        }
     }
 
     @Override
@@ -98,6 +102,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         if (version.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
             return true;
         }
+
         return nodes.stream().allMatch(desiredNode -> desiredNode.isCompatibleWithVersion(version));
     }
 

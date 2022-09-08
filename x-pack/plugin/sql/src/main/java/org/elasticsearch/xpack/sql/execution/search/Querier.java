@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.TotalHitsExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggPathInput;
@@ -535,14 +537,15 @@ public class Querier {
             List<QueryContainer.FieldInfo> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
-            ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
+            TotalHits totalHits = response.getHits().getTotalHits();
+            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value);
             for (QueryContainer.FieldInfo ref : refs) {
                 exts.add(createExtractor(ref.extraction(), totalCount));
             }
             return exts;
         }
 
-        private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
+        private BucketExtractor createExtractor(FieldExtraction ref, ConstantExtractor totalCount) {
             if (ref instanceof GroupByRef r) {
                 return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.dataType());
             }

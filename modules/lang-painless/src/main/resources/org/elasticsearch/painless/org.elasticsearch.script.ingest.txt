@@ -40,4 +40,25 @@ class org.elasticsearch.script.Metadata {
 
 class org.elasticsearch.script.IngestScript {
     Metadata metadata()
+    WriteField field(String)
+}
+
+class org.elasticsearch.script.field.WriteField {
+    String getName()
+    boolean exists()
+    void move(String)
+    void overwrite(String)
+    void remove()
+    WriteField set(def)
+    WriteField append(def)
+    boolean isEmpty()
+    int size()
+    Iterator iterator()
+    def get(def)
+    def get(int, def)
+    boolean hasValue(Predicate)
+    WriteField transform(Function)
+    WriteField deduplicate()
+    WriteField removeValuesIf(Predicate)
+    WriteField removeValue(int)
 }

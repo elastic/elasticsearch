@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.IndexableField;
@@ -40,8 +40,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -455,8 +455,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        assertThat(knnVectorsFormat, instanceOf(Lucene92HnswVectorsFormat.class));
-        String expectedString = "lucene92HnswVectorsFormat(name = lucene92HnswVectorsFormat, maxConn = "
+        assertThat(knnVectorsFormat, instanceOf(Lucene94HnswVectorsFormat.class));
+        String expectedString = "Lucene94HnswVectorsFormat(name=Lucene94HnswVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction

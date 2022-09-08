@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -71,6 +72,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -908,6 +910,32 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.endObject();
         }));
         assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo("{}"));
+    }
+
+    public final void testSyntheticEmptyListNoDocValuesLoader() throws IOException {
+        assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject();
+        }));
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                LeafReader leafReader = getOnlyLeafReader(reader);
+                SourceLoader.SyntheticFieldLoader fieldLoader = mapper.mapping().getRoot().getMapper("field").syntheticFieldLoader();
+                /*
+                 * null means "there are no values for this field, don't call me".
+                 * Empty fields are common enough that we need to make sure this
+                 * optimization kicks in.
+                 */
+                assertThat(fieldLoader.docValuesLoader(leafReader, new int[] { 0 }), nullValue());
+            }
+        }
     }
 
     public final void testSyntheticSourceInvalid() throws IOException {

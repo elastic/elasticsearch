@@ -96,11 +96,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
+    protected static final int LARGE_POOL_SIZE = 5;
+
     // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
     // threads so that blocking some threads on one repository doesn't block other repositories from doing work
     protected static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-        .put("thread_pool.snapshot.core", 5)
-        .put("thread_pool.snapshot.max", 5)
+        .put("thread_pool.snapshot.core", LARGE_POOL_SIZE)
+        .put("thread_pool.snapshot.max", LARGE_POOL_SIZE)
         .build();
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
@@ -71,7 +72,10 @@ public class WatcherPluginTests extends ESTestCase {
         watcher.onIndexModule(indexModule);
 
         // also no component creation if not enabled
-        assertThat(watcher.createComponents(null, null, null, null, null, null, null, null, null, null, null), hasSize(0));
+        assertThat(
+            watcher.createComponents(null, null, null, null, null, null, null, null, null, null, null, Tracer.NOOP, null),
+            hasSize(0)
+        );
 
         watcher.close();
     }

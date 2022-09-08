@@ -10,6 +10,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.core.Strings.format;
@@ -46,7 +47,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     private final ReservedStateChunk stateChunk;
     private final Map<String, ReservedClusterStateHandler<?>> handlers;
     private final Collection<String> orderedHandlers;
-    private final Consumer<ErrorState> errorReporter;
+    private final BiConsumer<ClusterState, ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
 
     public ReservedStateUpdateTask(
@@ -54,7 +55,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         ReservedStateChunk stateChunk,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
-        Consumer<ErrorState> errorReporter,
+        BiConsumer<ClusterState, ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
     ) {
         this.namespace = namespace;
@@ -79,6 +80,10 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
 
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
+            return currentState;
+        }
+
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
 
@@ -98,27 +103,18 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         if (errors.isEmpty() == false) {
             // Check if we had previous error metadata with version information, don't spam with cluster state updates, if the
             // version hasn't been updated.
-            logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
-            if (existingMetadata != null
-                && existingMetadata.errorMetadata() != null
-                && existingMetadata.errorMetadata().version() >= reservedStateVersion.version()) {
+            logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-                logger.info(
-                    () -> format(
-                        "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
-                        reservedStateVersion.version(),
-                        existingMetadata.errorMetadata().version()
-                    )
-                );
-
-                return currentState;
-            }
-
-            errorReporter.accept(
-                new ErrorState(namespace, reservedStateVersion.version(), errors, ReservedStateErrorMetadata.ErrorKind.VALIDATION)
+            var errorState = new ErrorState(
+                namespace,
+                reservedStateVersion.version(),
+                errors,
+                ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );
 
-            throw new IllegalStateException("Error processing state change request for " + namespace);
+            errorReporter.accept(currentState, errorState);
+
+            throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState);
         }
 
         // remove the last error if we had previously encountered any
@@ -136,5 +132,50 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         }
 
         return reservedStateMetadata.handlers().get(handlerName).keys();
+    }
+
+    static boolean checkMetadataVersion(
+        String namespace,
+        ReservedStateMetadata existingMetadata,
+        ReservedStateVersion reservedStateVersion
+    ) {
+        if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
+            logger.warn(
+                () -> format(
+                    "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
+                    reservedStateVersion.minCompatibleVersion(),
+                    namespace
+                )
+            );
+            return false;
+        }
+
+        // Version 0 is special, snapshot restores will reset to 0.
+        if (reservedStateVersion.version() <= 0L) {
+            logger.warn(
+                () -> format(
+                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
+                    namespace,
+                    reservedStateVersion.version(),
+                    existingMetadata.version()
+                )
+            );
+            return false;
+        }
+
+        if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
+            logger.warn(
+                () -> format(
+                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
+                        + " to the current metadata version [%s]",
+                    namespace,
+                    reservedStateVersion.version(),
+                    existingMetadata.version()
+                )
+            );
+            return false;
+        }
+
+        return true;
     }
 }

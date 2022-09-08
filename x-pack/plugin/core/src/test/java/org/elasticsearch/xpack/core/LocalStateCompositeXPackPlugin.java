@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -88,6 +89,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -197,7 +199,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -212,7 +216,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier
+                repositoriesServiceSupplier,
+                tracer,
+                allocationDeciders
             )
         );
 
@@ -230,7 +236,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         nodeEnvironment,
                         namedWriteableRegistry,
                         expressionResolver,
-                        repositoriesServiceSupplier
+                        repositoriesServiceSupplier,
+                        tracer,
+                        allocationDeciders
                     )
                 )
             );
@@ -402,7 +410,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream()
@@ -417,7 +426,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         xContentRegistry,
                         networkService,
                         dispatcher,
-                        clusterSettings
+                        clusterSettings,
+                        tracer
                     )
                 )
             );

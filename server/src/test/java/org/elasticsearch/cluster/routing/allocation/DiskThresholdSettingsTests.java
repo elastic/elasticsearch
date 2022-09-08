@@ -148,6 +148,16 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             Matchers.equalTo(ByteSizeValue.ofBytes(100L * factor))
         );
 
+        // Test case for 17777 used bytes & threshold 0.29. Should return 61300 bytes. Test case originates from issue #88791.
+        newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "29%")
+            .build();
+        nss.applySettings(newSettings);
+        assertThat(
+            diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(17777L)),
+            Matchers.equalTo(ByteSizeValue.ofBytes(61300))
+        );
+
         // Test random absolute values
 
         final long absolute = between(1, 1000);

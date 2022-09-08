@@ -16,12 +16,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -60,7 +62,8 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode,
             null,
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
-            new TaskManager(Settings.EMPTY, threadPool, Set.of())
+            new TaskManager(Settings.EMPTY, threadPool, Set.of()),
+            Tracer.NOOP
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
@@ -72,7 +75,8 @@ public class JoinHelperTests extends ESTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
-            new JoinReasonService(() -> 0L)
+            new JoinReasonService(() -> 0L),
+            new NoneCircuitBreakerService()
         );
         transportService.start();
 
@@ -227,7 +231,8 @@ public class JoinHelperTests extends ESTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             nodeHealthServiceStatus::get,
-            new JoinReasonService(() -> 0L)
+            new JoinReasonService(() -> 0L),
+            new NoneCircuitBreakerService()
         );
         transportService.start();
 

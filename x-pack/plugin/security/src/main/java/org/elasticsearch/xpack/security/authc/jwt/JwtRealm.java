@@ -65,6 +65,8 @@ import static org.elasticsearch.core.Strings.format;
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
 
+    private static final ContentAndJwksAlgs EMPTY_CONTENT_AND_JWKS_ALGS = new ContentAndJwksAlgs(null, new JwksAlgs(List.of(), List.of()));
+
     // Cached authenticated users, and adjusted JWT expiration date (=exp+skew) for checking if the JWT expired before the cache entry
     record ExpiringUser(User user, Date exp) {
         ExpiringUser {
@@ -109,7 +111,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final boolean isConfiguredJwkSetPkc;
     final boolean isConfiguredJwkSetHmac;
     final boolean isConfiguredJwkOidcHmac;
-    private final CloseableHttpAsyncClient httpClient;
     final JwkSetLoader jwkSetLoader;
     final TimeValue allowedClockSkew;
     final Boolean populateUserMetadata;
@@ -125,9 +126,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final List<String> allowedJwksAlgsPkc;
     final List<String> allowedJwksAlgsHmac;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
-    ContentAndJwksAlgs contentAndJwksAlgsPkc;
     ContentAndJwksAlgs contentAndJwksAlgsHmac;
-    final URI jwkSetPathUri;
 
     JwtRealm(
         final RealmConfig realmConfig,
@@ -184,30 +183,17 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             );
         }
 
-        if (this.isConfiguredJwkSetPkc) {
-            final URI jwkSetPathUri = JwtUtil.parseHttpsUri(jwkSetPath);
-            if (jwkSetPathUri == null) {
-                this.jwkSetPathUri = null; // local file path
-                this.httpClient = null;
-            } else {
-                this.jwkSetPathUri = jwkSetPathUri; // HTTPS URL
-                this.httpClient = JwtUtil.createHttpClient(this.config, sslService);
-            }
-            this.jwkSetLoader = new JwkSetLoader(); // PKC JWKSet loader for HTTPS URL or local file path
-        } else {
-            this.jwkSetPathUri = null; // not configured
-            this.httpClient = null;
-            this.jwkSetLoader = null;
-        }
-
         // Any exception during loading requires closing JwkSetLoader's HTTP client to avoid a thread pool leak
         try {
             this.contentAndJwksAlgsHmac = this.parseJwksAlgsHmac();
-            this.contentAndJwksAlgsPkc = this.parseJwksAlgsPkc();
+            if (this.isConfiguredJwkSetPkc) {
+                this.jwkSetLoader = new JwkSetLoader(sslService); // PKC JWKSet loader for HTTPS URL or local file path
+            } else {
+                this.jwkSetLoader = null;
+            }
             this.verifyAnyAvailableJwkAndAlgPair();
         } catch (Throwable t) {
-            // ASSUME: Tests or startup only. Catch and rethrow Throwable here, in case some code throws an uncaught RuntimeException.
-            this.close();
+            close();
             throw t;
         }
     }
@@ -255,14 +241,22 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return new ContentAndJwksAlgs(hmacStringContentsSha256, jwksAlgsHmac);
     }
 
-    private ContentAndJwksAlgs parseJwksAlgsPkc() {
-        if (this.isConfiguredJwkSetPkc == false) {
-            return new ContentAndJwksAlgs(null, new JwksAlgs(Collections.emptyList(), Collections.emptyList()));
+    // Package private for test
+    URI getJwkSetPathUri() {
+        if (jwkSetLoader != null) {
+            return jwkSetLoader.jwkSetPathUri;
         } else {
-            // ASSUME: Blocking read operations are OK during startup
-            final PlainActionFuture<ContentAndJwksAlgs> future = new PlainActionFuture<>();
-            this.jwkSetLoader.load(future);
-            return future.actionGet();
+            return null;
+        }
+    }
+
+    // Package private for test
+    ContentAndJwksAlgs getJwksAlgsPkc() {
+        if (this.isConfiguredJwkSetPkc == false) {
+            return EMPTY_CONTENT_AND_JWKS_ALGS;
+        } else {
+            assert jwkSetLoader != null;
+            return jwkSetLoader.contentAndJwksAlgsPkc;
         }
     }
 
@@ -277,8 +271,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     private void verifyAnyAvailableJwkAndAlgPair() {
         assert this.contentAndJwksAlgsHmac != null : "HMAC not initialized";
-        assert this.contentAndJwksAlgsPkc != null : "PKC not initialized";
-        if (this.contentAndJwksAlgsHmac.jwksAlgs.isEmpty() && this.contentAndJwksAlgsPkc.jwksAlgs.isEmpty()) {
+        assert getJwksAlgsPkc() != null : "PKC not initialized";
+        if (this.contentAndJwksAlgsHmac.jwksAlgs.isEmpty() && this.getJwksAlgsPkc().jwksAlgs.isEmpty()) {
             final String msg = "No available JWK and algorithm for HMAC or PKC. Realm authentication expected to fail until this is fixed.";
             throw new SettingsException(msg);
         }
@@ -312,7 +306,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public void close() {
         this.invalidateJwtCache();
-        this.closeHttpClient();
+        if (jwkSetLoader != null) {
+            jwkSetLoader.close();
+        }
     }
 
     /**
@@ -328,19 +324,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 LOGGER.debug("Invalidated JWT cache for realm [{}]", super.name());
             } catch (Exception e) {
                 LOGGER.warn("Exception invalidating JWT cache for realm [" + super.name() + "]", e);
-            }
-        }
-    }
-
-    /**
-     * Clean up HTTPS client cache (if enabled).
-     */
-    private void closeHttpClient() {
-        if (this.httpClient != null) {
-            try {
-                this.httpClient.close();
-            } catch (IOException e) {
-                LOGGER.warn(() -> "Exception closing HTTPS client for realm [" + super.name() + "]", e);
             }
         }
     }
@@ -596,7 +579,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         try {
             JwtValidateUtil.validateSignature(
                 jwt,
-                isJwtAlgHmac ? this.contentAndJwksAlgsHmac.jwksAlgs.jwks : this.contentAndJwksAlgsPkc.jwksAlgs.jwks
+                isJwtAlgHmac ? this.contentAndJwksAlgsHmac.jwksAlgs.jwks : this.getJwksAlgsPkc().jwksAlgs.jwks
             );
             listener.onResponse(null);
         } catch (Exception primaryException) {
@@ -609,33 +592,32 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 () -> org.elasticsearch.core.Strings.format(
                     "Signature verification failed for [%s] reloading JWKSet (was: #[%s] JWKs, #[%s] algs, sha256=[%s])",
                     tokenPrincipal,
-                    this.contentAndJwksAlgsPkc.jwksAlgs.jwks().size(),
-                    this.contentAndJwksAlgsPkc.jwksAlgs.algs().size(),
-                    MessageDigests.toHexString(this.contentAndJwksAlgsPkc.sha256())
+                    this.getJwksAlgsPkc().jwksAlgs.jwks().size(),
+                    this.getJwksAlgsPkc().jwksAlgs.algs().size(),
+                    MessageDigests.toHexString(this.getJwksAlgsPkc().sha256())
                 ),
                 primaryException
             );
 
-            this.jwkSetLoader.load(ActionListener.wrap(newContentAndJwksAlgs -> {
-                if (Arrays.equals(this.contentAndJwksAlgsPkc.sha256, newContentAndJwksAlgs.sha256)) {
+            this.jwkSetLoader.reload(ActionListener.wrap(isUpdated -> {
+                if (false == isUpdated) {
                     // No change in JWKSet
                     logger.debug("Reloaded same PKC JWKs, can't retry verify JWT token=[{}]", tokenPrincipal);
                     listener.onFailure(primaryException);
                     return;
                 }
-                this.contentAndJwksAlgsPkc = newContentAndJwksAlgs;
                 // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
                 // Enhancement idea: Use separate caches for PKC vs HMAC JWKs, so only PKC entries get invalidated.
                 // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
                 this.invalidateJwtCache();
 
-                if (this.contentAndJwksAlgsPkc.jwksAlgs.isEmpty()) {
+                if (this.getJwksAlgsPkc().jwksAlgs.isEmpty()) {
                     logger.debug("Reloaded empty PKC JWKs, verification of JWT token will fail [{}]", tokenPrincipal);
                     // fall through and let try/catch below handle empty JWKs failure log and response
                 }
 
                 try {
-                    JwtValidateUtil.validateSignature(jwt, this.contentAndJwksAlgsPkc.jwksAlgs.jwks);
+                    JwtValidateUtil.validateSignature(jwt, this.getJwksAlgsPkc().jwksAlgs.jwks);
                     listener.onResponse(null);
                 } catch (Exception secondaryException) {
                     logger.debug(
@@ -660,12 +642,71 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }, listener::onFailure));
     }
 
-    private class JwkSetLoader {
+    private class JwkSetLoader implements Releasable {
         private final AtomicReference<ListenableFuture<ContentAndJwksAlgs>> reloadFutureRef = new AtomicReference<>();
+        private final URI jwkSetPathUri;
+        private final CloseableHttpAsyncClient httpClient;
+        private volatile ContentAndJwksAlgs contentAndJwksAlgsPkc;
 
+        JwkSetLoader(final SSLService sslService) {
+            assert JwtRealm.this.isConfiguredJwkSetPkc;
+            final URI jwkSetPathUri = JwtUtil.parseHttpsUri(jwkSetPath);
+            if (jwkSetPathUri == null) {
+                this.jwkSetPathUri = null; // local file path
+                this.httpClient = null;
+            } else {
+                this.jwkSetPathUri = jwkSetPathUri; // HTTPS URL
+                this.httpClient = JwtUtil.createHttpClient(JwtRealm.this.config, sslService);
+            }
+            // Any exception during loading requires closing JwkSetLoader's HTTP client to avoid a thread pool leak
+            try {
+                final PlainActionFuture<ContentAndJwksAlgs> future = new PlainActionFuture<>();
+                load(future);
+                // ASSUME: Blocking read operations are OK during startup
+                contentAndJwksAlgsPkc = future.actionGet();
+            } catch (Throwable t) {
+                close();
+                throw t;
+            }
+        }
+
+        /**
+         * Clean up HTTPS client cache (if enabled).
+         */
+        @Override
+        public void close() {
+            if (httpClient != null) {
+                try {
+                    httpClient.close();
+                } catch (IOException e) {
+                    LOGGER.warn(() -> "Exception closing HTTPS client for realm [" + JwtRealm.this.name() + "]", e);
+                }
+            }
+        }
+
+        /**
+         * Load the JWK sets and pass its content to the specified listener.
+         */
         void load(final ActionListener<ContentAndJwksAlgs> listener) {
             final ListenableFuture<ContentAndJwksAlgs> future = this.getFuture();
             future.addListener(listener);
+        }
+
+        /**
+         * Reload the JWK sets, compare to existing JWK sets and update it to the reloaded value if
+         * they are different. The listener is called with false if the reloaded content is the same
+         * as the existing one or true if they are different.
+         */
+        void reload(final ActionListener<Boolean> listener) {
+            load(ActionListener.wrap(newContentAndJwksAlgs -> {
+                if (Arrays.equals(contentAndJwksAlgsPkc.sha256, newContentAndJwksAlgs.sha256)) {
+                    // No change in JWKSet
+                    listener.onResponse(false);
+                } else {
+                    contentAndJwksAlgsPkc = newContentAndJwksAlgs;
+                    listener.onResponse(true);
+                }
+            }, listener::onFailure));
         }
 
         private ListenableFuture<ContentAndJwksAlgs> getFuture() {
@@ -677,7 +718,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
                 final ListenableFuture<ContentAndJwksAlgs> newFuture = new ListenableFuture<>();
                 if (this.reloadFutureRef.compareAndSet(null, newFuture)) {
-                    loadInternal(ActionListener.runAfter(newFuture, () -> this.reloadFutureRef.compareAndSet(newFuture, null)));
+                    loadInternal(ActionListener.runAfter(newFuture, () -> {
+                        final ListenableFuture<ContentAndJwksAlgs> oldValue = this.reloadFutureRef.getAndSet(null);
+                        assert oldValue == newFuture : "future reference changed unexpectedly";
+                    }));
                     return newFuture;
                 }
                 // else, Another thread set the future-ref before us, just try it all again
@@ -686,7 +730,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         private void loadInternal(final ActionListener<ContentAndJwksAlgs> listener) {
             // PKC JWKSet get contents from local file or remote HTTPS URL
-            if (JwtRealm.this.httpClient == null) {
+            if (httpClient == null) {
                 LOGGER.trace("Loading PKC JWKs from path [{}]", JwtRealm.this.jwkSetPath);
                 listener.onResponse(
                     this.parseContent(
@@ -698,13 +742,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     )
                 );
             } else {
-                LOGGER.trace("Loading PKC JWKs from https URI [{}]", JwtRealm.this.jwkSetPathUri);
+                LOGGER.trace("Loading PKC JWKs from https URI [{}]", jwkSetPathUri);
                 JwtUtil.readUriContents(
                     RealmSettings.getFullSettingKey(JwtRealm.this.config, JwtRealmSettings.PKC_JWKSET_PATH),
-                    JwtRealm.this.jwkSetPathUri,
-                    JwtRealm.this.httpClient,
+                    jwkSetPathUri,
+                    httpClient,
                     listener.map(bytes -> {
-                        LOGGER.trace("Loaded bytes [{}] from [{}]", bytes.length, JwtRealm.this.jwkSetPathUri);
+                        LOGGER.trace("Loaded bytes [{}] from [{}]", bytes.length, jwkSetPathUri);
                         return this.parseContent(bytes);
                     })
                 );

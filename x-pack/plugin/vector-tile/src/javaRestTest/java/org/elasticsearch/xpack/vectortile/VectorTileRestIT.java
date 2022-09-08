@@ -878,6 +878,19 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
     }
 
+    public void testGetRuntimeField() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location_rf/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity(
+            "{\"size\" : 100, \"runtime_mappings\": { \"location_rf\": {\"type\": \"geo_point\", \"script\": "
+                + "{ \"source\": \"emit(doc['location'].lat, doc['location'].lon)\" }}}}"
+        );
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 33, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
     private String getHttpMethod() {
         return random().nextBoolean() ? HttpGet.METHOD_NAME : HttpPost.METHOD_NAME;
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -328,7 +327,12 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(
-                        new ElasticsearchException("Starting transform [" + params.getId() + "] timed out after [" + timeout + "]")
+                        new ElasticsearchStatusException(
+                            "Starting transform [{}] timed out after [{}]",
+                            RestStatus.REQUEST_TIMEOUT,
+                            params.getId(),
+                            timeout
+                        )
                     );
                 }
             }

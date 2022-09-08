@@ -68,6 +68,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -530,14 +531,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
         CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT,
-        HealthNode.isEnabled() ? HealthNodeTaskExecutor.ENABLED_SETTING : null
-    )
-        .filter(Objects::nonNull)
-        .filter(
-            setting -> ClusterSettings.CCX2_FEATURE_FLAG_ENABLED
-                || setting.equals(SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION) == false
-        )
-        .collect(Collectors.toSet());
+        HealthNode.isEnabled() ? HealthNodeTaskExecutor.ENABLED_SETTING : null,
+        HealthNode.isEnabled() ? LocalHealthMonitor.POLL_INTERVAL_SETTING : null,
+        ClusterSettings.CCX2_FEATURE_FLAG_ENABLED ? SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION : null
+    ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

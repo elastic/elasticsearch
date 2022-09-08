@@ -57,7 +57,7 @@ PUT /_index_template/my-data-stream-template
 }
 ----
 
-. Download https://raw.githubusercontent.com/elastic/elasticsearch/{branch}/docs/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`].
+. Download https://raw.githubusercontent.com/elastic/elasticsearch/{branch}/docs/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`].
 
 . Use the <<docs-bulk,bulk API>> to index the data to a matching stream:
 +

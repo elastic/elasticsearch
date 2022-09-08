@@ -17,6 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -26,6 +27,7 @@ import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
@@ -121,7 +123,10 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
-                    (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+                    (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
+                        new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                    ).build(null, null),
+                    new SourceLookup.ReaderSourceProvider()
                 );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);

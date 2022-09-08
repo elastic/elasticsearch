@@ -104,6 +104,29 @@ public class IngestCtxMapTests extends ESTestCase {
         map = new IngestCtxMap(source, new IngestDocMetadata(metadata, null));
     }
 
+    public void testRemoveSource() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("abc", 123);
+        source.put("def", 456);
+        source.put("hij", 789);
+        map = new IngestCtxMap(source, new TestIngestCtxMetadata(new HashMap<>(), new HashMap<>()));
+
+        // Make sure there isn't a ConcurrentModificationException when removing a key from the iterator
+        String removedKey = null;
+        for (Iterator<Map.Entry<String, Object>> it = map.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<String, Object> entry = it.next();
+            String key = entry.getKey();
+            if (removedKey == null && source.containsKey(key)) {
+                removedKey = key;
+                it.remove();
+            }
+        }
+
+        assertNotNull(removedKey);
+        assertFalse(source.containsKey(removedKey));
+        assertTrue(source.containsKey(removedKey.equals("abc") ? "def" : "abc"));
+    }
+
     public void testRemove() {
         String cannotRemove = "cannotRemove";
         String canRemove = "canRemove";

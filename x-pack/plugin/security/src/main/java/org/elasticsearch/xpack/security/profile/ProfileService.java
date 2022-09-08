@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -104,6 +105,7 @@ public class ProfileService {
     private static final String DOC_ID_PREFIX = "profile_";
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
     private static final int DIFFERENTIATOR_UPPER_LIMIT = 9;
+    private static final long ACTIVATE_INTERVAL_IN_MS = TimeValue.timeValueSeconds(30).millis();
 
     private final Settings settings;
     private final Clock clock;
@@ -306,7 +308,7 @@ public class ProfileService {
             listener.onFailure(e);
             return;
         }
-        doUpdate(buildUpdateRequest(uid, builder, refreshPolicy, -1, -1), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
+        doUpdate(buildUpdateRequest(uid, builder, refreshPolicy), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
     }
 
     public void searchProfilesForSubjects(List<Subject> subjects, ActionListener<SubjectSearchResultsAndErrors<Profile>> listener) {
@@ -584,7 +586,7 @@ public class ProfileService {
             });
             boolQuery.minimumShouldMatch(1);
         }
-        return client.prepareSearch(SECURITY_PROFILE_ALIAS).setQuery(boolQuery).request();
+        return client.prepareSearch(SECURITY_PROFILE_ALIAS).setQuery(boolQuery).seqNoAndPrimaryTerm(true).request();
     }
 
     private static final Pattern VALID_LITERAL_USERNAME = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9-]{0,255}$");
@@ -639,7 +641,7 @@ public class ProfileService {
                     );
                     listener.onResponse(versionedDocument.toProfile(Set.of()));
                 }, e -> {
-                    if (e instanceof VersionConflictEngineException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // Document already exists with the specified ID, get the document with the ID
                         // and check whether it is the right profile for the subject
                         getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
@@ -770,23 +772,71 @@ public class ProfileService {
         }
     }
 
-    private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)
+    // package private for testing
+    void updateProfileForActivate(Subject subject, VersionedDocument currentVersionedDocumentBySearch, ActionListener<Profile> listener)
         throws IOException {
-        final ProfileDocument profileDocument = updateWithSubject(versionedDocument.doc, subject);
+        final ProfileDocument newProfileDocument = updateWithSubject(currentVersionedDocumentBySearch.doc, subject);
+
+        if (shouldSkipUpdateForActivate(currentVersionedDocumentBySearch.doc, newProfileDocument)) {
+            logger.debug(
+                "skip user profile activate update because last_synchronized [{}] is within grace period",
+                currentVersionedDocumentBySearch.doc.lastSynchronized()
+            );
+            listener.onResponse(currentVersionedDocumentBySearch.toProfile(Set.of()));
+            return;
+        }
 
         doUpdate(
             buildUpdateRequest(
-                profileDocument.uid(),
-                wrapProfileDocumentWithoutApplicationData(profileDocument),
-                RefreshPolicy.WAIT_UNTIL,
-                versionedDocument.primaryTerm,
-                versionedDocument.seqNo
+                newProfileDocument.uid(),
+                wrapProfileDocumentWithoutApplicationData(newProfileDocument),
+                RefreshPolicy.WAIT_UNTIL
             ),
-            listener.map(
-                updateResponse -> new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
-                    .toProfile(Set.of())
-            )
+            ActionListener.wrap(updateResponse -> {
+                listener.onResponse(
+                    new VersionedDocument(newProfileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo()).toProfile(
+                        Set.of()
+                    )
+                );
+            }, updateException -> {
+                // The document may have been updated concurrently by another thread. Get it and check whether the updated content
+                // already has what is required by this thread. If so, simply return the updated profile.
+                if (ExceptionsHelper.unwrapCause(updateException) instanceof VersionConflictEngineException) {
+                    getVersionedDocument(currentVersionedDocumentBySearch.doc.uid(), ActionListener.wrap(versionedDocumentByGet -> {
+                        if (shouldSkipUpdateForActivate(versionedDocumentByGet.doc, newProfileDocument)) {
+                            logger.debug(
+                                "suppress version conflict for activate update because last_synchronized [{}] is within grace period",
+                                versionedDocumentByGet.doc.lastSynchronized()
+                            );
+                            listener.onResponse(versionedDocumentByGet.toProfile(Set.of()));
+                        } else {
+                            listener.onFailure(updateException);
+                        }
+                    }, getException -> {
+                        getException.addSuppressed(updateException);
+                        listener.onFailure(getException);
+                    }));
+                } else {
+                    listener.onFailure(updateException);
+                }
+            })
         );
+    }
+
+    // If the profile content does not change and it is recently updated within last 30 seconds, do not update it again
+    // to avoid potential excessive version conflicts
+    boolean shouldSkipUpdateForActivate(ProfileDocument currentProfileDocument, ProfileDocument newProfileDocument) {
+        assert newProfileDocument.enabled() : "new profile document must be enabled";
+        if (newProfileDocument.user().equals(currentProfileDocument.user())
+            && newProfileDocument.enabled() == currentProfileDocument.enabled()
+            && newProfileDocument.lastSynchronized() - currentProfileDocument.lastSynchronized() < ACTIVATE_INTERVAL_IN_MS) {
+            return true;
+        }
+        return false;
+    }
+
+    private UpdateRequest buildUpdateRequest(String uid, XContentBuilder builder, RefreshPolicy refreshPolicy) {
+        return buildUpdateRequest(uid, builder, refreshPolicy, -1, -1);
     }
 
     private UpdateRequest buildUpdateRequest(

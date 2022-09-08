@@ -13,14 +13,18 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+
+import static java.util.Collections.emptyList;
 
 /**
  * Load {@code _source} fields from {@link SortedSetDocValues}.
@@ -30,23 +34,37 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     private final String name;
     private final String simpleName;
-    private Values values = NO_VALUES;
+    private DocValuesFieldValues docValues = NO_VALUES;
 
-    public SortedSetDocValuesSyntheticFieldLoader(String name, String simpleName) {
+    /**
+     * Optionally loads stored fields values.
+     */
+    @Nullable
+    private final String storedValuesName;
+    private List<Object> storedValues = emptyList();
+
+    /**
+     * Build a loader from doc values and, optionally, a stored field.
+     * @param name the name of the field to load from doc values
+     * @param simpleName the name to give the field in the rendered {@code _source}
+     * @param storedValuesName the name of a stored field to load or null if there aren't any stored field for this field
+     */
+    public SortedSetDocValuesSyntheticFieldLoader(String name, String simpleName, @Nullable String storedValuesName) {
         this.name = name;
         this.simpleName = simpleName;
+        this.storedValuesName = storedValuesName;
     }
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return Stream.of();
+        return storedValuesName == null ? Stream.of() : Stream.of(Map.entry(storedValuesName, values -> this.storedValues = values));
     }
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
         SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
         if (dv.getValueCount() == 0) {
-            values = NO_VALUES;
+            docValues = NO_VALUES;
             return null;
         }
         if (docIdsInLeaf.length > 1) {
@@ -58,58 +76,74 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
             SortedDocValues singleton = DocValues.unwrapSingleton(dv);
             if (singleton != null) {
                 SingletonDocValuesLoader loader = buildSingletonDocValuesLoader(singleton, docIdsInLeaf);
-                values = loader == null ? NO_VALUES : loader;
+                docValues = loader == null ? NO_VALUES : loader;
                 return loader;
             }
         }
         ImmediateDocValuesLoader loader = new ImmediateDocValuesLoader(dv);
-        values = loader;
+        docValues = loader;
         return loader;
     }
 
     @Override
     public boolean hasValue() {
-        return values.count() > 0;
+        return docValues.count() > 0 || storedValues.isEmpty() == false;
     }
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        switch (values.count()) {
+        int total = docValues.count() + storedValues.size();
+        switch (total) {
             case 0:
                 return;
             case 1:
                 b.field(simpleName);
-                values.write(b);
+                if (docValues.count() > 0) {
+                    assert docValues.count() == 1;
+                    assert storedValues.isEmpty();
+                    docValues.write(b);
+                } else {
+                    assert docValues.count() == 0;
+                    assert storedValues.size() == 1;
+                    BytesRef ref = (BytesRef) storedValues.get(0);
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                    storedValues = emptyList();
+                }
                 return;
             default:
                 b.startArray(simpleName);
-                values.write(b);
+                docValues.write(b);
+                for (Object v : storedValues) {
+                    BytesRef ref = (BytesRef) v;
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                }
+                storedValues = emptyList();
                 b.endArray();
                 return;
         }
     }
 
-    private interface Values {
+    private interface DocValuesFieldValues {
         int count();
 
         void write(XContentBuilder b) throws IOException;
     }
 
-    private static final Values NO_VALUES = new Values() {
+    private static final DocValuesFieldValues NO_VALUES = new DocValuesFieldValues() {
         @Override
         public int count() {
             return 0;
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {}
+        public void write(XContentBuilder b) {}
     };
 
     /**
      * Load ordinals in line with populating the doc and immediately
      * convert from ordinals into {@link BytesRef}s.
      */
-    private class ImmediateDocValuesLoader implements DocValuesLoader, Values {
+    private class ImmediateDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
         private final SortedSetDocValues dv;
         private boolean hasValue;
 
@@ -129,7 +163,9 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            assert hasValue;
+            if (hasValue == false) {
+                return;
+            }
             for (int i = 0; i < dv.docValueCount(); i++) {
                 BytesRef c = convert(dv.lookupOrd(dv.nextOrd()));
                 b.utf8Value(c.bytes, c.offset, c.length);
@@ -183,7 +219,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
         return new SingletonDocValuesLoader(docIdsInLeaf, ords, uniqueOrds, converted);
     }
 
-    private class SingletonDocValuesLoader implements DocValuesLoader, Values {
+    private static class SingletonDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
         private final int[] docIdsInLeaf;
         private final int[] ords;
         private final int[] uniqueOrds;
@@ -216,7 +252,9 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            assert ords[idx] >= 0;
+            if (ords[idx] < 0) {
+                return;
+            }
             int convertedIdx = Arrays.binarySearch(uniqueOrds, ords[idx]);
             if (convertedIdx < 0) {
                 throw new IllegalStateException("received unexpected ord [" + ords[idx] + "]. Expected " + Arrays.toString(uniqueOrds));

@@ -12,8 +12,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -118,9 +120,15 @@ class FieldValueFetcher {
             MappedFieldType fieldType = context.getFieldType(field);
             if (fieldType == null) {
                 throw new IllegalArgumentException("Unknown field: [" + field + "]");
+            } else if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+                for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
+                    IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
+                    fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field, validTypes)));
+                }
+            } else {
+                IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field, validTypes)));
             }
-            IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field, validTypes)));
         }
         return Collections.unmodifiableList(fetchers);
     }

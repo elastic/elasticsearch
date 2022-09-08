@@ -175,7 +175,7 @@ Dimension fields have the following constraints:
 default configuration. Synthetic `_source` cannot be used together with
 a <<normalizer,`normalizer`>> or <<copy-to,`copy_to`>>.
 
-By default synthetic source sorts `keyword` fields and removes duplicates.
+By default, synthetic source sorts `keyword` fields and removes duplicates.
 For example:
 [source,console,id=synthetic-source-keyword-example-default]
 ----

@@ -166,8 +166,8 @@ a <<keyword-synthetic-source, `keyword`>> sub-field that supports synthetic
 `_source` or if the `text` field sets `store` to `true`. Either way, it may
 not have <<copy-to,`copy_to`>>.
 
-If using a sub-`keyword` field then the values are sorted in the same was as
-a `keyword` field's values are sorted. By default that means sorted with
+If using a sub-`keyword` field then the values are sorted in the same way as
+a `keyword` field's values are sorted. By default, that means sorted with
 duplicates removed. So:
 [source,console,id=synthetic-source-text-example-default]
 ----

@@ -61,12 +61,14 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -897,16 +899,7 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
-
-            if (operation == FielddataOperation.SCRIPT) {
-                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
-                    name(),
-                    CoreValuesSourceType.KEYWORD,
-                    SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
-                    fieldDataContext.lookupSupplier().get().source(),
-                    TextDocValuesField::new
-                );
-            } else if (operation == FielddataOperation.SEARCH) {
+            if (operation == FielddataOperation.SEARCH) {
                 if (fielddata == false) {
                     throw new IllegalArgumentException(
                         "Text fields are not optimised for operations that require per-document "
@@ -930,7 +923,29 @@ public class TextFieldMapper extends FieldMapper {
                 );
             }
 
-            throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
+            if (operation != FielddataOperation.SCRIPT) {
+                throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
+            }
+            SourceLookup sourceLookup = fieldDataContext.lookupSupplier().get().source();
+            if (sourceLookup.alwaysEmpty() && isStored()) {
+                return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    TextDocValuesField::new
+                ) {
+                    @Override
+                    protected BytesRef storedToBytesRef(Object stored) {
+                        return new BytesRef((String) stored);
+                    }
+                };
+            }
+            return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                sourceLookup,
+                TextDocValuesField::new
+            );
         }
     }
 

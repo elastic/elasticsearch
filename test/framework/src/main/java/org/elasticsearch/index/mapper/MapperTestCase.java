@@ -34,7 +34,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -347,6 +349,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
         );
         return result.get();
+    }
+
+    protected final void assertScriptDocValues(MapperService mapperService, Object sourceValue, Matcher<List<?>> dvMatcher)
+        throws IOException {
+        withLuceneIndex(
+            mapperService,
+            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", sourceValue))).rootDoc()); },
+            iw -> {
+                IndexSearcher searcher = newSearcher(iw);
+                MappedFieldType ft = mapperService.fieldType("field");
+                SearchLookup searchLookup = new SearchLookup(null, null, mapperService.mappingLookup().getSourceProvider());
+                IndexFieldData<?> sfd = ft.fielddataBuilder(
+                    new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                ).build(null, null);
+                LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
+                DocValuesScriptFieldFactory sff = lfd.getScriptFieldFactory("field");
+                sff.setNextDocId(0);
+                assertThat(sff.toScriptDocValues(), dvMatcher);
+            }
+        );
     }
 
     private class UpdateCheck {

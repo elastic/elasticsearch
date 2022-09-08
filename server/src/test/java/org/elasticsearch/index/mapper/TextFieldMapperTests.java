@@ -1212,4 +1212,26 @@ public class TextFieldMapperTests extends MapperTestCase {
         mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
         assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
     }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "text").field("store", true)));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
 }

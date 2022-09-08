@@ -35,6 +35,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -297,17 +298,29 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            if (fieldDataContext.fielddataOperation() == FielddataOperation.SCRIPT) {
-                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
-                    name(),
-                    CoreValuesSourceType.KEYWORD,
-                    SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
-                    fieldDataContext.lookupSupplier().get().source(),
-                    TextDocValuesField::new
-                );
+            if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
             }
-
-            throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
+            SourceLookup sourceLookup = fieldDataContext.lookupSupplier().get().source();
+            if (sourceLookup.alwaysEmpty()) {
+                return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
+                    storedFieldNameForSyntheticSource(),
+                    CoreValuesSourceType.KEYWORD,
+                    TextDocValuesField::new
+                ) {
+                    @Override
+                    protected BytesRef storedToBytesRef(Object stored) {
+                        return new BytesRef((String) stored);
+                    }
+                };
+            }
+            return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                sourceLookup,
+                TextDocValuesField::new
+            );
         }
 
         private String storedFieldNameForSyntheticSource() {

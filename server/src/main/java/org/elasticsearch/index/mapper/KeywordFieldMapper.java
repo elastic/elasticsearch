@@ -47,6 +47,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -58,6 +59,7 @@ import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
@@ -685,30 +687,45 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             if (operation == FielddataOperation.SEARCH) {
                 failIfNoDocValues();
+                return fieldDataFromDocValues();
+            }
+            if (operation != FielddataOperation.SCRIPT) {
+                throw new IllegalStateException("unknown operation [" + operation.name() + "]");
             }
 
-            if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return new SortedSetOrdinalsIndexFieldData.Builder(
-                    name(),
-                    CoreValuesSourceType.KEYWORD,
-                    (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-                );
+            if (hasDocValues()) {
+                return fieldDataFromDocValues();
             }
-
-            if (operation == FielddataOperation.SCRIPT) {
-                SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
-                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-
-                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+            SourceLookup sourceLookup = fieldDataContext.lookupSupplier().get().source();
+            if (sourceLookup.alwaysEmpty() && isStored()) {
+                return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     name(),
                     CoreValuesSourceType.KEYWORD,
-                    sourceValueFetcher(sourcePaths),
-                    searchLookup.source(),
                     KeywordDocValuesField::new
-                );
+                ) {
+                    @Override
+                    protected BytesRef storedToBytesRef(Object stored) {
+                        return (BytesRef) stored;
+                    }
+                };
             }
 
-            throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
+            Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+            return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                sourceValueFetcher(sourcePaths),
+                sourceLookup,
+                KeywordDocValuesField::new
+            );
+        }
+
+        private SortedSetOrdinalsIndexFieldData.Builder fieldDataFromDocValues() {
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+            );
         }
 
         @Override

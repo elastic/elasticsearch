@@ -732,4 +732,13 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             b.endObject();
         });
     }
+
+    protected final XContentBuilder syntheticSourceFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField)
+        throws IOException {
+        return syntheticSourceMapping(b -> {
+            b.startObject("field");
+            buildField.accept(b);
+            b.endObject();
+        });
+    }
 }

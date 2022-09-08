@@ -127,6 +127,13 @@ public class SourceLookup implements Map<String, Object> {
     }
 
     /**
+     * Will there <strong>never</strong> be a {@code _source}?
+     */
+    public boolean alwaysEmpty() {
+        return sourceProvider.alwaysEmpty();
+    }
+
+    /**
      * Get the source as a {@link Map} of java objects.
      * <p>
      * Important: This can lose precision on numbers with a decimal point. It
@@ -215,6 +222,11 @@ public class SourceLookup implements Map<String, Object> {
         boolean hasSourceAsMap();
 
         void setSegmentAndDocument(LeafReaderContext context, int docId);
+
+        /**
+         * Will there <strong>never</strong> be a {@code _source}?
+         */
+        boolean alwaysEmpty();
     }
 
     /**
@@ -249,7 +261,12 @@ public class SourceLookup implements Map<String, Object> {
 
         @Override
         public void setSegmentAndDocument(LeafReaderContext context, int docId) {
-            //
+            // nothing to do
+        }
+
+        @Override
+        public boolean alwaysEmpty() {
+            return true;
         }
     }
 
@@ -297,6 +314,11 @@ public class SourceLookup implements Map<String, Object> {
         @Override
         public void setSegmentAndDocument(LeafReaderContext context, int docId) {
             //
+        }
+
+        @Override
+        public boolean alwaysEmpty() {
+            return false;
         }
     }
 
@@ -358,6 +380,11 @@ public class SourceLookup implements Map<String, Object> {
         @Override
         public void setSegmentAndDocument(LeafReaderContext context, int docId) {
             //
+        }
+
+        @Override
+        public boolean alwaysEmpty() {
+            return false;
         }
     }
 
@@ -448,6 +475,11 @@ public class SourceLookup implements Map<String, Object> {
         @Override
         public boolean hasSourceAsMap() {
             return sourceProvider != null && sourceProvider.hasSourceAsMap();
+        }
+
+        @Override
+        public boolean alwaysEmpty() {
+            return false;
         }
     }
 }

@@ -819,22 +819,19 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> try to delete snapshot");
         final RepositoryException ex = expectThrows(
-                RepositoryException.class,
-                () -> clusterAdmin().prepareDeleteSnapshot(repo, existingSnapshot).execute().actionGet()
+            RepositoryException.class,
+            () -> clusterAdmin().prepareDeleteSnapshot(repo, existingSnapshot).execute().actionGet()
         );
-        assertThat(
-                ex.getMessage(),
-                containsString("concurrent modification of the index-N file")
-        );
+        assertThat(ex.getMessage(), containsString("concurrent modification of the index-N file"));
 
         logger.info("--> try to create snapshot");
         final RepositoryException ex2 = expectThrows(
-                RepositoryException.class,
-                () -> clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot).execute().actionGet()
+            RepositoryException.class,
+            () -> clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot).execute().actionGet()
         );
         assertThat(
-                ex2.getMessage(),
-                containsString("Could not read repository data because the contents of the repository do not match its expected state.")
+            ex2.getMessage(),
+            containsString("Could not read repository data because the contents of the repository do not match its expected state.")
         );
 
         logger.info("--> confirm corrupt flag in cluster state");

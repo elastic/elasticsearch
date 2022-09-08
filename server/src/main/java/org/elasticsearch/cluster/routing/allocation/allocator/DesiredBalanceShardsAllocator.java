@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
@@ -123,7 +124,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
         queue.pause();
-        allocationOrdering.retainNodes(getNodeIds(allocation));
+        allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
 
         var index = indexGenerator.incrementAndGet();
         logger.trace("Executing allocate for [{}]", index);
@@ -232,7 +233,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         return builder.append(newLine).toString();
     }
 
-    private static Set<String> getNodeIds(RoutingAllocation allocation) {
-        return allocation.routingNodes().stream().map(RoutingNode::nodeId).collect(toSet());
+    private static Set<String> getNodeIds(RoutingNodes nodes) {
+        return nodes.stream().map(RoutingNode::nodeId).collect(toSet());
     }
 }

@@ -202,7 +202,7 @@ class AggregationToJsonProcessor {
             queueDocToWrite(keyValuePairs, docCount);
         }
 
-        addedLeafKeys.forEach(k -> keyValuePairs.remove(k));
+        addedLeafKeys.forEach(keyValuePairs::remove);
     }
 
     private void processDateHistogram(Histogram agg) throws IOException {
@@ -400,7 +400,7 @@ class AggregationToJsonProcessor {
 
     private boolean processGeoCentroid(GeoCentroid agg) {
         if (agg.count() > 0) {
-            keyValuePairs.put(agg.getName(), agg.centroid().getLat() + "," + agg.centroid().getLon());
+            keyValuePairs.put(agg.getName(), agg.centroid().getY() + "," + agg.centroid().getX());
             return true;
         }
         return false;

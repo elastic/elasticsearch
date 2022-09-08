@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
@@ -53,7 +52,6 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final AllocationDeciders allocationDeciders,
         final AutoscalingCalculateCapacityService.Holder policyValidatorHolder,
         final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
@@ -63,7 +61,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             indexNameExpressionResolver,
-            policyValidatorHolder.get(allocationDeciders),
+            policyValidatorHolder.get(),
             autoscalingLicenseChecker
         );
     }

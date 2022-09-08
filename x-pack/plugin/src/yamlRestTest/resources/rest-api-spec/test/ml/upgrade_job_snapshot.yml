@@ -95,7 +95,11 @@ setup:
         snapshot_id: "9999999999"
 
 ---
+
 "Test existing but corrupt snapshot":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/89564"
   - do:
       ml.upgrade_job_snapshot:
         job_id: "upgrade-model-snapshot"

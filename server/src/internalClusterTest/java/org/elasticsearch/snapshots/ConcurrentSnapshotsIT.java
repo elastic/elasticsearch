@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
@@ -139,7 +140,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> corrupting the repository by moving index-N blob to next generation");
         final RepositoryData repositoryData = getRepositoryData(repoName);
         Settings repoSettings = getRepositoryMetadata(repoName).settings();
-        Path repo = Path.of(repoSettings.get("location"));
+
+        Path repo = PathUtils.get(repoSettings.get("location"));
         Files.move(repo.resolve("index-" + repositoryData.getGenId()), repo.resolve("index-" + (repositoryData.getGenId() + 1)));
 
         logger.info("--> trying to create another snapshot in order for repository to be marked as corrupt");

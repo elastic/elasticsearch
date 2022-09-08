@@ -33,7 +33,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.mapper.FieldMappingStats;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -309,14 +309,11 @@ public class RestNodesAction extends AbstractCatAction {
             "alias:sstc,shardStatsTotalCount;default:false;text-align:right;desc:number of shards assigned"
         );
 
+        table.addCell("mappings.total_count", "alias:mtc,mappingsTotalCount;default:false;text-align:right;desc:number of mappings");
         table.addCell(
-            "field_mappings.total_count",
-            "alias:fmtc,fieldMappersTotalCount;default:false;text-align:right;desc:number of field mappers"
-        );
-        table.addCell(
-            "field_mappings.total_estimated_overhead_in_bytes",
-            "alias:fmteoi,fieldMappersTotalEstimatedOverheadInBytes;default:false;text-align:right;desc:estimated"
-                + " overhead in bytes of field mappers"
+            "mappings.total_estimated_overhead_in_bytes",
+            "alias:mteoi,mappingsTotalEstimatedOverheadInBytes;default:false;text-align:right;desc:estimated"
+                + " overhead in bytes of mappings"
         );
 
         table.endHeaders();
@@ -520,9 +517,9 @@ public class RestNodesAction extends AbstractCatAction {
             ShardCountStats shardCountStats = indicesStats == null ? null : indicesStats.getShardCount();
             table.addCell(shardCountStats == null ? null : shardCountStats.getTotalCount());
 
-            FieldMappingStats fieldMappingStats = indicesStats == null ? null : indicesStats.getFieldMappingStats();
-            table.addCell(fieldMappingStats == null ? null : fieldMappingStats.getTotalCount());
-            table.addCell(fieldMappingStats == null ? null : fieldMappingStats.getTotalEstimatedOverhead());
+            NodeMappingStats nodeMappingStats = indicesStats == null ? null : indicesStats.getNodeMappingStats();
+            table.addCell(nodeMappingStats == null ? null : nodeMappingStats.getTotalCount());
+            table.addCell(nodeMappingStats == null ? null : nodeMappingStats.getTotalEstimatedOverhead());
 
             table.endRow();
         }

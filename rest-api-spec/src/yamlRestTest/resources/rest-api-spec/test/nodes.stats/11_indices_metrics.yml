@@ -110,7 +110,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
-  - is_false:  nodes.$node_id.indices.field_mappings
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - multi":
@@ -140,7 +140,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
-  - is_false:  nodes.$node_id.indices.field_mappings
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - recovery":
@@ -170,7 +170,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
-  - is_false:  nodes.$node_id.indices.field_mappings
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - _all include_segment_file_sizes":
@@ -229,7 +229,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
-  - is_false:  nodes.$node_id.indices.field_mappings
+  - is_false:  nodes.$node_id.indices.mappings
   - is_true:   nodes.$node_id.indices.segments.file_sizes
 
 ---
@@ -262,7 +262,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
-  - is_false:  nodes.$node_id.indices.field_mappings
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - _all include_unloaded_segments":
@@ -395,7 +395,7 @@
   - gte: { nodes.$node_id.indices.shard_stats.total_count: 1 }
 
 ---
-"Metric - blank for indices field_mappings":
+"Metric - blank for indices mappings":
   - skip:
       features: [arbitrary_key]
       version: " - 8.4.99"
@@ -408,12 +408,12 @@
   - do:
       nodes.stats: {}
 
-  - is_true:  nodes.$node_id.indices.field_mappings
-  - match: { nodes.$node_id.indices.field_mappings.total_count: 0 }
-  - match: { nodes.$node_id.indices.field_mappings.total_estimated_overhead_in_bytes: 0 }
+  - is_true:  nodes.$node_id.indices.mappings
+  - match: { nodes.$node_id.indices.mappings.total_count: 0 }
+  - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 0 }
 
 ---
-"indices field_mappings exact count test for indices level":
+"indices mappings exact count test for indices level":
 
   - skip:
       features: [arbitrary_key]
@@ -499,15 +499,15 @@
   # Runtime field mappers:
   # 26. a_source_field
 
-  - gte: { nodes.$node_id.indices.field_mappings.total_count: 26 }
-  - is_true: nodes.$node_id.indices.field_mappings.total_estimated_overhead
-  - gte: { nodes.$node_id.indices.field_mappings.total_estimated_overhead_in_bytes: 26624 }
-  - match: { nodes.$node_id.indices.indices.index1.field_mappings.total_count: 26 }
-  - is_true: nodes.$node_id.indices.indices.index1.field_mappings.total_estimated_overhead
-  - match: { nodes.$node_id.indices.indices.index1.field_mappings.total_estimated_overhead_in_bytes: 26624 }
+  - gte: { nodes.$node_id.indices.mappings.total_count: 26 }
+  - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead
+  - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 26624 }
+  - match: { nodes.$node_id.indices.indices.index1.mappings.total_count: 26 }
+  - is_true: nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead
+  - match: { nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead_in_bytes: 26624 }
 
 ---
-"indices field_mappings does not exist in shards level":
+"indices mappings does not exist in shards level":
 
   - skip:
       features: [arbitrary_key]
@@ -537,7 +537,7 @@
       nodes.stats: { metric: _all, level: "shards", human: true }
 
   # We assert that there are at least two fields (for the mapping above), and that each accounts for at least 1 byte estimated overhead
-  - gte: { nodes.$node_id.indices.field_mappings.total_count: 2 }
-  - is_true: nodes.$node_id.indices.field_mappings.total_estimated_overhead
-  - gte: { nodes.$node_id.indices.field_mappings.total_estimated_overhead_in_bytes: 2 }
-  - is_false: nodes.$node_id.indices.shards.index1.0.field_mappings
+  - gte: { nodes.$node_id.indices.mappings.total_count: 2 }
+  - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead
+  - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 2 }
+  - is_false: nodes.$node_id.indices.shards.index1.0.mappings

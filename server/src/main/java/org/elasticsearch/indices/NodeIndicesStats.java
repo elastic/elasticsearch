@@ -24,7 +24,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.mapper.FieldMappingStats;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -192,8 +192,8 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     }
 
     @Nullable
-    public FieldMappingStats getFieldMappingStats() {
-        return stats.getFieldMappings();
+    public NodeMappingStats getNodeMappingStats() {
+        return stats.getNodeMappings();
     }
 
     @Override

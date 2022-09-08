@@ -29,8 +29,8 @@ import java.util.EnumSet;
 public class CommonStatsFlags implements Writeable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
-    public static final CommonStatsFlags SHARD_LEVEL = new CommonStatsFlags().all().set(Flag.FieldMappings, false);
-    public static final CommonStatsFlags INDEX_LEVEL = new CommonStatsFlags().clear().set(Flag.FieldMappings, true);
+    public static final CommonStatsFlags SHARD_LEVEL = new CommonStatsFlags().all().set(Flag.Mappings, false);
+    public static final CommonStatsFlags INDEX_LEVEL = new CommonStatsFlags().clear().set(Flag.Mappings, true);
     public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
 
     private EnumSet<Flag> flags = EnumSet.allOf(Flag.class);
@@ -225,7 +225,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         Recovery("recovery", 16),
         Bulk("bulk", 17),
         Shards("shard_stats", 18),
-        FieldMappings("field_mappings", 19);
+        Mappings("mappings", 19);
 
         private final String restName;
         private final int index;

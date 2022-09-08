@@ -48,10 +48,10 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.FieldMappingStats;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -299,12 +299,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexShard;
     }
 
-    public FieldMappingStats getFieldMappingStats() {
+    public NodeMappingStats getNodeMappingStats() {
         long totalCount = mapperService().mappingLookup().getTotalMappings();
         Index index = index();
         long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
-        FieldMappingStats indexFieldMappingStats = new FieldMappingStats(totalCount, totalEstimatedOverhead);
-        return indexFieldMappingStats;
+        NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
+        return indexNodeMappingStats;
     }
 
     public Set<Integer> shardIds() {

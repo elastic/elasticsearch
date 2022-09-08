@@ -23,7 +23,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.mapper.FieldMappingStats;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -47,7 +47,7 @@ import java.util.Objects;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
-    private static final Version VERSION_SUPPORTING_FIELD_MAPPINGS = Version.V_8_5_0;
+    private static final Version VERSION_SUPPORTING_NODE_MAPPINGS = Version.V_8_5_0;
 
     @Nullable
     public DocsStats docs;
@@ -104,7 +104,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
     public ShardCountStats shards;
 
     @Nullable
-    public FieldMappingStats fieldMappings;
+    public NodeMappingStats nodeMappings;
 
     public CommonStats() {
         this(CommonStatsFlags.NONE);
@@ -133,7 +133,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Recovery -> recoveryStats = new RecoveryStats();
                 case Bulk -> bulk = new BulkStats();
                 case Shards -> shards = new ShardCountStats();
-                case FieldMappings -> fieldMappings = new FieldMappingStats();
+                case Mappings -> nodeMappings = new NodeMappingStats();
                 default -> throw new IllegalStateException("Unknown Flag: " + flag);
             }
         }
@@ -174,7 +174,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Shards ->
                         // Setting to 1 because the single IndexShard passed to this method implies 1 shard
                         stats.shards = new ShardCountStats(1);
-                    case FieldMappings -> throw new IllegalStateException("Flag: " + flag + " must not be used at shard level");
+                    case Mappings -> throw new IllegalStateException("Flag: " + flag + " must not be used at shard level");
                     default -> throw new IllegalStateException("Unknown Flag: " + flag);
                 }
             } catch (AlreadyClosedException e) {
@@ -196,8 +196,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
 
         for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
             switch (flag) {
-                case FieldMappings:
-                    stats.fieldMappings = indexService.getFieldMappingStats();
+                case Mappings:
+                    stats.nodeMappings = indexService.getNodeMappingStats();
                     break;
                 case Docs:
                 case Store:
@@ -247,8 +247,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             bulk = in.readOptionalWriteable(BulkStats::new);
         }
         shards = in.readOptionalWriteable(ShardCountStats::new);
-        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_FIELD_MAPPINGS)) {
-            fieldMappings = in.readOptionalWriteable(FieldMappingStats::new);
+        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+            nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
         }
     }
 
@@ -274,8 +274,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             out.writeOptionalWriteable(bulk);
         }
         out.writeOptionalWriteable(shards);
-        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_FIELD_MAPPINGS)) {
-            out.writeOptionalWriteable(fieldMappings);
+        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+            out.writeOptionalWriteable(nodeMappings);
         }
     }
 
@@ -302,7 +302,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
             && Objects.equals(recoveryStats, that.recoveryStats)
             && Objects.equals(bulk, that.bulk)
             && Objects.equals(shards, that.shards)
-            && Objects.equals(fieldMappings, that.fieldMappings);
+            && Objects.equals(nodeMappings, that.nodeMappings);
     }
 
     @Override
@@ -326,7 +326,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
             recoveryStats,
             bulk,
             shards,
-            fieldMappings
+            nodeMappings
         );
     }
 
@@ -474,12 +474,12 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 shards = shards.add(stats.shards);
             }
         }
-        if (stats.getFieldMappings() != null) {
-            if (fieldMappings == null) {
-                fieldMappings = new FieldMappingStats();
-                fieldMappings.add(stats.getFieldMappings());
+        if (stats.getNodeMappings() != null) {
+            if (nodeMappings == null) {
+                nodeMappings = new NodeMappingStats();
+                nodeMappings.add(stats.getNodeMappings());
             } else {
-                fieldMappings.add(stats.getFieldMappings());
+                nodeMappings.add(stats.getNodeMappings());
             }
         }
     }
@@ -575,8 +575,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
     }
 
     @Nullable
-    public FieldMappingStats getFieldMappings() {
-        return fieldMappings;
+    public NodeMappingStats getNodeMappings() {
+        return nodeMappings;
     }
 
     /**
@@ -619,7 +619,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         addIfNonNull(builder, params, requestCache);
         addIfNonNull(builder, params, recoveryStats);
         addIfNonNull(builder, params, bulk);
-        addIfNonNull(builder, params, fieldMappings);
+        addIfNonNull(builder, params, nodeMappings);
         return builder;
     }
 

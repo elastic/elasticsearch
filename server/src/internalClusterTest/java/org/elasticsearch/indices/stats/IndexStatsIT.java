@@ -954,7 +954,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             Flag.Recovery,
             Flag.Bulk,
             Flag.Shards,
-            Flag.FieldMappings };
+            Flag.Mappings };
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -1161,8 +1161,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getBulk() != null;
             case Shards:
                 return response.getShards() != null;
-            case FieldMappings:
-                return response.getFieldMappings() != null;
+            case Mappings:
+                return response.getNodeMappings() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

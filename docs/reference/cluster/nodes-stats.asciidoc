@@ -102,11 +102,11 @@ using metrics.
     * `bulk`
     * `completion`
     * `docs`
-    * `field_mappings`
     * `fielddata`
     * `flush`
     * `get`
     * `indexing`
+    * `mappings`
     * `merge`
     * `query_cache`
     * `recovery`
@@ -975,13 +975,13 @@ Contains statistics about all shards assigned to the node.
 The total number of shards assigned to the node.
 =======
 
-`field_mappings`::
+`mappings`::
 (object)
-Contains statistics about the mappings of fields for the node.
+Contains statistics about the mappings for the node.
 This is not shown for the `shards` level, since mappings may be
 shared across the shards of an index on a node.
 +
-.Properties of `field_mappings`
+.Properties of `mappings`
 [%collapsible%open]
 =======
 `total_count`::

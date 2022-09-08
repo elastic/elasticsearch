@@ -37,7 +37,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.mapper.FieldMappingStats;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -552,7 +552,7 @@ public class NodeStatsTests extends ESTestCase {
 
     private static CommonStats createIndexLevelCommonStats() {
         CommonStats stats = new CommonStats(CommonStatsFlags.INDEX_LEVEL);
-        stats.fieldMappings = new FieldMappingStats(randomNonNegativeLong(), randomNonNegativeLong());
+        stats.nodeMappings = new NodeMappingStats(randomNonNegativeLong(), randomNonNegativeLong());
         return stats;
     }
 

@@ -13,27 +13,27 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class FieldMappingStatsTests extends ESTestCase {
+public class NodeMappingStatsTests extends ESTestCase {
 
     public void testSerialize() throws IOException {
-        FieldMappingStats stats = randomFieldMappingStats();
+        NodeMappingStats stats = randomNodeMappingStats();
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();
-        FieldMappingStats read = new FieldMappingStats(input);
+        NodeMappingStats read = new NodeMappingStats(input);
         assertEquals(-1, input.read());
         assertEquals(stats.getTotalCount(), read.getTotalCount());
         assertEquals(stats.getTotalEstimatedOverhead(), read.getTotalEstimatedOverhead());
     }
 
     public void testEqualityAndHashCode() {
-        FieldMappingStats stats = randomFieldMappingStats();
+        NodeMappingStats stats = randomNodeMappingStats();
         assertEquals(stats, stats);
         assertEquals(stats.hashCode(), stats.hashCode());
 
-        FieldMappingStats stats1 = new FieldMappingStats(1L, 2L);
-        FieldMappingStats stats2 = new FieldMappingStats(3L, 5L);
-        FieldMappingStats stats3 = new FieldMappingStats(3L, 5L);
+        NodeMappingStats stats1 = new NodeMappingStats(1L, 2L);
+        NodeMappingStats stats2 = new NodeMappingStats(3L, 5L);
+        NodeMappingStats stats3 = new NodeMappingStats(3L, 5L);
 
         assertNotEquals(stats1, stats2);
         assertNotEquals(stats1, stats3);
@@ -41,18 +41,18 @@ public class FieldMappingStatsTests extends ESTestCase {
     }
 
     public void testAdd() {
-        FieldMappingStats stats1 = new FieldMappingStats(1L, 2L);
-        FieldMappingStats stats2 = new FieldMappingStats(2L, 3L);
-        FieldMappingStats stats3 = new FieldMappingStats(3L, 5L);
+        NodeMappingStats stats1 = new NodeMappingStats(1L, 2L);
+        NodeMappingStats stats2 = new NodeMappingStats(2L, 3L);
+        NodeMappingStats stats3 = new NodeMappingStats(3L, 5L);
 
         stats1.add(stats2);
         assertEquals(stats1, stats3);
         assertEquals(stats1.hashCode(), stats3.hashCode());
     }
 
-    private static FieldMappingStats randomFieldMappingStats() {
+    private static NodeMappingStats randomNodeMappingStats() {
         long totalCount = randomIntBetween(1, 100);
         long estimatedOverhead = totalCount * 1024;
-        return new FieldMappingStats(totalCount, estimatedOverhead);
+        return new NodeMappingStats(totalCount, estimatedOverhead);
     }
 }

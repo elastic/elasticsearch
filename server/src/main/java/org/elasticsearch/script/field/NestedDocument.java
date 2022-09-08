@@ -9,38 +9,70 @@
 package org.elasticsearch.script.field;
 
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.Objects;
 import java.util.stream.Stream;
 
-public class NestedDocument extends WriteField {
-    public NestedDocument(String path, Supplier<Map<String, Object>> rootSupplier) {
-        super(path, rootSupplier);
+public class NestedDocument {
+    private WriteField parent;
+    private int index;
+    private Map<String, Object> doc;
+
+    public NestedDocument(WriteField parent, int index, Map<String, Object> doc) {
+        this.parent = parent;
+        this.index = index;
+        this.doc = Objects.requireNonNull(doc);
     }
 
+    /**
+     * Get a {@link WriteField} inside this NestedDocument, all operation on the {@link WriteField} are relative to this NestedDocument.
+     */
     public WriteField field(String path) {
-        throw new UnsupportedOperationException("unimplemented");
+        return new WriteField(path, this::getDoc);
     }
 
+    /**
+     * Stream all {@link WriteField}s in this NestedDocument.
+     */
     public Stream<WriteField> fields(String glob) {
         throw new UnsupportedOperationException("unimplemented");
     }
 
     public int index() {
-        throw new UnsupportedOperationException("unimplemented");
+        return index;
     }
 
-    @Override
+    /**
+     * Are there any {@link WriteField}s inside this NestedDocument?
+     */
     public boolean isEmpty() {
-        throw new UnsupportedOperationException("unimplemented");
+        return doc.isEmpty();
     }
 
-    @Override
+    /**
+     * The number of fields in this NestedDocument.
+     */
     public int size() {
-        throw new UnsupportedOperationException("unimplemented");
+        return doc.size();
     }
 
-    @Override
+    /**
+     * Has this NestedDocument been removed?
+     */
     public boolean exists() {
-        throw new UnsupportedOperationException("unimplemented");
+        return parent.exists();
+    }
+
+    /**
+     * Remove this NestedDocument
+     */
+    public void remove() {
+        parent.removeExactValue(index, doc);
+    }
+
+    /**
+     * Return the underlying doc for using this class as a root supplier.
+     */
+    protected Map<String, Object> getDoc() {
+        return doc;
     }
 }

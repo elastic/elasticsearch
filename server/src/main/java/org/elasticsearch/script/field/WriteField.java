@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.Maps;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.function.Supplier;
 
 public class WriteField implements Field<Object> {
     protected String path;
-    protected final Supplier<Map<String, Object>> rootSupplier;
+    protected Supplier<Map<String, Object>> rootSupplier;
 
     protected Map<String, Object> container;
     protected String leaf;
@@ -68,6 +69,41 @@ public class WriteField implements Field<Object> {
     }
 
     /**
+     * Move this path to the path of the given {@code WriteField}, using that {@code WriteField}s root,
+     * which may be a {@link NestedDocument}.
+     *
+     * @throws IllegalArgumentException if the other path has contents
+     */
+    public WriteField move(WriteField path) {
+        if (path.isEmpty() == false) {
+            throw new IllegalArgumentException("Cannot move to non-empty destination [" + path + "]");
+        }
+        return overwrite(path);
+    }
+
+    /**
+     * The painless API for {@code move}, delegates to {@link #move(String)} or {@link #move(WriteField)},
+     * throws an {@link IllegalArgumentException} if {@param path} is neither a {@link String} nor a {@link WriteField}.
+     *
+     * This is necessary because Painless does not support method overloading, only arity overloading.
+     */
+    public WriteField move(Object path) {
+        if (path instanceof String str) {
+            return move(str);
+        } else if (path instanceof WriteField field) {
+            return move(field);
+        }
+
+        throw new IllegalArgumentException(
+            "Cannot call move with ["
+                + path
+                + "], must be String or WriteField, not ["
+                + ((path != null) ? path.getClass().getName() : "null")
+                + "]"
+        );
+    }
+
+    /**
      * Move this path to another path in the map, overwriting the destination path if it exists
      */
     public WriteField overwrite(String path) {
@@ -82,6 +118,47 @@ public class WriteField implements Field<Object> {
             set(value);
         }
         return this;
+    }
+
+    /**
+     * Move this path to the path represented by another {@code WriteField}, using that {@code WriteField}s root,
+     * which may be a {@link NestedDocument}.  Overwrites the destination path if it exists.
+     */
+    public WriteField overwrite(WriteField path) {
+        Object value = get(MISSING);
+        remove();
+        setPath(path.path);
+        this.rootSupplier = path.rootSupplier;
+        if (value == MISSING) {
+            // remove existing mapping if it exists
+            remove();
+        } else {
+            setLeaf();
+            set(value);
+        }
+        return this;
+    }
+
+    /**
+     * The painless API for {@code overwrite}, delegates to {@link #overwrite(String)} or {@link #overwrite(WriteField)},
+     * throws an {@link IllegalArgumentException} if {@param path} is neither a {@link String} nor a {@link WriteField}.
+     *
+     * This is necessary because Painless does not support method overloading, only arity overloading.
+     */
+    public WriteField overwrite(Object path) {
+        if (path instanceof String str) {
+            return overwrite(str);
+        } else if (path instanceof WriteField field) {
+            return overwrite(field);
+        }
+
+        throw new IllegalArgumentException(
+            "Cannot call overwrite with ["
+                + path
+                + "], must be String or WriteField, not ["
+                + ((path != null) ? path.getClass().getName() : "null")
+                + "]"
+        );
     }
 
     // Path Delete
@@ -104,6 +181,9 @@ public class WriteField implements Field<Object> {
      */
     public WriteField set(Object value) {
         setLeaf();
+        if (value instanceof NestedDocument doc) {
+            value = doc.getDoc();
+        }
         container.put(leaf, value);
         return this;
     }
@@ -125,7 +205,11 @@ public class WriteField implements Field<Object> {
                 values = new ArrayList<>(4);
                 values.add(v);
             }
-            values.add(value);
+            if (value instanceof NestedDocument doc) {
+                values.add(doc.getDoc());
+            } else {
+                values.add(value);
+            }
             return values;
         });
         return this;
@@ -333,18 +417,123 @@ public class WriteField implements Field<Object> {
     }
 
     /**
+     * Removes the value at {@param index} if it is the same object as {@param exactValue} using reference equality.
+     *
+     * If {@param exactValue} is not at {@param index}, remove the first instance of {@param exactValue} in this {@code WriteField}.
+     *
+     * This will remove a value even if the underlying {@link List} has insertions or deletions without paying a performance
+     * penalty where no modifications have occurred.
+     */
+    void removeExactValue(int index, Object exactValue) {
+        Object value = container.getOrDefault(leaf, MISSING);
+        if (value == MISSING) {
+            return;
+        }
+
+        if (value instanceof List<?> list) {
+            if (index < list.size()) {
+                Object valueAtIndex = list.get(index);
+                if (valueAtIndex == exactValue) {
+                    list.remove(index);
+                    return;
+                }
+            } else {
+                Iterator<?> it = list.iterator();
+                while (it.hasNext()) {
+                    if (it.next() == exactValue) {
+                        it.remove();
+                        return;
+                    }
+                }
+            }
+        } else if (index == 0 && container.get(leaf) == exactValue) {
+            container.remove(leaf);
+        }
+    }
+
+    /**
      * Append a {@link NestedDocument} to this field and return it.
      */
+    @SuppressWarnings("unchecked")
     public NestedDocument doc() {
-        throw new UnsupportedOperationException("unimplemented");
+        NestedDocument doc = new NestedDocument(this, 0, new HashMap<>());
+
+        Object value = get(MISSING);
+        if (value == MISSING) {
+            set(doc);
+            return doc;
+        }
+
+        List<Map<String, Object>> docs;
+        if (value instanceof List<?> list) {
+            docs = (List<Map<String, Object>>) list;
+
+        } else if (value instanceof Map<?, ?> map) {
+            docs = new ArrayList<>(4);
+            docs.add((Map<String, Object>) map);
+
+        } else {
+            throw new IllegalStateException("Cannot append a doc at [" + path + "] to [" + value + "] of type [" + typeName(value) + "]");
+        }
+
+        docs.add(doc.getDoc());
+        return doc;
     }
 
     /**
      *  Returns a {@link NestedDocument} at the index, if index is beyond the end of the List, creates empty
      *  NestedDocument through the end of the array to the index.
      */
+    @SuppressWarnings("unchecked")
     public NestedDocument doc(int index) {
-        throw new UnsupportedOperationException("unimplemented");
+        Object value = get(index, MISSING);
+        if (value != MISSING) {
+            if (value instanceof Map<?, ?> map) {
+                return new NestedDocument(this, index, (Map<String, Object>) map);
+            }
+            throw new IllegalArgumentException(
+                "Expected NestedDocument at path ["
+                    + path
+                    + "] and index ["
+                    + index
+                    + "], "
+                    + "found ["
+                    + value
+                    + "] of type ["
+                    + (value != null ? value.getClass().getName() : null)
+                    + "] instead"
+            );
+        }
+
+        List<Map<String, Object>> docs;
+        NestedDocument doc = new NestedDocument(this, index, new HashMap<>());
+
+        value = get(MISSING);
+        if (value == MISSING) {
+            docs = new ArrayList<>(index + 1);
+            set(docs);
+
+        } else if (value instanceof List<?> list) {
+            docs = (List<Map<String, Object>>) list;
+
+            // index = 0 handled by get(index, MISSING)
+        } else if (value instanceof Map<?, ?> map) {
+            docs = new ArrayList<>(index + 1);
+            set(docs);
+            docs.add((Map<String, Object>) map);
+
+        } else {
+            throw new IllegalStateException(
+                "Unexpected value [" + value + "] of type [" + typeName(value) + "] at [" + path + "] when adding doc at [" + index + "]"
+            );
+        }
+
+        for (int i = docs.size(); i <= index; i++) {
+            docs.add(new HashMap<>());
+        }
+
+        docs.add(doc.getDoc());
+        return doc;
     }
 
     /**
@@ -430,19 +619,23 @@ public class WriteField implements Field<Object> {
         String[] segments = path.split("\\.");
         for (int i = 0; i < segments.length - 1; i++) {
             String segment = segments[i];
-            Object value = container.get(segment);
+            Object value = container.getOrDefault(segment, MISSING);
             if (value instanceof Map<?, ?> map) {
                 container = (Map<String, Object>) map;
-            } else if (value == null) {
+            } else if (value == MISSING) {
                 Map<String, Object> next = Maps.newHashMapWithExpectedSize(4);
                 container.put(segment, next);
                 container = next;
             } else {
                 throw new IllegalArgumentException(
-                    "Segment [" + i + ":'" + segment + "'] has value [" + value + "] of type [" + value.getClass().getName() + "]"
+                    "Segment [" + i + ":'" + segment + "'] has value [" + value + "] of type [" + typeName(value) + "]"
                 );
             }
         }
         leaf = segments[segments.length - 1];
+    }
+
+    protected String typeName(Object value) {
+        return value != null ? value.getClass().getName() : "null";
     }
 }

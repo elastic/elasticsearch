@@ -914,6 +914,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticEmptyListNoDocValuesLoader() throws IOException {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
+        assertNoDocValueLoader(b -> b.startArray("field").endArray());
+    }
+
+    public final void testEmptyDocumentNoDocValueLoader() throws IOException {
+        assumeFalse("Field will add values even if no fields are supplied", addsValueWhenNotSupplied());
+        assertNoDocValueLoader(b -> {});
+    }
+
+    protected boolean addsValueWhenNotSupplied() {
+        return false;
+    }
+
+    private void assertNoDocValueLoader(CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {
         SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
@@ -922,8 +935,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }));
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            LuceneDocument doc = mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc();
-            iw.addDocument(doc);
+            iw.addDocument(mapper.parse(source(doc)).rootDoc());
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leafReader = getOnlyLeafReader(reader);

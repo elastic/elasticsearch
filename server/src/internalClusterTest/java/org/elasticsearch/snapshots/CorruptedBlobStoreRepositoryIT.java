@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -42,7 +41,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -87,7 +85,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final RepositoryData repositoryData = getRepositoryData(repoName);
         Files.move(repo.resolve("index-" + repositoryData.getGenId()), repo.resolve("index-" + (repositoryData.getGenId() + 1)));
 
-        assertRepositoryBlocked(client(), repoName, snapshot);
+        assertRepositoryBlocked(repoName, snapshot);
 
         logger.info("--> recreate repository with same settings in order to reset corrupted state");
         assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(settings));
@@ -142,14 +140,14 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final RepositoryData repositoryData = getRepositoryData(repoName);
         Files.move(repo.resolve("index-" + repositoryData.getGenId()), repo.resolve("index-" + (repositoryData.getGenId() + 1)));
 
-        assertRepositoryBlocked(client, repoName, snapshot);
+        assertRepositoryBlocked(repoName, snapshot);
 
         if (randomBoolean()) {
             logger.info("--> move index-N blob back to initial generation");
             Files.move(repo.resolve("index-" + (repositoryData.getGenId() + 1)), repo.resolve("index-" + repositoryData.getGenId()));
 
             logger.info("--> verify repository remains blocked");
-            assertRepositoryBlocked(client, repoName, snapshot);
+            assertRepositoryBlocked(repoName, snapshot);
         }
 
         logger.info("--> remove repository");
@@ -816,42 +814,30 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
     }
 
-    private long getRepositoryGeneration(Client client, String repo, String existingSnapshot) {
-        ClusterState clusterState = clusterService().state();
-        Metadata metadata = clusterState.metadata();
-        RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories()
-                .stream()
-                .filter(x -> x.name().equals(repo))
-                .findFirst();
-        assertTrue(repositoryMetadata.isPresent());
-        return repositoryMetadata.get().generation();
-    }
-
-    private void assertRepositoryBlocked(Client client, String repo, String existingSnapshot) {
-        if (getRepositoryGeneration(client, repo, existingSnapshot) == RepositoryData.CORRUPTED_REPO_GEN) return;
+    private void assertRepositoryBlocked(String repo, String existingSnapshot) {
+        if (getRepositoryMetadata(repo).generation() == RepositoryData.CORRUPTED_REPO_GEN) return;
 
         logger.info("--> try to delete snapshot");
-        final RepositoryException repositoryException3 = expectThrows(
-            RepositoryException.class,
-            () -> client.admin().cluster().prepareDeleteSnapshot(repo, existingSnapshot).execute().actionGet()
+        final RepositoryException repositoryException = expectThrows(
+                RepositoryException.class,
+                () -> clusterAdmin().prepareDeleteSnapshot(repo, existingSnapshot).execute().actionGet()
         );
         assertThat(
-            repositoryException3.getMessage(),
-            containsString("concurrent modification of the index-N file")
+                repositoryException.getMessage(),
+                containsString("concurrent modification of the index-N file")
         );
 
         logger.info("--> try to create snapshot");
-        final RepositoryException repositoryException4 = expectThrows(
-            RepositoryException.class,
-            () -> client.admin().cluster().prepareCreateSnapshot(repo, existingSnapshot).execute().actionGet()
+        final RepositoryException repositoryException2 = expectThrows(
+                RepositoryException.class,
+                () -> clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot).execute().actionGet()
         );
         assertThat(
-            repositoryException4.getMessage(),
-            containsString("Could not read repository data because the contents of the repository do not match its expected state.")
+                repositoryException2.getMessage(),
+                containsString("Could not read repository data because the contents of the repository do not match its expected state.")
         );
 
         logger.info("--> confirm corrupt flag in cluster state");
-        assertEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryGeneration(client, repo, existingSnapshot));
+        assertEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryMetadata(repo).generation());
     }
 }

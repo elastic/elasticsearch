@@ -223,6 +223,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                         repositoryMetadata.name(),
                                         repositoryMetadata.uuid()
                                     );
+                                    ensureRepositoryNotInUse(currentState, request.name());
                                     repositoryMetadata = repositoryMetadata.withGeneration(
                                         RepositoryData.UNKNOWN_REPO_GEN,
                                         repositoryMetadata.pendingGeneration()

@@ -32,6 +32,10 @@ public class NodeAllocationOrdering {
         return list;
     }
 
+    public void retainNodes(Set<String> retainedNodeIds) {
+        recentAllocations.keySet().retainAll(retainedNodeIds);
+    }
+
     public void onNoLongerMaster() {
         order.set(0L);
         recentAllocations.clear();

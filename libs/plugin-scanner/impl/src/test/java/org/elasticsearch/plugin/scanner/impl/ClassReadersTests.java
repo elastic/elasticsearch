@@ -84,10 +84,9 @@ public class ClassReadersTests extends ESTestCase {
             public class D {}
             """)));
 
-        // Stream<ClassReader> classReaderStream = ClassReaders.ofModulePath();
         try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString())) {
-
             List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
+            assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D"));
         }
     }
 

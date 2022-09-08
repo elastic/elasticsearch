@@ -14,7 +14,7 @@ import java.util.Objects;
 
 public class NameToPluginInfo {
 
-    // plugin name to NamedPluginInfo
+    // plugin name to PluginInfo(name -the same as key, class name, plugin class loader)
     private Map<String, PluginInfo> namedPluginInfoMap = new HashMap<>();
 
     public void put(String name, PluginInfo pluginInfo) {

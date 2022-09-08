@@ -104,22 +104,6 @@ public class NamedComponentScanner {
                         .put(name, new PluginInfo(name, value, pluginClassLoader));
                 }
             }
-
-            // try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            // Map<String, Object> map = parser.map();
-            // for (Map.Entry<String, Object> fileAsMap : map.entrySet()) {
-            // String extensibleInterface = fileAsMap.getKey();
-            //
-            // Map<String, Object> components = (Map<String, Object>) fileAsMap.getValue();
-            // for (Map.Entry<String, Object> nameToComponent : components.entrySet()) {
-            // String name = nameToComponent.getKey();
-            // String value = (String) nameToComponent.getValue();
-            //
-            // res.computeIfAbsent(extensibleInterface, k -> new NameToPluginInfo())
-            // .put(name, new PluginInfo(name, value, pluginClassLoader));
-            // }
-            // }
-            // }
         }
         return res;
     }

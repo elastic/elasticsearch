@@ -60,6 +60,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private WatchService watchService; // null;
     private CountDownLatch watcherThreadLatch;
+    private volatile CountDownLatch processingLatch;
 
     private volatile FileUpdateState fileUpdateState = null;
     private volatile WatchKey settingsDirWatchKey = null;
@@ -312,7 +313,15 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                             settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDir);
 
                             if (watchedFileChanged(path)) {
-                                processFileSettings(path, (e) -> logger.error("Error processing operator settings json file", e)).await();
+                                processingLatch = processFileSettings(
+                                    path,
+                                    (e) -> logger.error("Error processing operator settings json file", e)
+                                );
+                                // After we get and set the processing latch, we need to check if stop wasn't
+                                // invoked in the meantime. Stop will invalidate all watch keys.
+                                if (configDirWatchKey != null) {
+                                    processingLatch.await();
+                                }
                             }
                         } catch (IOException e) {
                             logger.warn("encountered I/O error while watching file settings", e);
@@ -339,6 +348,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 cleanupWatchKeys();
                 fileUpdateState = null;
                 watchService.close();
+                if (processingLatch != null) {
+                    processingLatch.countDown();
+                }
                 if (watcherThreadLatch != null) {
                     watcherThreadLatch.await();
                 }

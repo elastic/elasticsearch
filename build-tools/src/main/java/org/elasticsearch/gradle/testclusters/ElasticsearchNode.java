@@ -114,8 +114,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         "path.repo",
         "discovery.seed_providers",
         "cluster.deprecation_indexing.enabled",
-        "cluster.initial_master_nodes"
-
+        "cluster.initial_master_nodes",
+        "xpack.security.enabled"
     );
 
     private static final int TAIL_LOG_MESSAGES_COUNT = 40;

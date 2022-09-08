@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,8 +31,11 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.common.Priority;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -39,7 +43,9 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,6 +54,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -77,23 +84,23 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         ALLOCATE,
     }
 
-    private static class TestRerouteService implements RerouteService {
-        private boolean expectReroute;
+    private static class TestReconcileAction implements DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction {
+        private volatile boolean expectReconcile;
 
         @Override
-        public void reroute(String reason, Priority priority, ActionListener<ClusterState> listener) {
-            assertTrue("unexpected reroute", expectReroute);
-            expectReroute = false;
-            listener.onResponse(null);
+        public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
+            assertTrue("unexpected reconcile", expectReconcile);
+            expectReconcile = false;
+            return clusterState;
         }
 
-        public void setExpectReroute() {
-            assertFalse("already expecting a reroute", expectReroute);
-            expectReroute = true;
+        public void expectReconcile() {
+            assertFalse("already expecting a reconcile", expectReconcile);
+            expectReconcile = true;
         }
 
-        public void assertNoPendingReroute() {
-            assertFalse("no reroute occurred", expectReroute);
+        public void assertNoPendingReconcile() {
+            assertFalse("no reconcile occurred", expectReconcile);
         }
     }
 
@@ -112,10 +119,48 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
     }
 
+    private static ClusterService createClusterService(DeterministicTaskQueue deterministicTaskQueue, ThreadPool threadPool) {
+        var settings = Settings.EMPTY;
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        var clusterService = new ClusterService(
+            settings,
+            clusterSettings,
+            new FakeThreadPoolMasterService("node-1", "test", threadPool, deterministicTaskQueue::scheduleNow),
+            new ClusterApplierService("node-1", settings, clusterSettings, threadPool)
+        );
+
+        var localNode = new DiscoveryNode(
+            "node-1",
+            "node-1",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
+        var indexMetadata = createIndex(TEST_INDEX);
+
+        var initialState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata))
+            .build();
+
+        clusterService.getClusterApplierService().setInitialState(initialState);
+        clusterService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
+        clusterService.getMasterService()
+            .setClusterStatePublisher(ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService()));
+        clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
+        clusterService.start();
+        return clusterService;
+    }
+
     private static void testAllocate(GatewayAllocatorBehaviour gatewayAllocatorBehaviour) {
-        final var rerouteService = new TestRerouteService();
+        final var reconcileAction = new TestReconcileAction();
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var clusterService = createClusterService(deterministicTaskQueue, threadPool);
         final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
@@ -131,7 +176,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
-        }, threadPool, null, null);
+        }, threadPool, clusterService, reconcileAction);
 
         final var fetchingShardData = new AtomicBoolean(gatewayAllocatorBehaviour == GatewayAllocatorBehaviour.STILL_FETCHING);
         final var allocationService = new AllocationService(new AllocationDeciders(List.of()), new GatewayAllocator() {
@@ -168,62 +213,63 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
         }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
 
-        final var discoveryNode = createDiscoveryNode("node-0");
-        final var indexMetadata = createIndex(TEST_INDEX);
-        var clusterState = createClusterState(discoveryNode, indexMetadata);
+        // var clusterState = createClusterState(discoveryNode, indexMetadata);
         var listener = new TestActionListener();
 
         switch (gatewayAllocatorBehaviour) {
             case DO_NOTHING -> {
                 // first reroute does nothing synchronously but triggers a desired balance computation which leads to a further reroute
+                var clusterState = clusterService.state();
                 assertSame(clusterState, allocationService.reroute(clusterState, "test", listener));
-                rerouteService.setExpectReroute();
+                reconcileAction.expectReconcile();
                 deterministicTaskQueue.runAllTasks();
-                rerouteService.assertNoPendingReroute();
+                reconcileAction.assertNoPendingReconcile();
                 final var shardRouting = clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
                 assertFalse(shardRouting.assignedToNode());
                 assertThat(shardRouting.unassignedInfo().getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
-                assertFalse(listener.wasCalled);
+                assertTrue(listener.wasCalled);
             }
             case STILL_FETCHING -> {
                 // first reroute will allocate nothing if the gateway allocator is still in charge
-                clusterState = allocationService.reroute(clusterState, "test", listener);
-                rerouteService.setExpectReroute();
+                allocationService.reroute(clusterService.state(), "test", listener);
+                reconcileAction.expectReconcile();
                 assertTrue(deterministicTaskQueue.hasRunnableTasks());
                 deterministicTaskQueue.runAllTasks();
-                rerouteService.assertNoPendingReroute();
-                final var shardRouting = clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
+                reconcileAction.assertNoPendingReconcile();
+                final var shardRouting = clusterService.state().routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
                 assertFalse(shardRouting.assignedToNode());
                 assertThat(
                     shardRouting.unassignedInfo().getLastAllocationStatus(),
                     equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
                 );
                 fetchingShardData.set(false);
-                assertFalse(listener.wasCalled);
+                assertTrue(listener.wasCalled);
             }
             case ALLOCATE -> {
                 // first reroute will allocate according to the gateway allocator
-                clusterState = allocationService.reroute(clusterState, "test", listener);
-                rerouteService.setExpectReroute();
+                allocationService.reroute(clusterService.state(), "test", listener);
+                reconcileAction.expectReconcile();
                 assertTrue(deterministicTaskQueue.hasRunnableTasks());
                 deterministicTaskQueue.runAllTasks();
-                rerouteService.assertNoPendingReroute();
-                final var shardRouting = clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
+                reconcileAction.assertNoPendingReconcile();
+                final var shardRouting = clusterService.state().routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
                 assertTrue(shardRouting.assignedToNode());
-                assertFalse(listener.wasCalled);
+                assertTrue(listener.wasCalled);
             }
         }
 
         // next reroute picks up the new desired balance, reconciles the cluster state by allocating the shard, but needs no extra reroute
-        clusterState = allocationService.reroute(clusterState, "test", ActionListener.noop());
+        reconcileAction.expectReconcile();
+        allocationService.reroute(clusterService.state(), "test", ActionListener.noop());
         deterministicTaskQueue.runAllTasks();
-        rerouteService.assertNoPendingReroute();
-        assertTrue(clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard().assignedToNode());
+        reconcileAction.assertNoPendingReconcile();
+        assertTrue(clusterService.state().routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard().assignedToNode());
 
         // another reroute does nothing
+        var clusterState = clusterService.state();
         assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         deterministicTaskQueue.runAllTasks();
-        rerouteService.assertNoPendingReroute();
+        reconcileAction.assertNoPendingReconcile();
 
         // when the shard is started further reroutes still do nothing
         clusterState = allocationService.applyStartedShards(
@@ -232,7 +278,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         );
         assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         deterministicTaskQueue.runAllTasks();
-        rerouteService.assertNoPendingReroute();
+        reconcileAction.assertNoPendingReconcile();
+
+        clusterService.close();
+        terminate(threadPool);
     }
 
     public void testCallListenersOnlyAfterProducingFreshInput() {

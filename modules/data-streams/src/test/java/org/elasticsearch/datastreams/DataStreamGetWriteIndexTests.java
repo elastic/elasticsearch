@@ -53,7 +53,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentMatchers;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -247,9 +246,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
-            when(allocationService.reroute(any(ClusterState.class), any(String.class), ArgumentMatchers.<ActionListener<Void>>any())).then(
-                i -> i.getArguments()[0]
-            );
+            when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,

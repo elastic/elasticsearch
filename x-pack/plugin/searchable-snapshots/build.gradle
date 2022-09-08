@@ -15,6 +15,7 @@ dependencies {
   implementation project(path: 'preallocate')
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(project(path: xpackModule('shutdown')))
+  internalClusterTestImplementation(project(path: xpackModule('snapshot-based-recoveries')))
   internalClusterTestImplementation(project(path: ':modules:reindex'))
 }
 

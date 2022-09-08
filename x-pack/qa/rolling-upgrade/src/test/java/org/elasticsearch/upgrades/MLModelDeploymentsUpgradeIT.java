@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-@AbstractUpgradeTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2376")
 public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     // See PyTorchModelIT for how this model was created

@@ -507,7 +507,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null, (Boolean) null, null, null, null),
+            new SettingsConfig.Builder().setRequestsPerSecond(1.0f).build(),
             null,
             null,
             null,

@@ -17,11 +17,8 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -100,7 +97,7 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
                 indexName
             );
             logger.debug(errorMessage);
-            return new Result(false, new Info(errorMessage));
+            return new Result(false, new SingleMessageFieldInfo(errorMessage));
         }
 
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexMetadata.getIndex());
@@ -119,79 +116,39 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
 
     private static Result waitForRed(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
-            return new Result(true, new Info("index is red"));
+            return new Result(true, new SingleMessageFieldInfo("index is red"));
         }
-        return new Result(false, new Info("index is not red"));
+        return new Result(false, new SingleMessageFieldInfo("index is not red"));
     }
 
     private static Result waitForYellow(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
-            return new Result(false, new Info("index is red; no indexRoutingTable"));
+            return new Result(false, new SingleMessageFieldInfo("index is red; no indexRoutingTable"));
         }
 
         boolean indexIsAtLeastYellow = indexRoutingTable.allPrimaryShardsActive();
         if (indexIsAtLeastYellow) {
             return new Result(true, null);
         } else {
-            return new Result(false, new Info("index is red; not all primary shards are active"));
+            return new Result(false, new SingleMessageFieldInfo("index is red; not all primary shards are active"));
         }
     }
 
     private static Result waitForGreen(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
-            return new Result(false, new Info("index is red; no indexRoutingTable"));
+            return new Result(false, new SingleMessageFieldInfo("index is red; no indexRoutingTable"));
         }
 
         if (indexRoutingTable.allPrimaryShardsActive()) {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 boolean replicaIndexIsGreen = indexRoutingTable.shard(i).replicaShards().stream().allMatch(ShardRouting::active);
                 if (replicaIndexIsGreen == false) {
-                    return new Result(false, new Info("index is yellow; not all replica shards are active"));
+                    return new Result(false, new SingleMessageFieldInfo("index is yellow; not all replica shards are active"));
                 }
             }
             return new Result(true, null);
         }
 
-        return new Result(false, new Info("index is not green; not all shards are active"));
-    }
-
-    static final class Info implements ToXContentObject {
-
-        static final ParseField MESSAGE_FIELD = new ParseField("message");
-
-        private final String message;
-
-        Info(String message) {
-            this.message = message;
-        }
-
-        String getMessage() {
-            return message;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MESSAGE_FIELD.getPreferredName(), message);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null) {
-                return false;
-            }
-            if (getClass() != o.getClass()) {
-                return false;
-            }
-            Info info = (Info) o;
-            return Objects.equals(getMessage(), info.getMessage());
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(getMessage());
-        }
+        return new Result(false, new SingleMessageFieldInfo("index is not green; not all shards are active"));
     }
 }

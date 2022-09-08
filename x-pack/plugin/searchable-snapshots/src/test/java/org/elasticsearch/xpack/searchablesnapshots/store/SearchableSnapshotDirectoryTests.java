@@ -632,6 +632,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                             snapshotStatus,
                             Version.CURRENT,
                             emptyMap(),
+                            randomMillisUpToYear9999(),
                             future
                         )
                     );

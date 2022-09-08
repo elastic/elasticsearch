@@ -172,7 +172,8 @@ public class ReproduceInfoPrinter extends RunListener {
                 "tests.heap.size",
                 "tests.bwc",
                 "tests.bwc.version",
-                "build.snapshot"
+                "build.snapshot",
+                "tests.configure_test_clusters_with_one_processor"
             );
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");

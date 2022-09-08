@@ -127,7 +127,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
-        this.dimensions = indexSettings.getMode().buildDocumentDimensions();
+        this.dimensions = indexSettings.getMode().buildDocumentDimensions(indexSettings);
     }
 
     public final IndexSettings indexSettings() {
@@ -277,8 +277,14 @@ public abstract class DocumentParserContext {
 
     /**
      * Add a new runtime field dynamically created while parsing.
+     * We use the same set for both new indexed and new runtime fields,
+     * because for dynamic mappings, a new field can be either mapped
+     * as runtime or indexed, but never both.
      */
-    public final void addDynamicRuntimeField(RuntimeField runtimeField) {
+    final void addDynamicRuntimeField(RuntimeField runtimeField) {
+        if (newFieldsSeen.add(runtimeField.name())) {
+            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
+        }
         dynamicRuntimeFields.add(runtimeField);
     }
 
@@ -428,6 +434,14 @@ public abstract class DocumentParserContext {
             );
         }
         return null;
+    }
+
+    /**
+     * Is this index configured to use synthetic source?
+     */
+    public final boolean isSyntheticSource() {
+        SourceFieldMapper sft = mappingLookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
+        return sft == null ? false : sft.isSynthetic();
     }
 
     // XContentParser that wraps an existing parser positioned on a value,

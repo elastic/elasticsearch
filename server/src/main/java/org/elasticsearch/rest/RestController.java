@@ -726,6 +726,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public void releaseOutputBuffer() {
+            delegate.releaseOutputBuffer();
+        }
+
+        @Override
         public RestRequest request() {
             return delegate.request();
         }
@@ -737,8 +742,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
-            close();
-            delegate.sendResponse(response);
+            boolean success = false;
+            try {
+                close();
+                delegate.sendResponse(response);
+                success = true;
+            } finally {
+                if (success == false) {
+                    releaseOutputBuffer();
+                }
+            }
         }
 
         private void close() {

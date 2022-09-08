@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
@@ -90,6 +91,8 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
 
         for (var request : requests) {
             var completionLatch = new CountDownLatch(1);
+            var failure = new AtomicReference<Exception>();
+
             roleMappingStore.putRoleMapping(request, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean aBoolean) {
@@ -98,14 +101,17 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
 
                 @Override
                 public void onFailure(Exception e) {
+                    failure.set(e);
                     completionLatch.countDown();
-                    throw new IllegalStateException("Error creating role mapping [" + request.getName() + "]", e);
                 }
             });
 
             // wait for the async operations to finish
             try {
                 completionLatch.await();
+                if (failure.get() != null) {
+                    throw new IllegalStateException("Error creating role mapping [" + request.getName() + "]", failure.get());
+                }
             } catch (InterruptedException ie) {
                 throw new RuntimeException(ie);
             }
@@ -120,6 +126,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             var deleteRequest = new DeleteRoleMappingRequest();
             deleteRequest.setName(mappingToDelete);
             var completionLatch = new CountDownLatch(1);
+            var failure = new AtomicReference<Exception>();
 
             roleMappingStore.deleteRoleMapping(deleteRequest, new ActionListener<>() {
                 @Override
@@ -129,14 +136,17 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
 
                 @Override
                 public void onFailure(Exception e) {
+                    failure.set(e);
                     completionLatch.countDown();
-                    throw new IllegalStateException("Error deleting role mapping [" + mappingToDelete + "]", e);
                 }
             });
 
             // wait for the async operations to finish
             try {
                 completionLatch.await();
+                if (failure.get() != null) {
+                    throw new IllegalStateException("Error deleting role mapping [" + mappingToDelete + "]", failure.get());
+                }
             } catch (InterruptedException ie) {
                 throw new RuntimeException(ie);
             }

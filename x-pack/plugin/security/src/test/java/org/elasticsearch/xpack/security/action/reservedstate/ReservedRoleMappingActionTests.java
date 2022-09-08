@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.reservedstate;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -122,14 +123,92 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private NativeRoleMappingStore mockNativeRoleMappingStore() {
+    public void testPostTransformWaitsOnAsyncActions() throws Exception {
+        var nativeRoleMappingStore = mockNativeRoleMappingStore();
 
+        doAnswer(invocation -> {
+            new Thread(() -> {
+                // Simulate put role mapping async action taking a while
+                try {
+                    Thread.sleep(1_000);
+                    ((ActionListener<Boolean>) invocation.getArgument(1)).onFailure(new IllegalStateException("done"));
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }).start();
+
+            return null;
+        }).when(nativeRoleMappingStore).putRoleMapping(any(), any());
+
+        doAnswer(invocation -> {
+            new Thread(() -> {
+                // Simulate delete role mapping async action taking a while
+                try {
+                    Thread.sleep(1_000);
+                    ((ActionListener<Boolean>) invocation.getArgument(1)).onFailure(new IllegalStateException("done"));
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }).start();
+
+            return null;
+        }).when(nativeRoleMappingStore).deleteRoleMapping(any(), any());
+
+        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
+        TransformState updatedState = new TransformState(state, Collections.emptySet());
+        ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore);
+
+        String json = """
+            {
+               "everyone_kibana": {
+                  "enabled": true,
+                  "roles": [ "kibana_user" ],
+                  "rules": { "field": { "username": "*" } },
+                  "metadata": {
+                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
+                     "_reserved": true
+                  }
+               }
+            }""";
+
+        assertEquals(
+            "Error creating role mapping [everyone_kibana]",
+            expectThrows(IllegalStateException.class, () -> processJSON(action, new TransformState(state, Collections.emptySet()), json))
+                .getMessage()
+        );
+
+        // Now that we've tested that we wait on putRoleMapping correctly, let it finish without exception so we can test delete
+        doAnswer(invocation -> {
+            ((ActionListener<Boolean>) invocation.getArgument(1)).onResponse(true);
+            return null;
+        }).when(nativeRoleMappingStore).putRoleMapping(any(), any());
+
+        updatedState = processJSON(action, updatedState, json);
+        assertThat(updatedState.keys(), containsInAnyOrder("everyone_kibana"));
+
+        final TransformState currentState = new TransformState(updatedState.state(), updatedState.keys());
+
+        assertEquals(
+            "Error deleting role mapping [everyone_kibana]",
+            expectThrows(IllegalStateException.class, () -> processJSON(action, currentState, "")).getMessage()
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private NativeRoleMappingStore mockNativeRoleMappingStore() {
         final NativeRoleMappingStore nativeRoleMappingStore = spy(
             new NativeRoleMappingStore(Settings.EMPTY, mock(Client.class), mock(SecurityIndexManager.class), mock(ScriptService.class))
         );
 
-        doAnswer(invocation -> null).when(nativeRoleMappingStore).putRoleMapping(any(), any());
-        doAnswer(invocation -> null).when(nativeRoleMappingStore).deleteRoleMapping(any(), any());
+        doAnswer(invocation -> {
+            ((ActionListener<Boolean>) invocation.getArgument(1)).onResponse(true);
+            return null;
+        }).when(nativeRoleMappingStore).putRoleMapping(any(), any());
+
+        doAnswer(invocation -> {
+            ((ActionListener<Boolean>) invocation.getArgument(1)).onResponse(true);
+            return null;
+        }).when(nativeRoleMappingStore).deleteRoleMapping(any(), any());
 
         return nativeRoleMappingStore;
     }

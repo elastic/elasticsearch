@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
@@ -226,7 +227,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         false,
                         false,
                         indexCreatedVersion
-                    );
+                    ).allowMultipleValues(false);
                 } else {
                     builder = new NumberFieldMapper.Builder(
                         fieldName,
@@ -608,24 +609,32 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 // new aggregate metric types are added (histogram, cardinality etc)
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
-                // We don't accept arrays of metrics
-                if (context.doc().getField(delegateFieldMapper.fieldType().name()) != null) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + name()
-                            + "] of type ["
-                            + typeName()
-                            + "] does not support indexing multiple values for the same field in the same document"
-                    );
-                }
                 // Delegate parsing the field to a numeric field mapper
-                delegateFieldMapper.parse(context);
-
+                try {
+                    delegateFieldMapper.parse(context);
+                } catch (MapperParsingException e) {
+                    // when parse multiple values, it will throw IllegalStateException
+                    // in org.apache.lucene.document.Document.onlyAddKey
+                    if (e.getCause() instanceof IllegalStateException) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + name()
+                                + "] of type ["
+                                + typeName()
+                                + "] does not support indexing multiple values for the same field in the same document"
+                        );
+                    } else if (e.getCause()instanceof IOException exception) {
+                        // throw the cause of the exception
+                        throw exception;
+                    } else {
+                        throw e;
+                    }
+                }
                 // Ensure a value_count metric does not have a negative value
                 if (Metric.value_count == metric) {
                     // context.doc().getField() method iterates over all fields in the document.
                     // Making the following call slow down. Maybe we can think something smarter.
-                    Number n = context.doc().getField(delegateFieldMapper.name()).numericValue();
+                    Number n = context.doc().getByKey(delegateFieldMapper.name()).numericValue();
                     if (n.intValue() < 0) {
                         throw new IllegalArgumentException(
                             "Aggregate metric [" + metric.name() + "] of field [" + mappedFieldType.name() + "] cannot be a negative number"

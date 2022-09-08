@@ -517,6 +517,7 @@ public final class MockTransportService extends TransportService {
                     RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                     clonedRequest = reg.newRequest(bStream.bytes().streamInput());
                 }
+                assert clonedRequest.getClass().equals(request.getClass()) : clonedRequest + " vs " + request;
 
                 final RunOnce runnable = new RunOnce(new AbstractRunnable() {
                     @Override

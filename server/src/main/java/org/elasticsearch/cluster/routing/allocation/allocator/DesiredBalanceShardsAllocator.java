@@ -96,6 +96,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
+    public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+        return delegateAllocator.decideShardAllocation(shard, allocation);
+    }
+
+    @Override
     public void allocate(RoutingAllocation allocation) {
         throw new UnsupportedOperationException();
     }
@@ -135,19 +140,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         return moves;
     }
 
-    @Override
-    public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-        return delegateAllocator.decideShardAllocation(shard, allocation);
-    }
-
-    private void onNoLongerMaster() {
-        if (indexGenerator.getAndSet(-1) != -1) {
-            currentDesiredBalance = DesiredBalance.INITIAL;
-            queue.completeAllAsNotMaster();
-            pendingDesiredBalanceMoves.clear();
-        }
-    }
-
     private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
         if (logger.isTraceEnabled()) {
@@ -161,13 +153,25 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         return hasChanges;
     }
 
-    private void submitReconcileTask(DesiredBalance desiredBalance) {
+    protected void submitReconcileTask(DesiredBalance desiredBalance) {
         clusterService.submitStateUpdateTask(
             "reconcile-desired-balance",
             new ReconcileDesiredBalanceTask(desiredBalance),
             ClusterStateTaskConfig.build(Priority.URGENT),
             executor
         );
+    }
+
+    protected final void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+        new DesiredBalanceReconciler(desiredBalance, allocation).run();
+    }
+
+    private void onNoLongerMaster() {
+        if (indexGenerator.getAndSet(-1) != -1) {
+            currentDesiredBalance = DesiredBalance.INITIAL;
+            queue.completeAllAsNotMaster();
+            pendingDesiredBalanceMoves.clear();
+        }
     }
 
     private final class ReconcileDesiredBalanceTask implements ClusterStateTaskListener {
@@ -201,7 +205,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         private ClusterState applyBalance(ClusterState initialState, TaskContext<ReconcileDesiredBalanceTask> latest) {
             var newState = reconciler.apply(
                 initialState,
-                routingAllocation -> new DesiredBalanceReconciler(latest.getTask().desiredBalance, routingAllocation).run()
+                routingAllocation -> reconcile(latest.getTask().desiredBalance, routingAllocation)
             );
             latest.success(() -> queue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
             return newState;

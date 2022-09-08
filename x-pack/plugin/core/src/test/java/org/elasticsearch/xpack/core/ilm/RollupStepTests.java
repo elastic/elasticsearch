@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.mockito.Mockito;
 
 import java.util.List;
@@ -27,7 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.RollupILMAction.ROLLUP_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -79,10 +79,10 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             .build();
     }
 
-    private static void assertRollupActionRequest(RollupAction.Request request, String sourceIndex) {
+    private static void assertRollupActionRequest(DownsampleAction.Request request, String sourceIndex) {
         assertNotNull(request);
         assertThat(request.getSourceIndex(), equalTo(sourceIndex));
-        assertThat(request.getRollupIndex(), equalTo("rollup-index"));
+        assertThat(request.getTargetIndex(), equalTo("rollup-index"));
     }
 
     public void testPerformAction() throws Exception {
@@ -162,7 +162,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         lifecycleState.setStep(step.getKey().getName());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(ROLLUP_INDEX_PREFIX, sourceIndexName);
+        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setRollupIndexName(rollupIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
@@ -174,7 +174,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
         // Create a successfully completed rollup index (index.rollup.status: success)
         IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.SUCCESS))
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.SUCCESS)
+            )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -210,7 +212,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         lifecycleState.setStep(step.getKey().getName());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(ROLLUP_INDEX_PREFIX, sourceIndexName);
+        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setRollupIndexName(rollupIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
@@ -222,7 +224,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
         // Create an in-progress rollup index (index.rollup.status: started)
         IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.STARTED))
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED)
+            )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -245,7 +249,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
     private void mockClientRollupCall(String sourceIndex) {
         Mockito.doAnswer(invocation -> {
-            RollupAction.Request request = (RollupAction.Request) invocation.getArguments()[1];
+            DownsampleAction.Request request = (DownsampleAction.Request) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             assertRollupActionRequest(request, sourceIndex);

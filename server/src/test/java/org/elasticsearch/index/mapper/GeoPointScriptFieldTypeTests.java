@@ -74,7 +74,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        MultiGeoPointValues dv = ifd.load(context).getGeoPointValues();
+                        MultiGeoPointValues dv = ifd.load(context).getPointValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}

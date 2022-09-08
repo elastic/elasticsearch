@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.timeseries.TimeSeriesValuesSourceType;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
@@ -62,6 +63,12 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
             RateAggregationBuilder.REGISTRY_KEY,
             Collections.singletonList(AnalyticsValuesSourceType.HISTOGRAM),
             HistogramRateAggregator::new,
+            true
+        );
+        builder.register(
+            RateAggregationBuilder.REGISTRY_KEY,
+            Collections.singletonList(TimeSeriesValuesSourceType.COUNTER),
+            TimeSeriesRateAggregator::new,
             true
         );
     }

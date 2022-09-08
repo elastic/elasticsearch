@@ -461,9 +461,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
      * <p>
-     * Half the time it aggregates each leaf individually and reduces all
-     * results together. The other half the time it aggregates across the entire
-     * index at once and runs a final reduction on the single resulting agg.
+     * Decides whether or not to run aggregators across leaves separately or
+     * together based on the output of {@link #splitLeavesIntoSeparateAggregators()}
      */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
         IndexSettings indexSettings,
@@ -473,7 +472,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
         int maxBucket,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
+        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, splitLeavesIntoSeparateAggregators(), fieldTypes);
+    }
+
+    /**
+     * Should we aggregate on each leaf individually and reduce all results together,
+     * or aggregate across the whole index and reduce once on the single reseulting agg
+     */
+    protected boolean splitLeavesIntoSeparateAggregators() {
+        return randomBoolean();
     }
 
     /**

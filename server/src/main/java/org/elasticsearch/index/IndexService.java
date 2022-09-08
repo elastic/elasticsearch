@@ -300,9 +300,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     public FieldMappingStats getFieldMappingStats() {
-        long totalCount = mapperService().mappingLookup().getAllNamedFieldsSize();
+        long totalCount = mapperService().mappingLookup().getTotalMappings();
         Index index = index();
-        long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per field mapper
+        long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
         FieldMappingStats indexFieldMappingStats = new FieldMappingStats(totalCount, totalEstimatedOverhead);
         return indexFieldMappingStats;
     }

@@ -406,7 +406,7 @@ class S3Service implements Closeable {
             try {
                 delegate.refresh();
             } catch (Exception e) {
-                logger.error("Unable to refresh " + delegate, e);
+                logger.error(() -> "Unable to refresh " + delegate, e);
                 throw e;
             }
         }

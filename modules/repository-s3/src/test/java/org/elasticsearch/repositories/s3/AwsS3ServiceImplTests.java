@@ -18,6 +18,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -243,11 +244,11 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         var exception = expectThrows(IllegalStateException.class, credentialsProvider::getCredentials);
         assertEquals(mockProviderErrorMessage, exception.getMessage());
 
-        var messageCaptor = ArgumentCaptor.forClass(String.class);
+        var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
         var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
-        Mockito.verify(mockLogger).error(messageCaptor.capture(), throwableCaptor.capture());
+        Mockito.verify(mockLogger).error(messageSupplierCaptor.capture(), throwableCaptor.capture());
 
-        assertThat(messageCaptor.getValue(), startsWith("Unable to load credentials from"));
+        assertThat(messageSupplierCaptor.getValue().get().toString(), startsWith("Unable to load credentials from"));
         assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
     }
 

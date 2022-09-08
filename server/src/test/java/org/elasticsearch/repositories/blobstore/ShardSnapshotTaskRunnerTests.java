@@ -105,17 +105,17 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         }
     }
 
-    private static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
+    public static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
         String filename = randomAlphaOfLength(10);
         StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion.toString());
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
-    private SnapshotShardContext dummyContext() {
+    public static SnapshotShardContext dummyContext() {
         return dummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()), randomMillisUpToYear9999());
     }
 
-    private SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
+    public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
         IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
         Settings settings = Settings.builder()

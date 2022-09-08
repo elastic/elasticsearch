@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.indices.IndicesService;
@@ -283,11 +284,16 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCopyIndexSettings() throws IOException {
-        Settings settings = Settings.builder()
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5))
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey(), randomAlphaOfLength(5))
-            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean())
-            .build();
+            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
+
+        final Integer totalFieldsLimit = randomBoolean() ? randomIntBetween(100, 10_000) : null;
+        if (totalFieldsLimit != null) {
+            settingsBuilder.put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldsLimit);
+        }
+        final Settings settings = settingsBuilder.build();
         logger.info("Updating index [{}] with settings [{}]", sourceIndex, settings);
 
         var updateSettingsReq = new UpdateSettingsRequest(settings, sourceIndex);
@@ -816,6 +822,16 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_HIDDEN),
             indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_INDEX_HIDDEN)
         );
+
+        if (indexSettingsResp.getSetting(sourceIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()) != null) {
+            assertNotNull(indexSettingsResp.getSetting(rollupIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()));
+        }
+        if (indexSettingsResp.getSetting(sourceIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()) != null
+            && indexSettingsResp.getSetting(rollupIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()) != null)
+            assertEquals(
+                indexSettingsResp.getSetting(sourceIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()),
+                indexSettingsResp.getSetting(rollupIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
+            );
     }
 
     private AggregationBuilder buildAggregations(

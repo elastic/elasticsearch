@@ -2906,9 +2906,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
             }
-            final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, filesToSnapshot.size(), allFilesUploadedListener);
-            for (FileInfo fileInfo : filesToSnapshot) {
-                shardSnapshotTaskRunner.enqueueFileSnapshot(context, fileInfo, filesListener);
+            final int noOfFilesToSnapshot = filesToSnapshot.size();
+            final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, noOfFilesToSnapshot, allFilesUploadedListener);
+            for (int i = 0; i < noOfFilesToSnapshot; i++) {
+                shardSnapshotTaskRunner.enqueueFileSnapshot(context, filesToSnapshot::poll, filesListener);
             }
         } catch (Exception e) {
             context.onFailure(e);

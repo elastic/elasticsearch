@@ -78,7 +78,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
                     filesToUpload
                 );
                 for (int i = 0; i < filesToUpload; i++) {
-                    taskRunner.enqueueFileSnapshot(context, dummyFileInfo(), uploadListener);
+                    taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, uploadListener);
                 }
             }
             finishedShardSnapshotTasks.incrementAndGet();
@@ -177,17 +177,21 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         assertThat(workers.new ShardSnapshotTask(s2Context).compareTo(workers.new ShardSnapshotTask(s3Context)), equalTo(0));
         // Shard snapshot task always has a higher priority over file snapshot
         assertThat(
-            workers.new ShardSnapshotTask(s1Context).compareTo(workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener)),
+            workers.new ShardSnapshotTask(s1Context).compareTo(
+                workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
+            ),
             lessThan(0)
         );
         assertThat(
-            workers.new ShardSnapshotTask(s2Context).compareTo(workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener)),
+            workers.new ShardSnapshotTask(s2Context).compareTo(
+                workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
+            ),
             lessThan(0)
         );
         // File snapshots are prioritized by start time.
         assertThat(
-            workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener).compareTo(
-                workers.new FileSnapshotTask(s2Context, dummyFileInfo(), listener)
+            workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener).compareTo(
+                workers.new FileSnapshotTask(s2Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
             ),
             lessThan(0)
         );

@@ -12,8 +12,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -21,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -144,28 +147,43 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         private final ClusterService clusterService;
         private final HealthService healthService;
+        private final NodeClient client;
 
         @Inject
         public TransportAction(
             ActionFilters actionFilters,
             TransportService transportService,
             ClusterService clusterService,
-            HealthService healthService
+            HealthService healthService,
+            NodeClient client
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
             this.healthService = healthService;
+            this.client = client;
         }
 
         @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            listener.onResponse(
-                new Response(
-                    clusterService.getClusterName(),
-                    healthService.getHealth(request.indicatorName, request.explain),
-                    request.indicatorName == null
-                )
-            );
+        protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
+            // HealthService::getHealth makes a blocking call to another transport action so it cannot run in the transport thread
+            client.threadPool()
+                .executor(ThreadPool.Names.GENERIC)
+                .execute(
+                    new ActionRunnable<List<HealthIndicatorResult>>(
+                        responseListener.map(
+                            healthIndicatorResults -> new Response(
+                                clusterService.getClusterName(),
+                                healthIndicatorResults,
+                                request.indicatorName == null
+                            )
+                        )
+                    ) {
+                        @Override
+                        protected void doRun() {
+                            listener.onResponse(healthService.getHealth(client, request.indicatorName, request.explain));
+                        }
+                    }
+                );
         }
     }
 }

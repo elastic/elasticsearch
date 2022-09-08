@@ -19,6 +19,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
@@ -51,7 +52,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -71,7 +72,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -97,7 +98,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -116,7 +117,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -147,7 +148,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -178,7 +179,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createSlmHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult calculate = service.calculate(true);
+        HealthIndicatorResult calculate = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(
             calculate,
             equalTo(

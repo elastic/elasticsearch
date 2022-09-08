@@ -8,8 +8,17 @@
 
 package org.elasticsearch.health;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
+import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
+import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.transport.NodeNotConnectedException;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -36,6 +45,7 @@ public class HealthService {
      * Detail map key that contains the reasons a result was marked as UNKNOWN
      */
     private static final String REASON = "reasons";
+    private static final Logger logger = LogManager.getLogger(HealthService.class);
 
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
     private final List<HealthIndicatorService> healthIndicatorServices;
@@ -61,15 +71,16 @@ public class HealthService {
 
     /**
      * Returns the list of HealthIndicatorResult for this cluster.
+     * @param client A client to be used to fetch the health data from the health node
      * @param indicatorName If not null, the returned results will only have this indicator
      * @param explain Whether to compute the details portion of the results
      * @return A list of all HealthIndicatorResult if indicatorName is null, or one HealthIndicatorResult if indicatorName is not null
      * @throws ResourceNotFoundException if an indicator name is given and the indicator is not found
      */
-    public List<HealthIndicatorResult> getHealth(@Nullable String indicatorName, boolean explain) {
+    public List<HealthIndicatorResult> getHealth(Client client, @Nullable String indicatorName, boolean explain) {
         // Determine if cluster is stable enough to calculate health before running other indicators
         List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()
-            .map(service -> service.calculate(explain))
+            .map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
             .toList();
 
         // If any of these are not GREEN, then we cannot obtain health from other indicators
@@ -82,8 +93,25 @@ public class HealthService {
 
         Stream<HealthIndicatorResult> filteredIndicatorResults;
         if (clusterHealthIsObtainable) {
+            HealthInfo healthInfo;
+            if (HealthNode.isEnabled()) {
+                try {
+                    ActionFuture<FetchHealthInfoCacheAction.Response> responseActionFuture = client.execute(
+                        FetchHealthInfoCacheAction.INSTANCE,
+                        new FetchHealthInfoCacheAction.Request()
+                    );
+                    FetchHealthInfoCacheAction.Response response = responseActionFuture.actionGet();
+                    healthInfo = response.getHealthInfo();
+                } catch (NodeNotConnectedException | HealthNodeNotDiscoveredException e) {
+                    logger.info("Could not fetch data from health node", e);
+                    healthInfo = HealthInfo.EMPTY_HEALTH_INFO;
+                }
+            } else {
+                healthInfo = HealthInfo.EMPTY_HEALTH_INFO;
+            }
+            final HealthInfo finalHealthInfo = healthInfo;
             // Calculate remaining indicators
-            filteredIndicatorResults = filteredIndicators.map(service -> service.calculate(explain));
+            filteredIndicatorResults = filteredIndicators.map(service -> service.calculate(explain, finalHealthInfo));
         } else {
             // Mark remaining indicators as UNKNOWN
             HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, explain);

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -138,7 +139,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean explain) {
+        public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
             var status = clusterService.getClusterSettings().get(statusSetting);
             return createIndicator(
                 status,

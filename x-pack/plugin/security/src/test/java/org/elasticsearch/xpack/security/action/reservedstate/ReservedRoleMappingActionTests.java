@@ -39,7 +39,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             var content = action.fromXContent(parser);
             var state = action.transform(content, prevState);
-            var modifiedKeys = action.postTransform(content, state.state(), state.keys());
+            var modifiedKeys = state.postTransform().get();
 
             return new TransformState(state.state(), modifiedKeys);
         }

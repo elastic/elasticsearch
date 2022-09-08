@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.action.rolemapping;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
@@ -78,45 +78,68 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
 
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
-        // We execute the prepare() call to catch any errors in the transform phase
+        // We execute the prepare() call to catch any errors in the transform phase.
+        // Since we store the role mappings outside the cluster state, we do the actual save with a
+        // post transform call.
         prepare(source);
-        return prevState;
+        return new TransformState(prevState.state(), prevState.keys(), (() -> postTransform(source, prevState)));
     }
 
-    @Override
-    public Set<String> postTransform(Object source, ClusterState clusterState, Set<String> previousKeys) {
+    private Set<String> postTransform(Object source, TransformState prevState) {
         var requests = prepare(source);
 
         for (var request : requests) {
+            var completionLatch = new CountDownLatch(1);
             roleMappingStore.putRoleMapping(request, new ActionListener<>() {
                 @Override
-                public void onResponse(Boolean aBoolean) {}
+                public void onResponse(Boolean aBoolean) {
+                    completionLatch.countDown();
+                }
 
                 @Override
                 public void onFailure(Exception e) {
+                    completionLatch.countDown();
                     throw new IllegalStateException("Error creating role mapping [" + request.getName() + "]", e);
                 }
             });
+
+            // wait for the async operations to finish
+            try {
+                completionLatch.await();
+            } catch (InterruptedException ie) {
+                throw new RuntimeException(ie);
+            }
         }
 
         Set<String> entities = requests.stream().map(r -> r.getName()).collect(Collectors.toSet());
 
-        Set<String> toDelete = new HashSet<>(previousKeys);
+        Set<String> toDelete = new HashSet<>(prevState.keys());
         toDelete.removeAll(entities);
 
         for (var mappingToDelete : toDelete) {
             var deleteRequest = new DeleteRoleMappingRequest();
             deleteRequest.setName(mappingToDelete);
+            var completionLatch = new CountDownLatch(1);
 
             roleMappingStore.deleteRoleMapping(deleteRequest, new ActionListener<>() {
                 @Override
-                public void onResponse(Boolean aBoolean) {}
+                public void onResponse(Boolean aBoolean) {
+                    completionLatch.countDown();
+                }
 
                 @Override
                 public void onFailure(Exception e) {
+                    completionLatch.countDown();
                     throw new IllegalStateException("Error deleting role mapping [" + mappingToDelete + "]", e);
                 }
             });
+
+            // wait for the async operations to finish
+            try {
+                completionLatch.await();
+            } catch (InterruptedException ie) {
+                throw new RuntimeException(ie);
+            }
         }
 
         return Collections.unmodifiableSet(entities);

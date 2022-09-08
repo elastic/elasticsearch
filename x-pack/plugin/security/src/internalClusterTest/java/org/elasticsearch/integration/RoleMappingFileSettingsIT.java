@@ -20,6 +20,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
@@ -30,9 +32,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.hamcrest.Matchers.allOf;
@@ -88,9 +92,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                        "everyone_kibana_bad": {
                           "enabled": true,
                           "roles": [ "kibana_user" ],
-                          "rules": { "field": { "username": "*" } },
                           "metadata": {
-                             "_uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
+                             "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
                           }
                        }
                  }
@@ -153,6 +156,15 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         assertThat(handlerMetadata.keys(), allOf(notNullValue(), containsInAnyOrder("everyone_kibana", "everyone_fleet")));
 
+        var request = new GetRoleMappingsRequest();
+        request.setNames("everyone_kibana", "everyone_fleet");
+        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).actionGet();
+        assertTrue(response.hasMappings());
+        assertThat(
+            Arrays.stream(response.mappings()).map(r -> r.getName()).collect(Collectors.toSet()),
+            allOf(notNullValue(), containsInAnyOrder("everyone_kibana", "everyone_fleet"))
+        );
+
         // Try using the REST API to update the everyone_kibana role mapping
         // This should fail, we have reserved certain role mappings in operator mode
         assertEquals(
@@ -161,7 +173,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                 + "with errors: [[everyone_kibana] set as read-only by [file_settings]]",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> { client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet(); }
+                () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet()
             ).getMessage()
         );
     }
@@ -187,11 +199,11 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
-                    assertEquals(ReservedStateErrorMetadata.ErrorKind.VALIDATION, reservedState.errorMetadata().errorKind());
+                    assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, reservedState.errorMetadata().errorKind());
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
                     assertThat(
                         reservedState.errorMetadata().errors().get(0),
-                        containsString("Validation Failed: 1: metadata keys may not start with [_];")
+                        containsString("failed to parse role-mapping [everyone_kibana_bad]. missing field [rules]")
                     );
                 }
             }

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.core.Strings.format;
@@ -86,6 +87,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
+        List<PostTransform> postTransforms = new ArrayList<>();
 
         ClusterState state = currentState;
         // Transform the cluster state first
@@ -96,6 +98,9 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
                 TransformState transformState = handler.transform(reservedState.get(handlerName), new TransformState(state, existingKeys));
                 state = transformState.state();
                 reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, transformState.keys()));
+                if (transformState.postTransform() != null) {
+                    postTransforms.add(new PostTransform(handlerName, transformState.postTransform()));
+                }
             } catch (Exception e) {
                 errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
             }
@@ -104,23 +109,21 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         checkAndThrowOnError(errors, currentState, reservedStateVersion);
 
         // Run the postTransform loop for any handlers that need to perform updates to other things than the cluster state
-        for (var handlerName : orderedHandlers) {
-            ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
+        for (var postTransform : postTransforms) {
             try {
-                // We first try to fetch the existing keys from what we have in the builder if transform saved any keys
-                Set<String> existingKeys = keysForHandler(reservedMetadataBuilder.getHandler(handlerName), existingMetadata, handlerName);
-                // postTransform doesn't modify the cluster state
-                Set<String> newKeys = handler.postTransform(reservedState.get(handlerName), state, existingKeys);
-                reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, newKeys));
+                // postTransforms don't modify the cluster state, they however are given a chance to return a more
+                // up-to-date version of the modified keys we should save in the reserved state.
+                Set<String> newKeys = postTransform.supplier.get();
+                reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(postTransform.handlerName(), newKeys));
             } catch (Exception e) {
-                errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
+                errors.add(format("Error in post transform processing for [%s]: %s", postTransform.handlerName(), stackTrace(e)));
             }
         }
 
-        // Most error should be caught in the transform phase, however we check if the post transform encountered any
+        // Most errors should be caught in the transform phase, however we check if the post transform encountered any
         checkAndThrowOnError(errors, currentState, reservedStateVersion);
 
-        // remove the last error if we had previously encountered any
+        // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);
 
         ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
@@ -147,18 +150,6 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
             throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState);
         }
-    }
-
-    private Set<String> keysForHandler(
-        ReservedStateHandlerMetadata currentHandlerData,
-        ReservedStateMetadata reservedStateMetadata,
-        String handlerName
-    ) {
-        if (currentHandlerData != null) {
-            return currentHandlerData.keys();
-        }
-
-        return keysForHandler(reservedStateMetadata, handlerName);
     }
 
     private Set<String> keysForHandler(ReservedStateMetadata reservedStateMetadata, String handlerName) {
@@ -213,4 +204,6 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         return true;
     }
+
+    record PostTransform(String handlerName, Supplier<Set<String>> supplier) {}
 }

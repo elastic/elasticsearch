@@ -26,6 +26,9 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SCRIPT;
+import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SEARCH;
+
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
@@ -34,8 +37,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
-    private final Map<String, DocValuesScriptFieldFactory> localCacheScriptDocValuesFieldData = Maps.newMapWithExpectedSize(4);
-    private final Map<String, DocValuesScriptFieldFactory> localCacheScriptSourceFieldData = Maps.newMapWithExpectedSize(4);
+    private final Map<String, DocValuesScriptFieldFactory> fieldFactoryCache = Maps.newMapWithExpectedSize(4);
+    private final Map<String, DocValuesScriptFieldFactory> docFactoryCache = Maps.newMapWithExpectedSize(4);
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
@@ -51,7 +54,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    private DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, MappedFieldType.FielddataOperation options) {
+    protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, boolean isFieldAccess) {
         final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 
         if (fieldType == null) {
@@ -60,42 +63,57 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
         // Load the field data on behalf of the script. Otherwise, it would require
         // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-        DocValuesScriptFieldFactory factory = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
+        return AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
             @Override
             public DocValuesScriptFieldFactory run() {
-                return fieldDataLookup.apply(fieldType, options).load(reader).getScriptFieldFactory(fieldName);
+                DocValuesScriptFieldFactory factory = null;
+                IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, isFieldAccess ? SCRIPT : SEARCH);
+
+                if (isFieldAccess) {
+                    DocValuesScriptFieldFactory docFactory = docFactoryCache.get(fieldName);
+
+                    if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+                        factory = docFactory;
+                    } else {
+                        factory = indexFieldData.load(reader).getScriptFieldFactory(fieldName);
+                    }
+
+                    fieldFactoryCache.put(fieldName, factory);
+                } else {
+                    DocValuesScriptFieldFactory fieldFactory = fieldFactoryCache.get(fieldName);
+
+                    if (fieldFactory != null) {
+                        IndexFieldData<?> fieldIndexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
+
+                        if (fieldIndexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+                            factory = fieldFactory;
+                        }
+                    }
+
+                    if (factory == null) {
+                        factory = indexFieldData.load(reader).getScriptFieldFactory(fieldName);
+                    }
+
+                    docFactoryCache.put(fieldName, factory);
+                }
+
+                return factory;
             }
         });
-
-        if (factory instanceof SourceValueFetcherIndexFieldData.ValueFetcherDocValues) {
-            localCacheScriptSourceFieldData.put(fieldName, factory);
-        } else {
-            localCacheScriptDocValuesFieldData.put(fieldName, factory);
-        }
-
-        return factory;
     }
 
-    private void setNextDocId(DocValuesScriptFieldFactory factory) {
+    public Field<?> getScriptField(String fieldName) {
+        DocValuesScriptFieldFactory factory = fieldFactoryCache.get(fieldName);
+
+        if (factory == null) {
+            factory = getScriptFieldFactory(fieldName, true);
+        }
+
         try {
             factory.setNextDocId(docId);
         } catch (IOException ioe) {
             throw ExceptionsHelper.convertToElastic(ioe);
         }
-    }
-
-    public Field<?> getScriptField(String fieldName) {
-        DocValuesScriptFieldFactory factory = localCacheScriptSourceFieldData.get(fieldName);
-
-        if (factory == null) {
-            factory = localCacheScriptDocValuesFieldData.get(fieldName);
-
-            if (factory == null) {
-                factory = getScriptFieldFactory(fieldName, MappedFieldType.FielddataOperation.SCRIPT);
-            }
-        }
-
-        setNextDocId(factory);
 
         return factory.toScriptField();
     }
@@ -103,20 +121,25 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     @Override
     public ScriptDocValues<?> get(Object key) {
         String fieldName = key.toString();
-        DocValuesScriptFieldFactory factory = localCacheScriptDocValuesFieldData.get(fieldName);
+        DocValuesScriptFieldFactory factory = docFactoryCache.get(fieldName);
 
         if (factory == null) {
-            factory = getScriptFieldFactory(fieldName, MappedFieldType.FielddataOperation.SEARCH);
+            factory = getScriptFieldFactory(key.toString(), false);
         }
 
-        setNextDocId(factory);
+        try {
+            factory.setNextDocId(docId);
+        } catch (IOException ioe) {
+            throw ExceptionsHelper.convertToElastic(ioe);
+        }
 
         return factory.toScriptDocValues();
     }
 
     @Override
     public boolean containsKey(Object key) {
-        return fieldTypeLookup.apply(key.toString()) != null;
+        String fieldName = key.toString();
+        return fieldTypeLookup.apply(fieldName) != null;
     }
 
     @Override

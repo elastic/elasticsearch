@@ -68,14 +68,17 @@ public class WriteField implements Field<Object> {
     }
 
     /**
-     * Move this path to another path in the map, overwriting the destination path if it exists
+     * Move this path to another path in the map, overwriting the destination path if it exists.
+     *
+     * If this Field has no value, the value at {@param path} is removed.
      */
     public WriteField overwrite(String path) {
         Object value = get(MISSING);
         remove();
         setPath(path);
         if (value == MISSING) {
-            // remove existing mapping if it exists
+            // The source has a missing value, remove the value, if it exists, at the destination
+            // to match the missing value at the source.
             remove();
         } else {
             setLeaf();

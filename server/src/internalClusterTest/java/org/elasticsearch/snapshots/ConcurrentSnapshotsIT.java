@@ -134,7 +134,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String indexFast = "index-fast";
         createIndexWithContent(indexFast, fastDataNode, slowDataNode);
         assertSuccessful(
-                clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot").setIndices(indexFast).setWaitForCompletion(true).execute()
+            clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot").setIndices(indexFast).setWaitForCompletion(true).execute()
         );
 
         logger.info("--> corrupting the repository by moving index-N blob to next generation");
@@ -147,12 +147,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> trying to create another snapshot in order for repository to be marked as corrupt");
         try {
             final SnapshotException ex = expectThrows(
-                    SnapshotException.class,
-                    () -> clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot2")
-                            .setIndices(indexFast)
-                            .setWaitForCompletion(true)
-                            .execute()
-                            .actionGet()
+                SnapshotException.class,
+                () -> clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot2")
+                    .setIndices(indexFast)
+                    .setWaitForCompletion(true)
+                    .execute()
+                    .actionGet()
             );
             assertThat(ex.getMessage(), containsString("failed to update snapshot in repository"));
         } catch (Exception ex) {
@@ -163,13 +163,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> recreating the repository in order to reset corrupted state, which should fail due to ongoing snapshot");
         try {
             final RepositoryConflictException ex = expectThrows(
-                    RepositoryConflictException.class,
-                    () -> createRepository(repoName, "mock", Settings.builder().put(repoSettings))
+                RepositoryConflictException.class,
+                () -> createRepository(repoName, "mock", Settings.builder().put(repoSettings))
             );
-            assertThat(
-                    ex.getMessage(),
-                    containsString("trying to modify or unregister repository that is currently used")
-            );
+            assertThat(ex.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
         } catch (Exception ex) {
             ;
         }
@@ -178,14 +175,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(slowFuture.isDone(), is(false));
         unblockNode(repoName, slowDataNode);
         try {
-            final ExecutionException ex = expectThrows(
-                    ExecutionException.class,
-                    () -> slowFuture.get().getSnapshotInfo()
-            );
+            final ExecutionException ex = expectThrows(ExecutionException.class, () -> slowFuture.get().getSnapshotInfo());
             assertThat(
-                    // Inner exceptions: RemoteTransportExeception > RepositoryException (whose message we check)
-                    ex.getCause().getCause().getMessage(),
-                    containsString("Could not read repository data because the contents of the repository do not match its expected state")
+                // Inner exceptions: RemoteTransportException > RepositoryException (whose message we check)
+                ex.getCause().getCause().getMessage(),
+                containsString("Could not read repository data because the contents of the repository do not match its expected state")
             );
         } catch (Exception ex) {
             ;

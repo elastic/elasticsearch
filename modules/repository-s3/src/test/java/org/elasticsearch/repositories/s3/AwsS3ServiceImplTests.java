@@ -262,11 +262,11 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         var exception = expectThrows(IllegalStateException.class, credentialsProvider::refresh);
         assertEquals(mockProviderErrorMessage, exception.getMessage());
 
-        var messageCaptor = ArgumentCaptor.forClass(String.class);
+        var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
         var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
-        Mockito.verify(mockLogger).error(messageCaptor.capture(), throwableCaptor.capture());
+        Mockito.verify(mockLogger).error(messageSupplierCaptor.capture(), throwableCaptor.capture());
 
-        assertThat(messageCaptor.getValue(), startsWith("Unable to refresh"));
+        assertThat(messageSupplierCaptor.getValue().get().toString(), startsWith("Unable to refresh"));
         assertThat(throwableCaptor.getValue().getMessage(), equalTo(mockProviderErrorMessage));
     }
 

@@ -469,7 +469,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
 
         public ByteSizeValue getPeakMax() {
             return new ByteSizeValue(peakMax);
-        }        
+        }
     }
 
     public static class Mem implements Writeable, Iterable<MemoryPool> {

@@ -860,6 +860,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
         private static final Version SHARD_IDS_OUTPUT_VERSION = Version.V_8_4_0;
+        private static final Version UNASSIGNED_ALLOCATION_RESULTS_OUTPUT_VERSION = Version.V_8_5_0;
 
         private final String reason;
         private final long unassigned;
@@ -898,11 +899,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             if (in.getVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
                 unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
                 assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
-                unassignedAllocationResults = in.readList(NodeAllocationResult::new);
-                assignedAllocationResults = in.readList(NodeAllocationResult::new);
             } else {
                 unassignedShardIds = Collections.emptySortedSet();
                 assignedShardIds = Collections.emptySortedSet();
+            }
+            if (in.getVersion().onOrAfter(UNASSIGNED_ALLOCATION_RESULTS_OUTPUT_VERSION)) {
+                unassignedAllocationResults = in.readList(NodeAllocationResult::new);
+                assignedAllocationResults = in.readList(NodeAllocationResult::new);
+            } else {
                 unassignedAllocationResults = List.of();
                 assignedAllocationResults = List.of();
             }
@@ -950,6 +954,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             if (out.getVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
                 out.writeCollection(unassignedShardIds);
                 out.writeCollection(assignedShardIds);
+                out.writeList(unassignedAllocationResults);
+                out.writeList(assignedAllocationResults);
+            }
+            if (out.getVersion().onOrAfter(UNASSIGNED_ALLOCATION_RESULTS_OUTPUT_VERSION)) {
                 out.writeList(unassignedAllocationResults);
                 out.writeList(assignedAllocationResults);
             }

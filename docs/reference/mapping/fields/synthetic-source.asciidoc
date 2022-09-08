@@ -35,6 +35,7 @@ types:
 ** <<numeric-synthetic-source,`float`>>
 ** <<geo-point-synthetic-source,`geo_point`>>
 ** <<numeric-synthetic-source,`half_float`>>
+** <<histogram-synthetic-source,`histogram`>>
 ** <<numeric-synthetic-source,`integer`>>
 ** <<ip-synthetic-source,`ip`>>
 ** <<keyword-synthetic-source,`keyword`>>

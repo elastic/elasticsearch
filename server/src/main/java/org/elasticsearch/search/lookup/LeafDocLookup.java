@@ -34,7 +34,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
-    private final Map<String, DocValuesScriptFieldFactory> localCacheScriptFieldData = Maps.newMapWithExpectedSize(4);
+    private final Map<String, DocValuesScriptFieldFactory> localCacheScriptDocValuesFieldData = Maps.newMapWithExpectedSize(4);
+    private final Map<String, DocValuesScriptFieldFactory> localCacheScriptSourceFieldData = Maps.newMapWithExpectedSize(4);
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
@@ -50,50 +51,72 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, MappedFieldType.FielddataOperation options) {
-        DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(fieldName);
+    private DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, MappedFieldType.FielddataOperation options) {
+        final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 
-        if (factory == null) {
-            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
-
-            if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
-            }
-
-            // Load the field data on behalf of the script. Otherwise, it would require
-            // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-            factory = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
-                @Override
-                public DocValuesScriptFieldFactory run() {
-                    return fieldDataLookup.apply(fieldType, options).load(reader).getScriptFieldFactory(fieldName);
-                }
-            });
-
-            localCacheScriptFieldData.put(fieldName, factory);
+        if (fieldType == null) {
+            throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
         }
 
-        try {
-            factory.setNextDocId(docId);
-        } catch (IOException ioe) {
-            throw ExceptionsHelper.convertToElastic(ioe);
+        // Load the field data on behalf of the script. Otherwise, it would require
+        // additional permissions to deal with pagedbytes/ramusagestimator/etc.
+        DocValuesScriptFieldFactory factory = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
+            @Override
+            public DocValuesScriptFieldFactory run() {
+                return fieldDataLookup.apply(fieldType, options).load(reader).getScriptFieldFactory(fieldName);
+            }
+        });
+
+        if (factory instanceof SourceValueFetcherIndexFieldData.ValueFetcherDocValues) {
+            localCacheScriptSourceFieldData.put(fieldName, factory);
+        } else {
+            localCacheScriptDocValuesFieldData.put(fieldName, factory);
         }
 
         return factory;
     }
 
+    private void setNextDocId(DocValuesScriptFieldFactory factory) {
+        try {
+            factory.setNextDocId(docId);
+        } catch (IOException ioe) {
+            throw ExceptionsHelper.convertToElastic(ioe);
+        }
+    }
+
     public Field<?> getScriptField(String fieldName) {
-        return getScriptFieldFactory(fieldName, MappedFieldType.FielddataOperation.SCRIPT).toScriptField();
+        DocValuesScriptFieldFactory factory = localCacheScriptSourceFieldData.get(fieldName);
+
+        if (factory == null) {
+            factory = localCacheScriptDocValuesFieldData.get(fieldName);
+
+            if (factory == null) {
+                factory = getScriptFieldFactory(fieldName, MappedFieldType.FielddataOperation.SCRIPT);
+            }
+        }
+
+        setNextDocId(factory);
+
+        return factory.toScriptField();
     }
 
     @Override
     public ScriptDocValues<?> get(Object key) {
-        return getScriptFieldFactory(key.toString(), MappedFieldType.FielddataOperation.SEARCH).toScriptDocValues();
+        String fieldName = key.toString();
+        DocValuesScriptFieldFactory factory = localCacheScriptDocValuesFieldData.get(fieldName);
+
+        if (factory == null) {
+            factory = getScriptFieldFactory(fieldName, MappedFieldType.FielddataOperation.SEARCH);
+        }
+
+        setNextDocId(factory);
+
+        return factory.toScriptDocValues();
     }
 
     @Override
     public boolean containsKey(Object key) {
-        String fieldName = key.toString();
-        return localCacheScriptFieldData.get(fieldName) != null || fieldTypeLookup.apply(fieldName) != null;
+        return fieldTypeLookup.apply(key.toString()) != null;
     }
 
     @Override

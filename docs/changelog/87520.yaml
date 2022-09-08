@@ -1,6 +1,0 @@
-pr: 87520
-summary: Remove cluster block preflight check from health api
-area: Health
-type: enhancement
-issues:
- - 87464

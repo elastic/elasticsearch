@@ -42,6 +42,7 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        // TODO: why is shape here already, it is not supported yet
         return List.of(GeoShapeValuesSourceType.instance(), CoreValuesSourceType.GEOPOINT);
     }
 

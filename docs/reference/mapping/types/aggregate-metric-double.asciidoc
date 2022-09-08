@@ -57,7 +57,6 @@ specify at least one value.
 Default metric sub-field to use for queries, scripts, and aggregations that
 don't use a sub-field. Must be a value from the `metrics` array.
 
-ifeval::["{release-state}"=="unreleased"]
 `time_series_metric`::
 preview:[] (Optional, string)
 include::numeric.asciidoc[tag=time_series_metric]
@@ -73,7 +72,6 @@ include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-summary
 
 include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
 ====
-endif::[]
 
 [[aggregate-metric-double-uses]]
 ==== Uses

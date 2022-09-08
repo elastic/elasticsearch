@@ -2,4 +2,4 @@ pr: 89708
 summary: Operator/autoscaling
 area: Infra/Core
 type: enhancement
-issues: [89183]
+issues: []

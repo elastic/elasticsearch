@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -124,7 +125,7 @@ public class RoutingAllocation {
         }
         this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
-        unaccountedSearchableSnapshotSizes = new HashMap<>();
+        Map<String, Long> unaccountedSearchableSnapshotSizes = new HashMap<>();
         if (clusterInfo != null) {
             for (RoutingNode node : clusterState.getRoutingNodes()) {
                 long totalSize = 0;
@@ -146,6 +147,7 @@ public class RoutingAllocation {
                 }
             }
         }
+        this.unaccountedSearchableSnapshotSizes = Collections.unmodifiableMap(unaccountedSearchableSnapshotSizes);
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */

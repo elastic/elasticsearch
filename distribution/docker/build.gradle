@@ -41,9 +41,15 @@ repositories {
         artifact '/[organisation]/[module]-[revision]-linux-[classifier].[ext]'
       }
     } else {
-      url "https://${VersionProperties.isElasticsearchSnapshot() ? 'snapshots' : 'artifacts'}-no-kpi.elastic.co/"
+      url "https://artifacts-snapshot.elastic.co/"
       patternLayout {
-        artifact '/downloads/[organization]/[module]/[module]-[revision]-linux-[classifier].[ext]'
+        if (VersionProperties.isElasticsearchSnapshot()) {
+          artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
+        } else {
+          // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
+          // Release builds are always done with a local repo.
+          artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+        }
       }
     }
     metadataSources { artifact() }
@@ -72,8 +78,8 @@ dependencies {
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
-  filebeat "beats:filebeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
-  metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
+  filebeat "beats:filebeat:${VersionProperties.elasticsearch}:linux-${beatsArch}@tar.gz"
+  metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:linux-${beatsArch}@tar.gz"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -486,9 +492,4 @@ subprojects { Project subProject ->
       builtBy exportTaskName
     }
   }
-}
-
-tasks.named('resolveAllDependencies') {
-  // Don't try and resolve filebeat or metricbeat snapshots as they may not always be available
-  configs = configurations.matching { it.name.endsWith('beat') == false }
 }

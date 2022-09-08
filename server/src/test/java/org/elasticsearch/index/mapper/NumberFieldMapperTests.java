@@ -348,6 +348,23 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testAllowMultipleValuesField() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+
+        Mapper mapper = mapperService.mappingLookup().getMapper("field");
+        if (mapper instanceof NumberFieldMapper numberFieldMapper) {
+            numberFieldMapper.setAllowMultipleValues(false);
+        } else {
+            fail("mapper [" + mapper.getClass() + "] error, not number field");
+        }
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
+    }
+
     protected abstract Number randomNumber();
 
     protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {

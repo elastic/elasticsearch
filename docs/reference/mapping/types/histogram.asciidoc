@@ -85,6 +85,12 @@ The histogram field is "algorithm agnostic" and does not store data specific to 
 means the field can technically be aggregated with either algorithm, in practice the user should chose one algorithm and
 index data in that manner (e.g. centroids for T-Digest or intervals for HDRHistogram) to ensure best accuracy.
 
+[[histogram-synthetic-source]]
+==== Synthetic source preview:[]
+`histogram` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<ignore-malformed,`ignore_malformed`>> or <<copy-to,`copy_to`>>.
+
 [[histogram-ex]]
 ==== Examples
 

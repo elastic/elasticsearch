@@ -100,7 +100,7 @@ class DateFormatter {
     private Function<TemporalAccessor, String> javaFormat;
     private Function<String, String> additionalMapper;
 
-    protected static Function<TemporalAccessor, String> ofPattern(String dateFormatPattern) {
+    static Function<TemporalAccessor, String> ofPattern(String dateFormatPattern) {
         if (Strings.isEmpty(dateFormatPattern)) {
             return timestamp -> "";
         }

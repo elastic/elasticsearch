@@ -53,12 +53,6 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, MappedFieldType.FielddataOperation options) {
         DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(fieldName);
 
-        // do not use cached source fallback fields for old style doc access
-        if (options == MappedFieldType.FielddataOperation.SEARCH
-            && factory instanceof SourceValueFetcherIndexFieldData.ValueFetcherDocValues) {
-            factory = null;
-        }
-
         if (factory == null) {
             final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 

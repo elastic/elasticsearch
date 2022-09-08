@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -502,10 +503,18 @@ public final class MockTransportService extends TransportService {
                 }
 
                 // poor mans request cloning...
-                RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
-                final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
+                final TransportRequest clonedRequest;
+                if (request instanceof BytesTransportRequest) {
+                    // Some request handlers read back a BytesTransportRequest
+                    // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
+                    // in those cases we just copy the raw bytes back to a BytesTransportRequest.
+                    clonedRequest = new BytesTransportRequest(bStream.bytes().streamInput());
+                } else {
+                    RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
+                    clonedRequest = reg.newRequest(bStream.bytes().streamInput());
+                }
 
                 final RunOnce runnable = new RunOnce(new AbstractRunnable() {
                     @Override

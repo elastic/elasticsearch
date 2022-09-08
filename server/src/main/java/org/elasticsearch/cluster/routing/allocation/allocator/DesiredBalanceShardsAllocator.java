@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -28,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -44,6 +47,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private final ShardsAllocator delegateAllocator;
     private final ClusterService clusterService;
+    private final DesiredBalanceReconcilerAction reconciler;
     private final DesiredBalanceComputer desiredBalanceComputer;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
@@ -64,6 +68,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     ) {
         this.delegateAllocator = delegateAllocator;
         this.clusterService = clusterService;
+        this.reconciler = reconciler;
         this.desiredBalanceComputer = new DesiredBalanceComputer(delegateAllocator);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
@@ -77,7 +82,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 );
                 if (isFresh(desiredBalanceInput)) {
                     logger.trace("Scheduling a reconciliation");
-                    submitReconcileTask(currentDesiredBalance, reconciler);
+                    submitReconcileTask(currentDesiredBalance);
                 }
             }
 
@@ -89,8 +94,43 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.queue = new PendingListenersQueue(threadPool);
     }
 
-    public void submitReconcileTask(DesiredBalance desiredBalance, DesiredBalanceReconcilerAction reconciler) {
-        // TODO batch
+    private record ReconcileDesiredBalanceTask(DesiredBalance desiredBalance) implements ClusterStateTaskListener {
+
+        @Override
+        public void onFailure(Exception e) {
+            // TODO reset state
+        }
+    }
+
+    private final class ReconcileDesiredBalanceExecutor implements ClusterStateTaskExecutor<ReconcileDesiredBalanceTask> {
+
+        @Override
+        public ClusterState execute(BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext) {
+            var latestBalance = batchExecutionContext.taskContexts()
+                .stream()
+                .max(Comparator.comparing(it -> it.getTask().desiredBalance().lastConvergedIndex()))
+                .get();
+            var newState = reconciler.apply(
+                batchExecutionContext.initialState(),
+                routingAllocation -> new DesiredBalanceReconciler(latestBalance.getTask().desiredBalance(), routingAllocation).run()
+            );
+            for (TaskContext<ReconcileDesiredBalanceTask> taskContext : batchExecutionContext.taskContexts()) {
+                taskContext.success(() -> {});
+            }
+            return newState;
+        }
+    }
+
+    private final ReconcileDesiredBalanceExecutor executor = new ReconcileDesiredBalanceExecutor();
+
+    public void submitReconcileTask(DesiredBalance desiredBalance) {
+        // clusterService.submitStateUpdateTask(
+        // "reconcile-desired-balance",
+        // new ReconcileDesiredBalanceTask(desiredBalance),
+        // ClusterStateTaskConfig.build(Priority.URGENT),
+        // executor
+        // );
+
         clusterService.submitUnbatchedStateUpdateTask("reconcile", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {

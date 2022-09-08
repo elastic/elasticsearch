@@ -13,7 +13,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata.RollupTaskStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -26,13 +26,13 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
+import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ilm.RollupILMAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.junit.Before;
 
@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class RollupActionIT extends ESRestTestCase {
+public class DownsampleActionIT extends ESRestTestCase {
 
     private String index;
     private String policy;
@@ -144,7 +144,7 @@ public class RollupActionIT extends ESRestTestCase {
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String phaseName = randomFrom("warm", "cold");
-        createNewSingletonPolicy(client(), policy, phaseName, new RollupILMAction(ConfigTestHelpers.randomInterval()));
+        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval()));
         updatePolicy(client(), index, policy);
         updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
 
@@ -159,8 +159,8 @@ public class RollupActionIT extends ESRestTestCase {
         );
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
-            assertEquals(index, settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()));
-            assertEquals(RollupTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_ROLLUP_STATUS.getKey()));
+            assertEquals(index, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
         assertBusy(
             () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
@@ -173,10 +173,11 @@ public class RollupActionIT extends ESRestTestCase {
 
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> createNewSingletonPolicy(client(), policy, "hot", new RollupILMAction(ConfigTestHelpers.randomInterval()))
+            () -> createNewSingletonPolicy(client(), policy, "hot", new DownsampleAction(ConfigTestHelpers.randomInterval()))
         );
         assertTrue(
-            e.getMessage().contains("the [rollup] action(s) may not be used in the [hot] phase without an accompanying [rollover] action")
+            e.getMessage()
+                .contains("the [downsample] action(s) may not be used in the [hot] phase without an accompanying [rollover] action")
         );
     }
 
@@ -187,8 +188,8 @@ public class RollupActionIT extends ESRestTestCase {
         Map<String, LifecycleAction> hotActions = Map.of(
             RolloverAction.NAME,
             new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
-            RollupILMAction.NAME,
-            new RollupILMAction(ConfigTestHelpers.randomInterval())
+            DownsampleAction.NAME,
+            new DownsampleAction(ConfigTestHelpers.randomInterval())
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
@@ -237,14 +238,14 @@ public class RollupActionIT extends ESRestTestCase {
         );
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
-            assertEquals(originalIndex, settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()));
-            assertEquals(RollupTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_ROLLUP_STATUS.getKey()));
+            assertEquals(originalIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
     }
 
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
-        createNewSingletonPolicy(client(), policy, "warm", new RollupILMAction(ConfigTestHelpers.randomInterval()));
+        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(ConfigTestHelpers.randomInterval()));
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
@@ -274,8 +275,8 @@ public class RollupActionIT extends ESRestTestCase {
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
-            assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()));
-            assertEquals(RollupTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_ROLLUP_STATUS.getKey()));
+            assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
     }
 
@@ -301,7 +302,7 @@ public class RollupActionIT extends ESRestTestCase {
 
     public static String getRollupIndexName(RestClient client, String originalIndexName) throws IOException {
         Response response = client.performRequest(
-            new Request("GET", "/" + RollupILMAction.ROLLUP_INDEX_PREFIX + "*-" + originalIndexName + "/?expand_wildcards=all")
+            new Request("GET", "/" + DownsampleAction.DOWNSAMPLED_INDEX_PREFIX + "*-" + originalIndexName + "/?expand_wildcards=all")
         );
         Map<String, Object> asMap = responseAsMap(response);
         if (asMap.size() == 1) {

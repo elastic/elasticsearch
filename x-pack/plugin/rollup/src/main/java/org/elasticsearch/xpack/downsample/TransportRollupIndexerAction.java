@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.rollup.v2;
+package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -28,7 +28,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
+import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
 
 import java.io.IOException;
 import java.util.Arrays;

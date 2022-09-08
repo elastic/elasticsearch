@@ -10,39 +10,40 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupActionConfig> {
+public class DownsampleActionConfigTests extends AbstractSerializingTestCase<DownsampleConfig> {
 
     @Override
-    protected RollupActionConfig createTestInstance() {
+    protected DownsampleConfig createTestInstance() {
         return randomConfig();
     }
 
-    public static RollupActionConfig randomConfig() {
-        return new RollupActionConfig(ConfigTestHelpers.randomInterval());
+    public static DownsampleConfig randomConfig() {
+        return new DownsampleConfig(ConfigTestHelpers.randomInterval());
     }
 
     @Override
-    protected Writeable.Reader<RollupActionConfig> instanceReader() {
-        return RollupActionConfig::new;
+    protected Writeable.Reader<DownsampleConfig> instanceReader() {
+        return DownsampleConfig::new;
     }
 
     @Override
-    protected RollupActionConfig doParseInstance(final XContentParser parser) throws IOException {
-        return RollupActionConfig.fromXContent(parser);
+    protected DownsampleConfig doParseInstance(final XContentParser parser) throws IOException {
+        return DownsampleConfig.fromXContent(parser);
     }
 
     public void testEmptyFixedInterval() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new RollupActionConfig((DateHistogramInterval) null));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new DownsampleConfig((DateHistogramInterval) null));
         assertThat(e.getMessage(), equalTo("Parameter [fixed_interval] is required."));
     }
 
     public void testEmptyTimezone() {
-        RollupActionConfig config = new RollupActionConfig(ConfigTestHelpers.randomInterval());
+        DownsampleConfig config = new DownsampleConfig(ConfigTestHelpers.randomInterval());
         assertEquals("UTC", config.getTimeZone());
     }
 }

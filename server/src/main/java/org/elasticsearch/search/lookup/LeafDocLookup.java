@@ -70,7 +70,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
                 IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, isFieldAccess ? SCRIPT : SEARCH);
 
                 if (isFieldAccess) {
-                    DocValuesScriptFieldFactory docFactory = docFactoryCache.get(fieldName);
+                    DocValuesScriptFieldFactory docFactory = null;
+
+                    if (docFactoryCache.isEmpty() == false) {
+                        docFactory = docFactoryCache.get(fieldName);
+                    }
 
                     if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
                         factory = docFactory;
@@ -80,7 +84,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
                     fieldFactoryCache.put(fieldName, factory);
                 } else {
-                    DocValuesScriptFieldFactory fieldFactory = fieldFactoryCache.get(fieldName);
+                    DocValuesScriptFieldFactory fieldFactory = null;
+
+                    if (fieldFactoryCache.isEmpty() == false) {
+                        fieldFactory = fieldFactoryCache.get(fieldName);
+                    }
 
                     if (fieldFactory != null) {
                         IndexFieldData<?> fieldIndexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);

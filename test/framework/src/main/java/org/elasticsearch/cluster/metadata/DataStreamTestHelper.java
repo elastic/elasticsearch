@@ -51,6 +51,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
+import org.mockito.ArgumentMatchers;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -450,7 +451,9 @@ public final class DataStreamTestHelper {
         Environment env = mock(Environment.class);
         when(env.sharedDataFile()).thenReturn(null);
         AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class), any(ActionListener.class))).then(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), any(String.class), ArgumentMatchers.<ActionListener<Void>>any())).then(
+            i -> i.getArguments()[0]
+        );
         MappingLookup mappingLookup = null;
         if (dataStream != null) {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);

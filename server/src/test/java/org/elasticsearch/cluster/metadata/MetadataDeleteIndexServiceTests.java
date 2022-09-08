@@ -26,6 +26,7 @@ import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
+import org.mockito.ArgumentMatchers;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -54,9 +55,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class), any(ActionListener.class))).thenAnswer(
-            mockInvocation -> mockInvocation.getArguments()[0]
-        );
+        when(allocationService.reroute(any(ClusterState.class), any(String.class), ArgumentMatchers.<ActionListener<Void>>any()))
+            .thenAnswer(mockInvocation -> mockInvocation.getArguments()[0]);
         service = new MetadataDeleteIndexService(Settings.EMPTY, null, allocationService);
     }
 
@@ -107,7 +107,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState before = clusterState(index);
 
         // Mock the built reroute
-        when(allocationService.reroute(any(ClusterState.class), any(String.class), any(ActionListener.class))).then(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), any(String.class), ArgumentMatchers.<ActionListener<Void>>any())).then(
+            i -> i.getArguments()[0]
+        );
 
         // Remove it
         ClusterState after = service.deleteIndices(before, Set.of(before.metadata().getIndices().get(index).getIndex()));
@@ -118,7 +120,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertNull(after.blocks().indices().get(index));
 
         // Make sure we actually attempted to reroute
-        verify(allocationService).reroute(any(ClusterState.class), any(String.class), any(ActionListener.class));
+        verify(allocationService).reroute(any(ClusterState.class), any(String.class), ArgumentMatchers.<ActionListener<Void>>any());
     }
 
     public void testDeleteIndexWithAnAlias() {

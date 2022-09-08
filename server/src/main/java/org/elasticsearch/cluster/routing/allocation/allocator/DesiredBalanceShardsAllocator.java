@@ -193,7 +193,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         @Override
         public ClusterState execute(BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext) {
             var latest = findLatest(batchExecutionContext.taskContexts());
-            var newState = applyBalance(batchExecutionContext.initialState(), latest);
+            var newState = applyBalance(batchExecutionContext, latest);
             discardSupersededTasks(batchExecutionContext.taskContexts(), latest);
             return newState;
         }
@@ -202,13 +202,18 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             return taskContexts.stream().max(Comparator.comparing(context -> context.getTask().desiredBalance.lastConvergedIndex())).get();
         }
 
-        private ClusterState applyBalance(ClusterState initialState, TaskContext<ReconcileDesiredBalanceTask> latest) {
-            var newState = reconciler.apply(
-                initialState,
-                routingAllocation -> reconcile(latest.getTask().desiredBalance, routingAllocation)
-            );
-            latest.success(() -> queue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
-            return newState;
+        private ClusterState applyBalance(
+            BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext,
+            TaskContext<ReconcileDesiredBalanceTask> latest
+        ) {
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                var newState = reconciler.apply(
+                    batchExecutionContext.initialState(),
+                    routingAllocation -> reconcile(latest.getTask().desiredBalance, routingAllocation)
+                );
+                latest.success(() -> queue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
+                return newState;
+            }
         }
 
         private void discardSupersededTasks(
@@ -217,7 +222,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ) {
             for (TaskContext<ReconcileDesiredBalanceTask> taskContext : taskContexts) {
                 if (taskContext != latest) {
-                    latest.success(() -> {});
+                    taskContext.success(() -> {});
                 }
             }
         }

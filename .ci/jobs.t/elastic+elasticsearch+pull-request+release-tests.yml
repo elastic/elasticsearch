@@ -49,6 +49,7 @@
 
           # Fetch ML artifacts
           export ML_IVY_REPO=$(mktemp -d)
+          mkdir -p ${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/${ES_VERSION}
           curl --fail -o "${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/${ES_VERSION}/ml-cpp-${ES_VERSION}-deps.zip" https://artifacts-snapshot.elastic.co/ml-cpp/${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-${ES_VERSION}-SNAPSHOT-deps.zip
           curl --fail -o "${ML_IVY_REPO}/maven/org/elasticsearch/ml/ml-cpp/${ES_VERSION}/ml-cpp-${ES_VERSION}-nodeps.zip" https://artifacts-snapshot.elastic.co/ml-cpp/${ES_VERSION}-SNAPSHOT/downloads/ml-cpp/ml-cpp-${ES_VERSION}-SNAPSHOT-nodeps.zip
 

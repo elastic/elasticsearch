@@ -19,8 +19,11 @@ import java.util.List;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 
-public class SourceOnlyRecoveryPlannerService implements RecoveryPlannerService {
-    public static final RecoveryPlannerService INSTANCE = new SourceOnlyRecoveryPlannerService();
+/**
+ * Service in charge of computing a {@link ShardRecoveryPlan} using only the physical files from the source peer.
+ */
+public class PeerOnlyRecoveryPlannerService implements RecoveryPlannerService {
+    public static final RecoveryPlannerService INSTANCE = new PeerOnlyRecoveryPlannerService();
 
     @Override
     public void computeRecoveryPlan(

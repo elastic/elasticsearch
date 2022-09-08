@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.3.99"
-      reason: "rollup: labels support added in 8.4.0"
+      version: " - 8.4.99"
+      reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
       indices.create:
@@ -89,12 +89,13 @@ setup:
 ---
 "Rollup index":
   - skip:
-      version: " - 8.2.99"
-      reason: tsdb rollups added in 8.3.0
+      version: " - 8.4.99"
+      reason: "rollup renamed to downsample in 8.5.0"
+
   - do:
-      rollup.rollup:
+      indices.downsample:
         index: test
-        rollup_index: rollup-test
+        target_index: rollup-test
         body:  >
           {
             "fixed_interval": "1h"
@@ -136,7 +137,7 @@ setup:
   - match: { rollup-test.settings.index.time_series.end_time:   2021-04-29T00:00:00Z }
   - match: { rollup-test.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
   - match: { rollup-test.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
-  - match: { rollup-test.settings.index.rollup.source.name: test }
+  - match: { rollup-test.settings.index.downsample.source.name: test }
   - match: { rollup-test.settings.index.number_of_shards: "1" }
   - match: { rollup-test.settings.index.number_of_replicas: "0" }
 
@@ -148,13 +149,14 @@ setup:
 ---
 "Rollup non-existing index":
   - skip:
-      version: " - 8.2.99"
-      reason: tsdb rollups added in 8.3.0
+      version: " - 8.4.99"
+      reason: "rollup renamed to downsample in 8.5.0"
+
   - do:
       catch: /no such index \[non-existing-index\]/
-      rollup.rollup:
+      indices.downsample:
         index: non-existing-index
-        rollup_index: rollup-test
+        target_index: rollup-test
         body:  >
           {
             "fixed_interval": "1h"
@@ -163,8 +165,8 @@ setup:
 ---
 "Rollup to existing rollup index":
   - skip:
-      version: " - 8.2.99"
-      reason: tsdb rollups added in 8.3.0
+      version: " - 8.4.99"
+      reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
       indices.create:
@@ -172,9 +174,9 @@ setup:
 
   - do:
       catch: /resource_already_exists_exception/
-      rollup.rollup:
+      indices.downsample:
         index: test
-        rollup_index: rollup-test
+        target_index: rollup-test
         body:  >
           {
             "fixed_interval": "1h"

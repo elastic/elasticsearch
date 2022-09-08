@@ -128,14 +128,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
-    // TODO: refactor this method after adding more rollup metadata
-    public boolean isRollupIndex() {
-        final String sourceIndex = settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY);
-        final String indexRollupStatus = settings.get(IndexMetadata.INDEX_ROLLUP_STATUS_KEY);
-        final boolean rollupSuccess = IndexMetadata.RollupTaskStatus.SUCCESS.name()
+    // TODO: refactor this method after adding more downsampling metadata
+    public boolean isDownsampledIndex() {
+        final String sourceIndex = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+        final String indexDownsamplingStatus = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY);
+        final boolean downsamplingSuccess = DownsampleTaskStatus.SUCCESS.name()
             .toLowerCase(Locale.ROOT)
-            .equals(indexRollupStatus != null ? indexRollupStatus.toLowerCase(Locale.ROOT) : IndexMetadata.RollupTaskStatus.UNKNOWN);
-        return Strings.isNullOrEmpty(sourceIndex) == false && rollupSuccess;
+            .equals(indexDownsamplingStatus != null ? indexDownsamplingStatus.toLowerCase(Locale.ROOT) : DownsampleTaskStatus.UNKNOWN);
+        return Strings.isNullOrEmpty(sourceIndex) == false && downsamplingSuccess;
     }
 
     public enum State implements Writeable {
@@ -1132,22 +1132,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             : null;
     }
 
-    public static final String INDEX_ROLLUP_SOURCE_UUID_KEY = "index.rollup.source.uuid";
-    public static final String INDEX_ROLLUP_SOURCE_NAME_KEY = "index.rollup.source.name";
+    public static final String INDEX_DOWNSAMPLE_SOURCE_UUID_KEY = "index.downsample.source.uuid";
+    public static final String INDEX_DOWNSAMPLE_SOURCE_NAME_KEY = "index.downsample.source.name";
 
-    public static final String INDEX_ROLLUP_STATUS_KEY = "index.rollup.status";
-    public static final Setting<String> INDEX_ROLLUP_SOURCE_UUID = Setting.simpleString(
-        INDEX_ROLLUP_SOURCE_UUID_KEY,
+    public static final String INDEX_DOWNSAMPLE_STATUS_KEY = "index.downsample.status";
+    public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_UUID = Setting.simpleString(
+        INDEX_DOWNSAMPLE_SOURCE_UUID_KEY,
         Property.IndexScope,
         Property.PrivateIndex
     );
-    public static final Setting<String> INDEX_ROLLUP_SOURCE_NAME = Setting.simpleString(
-        INDEX_ROLLUP_SOURCE_NAME_KEY,
+    public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_NAME = Setting.simpleString(
+        INDEX_DOWNSAMPLE_SOURCE_NAME_KEY,
         Property.IndexScope,
         Property.PrivateIndex
     );
 
-    public enum RollupTaskStatus {
+    public enum DownsampleTaskStatus {
         UNKNOWN,
         STARTED,
         SUCCESS;
@@ -1158,10 +1158,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
-    public static final Setting<RollupTaskStatus> INDEX_ROLLUP_STATUS = Setting.enumSetting(
-        RollupTaskStatus.class,
-        INDEX_ROLLUP_STATUS_KEY,
-        RollupTaskStatus.UNKNOWN,
+    public static final Setting<DownsampleTaskStatus> INDEX_DOWNSAMPLE_STATUS = Setting.enumSetting(
+        DownsampleTaskStatus.class,
+        INDEX_DOWNSAMPLE_STATUS_KEY,
+        DownsampleTaskStatus.UNKNOWN,
         Property.IndexScope,
         Property.InternalIndex
     );

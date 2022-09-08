@@ -233,7 +233,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
     public void testScaleWhileShrinking() throws Exception {
         assumeTrue("Platform possibly not supported", IOUtils.LINUX || IOUtils.MAC_OS_X);
-        
+
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();
         final String dataNode2Name = internalCluster().startDataOnlyNode();

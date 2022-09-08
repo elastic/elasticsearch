@@ -79,6 +79,8 @@ public class TransportService extends AbstractLifecycleComponent
     protected final ConnectionManager connectionManager;
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;
+    protected final Version minVersion;
+    protected final Version maxVersion;
     protected final TaskManager taskManager;
     private final TransportInterceptor.AsyncSender asyncSender;
     private final Function<BoundTransportAddress, DiscoveryNode> localNodeFactory;
@@ -268,6 +270,8 @@ public class TransportService extends AbstractLifecycleComponent
             }
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
         }
+        this.minVersion = TransportSettings.MIN_VERSION.get(settings);
+        this.maxVersion = TransportSettings.MIN_VERSION.get(settings);
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
             ThreadPool.Names.SAME,
@@ -553,6 +557,30 @@ public class TransportService extends AbstractLifecycleComponent
                                 + response.version
                                 + "] is incompatible with local node version ["
                                 + localNode.getVersion()
+                                + "]"
+                        )
+                    );
+                } else if ((Version.V_EMPTY.equals(this.minVersion) == false) && (response.version.compareTo(this.minVersion) < 0)) {
+                    l.onFailure(
+                        new IllegalStateException(
+                            "handshake with ["
+                                + node
+                                + "] failed: remote node version ["
+                                + response.version
+                                + "] is not allowed with local node minimum accepted version ["
+                                + this.minVersion
+                                + "]"
+                        )
+                    );
+                } else if ((Version.V_EMPTY.equals(this.maxVersion) == false) && (response.version.compareTo(this.maxVersion) > 0)) {
+                    l.onFailure(
+                        new IllegalStateException(
+                            "handshake with ["
+                                + node
+                                + "] failed: remote node version ["
+                                + response.version
+                                + "] is not allowed with local node maximum accepted version ["
+                                + this.maxVersion
                                 + "]"
                         )
                     );

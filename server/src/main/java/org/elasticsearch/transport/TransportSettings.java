@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -248,6 +249,24 @@ public final class TransportSettings {
     );
     // only used in tests: RST connections when closing to avoid actively closing sockets to end up in time_wait in tests
     public static final Setting<Boolean> RST_ON_CLOSE = boolSetting("transport.rst_on_close", false, Setting.Property.NodeScope);
+
+    // Minimum version to accept during handshake in TransportService.handshake().
+    // If not set, the fallback value V_EMPTY indicates this setting should be ignored in TransportService.handshake().
+    // Example: 8.4.0 supports 7.17.0 bwc and 8.5.0 fwc, but a cluster admin may only want to accept 8.2.0 or higher.
+    public static final Setting<Version> MIN_VERSION = Setting.versionSetting(
+        "transport.min_version",
+        Version.V_EMPTY,
+        Setting.Property.NodeScope
+    );
+
+    // Minimum version to accept during handshake in TransportService.handshake().
+    // If not set, the fallback value V_EMPTY indicates this setting should be ignored in TransportService.handshake().
+    // Example: 8.4.0 supports 7.17.0 bwc and 8.5.0 fwc, but a cluster admin may only want to accept 8.4.0 or lower.
+    public static final Setting<Version> MAX_VERSION = Setting.versionSetting(
+        "transport.max_version",
+        Version.V_EMPTY,
+        Setting.Property.NodeScope
+    );
 
     private TransportSettings() {}
 }

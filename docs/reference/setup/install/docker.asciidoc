@@ -263,6 +263,10 @@ password for the `elastic` and `kibana_system` users with the
 `ELASTIC_PASSWORD` and `KIBANA_PASSWORD` variables. These variable are
 referenced by the `docker-compose.yml` file.
 
+IMPORTANT: Your passwords must be alphanumeric, and cannot contain special
+characters such as `!` or `@`. The `bash` script included in the 
+`docker-compose.yml` file only operates on alphanumeric characters.
+
 ["source","txt",subs="attributes"]
 ----
 include::docker/.env[]

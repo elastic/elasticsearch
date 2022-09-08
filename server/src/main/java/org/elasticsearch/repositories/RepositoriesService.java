@@ -218,12 +218,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 if (repositoryMetadata.generation() == RepositoryData.CORRUPTED_REPO_GEN) {
                                     // If recreating a corrupted repository with the same settings, reset the corrupt flag.
                                     // Setting the safe generation to unknown, so that a consistent generation is found.
+                                    ensureRepositoryNotInUse(currentState, request.name());
                                     logger.info(
                                         "repository [{}/{}] is marked as corrupted, resetting the corruption marker",
                                         repositoryMetadata.name(),
                                         repositoryMetadata.uuid()
                                     );
-                                    ensureRepositoryNotInUse(currentState, request.name());
                                     repositoryMetadata = repositoryMetadata.withGeneration(
                                         RepositoryData.UNKNOWN_REPO_GEN,
                                         repositoryMetadata.pendingGeneration()

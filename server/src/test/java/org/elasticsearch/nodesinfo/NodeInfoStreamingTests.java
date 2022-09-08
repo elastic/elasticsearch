@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.ProcessorInfo;
@@ -27,7 +28,6 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
-import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
@@ -112,7 +112,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         OsInfo osInfo = null;
         if (randomBoolean()) {
             int availableProcessors = randomIntBetween(1, 64);
-            int allocatedProcessors = randomIntBetween(1, availableProcessors);
+            Processors allocatedProcessors = Processors.of((double) randomIntBetween(1, availableProcessors));
             long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
             String name = randomAlphaOfLengthBetween(3, 10);
             String arch = randomAlphaOfLengthBetween(3, 10);
@@ -157,8 +157,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
-                        randomFrom(PluginType.values()),
-                        randomAlphaOfLengthBetween(3, 10),
+                        randomBoolean(),
+                        randomBoolean(),
                         randomBoolean()
                     )
                 );
@@ -177,8 +177,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
-                        randomFrom(PluginType.values()),
-                        randomAlphaOfLengthBetween(3, 10),
+                        randomBoolean(),
+                        randomBoolean(),
                         randomBoolean()
                     )
                 );

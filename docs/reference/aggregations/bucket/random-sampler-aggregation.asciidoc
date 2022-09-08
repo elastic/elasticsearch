@@ -94,3 +94,17 @@ higher sampling rates, the relative error is still low.
 
 NOTE: This represents the result of aggregations against a typical positively skewed APM data set which also has outliers in the upper tail. The linear dependence of the relative error on the sample size is found to hold widely, but the slope depends on the variation in the quantity being aggregated. As such, the variance in your own data may
       cause relative error rates to increase or decrease at a different rate.
+
+[[random-sampler-special-cases]]
+==== Random sampling special cases
+
+All counts returned by the random sampler aggregation are scaled to ease visualizations and calculations. For example,
+when randomly sampling a <<search-aggregations-bucket-datehistogram-aggregation, date histogram aggregation>> every
+`doc_count` value for every bucket is scaled by the inverse of the random_sampler `probability` value. So, if `doc_count`
+for a bucket is `10,000` with `probability: 0.1`, the actual number of documents aggregated is `1,000`.
+
+An exception to this is <<search-aggregations-metrics-cardinality-aggregation, cardinality aggregation>>. Unique item
+counts are not suitable for automatic scaling. When interpreting the cardinality count, compare it
+to the number of sampled docs provided in the top level `doc_count` within the random_sampler aggregation. It gives 
+you an idea of unique values as a percentage of total values. It may not reflect, however, the exact number of unique values
+for the given field.

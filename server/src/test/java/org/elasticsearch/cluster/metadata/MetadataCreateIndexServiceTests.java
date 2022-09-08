@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -700,9 +699,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(
             builder -> { builder.settings(Settings.builder().put("template_setting", "value1")); }
         );
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templatesBuilder = ImmutableOpenMap.builder();
-        templatesBuilder.put("template_1", templateMetadata);
-        Metadata metadata = new Metadata.Builder().templates(templatesBuilder.build()).build();
+        Metadata metadata = new Metadata.Builder().templates(Map.of("template_1", templateMetadata)).build();
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).build();

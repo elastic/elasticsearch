@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -26,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -118,12 +118,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
         // the number of search hits should be equal to the number of buckets returned by the aggregation
         int numHits = (Integer) XContentMapValues.extractValue("hits.total.value", searchResponse);
         assertThat(
-            new ParameterizedMessage(
-                "Number of buckets did not match, source: {}, expected: {}, iteration: {}",
-                numHits,
-                buckets.size(),
-                iteration
-            ).getFormattedMessage(),
+            format("Number of buckets did not match, source: %s, expected: %s, iteration: %s", numHits, buckets.size(), iteration),
             numHits,
             is(equalTo(buckets.size()))
         );
@@ -146,12 +141,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
 
             // Verify that the results from the aggregation and the results from the transform are the same.
             assertThat(
-                new ParameterizedMessage(
-                    "Buckets did not match, source: {}, expected: {}, iteration: {}",
-                    source,
-                    bucket.get("key"),
-                    iteration
-                ).getFormattedMessage(),
+                format("Buckets did not match, source: %s, expected: %s, iteration: %s", source, bucket.get("key"), iteration),
                 transformBucketKey,
                 is(equalTo(bucket.get("key")))
             );
@@ -161,12 +151,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
             // In the assertion below we only take 3 fractional (i.e.: after a dot) digits for comparison.
             // This is due to the lack of precision of the max aggregation value which is represented as "double".
             assertThat(
-                new ParameterizedMessage(
-                    "Timestamps did not match, source: {}, expected: {}, iteration: {}",
-                    source,
-                    maxTimestampValueAsString,
-                    iteration
-                ).getFormattedMessage(),
+                format("Timestamps did not match, source: %s, expected: %s, iteration: %s", source, maxTimestampValueAsString, iteration),
                 timestampFieldValue.substring(0, timestampFieldValue.lastIndexOf('.') + 3),
                 is(equalTo(maxTimestampValueAsString.substring(0, maxTimestampValueAsString.lastIndexOf('.') + 3)))
             );

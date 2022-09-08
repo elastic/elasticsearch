@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -32,8 +31,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Transport action that tests whether a user has the specified
- * {@link RoleDescriptor.IndicesPrivileges privileges}
+ * Transport action that tests whether the currently authenticated user has the specified
+ * {@link AuthorizationEngine.PrivilegesToCheck privileges}
  */
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
 
@@ -62,19 +61,6 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         if (subject.getUser().principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
             return;
-        }
-
-        final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = request.indexPrivileges();
-        if (indicesPrivileges != null) {
-            for (int i = 0; i < indicesPrivileges.length; i++) {
-                BytesReference query = indicesPrivileges[i].getQuery();
-                if (query != null) {
-                    listener.onFailure(
-                        new IllegalArgumentException("users may only check the index privileges without any DLS role query")
-                    );
-                    return;
-                }
-            }
         }
 
         resolveApplicationPrivileges(

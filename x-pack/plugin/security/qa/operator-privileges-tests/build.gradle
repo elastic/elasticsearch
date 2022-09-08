@@ -38,7 +38,6 @@ testClusters.configureEach {
   setting 'xpack.security.operator_privileges.enabled', "true"
   setting 'path.repo', repoDir.absolutePath
 
-  requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.3.0")
 
   user username: "test_admin", password: 'x-pack-test-password', role: "superuser"

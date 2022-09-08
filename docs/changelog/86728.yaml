@@ -1,6 +1,0 @@
-pr: 86728
-summary: Make user and role name constraint consistent with max document ID
-area: Security
-type: bug
-issues:
- - 66020

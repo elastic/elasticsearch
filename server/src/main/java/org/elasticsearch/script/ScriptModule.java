@@ -51,6 +51,8 @@ public class ScriptModule {
                 BytesRefSortScript.CONTEXT,
                 TermsSetQueryScript.CONTEXT,
                 UpdateScript.CONTEXT,
+                ReindexScript.CONTEXT,
+                UpdateByQueryScript.CONTEXT,
                 BucketAggregationScript.CONTEXT,
                 BucketAggregationSelectorScript.CONTEXT,
                 SignificantTermsHeuristicScoreScript.CONTEXT,

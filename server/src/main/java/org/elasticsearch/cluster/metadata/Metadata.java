@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -43,6 +45,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -78,7 +81,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * {@link Metadata} is the part of the {@link ClusterState} which persists across restarts. This persistence is XContent-based, so a
@@ -189,6 +191,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     public static final String CONTEXT_MODE_API = XContentContext.API.toString();
 
+    public static final String DEDUPLICATED_MAPPINGS_PARAM = "deduplicated_mappings";
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
@@ -207,6 +210,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
     private final ImmutableOpenMap<String, Custom> customs;
+    private final Map<String, ReservedStateMetadata> reservedStateMetadata;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
     private final int totalOpenIndexShards;
@@ -218,7 +222,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private final String[] allClosedIndices;
     private final String[] visibleClosedIndices;
 
-    private SortedMap<String, IndexAbstraction> indicesLookup;
+    private volatile SortedMap<String, IndexAbstraction> indicesLookup;
     private final Map<String, MappingMetadata> mappingsByHash;
 
     private final Version oldestIndexVersion;
@@ -246,7 +250,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
         Map<String, MappingMetadata> mappingsByHash,
-        Version oldestIndexVersion
+        Version oldestIndexVersion,
+        Map<String, ReservedStateMetadata> reservedStateMetadata
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -271,6 +276,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         this.indicesLookup = indicesLookup;
         this.mappingsByHash = mappingsByHash;
         this.oldestIndexVersion = oldestIndexVersion;
+        this.reservedStateMetadata = reservedStateMetadata;
     }
 
     public Metadata withIncrementedVersion() {
@@ -297,7 +303,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             visibleClosedIndices,
             indicesLookup,
             mappingsByHash,
-            oldestIndexVersion
+            oldestIndexVersion,
+            reservedStateMetadata
         );
     }
 
@@ -357,7 +364,78 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             visibleClosedIndices,
             indicesLookup,
             mappingsByHash,
-            oldestIndexVersion
+            oldestIndexVersion,
+            reservedStateMetadata
+        );
+    }
+
+    public Metadata withCoordinationMetadata(CoordinationMetadata coordinationMetadata) {
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            indices,
+            aliasedIndices,
+            templates,
+            customs,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion,
+            reservedStateMetadata
+        );
+    }
+
+    /**
+     * Creates a copy of this instance updated with the given {@link IndexMetadata} that must only contain changes to primary terms
+     * and in-sync allocation ids relative to the existing entries. This method is only used by
+     * {@link org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater#applyChanges(Metadata, RoutingTable)}.
+     * @param updates map of index name to {@link IndexMetadata}.
+     * @return updated metadata instance
+     */
+    public Metadata withAllocationAndTermUpdatesOnly(Map<String, IndexMetadata> updates) {
+        if (updates.isEmpty()) {
+            return this;
+        }
+        final var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
+        updatedIndicesBuilder.putAllFromMap(updates);
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            updatedIndicesBuilder.build(),
+            aliasedIndices,
+            templates,
+            customs,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion,
+            reservedStateMetadata
         );
     }
 
@@ -431,11 +509,26 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return true;
     }
 
+    public boolean indicesLookupInitialized() {
+        return indicesLookup != null;
+    }
+
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
-        if (indicesLookup == null) {
-            indicesLookup = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        SortedMap<String, IndexAbstraction> lookup = indicesLookup;
+        if (lookup == null) {
+            lookup = buildIndicesLookup();
         }
-        return indicesLookup;
+        return lookup;
+    }
+
+    private synchronized SortedMap<String, IndexAbstraction> buildIndicesLookup() {
+        SortedMap<String, IndexAbstraction> i = indicesLookup;
+        if (i != null) {
+            return i;
+        }
+        i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        indicesLookup = i;
+        return i;
     }
 
     public boolean sameIndicesLookup(Metadata other) {
@@ -526,6 +619,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         Function<String, Predicate<String>> fieldFilter,
         Runnable onNextIndex
     ) {
+        assert Transports.assertNotTransportThread("decompressing mappings is too expensive for a transport thread");
+
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
@@ -929,13 +1024,20 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return Optional.ofNullable((NodesShutdownMetadata) this.custom(NodesShutdownMetadata.TYPE))
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .orElse(Collections.emptyMap());
+        return this.custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY).getAllNodeMetadataMap();
     }
 
     public Map<String, Custom> customs() {
         return this.customs;
+    }
+
+    /**
+     * Returns the full {@link ReservedStateMetadata} Map for all
+     * reserved state namespaces.
+     * @return a map of namespace to {@link ReservedStateMetadata}
+     */
+    public Map<String, ReservedStateMetadata> reservedStateMetadata() {
+        return this.reservedStateMetadata;
     }
 
     /**
@@ -1024,26 +1126,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return true;
     }
 
-    /**
-     * Reconciles the cluster state metadata taken at the end of a snapshot with the data streams and indices
-     * contained in the snapshot. Certain actions taken during a snapshot such as rolling over a data stream
-     * or deleting a backing index may result in situations where some reconciliation is required.
-     *
-     * @return Reconciled {@link Metadata} instance
-     */
-    public static Metadata snapshot(Metadata metadata, List<String> dataStreams, List<String> indices) {
-        var builder = Metadata.builder(metadata);
-        for (var dsName : dataStreams) {
-            var dataStream = metadata.dataStreams().get(dsName);
-            if (dataStream == null) {
-                // should never occur since data streams cannot be deleted while they have snapshots underway
-                throw new IllegalArgumentException("unable to find data stream [" + dsName + "]");
-            }
-            builder.put(dataStream.snapshot(indices));
-        }
-        return builder.build();
-    }
-
     @Override
     public Diff<Metadata> diff(Metadata previousState) {
         return new MetadataDiff(previousState, this);
@@ -1079,6 +1161,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
         private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
         MetadataDiff(Metadata before, Metadata after) {
             clusterUUID = after.clusterUUID;
@@ -1091,12 +1174,19 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
             templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            reservedStateMetadata = DiffableUtils.diff(
+                before.reservedStateMetadata,
+                after.reservedStateMetadata,
+                DiffableUtils.getStringKeySerializer()
+            );
         }
 
         private static final DiffableUtils.DiffableValueReader<String, IndexMetadata> INDEX_METADATA_DIFF_VALUE_READER =
             new DiffableUtils.DiffableValueReader<>(IndexMetadata::readFrom, IndexMetadata::readDiffFrom);
         private static final DiffableUtils.DiffableValueReader<String, IndexTemplateMetadata> TEMPLATES_DIFF_VALUE_READER =
             new DiffableUtils.DiffableValueReader<>(IndexTemplateMetadata::readFrom, IndexTemplateMetadata::readDiffFrom);
+        private static final DiffableUtils.DiffableValueReader<String, ReservedStateMetadata> RESERVED_DIFF_VALUE_READER =
+            new DiffableUtils.DiffableValueReader<>(ReservedStateMetadata::readFrom, ReservedStateMetadata::readDiffFrom);
 
         MetadataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
@@ -1113,6 +1203,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+                reservedStateMetadata = DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    RESERVED_DIFF_VALUE_READER
+                );
+            } else {
+                reservedStateMetadata = DiffableUtils.emptyDiff();
+            }
         }
 
         @Override
@@ -1121,21 +1220,25 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             out.writeBoolean(clusterUUIDCommitted);
             out.writeLong(version);
             coordinationMetadata.writeTo(out);
-            Settings.writeSettingsToStream(transientSettings, out);
-            Settings.writeSettingsToStream(persistentSettings, out);
+            transientSettings.writeTo(out);
+            persistentSettings.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 hashesOfConsistentSettings.writeTo(out);
             }
             indices.writeTo(out);
             templates.writeTo(out);
             customs.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+                reservedStateMetadata.writeTo(out);
+            }
         }
 
         @Override
         public Metadata apply(Metadata part) {
             // create builder from existing mappings hashes so we don't change existing index metadata instances when deduplicating
             // mappings in the builder
-            Builder builder = new Builder(part.mappingsByHash);
+            final var updatedIndices = indices.apply(part.indices);
+            Builder builder = new Builder(part.mappingsByHash, updatedIndices.size());
             builder.clusterUUID(clusterUUID);
             builder.clusterUUIDCommitted(clusterUUIDCommitted);
             builder.version(version);
@@ -1143,10 +1246,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
-            builder.indices(indices.apply(part.indices));
+            builder.indices(updatedIndices);
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
-            return builder.build();
+            builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
+            return builder.build(true);
         }
     }
 
@@ -1187,7 +1291,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            int reservedStateSize = in.readVInt();
+            for (int i = 0; i < reservedStateSize; i++) {
+                builder.put(ReservedStateMetadata.readFrom(in));
+            }
+        }
         return builder.build();
     }
 
@@ -1197,8 +1306,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         out.writeString(clusterUUID);
         out.writeBoolean(clusterUUIDCommitted);
         coordinationMetadata.writeTo(out);
-        writeSettingsToStream(transientSettings, out);
-        writeSettingsToStream(persistentSettings, out);
+        transientSettings.writeTo(out);
+        persistentSettings.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             hashesOfConsistentSettings.writeTo(out);
         }
@@ -1214,6 +1323,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
         out.writeCollection(templates.values());
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeCollection(reservedStateMetadata.values());
+        }
     }
 
     public static Builder builder() {
@@ -1248,16 +1360,18 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
 
+        private final Map<String, ReservedStateMetadata> reservedStateMetadata;
+
         // If this is set to false we can skip checking #mappingsByHash for unused entries in #build(). Used as an optimization to save
-        // the rather expensive call to #purgeUnusedEntries when building from another instance and we know that no mappings can have
-        // become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
+        // the rather expensive logic for removing unused mappings when building from another instance and we know that no mappings can
+        // have become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
         // #mappingsByHash.
         private boolean checkForUnusedMappings = true;
 
         private final Map<String, MappingMetadata> mappingsByHash;
 
         public Builder() {
-            this(Map.of());
+            this(Map.of(), 0);
         }
 
         Builder(Metadata metadata) {
@@ -1275,14 +1389,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             this.previousIndicesLookup = metadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
             this.checkForUnusedMappings = false;
+            this.reservedStateMetadata = new HashMap<>(metadata.reservedStateMetadata);
         }
 
-        private Builder(Map<String, MappingMetadata> mappingsByHash) {
+        private Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
-            indices = ImmutableOpenMap.builder();
+            indices = ImmutableOpenMap.builder(indexCountHint);
             aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
+            reservedStateMetadata = new HashMap<>();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
             previousIndicesLookup = null;
             this.mappingsByHash = new HashMap<>(mappingsByHash);
@@ -1303,15 +1419,22 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder put(IndexMetadata indexMetadata, boolean incrementVersion) {
-            if (indices.get(indexMetadata.getIndex().getName()) == indexMetadata) {
-                return this;
-            }
+            final String name = indexMetadata.getIndex().getName();
             indexMetadata = dedupeMapping(indexMetadata);
-            // if we put a new index metadata, increment its version
+            IndexMetadata previous;
             if (incrementVersion) {
-                indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
+                if (indices.get(name) == indexMetadata) {
+                    return this;
+                }
+                // if we put a new index metadata, increment its version
+                indexMetadata = indexMetadata.withIncrementedVersion();
+                previous = indices.put(name, indexMetadata);
+            } else {
+                previous = indices.put(name, indexMetadata);
+                if (previous == indexMetadata) {
+                    return this;
+                }
             }
-            IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             updateAliases(previous, indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
@@ -1625,13 +1748,43 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder removeCustomIf(BiPredicate<String, Custom> p) {
-            customs.removeAll(p::test);
+            customs.removeAll(p);
             return this;
         }
 
         public Builder customs(Map<String, Custom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
+            return this;
+        }
+
+        /**
+         * Adds a map of namespace to {@link ReservedStateMetadata} into the metadata builder
+         * @param reservedStateMetadata a map of namespace to {@link ReservedStateMetadata}
+         * @return {@link Builder}
+         */
+        public Builder put(Map<String, ReservedStateMetadata> reservedStateMetadata) {
+            this.reservedStateMetadata.putAll(reservedStateMetadata);
+            return this;
+        }
+
+        /**
+         * Adds a {@link ReservedStateMetadata} for a given namespace to the metadata builder
+         * @param metadata a {@link ReservedStateMetadata}
+         * @return {@link Builder}
+         */
+        public Builder put(ReservedStateMetadata metadata) {
+            reservedStateMetadata.put(metadata.namespace(), metadata);
+            return this;
+        }
+
+        /**
+         * Removes a {@link ReservedStateMetadata} for a given namespace
+         * @param metadata a {@link ReservedStateMetadata}
+         * @return {@link Builder}
+         */
+        public Builder removeReservedState(ReservedStateMetadata metadata) {
+            reservedStateMetadata.remove(metadata.namespace());
             return this;
         }
 
@@ -1742,6 +1895,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
          * @return a new <code>Metadata</code> instance
          */
         public Metadata build() {
+            return build(false);
+        }
+
+        public Metadata build(boolean skipNameCollisionChecks) {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.
@@ -1752,17 +1909,25 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final List<String> allClosedIndices = new ArrayList<>();
             final List<String> visibleClosedIndices = new ArrayList<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
-            final Set<String> allIndices = indicesMap.keySet();
 
             int oldestIndexVersionId = Version.CURRENT.id;
+            int totalNumberOfShards = 0;
+            int totalOpenIndexShards = 0;
 
-            for (IndexMetadata indexMetadata : indicesMap.values()) {
+            final String[] allIndicesArray = new String[indicesMap.size()];
+            int i = 0;
+            final Set<String> sha256HashesInUse = checkForUnusedMappings ? Sets.newHashSetWithExpectedSize(mappingsByHash.size()) : null;
+            for (var entry : indicesMap.entrySet()) {
+                allIndicesArray[i++] = entry.getKey();
+                final IndexMetadata indexMetadata = entry.getValue();
+                totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
                 final String name = indexMetadata.getIndex().getName();
                 final boolean visible = indexMetadata.isHidden() == false;
                 if (visible) {
                     visibleIndices.add(name);
                 }
                 if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
+                    totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
                     allOpenIndices.add(name);
                     if (visible) {
                         visibleOpenIndices.add(name);
@@ -1774,6 +1939,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     }
                 }
                 oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
+                if (sha256HashesInUse != null) {
+                    final var mapping = indexMetadata.mapping();
+                    if (mapping != null) {
+                        sha256HashesInUse.add(mapping.getSha256());
+                    }
+                }
             }
 
             var aliasedIndices = this.aliasedIndices.build();
@@ -1786,35 +1957,25 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
                 assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
-            } else {
+            } else if (skipNameCollisionChecks == false) {
                 // we have changes to the the entity names so we ensure we have no naming collisions
-                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata());
+                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());
 
-            if (checkForUnusedMappings) {
-                purgeUnusedEntries(indicesMap);
+            if (sha256HashesInUse != null) {
+                mappingsByHash.keySet().retainAll(sha256HashesInUse);
             }
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(Strings.EMPTY_ARRAY);
             String[] visibleIndicesArray = visibleIndices.toArray(Strings.EMPTY_ARRAY);
             String[] allOpenIndicesArray = allOpenIndices.toArray(Strings.EMPTY_ARRAY);
             String[] visibleOpenIndicesArray = visibleOpenIndices.toArray(Strings.EMPTY_ARRAY);
             String[] allClosedIndicesArray = allClosedIndices.toArray(Strings.EMPTY_ARRAY);
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
-
-            int totalNumberOfShards = 0;
-            int totalOpenIndexShards = 0;
-            for (IndexMetadata indexMetadata : indicesMap.values()) {
-                totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
-                if (IndexMetadata.State.OPEN.equals(indexMetadata.getState())) {
-                    totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
-                }
-            }
 
             return new Metadata(
                 clusterUUID,
@@ -1839,67 +2000,51 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 visibleClosedIndicesArray,
                 indicesLookup,
                 Collections.unmodifiableMap(mappingsByHash),
-                Version.fromId(oldestIndexVersionId)
+                Version.fromId(oldestIndexVersionId),
+                Collections.unmodifiableMap(reservedStateMetadata)
             );
         }
 
         private static void ensureNoNameCollisions(
             Set<String> indexAliases,
             ImmutableOpenMap<String, IndexMetadata> indicesMap,
-            Set<String> allIndices,
             DataStreamMetadata dataStreamMetadata
         ) {
             final ArrayList<String> duplicates = new ArrayList<>();
             final Set<String> aliasDuplicatesWithIndices = new HashSet<>();
+            final Set<String> aliasDuplicatesWithDataStreams = new HashSet<>();
+            final var allDataStreams = dataStreamMetadata.dataStreams();
+            // Adding data stream aliases:
+            for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
+                if (indexAliases.contains(dataStreamAlias)) {
+                    duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
+                }
+                if (indicesMap.containsKey(dataStreamAlias)) {
+                    aliasDuplicatesWithIndices.add(dataStreamAlias);
+                }
+                if (allDataStreams.containsKey(dataStreamAlias)) {
+                    aliasDuplicatesWithDataStreams.add(dataStreamAlias);
+                }
+            }
             for (String alias : indexAliases) {
-                if (allIndices.contains(alias)) {
+                if (allDataStreams.containsKey(alias)) {
+                    aliasDuplicatesWithDataStreams.add(alias);
+                }
+                if (indicesMap.containsKey(alias)) {
                     aliasDuplicatesWithIndices.add(alias);
                 }
             }
-
-            final Set<String> aliasDuplicatesWithDataStreams = new HashSet<>();
-            final Set<String> allDataStreams;
-            if (dataStreamMetadata != null) {
-                allDataStreams = dataStreamMetadata.dataStreams().keySet();
-                // Adding data stream aliases:
-                for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
-                    if (indexAliases.contains(dataStreamAlias)) {
-                        duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
-                    }
-                    if (allIndices.contains(dataStreamAlias)) {
-                        aliasDuplicatesWithIndices.add(dataStreamAlias);
-                    }
-                    if (allDataStreams.contains(dataStreamAlias)) {
-                        aliasDuplicatesWithDataStreams.add(dataStreamAlias);
-                    }
+            allDataStreams.forEach((key, value) -> {
+                if (indicesMap.containsKey(key)) {
+                    duplicates.add("data stream [" + key + "] conflicts with index");
                 }
-            } else {
-                allDataStreams = Set.of();
-            }
-
+            });
             if (aliasDuplicatesWithIndices.isEmpty() == false) {
                 collectAliasDuplicates(indicesMap, aliasDuplicatesWithIndices, duplicates);
-            }
-
-            for (String alias : indexAliases) {
-                if (allDataStreams.contains(alias)) {
-                    aliasDuplicatesWithDataStreams.add(alias);
-                }
             }
             if (aliasDuplicatesWithDataStreams.isEmpty() == false) {
                 collectAliasDuplicates(indicesMap, dataStreamMetadata, aliasDuplicatesWithDataStreams, duplicates);
             }
-
-            final Set<String> dataStreamDuplicatesWithIndices = new HashSet<>();
-            for (String ds : allDataStreams) {
-                if (allIndices.contains(ds)) {
-                    dataStreamDuplicatesWithIndices.add(ds);
-                }
-            }
-            for (String dataStream : dataStreamDuplicatesWithIndices) {
-                duplicates.add("data stream [" + dataStream + "] conflicts with index");
-            }
-
             if (duplicates.isEmpty() == false) {
                 throw new IllegalStateException(
                     "index, alias, and data stream names need to be unique, but the following duplicates "
@@ -1981,12 +2126,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
                     assert dataStream.getIndices().isEmpty() == false;
 
-                    List<String> aliases = dataStreamToAliasLookup.getOrDefault(dataStream.getName(), List.of());
-                    final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream, aliases);
-                    IndexAbstraction existing = indicesLookup.put(
-                        dataStream.getName(),
-                        new IndexAbstraction.DataStream(dataStream, aliases)
-                    );
+                    final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream);
+                    IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dsAbstraction);
                     assert existing == null : "duplicate data stream for " + dataStream.getName();
 
                     for (Index i : dataStream.getIndices()) {
@@ -2159,6 +2300,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 }
             }
 
+            builder.startObject("reserved_state");
+            for (ReservedStateMetadata ReservedStateMetadata : metadata.reservedStateMetadata().values()) {
+                ReservedStateMetadata.toXContent(builder, params);
+            }
+            builder.endObject();
+
             builder.endObject();
         }
 
@@ -2201,6 +2348,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                        }
+                    } else if ("reserved_state".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            builder.put(ReservedStateMetadata.fromXContent(parser));
                         }
                     } else {
                         try {
@@ -2265,23 +2416,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 indexMetadataBuilder.putMapping(entry);
             } else {
                 mappingsByHash.put(digest, indexMetadataBuilder.mapping());
-            }
-        }
-
-        private void purgeUnusedEntries(ImmutableOpenMap<String, IndexMetadata> indices) {
-            final Set<String> sha256HashesInUse = new HashSet<>(mappingsByHash.size());
-            for (var im : indices.values()) {
-                if (im.mapping() != null) {
-                    sha256HashesInUse.add(im.mapping().getSha256());
-                }
-            }
-
-            final var iterator = mappingsByHash.entrySet().iterator();
-            while (iterator.hasNext()) {
-                final var cacheKey = iterator.next().getKey();
-                if (sha256HashesInUse.contains(cacheKey) == false) {
-                    iterator.remove();
-                }
             }
         }
 

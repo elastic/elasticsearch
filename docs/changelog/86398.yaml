@@ -1,6 +1,0 @@
-pr: 86398
-summary: Relax username restrictions for User APIs
-area: Security
-type: enhancement
-issues:
- - 86326

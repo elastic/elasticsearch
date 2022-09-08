@@ -38,6 +38,7 @@ PUT my-index
 }
 ----
 
+[role="child_attributes"]
 [[aggregate-metric-double-params]]
 ==== Parameters for `aggregate_metric_double` fields
 
@@ -57,20 +58,20 @@ Default metric sub-field to use for queries, scripts, and aggregations that
 don't use a sub-field. Must be a value from the `metrics` array.
 
 `time_series_metric`::
-+
---
-experimental:[]
-(Optional, string)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
+preview:[] (Optional, string)
 include::numeric.asciidoc[tag=time_series_metric]
-
-For `aggregate_metric_double` fields, this parameter accepts `counter`, `gauge`,
-and `summary`. You can't update this parameter for existing fields.
++
+.Valid `time_series_metric` values for `aggregate_metric_double` fields
+[%collapsible%open]
 ====
---
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-summary]
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+====
 
 [[aggregate-metric-double-uses]]
 ==== Uses
@@ -248,3 +249,52 @@ The search returns the following hit. The value of the `default_metric` field,
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+
+[[aggregate-metric-double-synthetic-source]]
+==== Synthetic source preview:[]
+`aggregate_metric-double` fields support <<synthetic-source,synthetic `_source`>> in their default
+configuration. Synthetic `_source` cannot be used together with <<ignore-malformed,`ignore_malformed`>>.
+
+For example:
+[source,console,id=synthetic-source-aggregate-metric-double-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "agg_metric": {
+        "type": "aggregate_metric_double",
+        "metrics": [ "min", "max", "sum", "value_count" ],
+        "default_metric": "max"
+      }
+    }
+  }
+}
+
+PUT idx/_doc/1
+{
+  "agg_metric": {
+    "min": -302.50,
+    "max": 702.30,
+    "sum": 200.0,
+    "value_count": 25
+  }
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "agg_metric": {
+    "min": -302.50,
+    "max": 702.30,
+    "sum": 200.0,
+    "value_count": 25
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

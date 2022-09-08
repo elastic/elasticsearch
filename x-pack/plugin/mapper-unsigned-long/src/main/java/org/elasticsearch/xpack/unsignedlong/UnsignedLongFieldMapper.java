@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -50,8 +52,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongLeafFieldData.convertUnsignedLongToDouble;
 
@@ -288,16 +290,38 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return (cache, breakerService) -> {
-                final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (operation == FielddataOperation.SEARCH) {
+                failIfNoDocValues();
+            }
+
+            if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
+                return (cache, breakerService) -> {
+                    final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
+                        name(),
+                        IndexNumericFieldData.NumericType.LONG,
+                        (dv, n) -> { throw new UnsupportedOperationException(); }
+                    ).build(cache, breakerService);
+                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);
+                };
+            }
+
+            if (operation == FielddataOperation.SCRIPT) {
+                SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+
+                return new SourceValueFetcherSortedUnsignedLongIndexFieldData.Builder(
                     name(),
-                    IndexNumericFieldData.NumericType.LONG,
-                    (dv, n) -> { throw new UnsupportedOperationException(); }
-                ).build(cache, breakerService);
-                return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);
-            };
+                    CoreValuesSourceType.NUMERIC,
+                    sourceValueFetcher(sourcePaths),
+                    searchLookup.source(),
+                    UnsignedLongDocValuesField::new
+                );
+            }
+
+            throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
         }
 
         @Override
@@ -305,8 +329,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
 
-            return new SourceValueFetcher(name(), context, nullValueFormatted) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

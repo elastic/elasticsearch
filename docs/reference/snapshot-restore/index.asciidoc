@@ -113,8 +113,6 @@ any restored indices must be compatible.
 [[snapshot-cluster-compatibility]]
 === Snapshot version compatibility
 
-include::snapshot-vers-compat.asciidoc[]
-
 You can't restore a snapshot to an earlier version of {es}. For example, you
 can't restore a snapshot taken in 7.6.0 to a cluster running 7.5.0.
 
@@ -148,11 +146,11 @@ include::cluster-index-compat.asciidoc[]
 You can't restore an index to an earlier version of {es}. For example, you can't
 restore an index created in 7.6.0 to a cluster running 7.5.0.
 
-A compatible snapshot can contain indices created in an incompatible version.
-For example, a snapshot of a {prev-major-last} cluster can contain an index
-created in 6.8. If you try to restore the 6.8 index to an {minor-version}
-cluster, the restore attempt will fail. Keep this in mind if you take a snapshot
-before upgrading a cluster.
+A compatible snapshot can contain indices created in an older incompatible
+version. For example, a snapshot of a {prev-major-last} cluster can contain an
+index created in 6.8. Restoring the 6.8 index to an {minor-version} cluster
+fails unless you can use the <<archive-indices,archive functionality>>. Keep
+this in mind if you take a snapshot before upgrading a cluster.
 
 As a workaround, you can first restore the index to another cluster running the
 latest version of {es} that's compatible with both the index and your current

@@ -195,7 +195,7 @@ public class Retry {
         private BulkResponse getAccumulatedResponse() {
             BulkItemResponse[] itemResponses;
             synchronized (responses) {
-                itemResponses = responses.toArray(new BulkItemResponse[1]);
+                itemResponses = responses.toArray(new BulkItemResponse[0]);
             }
             long stopTimestamp = System.nanoTime();
             long totalLatencyMs = TimeValue.timeValueNanos(stopTimestamp - startTimestampNanos).millis();

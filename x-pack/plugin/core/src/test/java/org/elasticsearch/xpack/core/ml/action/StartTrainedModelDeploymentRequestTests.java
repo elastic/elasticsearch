@@ -16,6 +16,10 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,19 +47,19 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
     public static Request createRandom() {
         Request request = new Request(randomAlphaOfLength(10));
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), Request.TIMEOUT.getPreferredName()));
+            request.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), Request.TIMEOUT.getPreferredName()));
         }
         if (randomBoolean()) {
             request.setWaitForState(randomFrom(AllocationStatus.State.values()));
         }
         if (randomBoolean()) {
-            request.setThreadsPerAllocation(randomIntBetween(1, 8));
+            request.setThreadsPerAllocation(randomFrom(1, 2, 4, 8, 16, 32));
         }
         if (randomBoolean()) {
             request.setNumberOfAllocations(randomIntBetween(1, 8));
         }
         if (randomBoolean()) {
-            request.setQueueCapacity(randomIntBetween(1, 10000));
+            request.setQueueCapacity(randomIntBetween(1, 1000000));
         }
         return request;
     }
@@ -78,6 +82,32 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
 
         assertThat(e, is(not(nullValue())));
         assertThat(e.getMessage(), containsString("[threads_per_allocation] must be a positive integer"));
+    }
+
+    public void testValidate_GivenThreadsPerAllocationIsNotPowerOf2() {
+        Set<Integer> powersOf2 = IntStream.range(0, 10).map(n -> (int) Math.pow(2, n)).boxed().collect(Collectors.toSet());
+        List<Integer> input = IntStream.range(1, 33).filter(n -> powersOf2.contains(n) == false).boxed().toList();
+
+        for (int n : input) {
+            Request request = createRandom();
+            request.setThreadsPerAllocation(n);
+
+            ActionRequestValidationException e = request.validate();
+
+            assertThat(e, is(not(nullValue())));
+            assertThat(e.getMessage(), containsString("[threads_per_allocation] must be a power of 2 less than or equal to 32"));
+        }
+    }
+
+    public void testValidate_GivenThreadsPerAllocationIsValid() {
+        for (int n : List.of(1, 2, 4, 8, 16, 32)) {
+            Request request = createRandom();
+            request.setThreadsPerAllocation(n);
+
+            ActionRequestValidationException e = request.validate();
+
+            assertThat(e, is(nullValue()));
+        }
     }
 
     public void testValidate_GivenNumberOfAllocationsIsZero() {
@@ -118,6 +148,45 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
 
         assertThat(e, is(not(nullValue())));
         assertThat(e.getMessage(), containsString("[queue_capacity] must be a positive integer"));
+    }
+
+    public void testValidate_GivenQueueCapacityIsAtLimit() {
+        Request request = createRandom();
+        request.setQueueCapacity(1_000_000);
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenQueueCapacityIsOverLimit() {
+        Request request = createRandom();
+        request.setQueueCapacity(1_000_001);
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[queue_capacity] must be less than 1000000"));
+    }
+
+    public void testValidate_GivenTimeoutIsNegative() {
+        Request request = createRandom();
+        request.setTimeout(TimeValue.parseTimeValue("-1s", "timeout"));
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[timeout] must be positive"));
+    }
+
+    public void testValidate_GivenTimeoutIsZero() {
+        Request request = createRandom();
+        request.setTimeout(TimeValue.parseTimeValue("0s", "timeout"));
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[timeout] must be positive"));
     }
 
     public void testDefaults() {

@@ -37,6 +37,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,7 +53,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -68,6 +68,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
+            new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10))
+        );
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -350,9 +353,9 @@ public class RepositoriesServiceTests extends ESTestCase {
             Collection<SnapshotId> snapshotIds,
             long repositoryStateId,
             Version repositoryMetaVersion,
-            ActionListener<RepositoryData> listener
+            SnapshotDeleteListener listener
         ) {
-            listener.onResponse(null);
+            listener.onFailure(new UnsupportedOperationException());
         }
 
         @Override
@@ -438,11 +441,6 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void addLifecycleListener(LifecycleListener listener) {
-
-        }
-
-        @Override
-        public void removeLifecycleListener(LifecycleListener listener) {
 
         }
 

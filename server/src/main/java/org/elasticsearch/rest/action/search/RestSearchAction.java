@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -199,7 +200,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
 
-        checkRestTotalHits(request, searchRequest);
+        validateSearchRequest(request, searchRequest);
 
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request, namedWriteableRegistry);
@@ -207,6 +208,9 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.setCcsMinimizeRoundtrips(
                 request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
             );
+        }
+        if (IndexSettings.isTimeSeriesModeEnabled() && request.paramAsBoolean("force_synthetic_source", false)) {
+            searchRequest.setForceSyntheticSource(true);
         }
 
         extraParamParser.accept(request, searchRequest);
@@ -395,6 +399,15 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     /**
+     * Validates that no search request parameters conflict. This method
+     * might modify the search request to align certain parameters.
+     */
+    public static void validateSearchRequest(RestRequest restRequest, SearchRequest searchRequest) {
+        checkRestTotalHits(restRequest, searchRequest);
+        checkSearchType(restRequest, searchRequest);
+    }
+
+    /**
      * Modify the search request to accurately count the total hits that match the query
      * if {@link #TOTAL_HITS_AS_INT_PARAM} is set.
      *
@@ -402,7 +415,7 @@ public class RestSearchAction extends BaseRestHandler {
      * is used in conjunction with a lower bound value (other than {@link SearchContext#DEFAULT_TRACK_TOTAL_HITS_UP_TO})
      * for the track_total_hits option.
      */
-    public static void checkRestTotalHits(RestRequest restRequest, SearchRequest searchRequest) {
+    private static void checkRestTotalHits(RestRequest restRequest, SearchRequest searchRequest) {
         boolean totalHitsAsInt = restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false);
         if (totalHitsAsInt == false) {
             return;
@@ -423,6 +436,14 @@ public class RestSearchAction extends BaseRestHandler {
                         + trackTotalHitsUpTo
                 );
             }
+    }
+
+    private static void checkSearchType(RestRequest restRequest, SearchRequest searchRequest) {
+        if (restRequest.hasParam("search_type") && searchRequest.hasKnnSearch()) {
+            throw new IllegalArgumentException(
+                "cannot set [search_type] when using [knn] search, since the search type " + "is determined automatically"
+            );
+        }
     }
 
     @Override

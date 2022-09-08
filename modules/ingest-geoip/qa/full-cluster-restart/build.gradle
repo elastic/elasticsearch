@@ -37,7 +37,6 @@ tasks.withType(Test).configureEach {
   }
 }
 
-
 BuildParams.bwcVersions.withWireCompatible(v -> v.before("8.0.0")) { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"

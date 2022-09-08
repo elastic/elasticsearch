@@ -276,7 +276,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         BucketInfo bucketInfo = instance.getBucketInfo();
         Map<String, Object> metadata = instance.getMetadata();
         long interval = instance.getBucketInnerInterval();
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> name += randomAlphaOfLength(5);
             case 1 -> {
                 buckets = new ArrayList<>(buckets);
@@ -468,7 +468,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         Version version = VersionUtils.randomVersionBetween(
             random(),
             Version.CURRENT.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(Version.CURRENT)
+            VersionUtils.getPreviousVersion(Version.V_8_3_0)
         );
         InternalAutoDateHistogram deserialized = copyInstance(instance, version);
         assertEquals(1, deserialized.getBucketInnerInterval());

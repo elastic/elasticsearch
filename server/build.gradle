@@ -25,6 +25,7 @@ archivesBaseName = 'elasticsearch'
 dependencies {
 
   api project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-logging')
   api project(':libs:elasticsearch-secure-sm')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
@@ -44,7 +45,6 @@ dependencies {
   api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
@@ -90,17 +90,10 @@ tasks.named('forbiddenApisTest').configure {
   addSignatureFiles 'hppc-signatures'
 }
 
-tasks.named("testingConventions").configure {
-    naming.clear()
-    naming {
-        Tests {
-            baseClass "org.apache.lucene.tests.util.LuceneTestCase"
-        }
-        IT {
-            baseClass "org.elasticsearch.test.ESIntegTestCase"
-            baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
-        }
-    }
+tasks.named('internalClusterTestTestingConventions').configure {
+    baseClass "org.elasticsearch.test.AbstractMultiClustersTestCase"
+    baseClass "org.elasticsearch.test.ESIntegTestCase"
+    baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
 }
 
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
@@ -185,7 +178,9 @@ tasks.named("thirdPartyAudit").configure {
             'com.lmax.disruptor.LifecycleAware',
             'com.lmax.disruptor.RingBuffer',
             'com.lmax.disruptor.Sequence',
+            'com.lmax.disruptor.SequenceBarrier',
             'com.lmax.disruptor.SequenceReportingEventHandler',
+            'com.lmax.disruptor.TimeoutException',
             'com.lmax.disruptor.WaitStrategy',
             'com.lmax.disruptor.dsl.Disruptor',
             'com.lmax.disruptor.dsl.ProducerType',
@@ -222,6 +217,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.BundleEvent',
             'org.osgi.framework.BundleReference',
             'org.osgi.framework.FrameworkUtil',
+            'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
             'org.osgi.framework.wiring.BundleWire',
@@ -250,3 +246,5 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }
+
+tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }

@@ -21,7 +21,8 @@ import java.util.Map;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
- * retrieves the field values from _source and returns them as document fields.
+ * retrieves the field values through the relevant {@link org.elasticsearch.index.mapper.ValueFetcher}
+ * and returns them as document fields.
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
     @Override
@@ -29,15 +30,6 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
         if (fetchFieldsContext == null) {
             return null;
-        }
-
-        if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
-            throw new IllegalArgumentException(
-                "Unable to retrieve the requested [fields] since _source is disabled "
-                    + "in the mappings for index ["
-                    + fetchContext.getIndexName()
-                    + "]"
-            );
         }
 
         FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());

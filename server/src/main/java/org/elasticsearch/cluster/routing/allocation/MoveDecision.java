@@ -90,12 +90,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * be forced to move to another node.
      */
     public static MoveDecision stay(Decision canRemainDecision) {
-        if (canRemainDecision != null) {
-            assert canRemainDecision.type() != Type.NO;
-            return new MoveDecision(canRemainDecision, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
-        } else {
+        if (canRemainDecision == Decision.YES) {
             return CACHED_STAY_DECISION;
         }
+        assert canRemainDecision.type() != Type.NO;
+        return new MoveDecision(canRemainDecision, null, AllocationDecision.NO_ATTEMPT, null, null, 0);
     }
 
     /**

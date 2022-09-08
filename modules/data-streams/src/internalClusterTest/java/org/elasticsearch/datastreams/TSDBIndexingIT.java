@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -21,12 +22,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -35,6 +40,18 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TSDBIndexingIT extends ESSingleNodeTestCase {
+
+    public static final String MAPPING_TEMPLATE = """
+        {
+          "_doc":{
+            "properties": {
+              "metricset": {
+                "type": "keyword",
+                "time_series_dimension": true
+              }
+            }
+          }
+        }""";
 
     private static final String DOC = """
         {
@@ -339,6 +356,76 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet()
         );
         assertThat(e.getCause().getMessage(), equalTo("[index.routing_path] requires [index.mode=time_series]"));
+    }
+
+    public void testSkippingShards() throws Exception {
+        Instant time = Instant.now();
+        {
+            var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build();
+            var request = new PutComposableIndexTemplateAction.Request("id1");
+            request.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("pattern-1"),
+                    new Template(templateSettings, new CompressedXContent(MAPPING_TEMPLATE), null),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                    null
+                )
+            );
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+            var indexRequest = new IndexRequest("pattern-1").opType(DocWriteRequest.OpType.CREATE).setRefreshPolicy("true");
+            indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+            client().index(indexRequest).actionGet();
+        }
+        {
+            var request = new PutComposableIndexTemplateAction.Request("id2");
+            request.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("pattern-2"),
+                    new Template(null, new CompressedXContent(MAPPING_TEMPLATE), null),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                    null
+                )
+            );
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+            var indexRequest = new IndexRequest("pattern-2").opType(DocWriteRequest.OpType.CREATE).setRefreshPolicy("true");
+            indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+            client().index(indexRequest).actionGet();
+        }
+        {
+            var matchingRange = new SearchSourceBuilder().query(
+                new RangeQueryBuilder("@timestamp").from(time.minusSeconds(1).toEpochMilli()).to(time.plusSeconds(1).toEpochMilli())
+            );
+            var searchRequest = new SearchRequest("pattern-*");
+            searchRequest.setPreFilterShardSize(1);
+            searchRequest.source(matchingRange);
+            var searchResponse = client().search(searchRequest).actionGet();
+            ElasticsearchAssertions.assertHitCount(searchResponse, 2);
+            assertThat(searchResponse.getTotalShards(), equalTo(2));
+            assertThat(searchResponse.getSkippedShards(), equalTo(0));
+            assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+        }
+        {
+            var nonMatchingRange = new SearchSourceBuilder().query(
+                new RangeQueryBuilder("@timestamp").from(time.minus(2, ChronoUnit.DAYS).toEpochMilli())
+                    .to(time.minus(1, ChronoUnit.DAYS).toEpochMilli())
+            );
+            var searchRequest = new SearchRequest("pattern-*");
+            searchRequest.setPreFilterShardSize(1);
+            searchRequest.source(nonMatchingRange);
+            var searchResponse = client().search(searchRequest).actionGet();
+            ElasticsearchAssertions.assertNoSearchHits(searchResponse);
+            assertThat(searchResponse.getTotalShards(), equalTo(2));
+            assertThat(searchResponse.getSkippedShards(), equalTo(1));
+            assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+        }
     }
 
     static String formatInstant(Instant instant) {

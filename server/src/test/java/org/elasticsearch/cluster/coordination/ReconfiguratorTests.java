@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,6 +27,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -218,14 +218,14 @@ public class ReconfiguratorTests extends ESTestCase {
         final DiscoveryNode master = liveNodes.stream().filter(n -> n.getId().equals(masterId)).findFirst().get();
         final VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, master, config);
         assertEquals(
-            new ParameterizedMessage(
-                "[liveNodes={}, retired={}, master={}, config={}, autoShrinkVotingConfiguration={}]",
+            format(
+                "[liveNodes=%s, retired=%s, master=%s, config=%s, autoShrinkVotingConfiguration=%s]",
                 liveNodes,
                 retired,
                 master,
                 config,
                 autoShrinkVotingConfiguration
-            ).getFormattedMessage(),
+            ),
             expectedConfig,
             adaptedConfig
         );

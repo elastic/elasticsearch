@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -74,6 +73,18 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         return Optional.of(state).map(ClusterState::metadata).map(m -> m.custom(TYPE));
     }
 
+    /**
+     * Returns true if the given node is marked as shutting down with any
+     * shutdown type.
+     */
+    public static boolean isNodeShuttingDown(final ClusterState state, final String nodeId) {
+        // Right now we make no distinction between the type of shutdown, but maybe in the future we might?
+        return NodesShutdownMetadata.getShutdowns(state)
+            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
+            .map(allNodes -> allNodes.get(nodeId))
+            .isPresent();
+    }
+
     public static NodesShutdownMetadata getShutdownsOrEmpty(final ClusterState state) {
         return getShutdowns(state).orElse(EMPTY);
     }
@@ -81,11 +92,11 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     private final Map<String, SingleNodeShutdownMetadata> nodes;
 
     public NodesShutdownMetadata(Map<String, SingleNodeShutdownMetadata> nodes) {
-        this.nodes = Collections.unmodifiableMap(nodes);
+        this.nodes = Map.copyOf(nodes);
     }
 
     public NodesShutdownMetadata(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, SingleNodeShutdownMetadata::new));
+        this(in.readImmutableMap(StreamInput::readString, SingleNodeShutdownMetadata::new));
     }
 
     @Override

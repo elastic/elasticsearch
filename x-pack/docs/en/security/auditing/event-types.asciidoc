@@ -228,7 +228,60 @@ event action.
 ["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],
 "field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],
 "applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
-["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}]}}}
+["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}],
+"metadata":{"application":"my-application","environment":{"level": 1,
+"tags":["dev","staging"]}}}}}
+====
+
+[[event-change-apikey]]
+`change_apikey`::
+Logged when the <<security-api-update-api-key,update API key>> API is
+invoked to update the attributes of an existing API key.
++
+You must include the `security_config_change` event type to audit the related
+event action.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:33:52,521+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":
+"change_apikey", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "change":{"apikey":
+{"id":"zcwN3YEBBmnjw-K-hW5_","role_descriptors":[{"cluster":
+["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":
+["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],
+"field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],
+"applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
+["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}],
+"metadata":{"application":"my-application","environment":{"level": 1,
+"tags":["dev","staging"]}}}}}
+====
+
+[[event-change-apikeys]]
+`change_apikeys`::
+Logged when the <<security-api-bulk-update-api-keys,bulk update API keys>> API is
+invoked to update the attributes of multiple existing API keys.
++
+You must include the `security_config_change` event type to audit the related
+event action.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit","timestamp":"2020-12-31T00:33:52,521+0200","node.id":
+"9clhpgjJRR-iKzOw20xBNQ","event.type":"security_config_change",
+"event.action":"change_apikeys","request.id":"9FteCmovTzWHVI-9Gpa_vQ",
+"change":{"apikeys":
+{"ids":["zcwN3YEBBmnjw-K-hW5_","j7c0WYIBqecB5CbVR6Oq"],"role_descriptors":
+[{"cluster":["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":
+["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],
+"field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],
+"applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
+["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}],
+"metadata":{"application":"my-application","environment":{"level":1,
+"tags":["dev","staging"]}}}}}
 ====
 
 [[event-delete-privileges]]
@@ -535,8 +588,8 @@ In addition, if `event.type` equals <<security-config-change,`security_config_ch
 the `event.action` attribute takes one of the following values:
 `put_user`, `change_password`, `put_role`, `put_role_mapping`,
 `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`,
-`delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys` or
-`delete_privileges`.
+`delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys`,
+`delete_privileges`, `change_apikey`, or `change_apikeys`.
 
 `request.id`      ::    A synthetic identifier that can be used to correlate the events
                         associated with a particular REST request.
@@ -626,7 +679,8 @@ ones):
 The events with the `event.type` attribute equal to `security_config_change` have one of the following
 `event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`,
 `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`,
-`delete_role`, `delete_role_mapping`, `invalidate_apikeys`, or `delete_privileges`.
+`delete_role`, `delete_role_mapping`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`,
+or `change_apikeys`.
 
 These events also have *one* of the following extra attributes (in addition to the common
 ones), which is specific to the `event.type` attribute. The attribute's value is a nested JSON object:
@@ -640,7 +694,8 @@ ones), which is specific to the `event.type` attribute. The attribute's value is
                             `role_mapping` or for application `privileges`.
 `change`              ::    The object representation of the security config that
                             is being changed. It can be the `password`, `enable` or `disable`,
-                            config object for native or built-in users.
+                            config object for native or built-in users. If an API key is updated,
+                            the config object will be an `apikey`.
 `create`              ::    The object representation of the new security config that is being
                             created. This is currently only used for API keys auditing.
                             If the API key is created using the
@@ -733,12 +788,16 @@ the <<mapping-roles, API request for mapping roles>>.
 +
 [source,js]
 ----
-`{"name": <string>, "expiration": <string>, "role_descriptors" [<object>]}`
+`{"id": <string>, "name": <string>, "expiration": <string>, "role_descriptors": [<object>],
+"metadata": [<object>]}`
 ----
 // NOTCONSOLE
 +
 The `role_descriptors` objects have the same schema as the `role_descriptor`
 object that is part of the above `role` config object.
+
+The object for an API key update will differ in that it will not include
+a `name` or `expiration`.
 
 `grant`               ::     An object like:
 +
@@ -757,6 +816,11 @@ object that is part of the above `role` config object.
 <boolean>, "user":{"name": <string>, "realm": <string>}}`
 ----
 // NOTCONSOLE
++
+The object for a bulk API key update will differ in that it will not
+include `name`, `owned_by_authenticated_user`, or `user`. Instead, it
+may include `metadata` and `role_descriptors`, which have the same
+schemas as the fields in the `apikey` config object above.
 
 `service_token`       ::   An object like:
 +

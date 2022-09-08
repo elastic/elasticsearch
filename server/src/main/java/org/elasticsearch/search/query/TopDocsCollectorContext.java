@@ -21,8 +21,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
@@ -401,8 +401,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 count += context.reader().docFreq(term);
             }
             return count;
-        } else if (query.getClass() == DocValuesFieldExistsQuery.class && reader.hasDeletions() == false) {
-            final String field = ((DocValuesFieldExistsQuery) query).getField();
+        } else if (query.getClass() == FieldExistsQuery.class && reader.hasDeletions() == false) {
+            final String field = ((FieldExistsQuery) query).getField();
             int count = 0;
             for (LeafReaderContext context : reader.leaves()) {
                 FieldInfos fieldInfos = context.reader().getFieldInfos();

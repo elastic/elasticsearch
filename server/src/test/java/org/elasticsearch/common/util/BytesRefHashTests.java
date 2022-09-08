@@ -398,7 +398,7 @@ public class BytesRefHashTests extends ESTestCase {
             );
 
             BytesRefHash copy = new BytesRefHash(refArrayCopy, mockBigArrays());
-
+            refArrayCopy.close();
             assertEquality(hash, copy);
             assertAllIn(strings, copy);
             copy.close();

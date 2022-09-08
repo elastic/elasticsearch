@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -781,7 +782,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     public Set<ScriptContextInfo> getContextInfos() {
-        Set<ScriptContextInfo> infos = new HashSet<ScriptContextInfo>(contexts.size());
+        Set<ScriptContextInfo> infos = Sets.newHashSetWithExpectedSize(contexts.size());
         for (ScriptContext<?> context : contexts.values()) {
             infos.add(new ScriptContextInfo(context.name, context.instanceClazz));
         }

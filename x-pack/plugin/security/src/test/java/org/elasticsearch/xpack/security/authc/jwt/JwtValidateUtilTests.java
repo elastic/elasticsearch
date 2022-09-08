@@ -26,10 +26,9 @@ public class JwtValidateUtilTests extends JwtTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtilTests.class);
 
-    private boolean helpTestSignatureAlgorithm(final String signatureAlgorithm) throws Exception {
-        LOGGER.info("Testing signature algorithm " + signatureAlgorithm);
-        // randomSecretOrSecretKeyOrKeyPair() randomizes which JwtUtil methods to call, so it indirectly covers most JwtUtil code
-        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
+    private boolean helpTestSignatureAlgorithm(final String signatureAlgorithm, final boolean requireOidcSafe) throws Exception {
+        LOGGER.trace("Testing signature algorithm " + signatureAlgorithm);
+        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, requireOidcSafe);
         final SecureString serializedJWTOriginal = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm);
         final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal.toString());
         return JwtValidateUtil.verifyJwt(jwk, parsedSignedJWT);
@@ -38,10 +37,13 @@ public class JwtValidateUtilTests extends JwtTestCase {
     public void testJwtSignVerifyPassedForAllSupportedAlgorithms() throws Exception {
         // Pass: "ES256", "ES384", "ES512", RS256", "RS384", "RS512", "PS256", "PS384", "PS512, "HS256", "HS384", "HS512"
         for (final String signatureAlgorithm : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS) {
-            assertThat(this.helpTestSignatureAlgorithm(signatureAlgorithm), is(true));
+            assertThat(this.helpTestSignatureAlgorithm(signatureAlgorithm, false), is(true));
         }
         // Fail: "ES256K"
-        final Exception exp1 = expectThrows(JOSEException.class, () -> this.helpTestSignatureAlgorithm(JWSAlgorithm.ES256K.getName()));
+        final Exception exp1 = expectThrows(
+            JOSEException.class,
+            () -> this.helpTestSignatureAlgorithm(JWSAlgorithm.ES256K.getName(), false)
+        );
         final String msg1 = "Unsupported signature algorithm ["
             + JWSAlgorithm.ES256K
             + "]. Supported signature algorithms are "

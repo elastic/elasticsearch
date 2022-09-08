@@ -148,9 +148,9 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(BytesRefSortScript.class)) {
             return context.factoryClazz.cast(new MockBytesRefSortScriptFactory(script));
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = vars -> new IngestScript(vars) {
+            IngestScript.Factory factory = (parameters, ctx) -> new IngestScript(parameters, ctx) {
                 @Override
-                public void execute(Map<String, Object> ctx) {
+                public void execute() {
                     script.apply(ctx);
                 }
             };
@@ -167,6 +167,30 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
             UpdateScript.Factory factory = (parameters, ctx) -> new UpdateScript(parameters, ctx) {
+                @Override
+                public void execute() {
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("ctx", ctx);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ReindexScript.class)) {
+            ReindexScript.Factory factory = (parameters, ctx) -> new ReindexScript(parameters, ctx) {
+                @Override
+                public void execute() {
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("ctx", ctx);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(UpdateByQueryScript.class)) {
+            UpdateByQueryScript.Factory factory = (parameters, ctx) -> new UpdateByQueryScript(parameters, ctx) {
                 @Override
                 public void execute() {
                     final Map<String, Object> vars = new HashMap<>();

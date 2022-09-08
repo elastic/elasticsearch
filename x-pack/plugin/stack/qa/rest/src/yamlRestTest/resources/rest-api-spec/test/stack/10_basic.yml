@@ -102,6 +102,8 @@ setup:
           data_stream.type: "metrics"
           data_stream.dataset: "foo"
           data_stream.namespace: "bar"
+          my.counter: 42
+          my.gauge: 2.3
 
   - do:
       indices.get_data_stream:
@@ -129,6 +131,10 @@ setup:
   - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.type: "constant_keyword" }
   - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.value: "bar" }
   - match: { .$idx0name.mappings.properties.source.properties.ip.type: "ip" }
+  - match: { .$idx0name.mappings.properties.my.properties.counter.type: "long" }
+  - match: { .$idx0name.mappings.properties.my.properties.counter.index: false }
+  - match: { .$idx0name.mappings.properties.my.properties.gauge.type: "float" }
+  - match: { .$idx0name.mappings.properties.my.properties.gauge.index: false }
   - match: { .$idx0name.data_stream: "metrics-foo-bar" }
 
   - do:

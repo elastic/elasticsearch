@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
+import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
@@ -249,6 +251,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
@@ -260,6 +263,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
+import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -272,6 +277,8 @@ import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -404,11 +411,13 @@ import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestCountAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
+import org.elasticsearch.rest.action.search.RestKnnSearchAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
@@ -445,6 +454,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
+    private final ReservedClusterStateService reservedClusterStateService;
 
     public ActionModule(
         Settings settings,
@@ -457,7 +467,10 @@ public class ActionModule extends AbstractModule {
         NodeClient nodeClient,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Tracer tracer,
+        ClusterService clusterService,
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -474,6 +487,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
             Stream.of(
                 new RestHeaderDefinition(Task.X_OPAQUE_ID_HTTP_HEADER, false),
+                new RestHeaderDefinition(Task.TRACE_STATE, false),
                 new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false),
                 new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
             )
@@ -507,7 +521,8 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
 
-        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService);
+        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+        reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -555,6 +570,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterGetSettingsAction.INSTANCE, TransportClusterGetSettingsAction.class);
         actions.register(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
+        actions.register(ClusterFormationInfoAction.INSTANCE, ClusterFormationInfoAction.TransportAction.class);
         actions.register(PendingClusterTasksAction.INSTANCE, TransportPendingClusterTasksAction.class);
         actions.register(PutRepositoryAction.INSTANCE, TransportPutRepositoryAction.class);
         actions.register(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
@@ -636,6 +652,7 @@ public class ActionModule extends AbstractModule {
         actions.register(AnalyzeIndexDiskUsageAction.INSTANCE, TransportAnalyzeIndexDiskUsageAction.class);
         actions.register(FieldUsageStatsAction.INSTANCE, TransportFieldUsageAction.class);
         actions.register(MasterHistoryAction.INSTANCE, MasterHistoryAction.TransportAction.class);
+        actions.register(CoordinationDiagnosticsAction.INSTANCE, CoordinationDiagnosticsAction.TransportAction.class);
 
         // Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
@@ -685,6 +702,10 @@ public class ActionModule extends AbstractModule {
         actions.register(UpdateDesiredNodesAction.INSTANCE, TransportUpdateDesiredNodesAction.class);
         actions.register(DeleteDesiredNodesAction.INSTANCE, TransportDeleteDesiredNodesAction.class);
 
+        if (HealthNode.isEnabled()) {
+            actions.register(UpdateHealthInfoCacheAction.INSTANCE, UpdateHealthInfoCacheAction.TransportAction.class);
+        }
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -724,7 +745,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteRepositoryAction());
         registerHandler.accept(new RestVerifyRepositoryAction());
         registerHandler.accept(new RestCleanupRepositoryAction());
-        registerHandler.accept(new RestGetSnapshotsAction(threadPool));
+        registerHandler.accept(new RestGetSnapshotsAction());
         registerHandler.accept(new RestCreateSnapshotAction());
         registerHandler.accept(new RestCloneSnapshotAction());
         registerHandler.accept(new RestRestoreSnapshotAction());
@@ -734,7 +755,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestResetFeatureStateAction());
         registerHandler.accept(new RestGetFeatureUpgradeStatusAction());
         registerHandler.accept(new RestPostFeatureUpgradeAction());
-        registerHandler.accept(new RestGetIndicesAction());
+        registerHandler.accept(new RestGetIndicesAction(threadPool));
         registerHandler.accept(new RestIndicesStatsAction());
         registerHandler.accept(new RestIndicesSegmentsAction(threadPool));
         registerHandler.accept(new RestIndicesShardStoresAction());
@@ -799,6 +820,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestOpenPointInTimeAction());
         registerHandler.accept(new RestClosePointInTimeAction());
         registerHandler.accept(new RestMultiSearchAction(settings));
+        registerHandler.accept(new RestKnnSearchAction());
 
         registerHandler.accept(new RestValidateQueryAction());
 
@@ -913,5 +935,9 @@ public class ActionModule extends AbstractModule {
 
     public RestController getRestController() {
         return restController;
+    }
+
+    public ReservedClusterStateService getReservedClusterStateService() {
+        return reservedClusterStateService;
     }
 }

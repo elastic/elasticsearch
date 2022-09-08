@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -168,7 +167,7 @@ public class RestActions {
     }
 
     /**
-     * Automatically transform the {@link ToXContent}-compatible, nodes-level {@code response} into a a {@link BytesRestResponse}.
+     * Automatically transform the {@link ToXContent}-compatible, nodes-level {@code response} into a a {@link RestResponse}.
      * <p>
      * This looks like:
      * <code>
@@ -186,7 +185,7 @@ public class RestActions {
      * @throws IOException if building the response causes an issue
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public static <NodesResponse extends BaseNodesResponse & ToXContent> BytesRestResponse nodesResponse(
+    public static <NodesResponse extends BaseNodesResponse & ToXContent> RestResponse nodesResponse(
         final XContentBuilder builder,
         final Params params,
         final NodesResponse response
@@ -197,7 +196,7 @@ public class RestActions {
         response.toXContent(builder, params);
         builder.endObject();
 
-        return new BytesRestResponse(RestStatus.OK, builder);
+        return new RestResponse(RestStatus.OK, builder);
     }
 
     private static final String[] queryStringParams = new String[] { "df", "analyzer", "analyze_wildcard", "lenient", "default_operator" };

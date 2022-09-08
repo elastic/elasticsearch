@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.Index;
@@ -85,14 +84,13 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         IndexMetadata coldIndex2 = indexMetadata("cold-2", 1, 0, DataTier.DATA_COLD, DataTier.DATA_WARM); // Prefers cold over warm
         IndexMetadata nonTiered = indexMetadata("non-tier", 1, 0); // No tier
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesBuilder = ImmutableOpenMap.builder();
-        indicesBuilder.put("hot-1", hotIndex1);
-        indicesBuilder.put("hot-2", hotIndex2);
-        indicesBuilder.put("warm-1", warmIndex1);
-        indicesBuilder.put("cold-1", coldIndex1);
-        indicesBuilder.put("cold-2", coldIndex2);
-        indicesBuilder.put("non-tier", nonTiered);
-        ImmutableOpenMap<String, IndexMetadata> indices = indicesBuilder.build();
+        Map<String, IndexMetadata> indices = new HashMap<>();
+        indices.put("hot-1", hotIndex1);
+        indices.put("hot-2", hotIndex2);
+        indices.put("warm-1", warmIndex1);
+        indices.put("cold-1", coldIndex1);
+        indices.put("cold-2", coldIndex2);
+        indices.put("non-tier", nonTiered);
 
         Map<String, String> tiers = DataTiersUsageTransportAction.tierIndices(indices);
         assertThat(tiers.size(), equalTo(5));

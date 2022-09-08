@@ -335,14 +335,6 @@ public class BigArrays {
         }
 
         @Override
-        public float increment(long index, float inc) {
-            assert index >= 0 && index < size();
-            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2) + inc;
-            VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, ret);
-            return ret;
-        }
-
-        @Override
         public void fill(long fromIndex, long toIndex, float value) {
             assert fromIndex >= 0 && fromIndex <= toIndex;
             assert toIndex >= 0 && toIndex <= size();

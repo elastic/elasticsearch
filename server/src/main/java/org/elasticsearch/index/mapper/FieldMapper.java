@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
@@ -1203,9 +1204,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param fieldNode         the root node of the map of mappings for this field
          */
         public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
-            Map<String, Parameter<?>> paramsMap = new HashMap<>();
+            final Parameter<?>[] params = getParameters();
+            // we know the paramsMap size up-front
+            Map<String, Parameter<?>> paramsMap = Maps.newHashMapWithExpectedSize(params.length);
+            // don't know this map's size up-front
             Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : params) {
                 paramsMap.put(param.name, param);
                 for (String deprecatedName : param.deprecatedNames) {
                     deprecatedParamsMap.put(deprecatedName, param);
@@ -1216,18 +1220,21 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 Map.Entry<String, Object> entry = iterator.next();
                 final String propName = entry.getKey();
                 final Object propNode = entry.getValue();
-                if (Objects.equals("fields", propName)) {
-                    TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, propName, propNode);
-                    iterator.remove();
-                    continue;
-                }
-                if (Objects.equals("copy_to", propName)) {
-                    TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
-                    iterator.remove();
-                    continue;
-                }
-                if (Objects.equals("boost", propName)) {
-                    if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                switch (propName) {
+                    case "fields" -> {
+                        TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, propName, propNode);
+                        iterator.remove();
+                        continue;
+                    }
+                    case "copy_to" -> {
+                        TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
+                        iterator.remove();
+                        continue;
+                    }
+                    case "boost" -> {
+                        if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                            throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
+                        }
                         deprecationLogger.warn(
                             DeprecationCategory.API,
                             "boost",
@@ -1236,8 +1243,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         );
                         iterator.remove();
                         continue;
-                    } else {
-                        throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
                     }
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);

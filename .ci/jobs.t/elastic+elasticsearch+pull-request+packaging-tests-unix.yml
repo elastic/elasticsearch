@@ -33,7 +33,6 @@
           name: os
           values:
             - centos-7-packaging
-            - debian-9-packaging
             - debian-10-packaging
             - debian-11-packaging
             - opensuse-15-1-packaging
@@ -43,7 +42,12 @@
             - sles-15-packaging
             - ubuntu-18.04-packaging
             - ubuntu-20.04-packaging
+            - ubuntu-22.04-packaging
             - rocky-linux-8-packaging
+            - rhel-7-packaging
+            - rhel-8-packaging
+            - rhel-9-packaging
+            - almalinux-8-packaging
       - axis:
           type: user-defined
           name: PACKAGING_TASK

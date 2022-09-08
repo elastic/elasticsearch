@@ -878,8 +878,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                                 "filters",
                                                 matchesList().item(
                                                     matchesMap().entry("query", "FieldExistsQuery [field=f]")
-                                                        .entry("specialized_for", "docvalues_field_exists")
-                                                        .entry("results_from_metadata", greaterThan(0))
+                                                        .entry("segments_counted_in_constant_time", greaterThan(0))
                                                 )
                                             )
                                     )
@@ -937,9 +936,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                             .entry(
                                                 "filters",
                                                 matchesList().item(
-                                                    matchesMap().entry("query", "*:*")
-                                                        .entry("specialized_for", "match_all")
-                                                        .entry("results_from_metadata", 0)
+                                                    matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0)
                                                 )
                                             )
                                     )
@@ -1041,7 +1038,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
                 assertThat(agg, matcher);
                 agg.preCollection();
-                context.searcher().search(context.query(), agg);
+                context.searcher().search(context.query(), agg.asCollector());
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
                 result = (InternalDateHistogram) result.reduce(
                     List.of(result),

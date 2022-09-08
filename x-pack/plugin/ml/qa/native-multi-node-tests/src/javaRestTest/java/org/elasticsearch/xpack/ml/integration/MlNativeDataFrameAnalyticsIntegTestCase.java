@@ -124,7 +124,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected ExplainDataFrameAnalyticsAction.Response explainDataFrame(DataFrameAnalyticsConfig config) {
-        PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
+        ExplainDataFrameAnalyticsAction.Request request = new ExplainDataFrameAnalyticsAction.Request(config);
         return client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 

@@ -11,7 +11,6 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -251,12 +250,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         List<String> dataStreams,
         long startTime,
         long repositoryStateId,
-        ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+        Map<ShardId, ShardSnapshotStatus> shards,
         Map<String, Object> userMetadata,
         Version version,
         List<SnapshotFeatureInfo> featureStates
     ) {
-        return new SnapshotsInProgress.Entry(
+        return Entry.snapshot(
             snapshot,
             includeGlobalState,
             partial,
@@ -292,23 +291,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         long repositoryStateId,
         Version version
     ) {
-        return new SnapshotsInProgress.Entry(
-            snapshot,
-            true,
-            false,
-            State.STARTED,
-            indices,
-            Collections.emptyList(),
-            Collections.emptyList(),
-            startTime,
-            repositoryStateId,
-            ImmutableOpenMap.of(),
-            null,
-            Collections.emptyMap(),
-            version,
-            source,
-            ImmutableOpenMap.of()
-        );
+        return Entry.createClone(snapshot, State.STARTED, indices, startTime, repositoryStateId, null, version, source, Map.of());
     }
 
     /**
@@ -326,7 +309,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return true;
     }
 
-    private static boolean hasFailures(ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones) {
+    private static boolean hasFailures(Map<RepositoryShardId, ShardSnapshotStatus> clones) {
         for (ShardSnapshotStatus value : clones.values()) {
             if (value.state().failed()) {
                 return true;
@@ -662,7 +645,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         /**
          * Map of {@link ShardId} to {@link ShardSnapshotStatus} tracking the state of each shard snapshot operation.
          */
-        private final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
+        private final Map<ShardId, ShardSnapshotStatus> shards;
         /**
          * Map of index name to {@link IndexId}.
          */
@@ -685,7 +668,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         /**
          * Map of {@link RepositoryShardId} to {@link ShardSnapshotStatus} tracking the state of each shard operation in this entry.
          */
-        private final ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId;
+        private final Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId;
 
         @Nullable
         private final Map<String, Object> userMetadata;
@@ -693,7 +676,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final String failure;
 
         // visible for testing, use #startedEntry and copy constructors in production code
-        public Entry(
+        public static Entry snapshot(
             Snapshot snapshot,
             boolean includeGlobalState,
             boolean partial,
@@ -703,12 +686,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             List<SnapshotFeatureInfo> featureStates,
             long startTime,
             long repositoryStateId,
-            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+            Map<ShardId, ShardSnapshotStatus> shards,
             String failure,
             Map<String, Object> userMetadata,
             Version version
         ) {
-            this(
+            final Map<String, Index> res = Maps.newMapWithExpectedSize(indices.size());
+            final Map<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = Maps.newHashMapWithExpectedSize(shards.size());
+            for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
+                final ShardId shardId = entry.getKey();
+                final IndexId indexId = indices.get(shardId.getIndexName());
+                final Index index = shardId.getIndex();
+                final Index existing = res.put(indexId.getName(), index);
+                assert existing == null || existing.equals(index) : "Conflicting indices [" + existing + "] and [" + index + "]";
+                byRepoShardIdBuilder.put(new RepositoryShardId(indexId, shardId.id()), entry.getValue());
+            }
+            return new Entry(
                 snapshot,
                 includeGlobalState,
                 partial,
@@ -723,7 +716,39 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata,
                 version,
                 null,
-                ImmutableOpenMap.of()
+                byRepoShardIdBuilder,
+                res
+            );
+        }
+
+        private static Entry createClone(
+            Snapshot snapshot,
+            State state,
+            Map<String, IndexId> indices,
+            long startTime,
+            long repositoryStateId,
+            String failure,
+            Version version,
+            SnapshotId source,
+            Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId
+        ) {
+            return new Entry(
+                snapshot,
+                true,
+                false,
+                state,
+                indices,
+                List.of(),
+                List.of(),
+                startTime,
+                repositoryStateId,
+                Map.of(),
+                failure,
+                Map.of(),
+                version,
+                source,
+                shardStatusByRepoShardId,
+                Map.of()
             );
         }
 
@@ -737,12 +762,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             List<SnapshotFeatureInfo> featureStates,
             long startTime,
             long repositoryStateId,
-            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+            Map<ShardId, ShardSnapshotStatus> shards,
             String failure,
             Map<String, Object> userMetadata,
             Version version,
             @Nullable SnapshotId source,
-            ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId
+            Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId,
+            Map<String, Index> snapshotIndices
         ) {
             this.state = state;
             this.snapshot = snapshot;
@@ -758,28 +784,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.userMetadata = userMetadata == null ? null : Map.copyOf(userMetadata);
             this.version = version;
             this.source = source;
-            if (source == null) {
-                assert shardStatusByRepoShardId == null || shardStatusByRepoShardId.isEmpty()
-                    : "Provided explict repo shard id statuses [" + shardStatusByRepoShardId + "] but no source";
-                final Map<String, Index> res = Maps.newMapWithExpectedSize(indices.size());
-                final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = ImmutableOpenMap.builder(
-                    shards.size()
-                );
-                for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
-                    final ShardId shardId = entry.getKey();
-                    final IndexId indexId = indices.get(shardId.getIndexName());
-                    final Index index = shardId.getIndex();
-                    final Index existing = res.put(indexId.getName(), index);
-                    assert existing == null || existing.equals(index) : "Conflicting indices [" + existing + "] and [" + index + "]";
-                    byRepoShardIdBuilder.put(new RepositoryShardId(indexId, shardId.id()), entry.getValue());
-                }
-                this.shardStatusByRepoShardId = byRepoShardIdBuilder.build();
-                snapshotIndices = Map.copyOf(res);
-            } else {
-                assert shards.isEmpty();
-                this.shardStatusByRepoShardId = shardStatusByRepoShardId;
-                snapshotIndices = Map.of();
-            }
+            this.shardStatusByRepoShardId = Map.copyOf(shardStatusByRepoShardId);
+            this.snapshotIndices = snapshotIndices;
             assert assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.shardStatusByRepoShardId);
         }
 
@@ -801,46 +807,45 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 indices = Collections.unmodifiableMap(idx);
             }
             final long startTime = in.readLong();
-            final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = in.readImmutableOpenMap(
-                ShardId::new,
-                ShardSnapshotStatus::readFrom
-            );
+            final Map<ShardId, ShardSnapshotStatus> shards = in.readImmutableMap(ShardId::new, ShardSnapshotStatus::readFrom);
             final long repositoryStateId = in.readLong();
             final String failure = in.readOptionalString();
             final Map<String, Object> userMetadata = in.readMap();
             final Version version = Version.readVersion(in);
             final List<String> dataStreams = in.readStringList();
             final SnapshotId source = in.readOptionalWriteable(SnapshotId::new);
-            final ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones = in.readImmutableOpenMap(
+            final Map<RepositoryShardId, ShardSnapshotStatus> clones = in.readImmutableMap(
                 RepositoryShardId::new,
                 ShardSnapshotStatus::readFrom
             );
-            final List<SnapshotFeatureInfo> featureStates = Collections.unmodifiableList(in.readList(SnapshotFeatureInfo::new));
-            return new SnapshotsInProgress.Entry(
-                snapshot,
-                includeGlobalState,
-                partial,
-                state,
-                indices,
-                dataStreams,
-                featureStates,
-                startTime,
-                repositoryStateId,
-                shards,
-                failure,
-                userMetadata,
-                version,
-                source,
-                clones
-            );
+            final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
+            if (source == null) {
+                return snapshot(
+                    snapshot,
+                    includeGlobalState,
+                    partial,
+                    state,
+                    indices,
+                    dataStreams,
+                    featureStates,
+                    startTime,
+                    repositoryStateId,
+                    shards,
+                    failure,
+                    userMetadata,
+                    version
+                );
+            }
+            assert shards.isEmpty();
+            return Entry.createClone(snapshot, state, indices, startTime, repositoryStateId, failure, version, source, clones);
         }
 
         private static boolean assertShardsConsistent(
             SnapshotId source,
             State state,
             Map<String, IndexId> indices,
-            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
-            ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> statusByRepoShardId
+            Map<ShardId, ShardSnapshotStatus> shards,
+            Map<RepositoryShardId, ShardSnapshotStatus> statusByRepoShardId
         ) {
             if ((state == State.INIT || state == State.ABORTED) && shards.isEmpty()) {
                 return true;
@@ -895,7 +900,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata,
                 version,
                 source,
-                source == null ? ImmutableOpenMap.of() : shardStatusByRepoShardId
+                shardStatusByRepoShardId,
+                snapshotIndices
             );
         }
 
@@ -928,7 +934,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 }
             }
             if (updatedIndices != null) {
-                return new Entry(
+                return snapshot(
                     snapshot,
                     includeGlobalState,
                     partial,
@@ -941,32 +947,24 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     shards,
                     failure,
                     userMetadata,
-                    version,
-                    source,
-                    ImmutableOpenMap.of()
+                    version
                 );
             }
             return this;
         }
 
-        public Entry withClones(ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> updatedClones) {
+        public Entry withClones(Map<RepositoryShardId, ShardSnapshotStatus> updatedClones) {
             if (updatedClones.equals(shardStatusByRepoShardId)) {
                 return this;
             }
             assert shards.isEmpty();
-            return new Entry(
+            return Entry.createClone(
                 snapshot,
-                includeGlobalState,
-                partial,
                 completed(updatedClones.values()) ? (hasFailures(updatedClones) ? State.FAILED : State.SUCCESS) : state,
                 indices,
-                dataStreams,
-                featureStates,
                 startTime,
                 repositoryStateId,
-                ImmutableOpenMap.of(),
                 failure,
-                userMetadata,
                 version,
                 source,
                 updatedClones
@@ -985,7 +983,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         @Nullable
         public Entry abort() {
-            final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
+            final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
             for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : shards.entrySet()) {
@@ -1006,7 +1004,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (allQueued) {
                 return null;
             }
-            return new Entry(
+            return Entry.snapshot(
                 snapshot,
                 includeGlobalState,
                 partial,
@@ -1016,12 +1014,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 featureStates,
                 startTime,
                 repositoryStateId,
-                shardsBuilder.build(),
+                Map.copyOf(shardsBuilder),
                 ABORTED_FAILURE_TEXT,
                 userMetadata,
-                version,
-                source,
-                ImmutableOpenMap.of()
+                version
             );
         }
 
@@ -1033,9 +1029,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * @param shards new shard snapshot states
          * @return new snapshot entry
          */
-        public Entry withShardStates(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+        public Entry withShardStates(Map<ShardId, ShardSnapshotStatus> shards) {
             if (completed(shards.values())) {
-                return new Entry(
+                return Entry.snapshot(
                     snapshot,
                     includeGlobalState,
                     partial,
@@ -1058,8 +1054,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * Same as {@link #withShardStates} but does not check if the snapshot completed and thus is only to be used when starting new
          * shard snapshots on data nodes for a running snapshot.
          */
-        public Entry withStartedShards(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            final SnapshotsInProgress.Entry updated = new Entry(
+        public Entry withStartedShards(Map<ShardId, ShardSnapshotStatus> shards) {
+            final SnapshotsInProgress.Entry updated = Entry.snapshot(
                 snapshot,
                 includeGlobalState,
                 partial,
@@ -1088,7 +1084,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return this.snapshot;
         }
 
-        public ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> shardsByRepoShardId() {
+        public Map<RepositoryShardId, ShardSnapshotStatus> shardsByRepoShardId() {
             return shardStatusByRepoShardId;
         }
 
@@ -1097,7 +1093,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return snapshotIndices.get(name);
         }
 
-        public ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards() {
+        public Map<ShardId, ShardSnapshotStatus> shards() {
             assert isClone() == false : "tried to get routing shards for clone entry [" + this + "]";
             return this.shards;
         }
@@ -1305,7 +1301,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeStringCollection(dataStreams);
             out.writeOptionalWriteable(source);
             if (source == null) {
-                out.writeMap(ImmutableOpenMap.of());
+                out.writeMap(Map.of());
             } else {
                 out.writeMap(shardStatusByRepoShardId);
             }

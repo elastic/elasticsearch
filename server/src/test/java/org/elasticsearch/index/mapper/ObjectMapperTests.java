@@ -23,6 +23,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ObjectMapperTests extends MapperServiceTestCase {
 
@@ -396,7 +397,28 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Object [service] has subobjects set to false hence it does not support inner object [time]",
+            "Failed to parse mapping: Tried to add subobject [time] to object [service] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("metrics.service");
+            {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("time");
+                    b.field("type", "nested");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add nested object [time] to object [service] which does not support subobjects",
             exception.getMessage()
         );
     }
@@ -444,8 +466,24 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Object [_doc] has subobjects set to false hence it does not support inner object "
-                + "[metrics.service.time]",
+            "Failed to parse mapping: Tried to add subobject [metrics.service.time] to object [_doc] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseRootWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties");
+            {
+                b.startObject("metrics.service");
+                b.field("type", "nested");
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add nested object [metrics.service] to object [_doc] which does not support subobjects",
             exception.getMessage()
         );
     }
@@ -478,5 +516,44 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
+    }
+
+    /**
+     * Makes sure that an empty object mapper returns {@code null} from
+     * {@link SourceLoader.SyntheticFieldLoader#docValuesLoader}. This
+     * is important because it allows us to skip whole chains of empty
+     * fields when loading synthetic {@code _source}.
+     */
+    public void testSyntheticSourceDocValuesEmpty() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("o").field("type", "object").endObject()));
+        ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+    }
+
+    /**
+     * Makes sure that an object mapper containing only fields without
+     * doc values returns {@code null} from
+     * {@link SourceLoader.SyntheticFieldLoader#docValuesLoader}. This
+     * is important because it allows us to skip whole chains of empty
+     * fields when loading synthetic {@code _source}.
+     */
+    public void testSyntheticSourceDocValuesFieldWithout() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("o").startObject("properties");
+            {
+                b.startObject("kwd");
+                {
+                    b.field("type", "keyword");
+                    b.field("doc_values", false);
+                    b.field("store", true);
+                }
+                b.endObject();
+            }
+            b.endObject().endObject();
+        }));
+        ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
     }
 }

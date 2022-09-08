@@ -224,7 +224,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         @Override
-        public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             return getRandomDecision();
         }
 

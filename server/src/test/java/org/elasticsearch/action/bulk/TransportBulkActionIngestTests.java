@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -192,38 +191,29 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         remoteNode1 = mock(DiscoveryNode.class);
         remoteNode2 = mock(DiscoveryNode.class);
         nodes = mock(DiscoveryNodes.class);
-        ImmutableOpenMap<String, DiscoveryNode> ingestNodes = ImmutableOpenMap.<String, DiscoveryNode>builder(2)
-            .fPut("node1", remoteNode1)
-            .fPut("node2", remoteNode2)
-            .build();
+        Map<String, DiscoveryNode> ingestNodes = Map.of("node1", remoteNode1, "node2", remoteNode2);
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
         when(nodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder()
             .indices(
-                ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .putAllFromMap(
-                        Map.of(
-                            WITH_DEFAULT_PIPELINE,
-                            IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
-                                .settings(
-                                    settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
-                                )
-                                .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
-                                .numberOfShards(1)
-                                .numberOfReplicas(1)
-                                .build(),
-                            ".system",
-                            IndexMetadata.builder(".system")
-                                .settings(settings(Version.CURRENT))
-                                .system(true)
-                                .numberOfShards(1)
-                                .numberOfReplicas(0)
-                                .build()
-                        )
-                    )
-                    .build()
+                Map.of(
+                    WITH_DEFAULT_PIPELINE,
+                    IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
+                        .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build())
+                        .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
+                        .numberOfShards(1)
+                        .numberOfReplicas(1)
+                        .build(),
+                    ".system",
+                    IndexMetadata.builder(".system")
+                        .settings(settings(Version.CURRENT))
+                        .system(true)
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .build()
+                )
             )
             .build();
         when(state.getMetadata()).thenReturn(metadata);
@@ -667,7 +657,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getMetadata()).thenReturn(metadata);
         when(metadata.templates()).thenReturn(templateMetadata);
         when(metadata.getTemplates()).thenReturn(templateMetadata);
-        when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
+        when(metadata.indices()).thenReturn(Map.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(Collections.emptyMap());

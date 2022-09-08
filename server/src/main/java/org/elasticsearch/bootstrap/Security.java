@@ -33,7 +33,6 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
 import java.util.Collections;
@@ -96,6 +95,11 @@ import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * Troubleshooting Security</a> for information.
  */
 final class Security {
+
+    static {
+        prepopulateSecurityCaller();
+    }
+
     /** no instantiation */
     private Security() {}
 
@@ -109,7 +113,7 @@ final class Security {
      * @param environment configuration for generating dynamic permissions
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException, NoSuchAlgorithmException {
+    static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
@@ -127,7 +131,7 @@ final class Security {
         final String[] classesThatCanExit = new String[] {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
-            Elasticsearch.class.getName() };
+            Bootstrap.class.getName() };
         setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
@@ -212,7 +216,7 @@ final class Security {
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
-        addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink", false);
+        addDirectoryPath(policy, "path.conf", environment.configFile(), "read,readlink", false);
         // read-write dirs
         addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
         addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);

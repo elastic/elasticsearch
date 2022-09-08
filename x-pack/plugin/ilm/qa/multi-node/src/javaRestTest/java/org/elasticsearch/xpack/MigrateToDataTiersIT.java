@@ -140,7 +140,12 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
         // let's also have a policy that doesn't need migrating
         String rolloverOnlyPolicyName = "rollover-policy";
-        createNewSingletonPolicy(client(), rolloverOnlyPolicyName, "hot", new RolloverAction(null, null, null, 1L, null));
+        createNewSingletonPolicy(
+            client(),
+            rolloverOnlyPolicyName,
+            "hot",
+            new RolloverAction(null, null, null, 1L, null, null, null, null, null, null)
+        );
 
         String rolloverIndexPrefix = "rolloverpolicytest_index";
         for (int i = 1; i <= 2; i++) {

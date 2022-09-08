@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch;
 
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.job.process.AbstractInitializableRunnable;
 import org.junit.After;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +39,12 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         var r3 = new RunOrderValidator(3, counter);
         executor.executeWithPriority(r3, RequestPriority.NORMAL, 101L);
 
+        assertTrue(r1.initialized);
+        assertTrue(r2.initialized);
+        assertTrue(r3.initialized);
         assertTrue(r3.hasBeenRejected);
+        assertFalse(r1.hasBeenRejected);
+        assertFalse(r2.hasBeenRejected);
     }
 
     public void testQueueCapacityReached_HighestPriority() {
@@ -56,8 +61,11 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         var r5 = new RunOrderValidator(5, counter);
         executor.executeWithPriority(r5, RequestPriority.NORMAL, 105L);
 
+        assertTrue(r3.initialized);
         assertTrue(r3.hasBeenRejected);
+        assertTrue(highestPriorityAlwaysAccepted.initialized);
         assertFalse(highestPriorityAlwaysAccepted.hasBeenRejected);
+        assertTrue(r5.initialized);
         assertTrue(r5.hasBeenRejected);
     }
 
@@ -77,6 +85,10 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         executor.executeWithPriority(new ShutdownExecutorRunnable(executor), RequestPriority.NORMAL, 10000L);
 
         executor.start();
+
+        assertTrue(r1.initialized);
+        assertTrue(r2.initialized);
+        assertTrue(r3.initialized);
 
         assertTrue(r1.hasBeenRun);
         assertTrue(r2.hasBeenRun);
@@ -114,16 +126,22 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         );
     }
 
-    private static class RunOrderValidator extends AbstractRunnable {
+    private static class RunOrderValidator extends AbstractInitializableRunnable {
 
         private boolean hasBeenRun = false;
         private boolean hasBeenRejected = false;
         private final int expectedOrder;
         private final AtomicInteger counter;
+        private boolean initialized = false;
 
         RunOrderValidator(int expectedOrder, AtomicInteger counter) {
             this.expectedOrder = expectedOrder;
             this.counter = counter;
+        }
+
+        @Override
+        public void init() {
+            initialized = true;
         }
 
         @Override
@@ -143,7 +161,7 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         }
     }
 
-    private static class ShutdownExecutorRunnable extends AbstractRunnable {
+    private static class ShutdownExecutorRunnable extends AbstractInitializableRunnable {
 
         PriorityProcessWorkerExecutorService executor;
 
@@ -162,5 +180,9 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
             executor.shutdown();
         }
 
+        @Override
+        public void init() {
+            // do nothing
+        }
     }
 }

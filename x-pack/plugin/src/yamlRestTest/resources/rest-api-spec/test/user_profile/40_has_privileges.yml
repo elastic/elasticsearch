@@ -1,0 +1,185 @@
+---
+setup:
+  - skip:
+      features:
+        - headers
+        - stash_in_key
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_user:
+        username: "super"
+        body:  >
+          {
+            "password" : "s3krit-password",
+            "roles" : [ "superuser" ]
+          }
+
+  - do:
+      security.put_user:
+        username: "user1"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "role1" ]
+          }
+
+  - do:
+      security.put_role:
+        name: "role1"
+        body:  >
+          {
+            "indices": [
+              {
+                "names": "index1*",
+                "privileges": ["all"]
+              },
+              {
+                "names": "index2*",
+                "privileges": ["read"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "user2"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "role2" ]
+          }
+
+  - do:
+      security.put_role:
+        name: "role2"
+        body:  >
+          {
+            "indices": [
+              {
+                "names": "index2*",
+                "privileges": ["all"]
+              },
+              {
+                "names": "index1*",
+                "privileges": ["read"]
+              }
+            ]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "super"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "user1"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "user2"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "role1"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "role2"
+        ignore: 404
+
+---
+"Test profile has privileges api":
+
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "user1",
+            "password" : "s3krit-password"
+          }
+  - match: { "user.username" : "user1" }
+  - is_true: uid
+  - set: { uid: profile_uid1 }
+
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "user2",
+            "password" : "s3krit-password"
+          }
+  - match: { "user.username" : "user2" }
+  - is_true: uid
+  - set: { uid: profile_uid2 }
+
+  - do:
+      security.has_privileges_user_profile:
+        body:
+          uids:
+            - $profile_uid1
+            - $profile_uid2
+            - dummy_missing
+          privileges:
+            index:
+              - names:
+                  - index1*
+                  - index2*
+                privileges:
+                  - read
+  - length: { has_privilege_uids: 2 }
+  - match: { has_privilege_uids.0 : "/^(${profile_uid1}|${profile_uid2})$/" }
+  - match: { has_privilege_uids.1 : "/^(${profile_uid1}|${profile_uid2})$/" }
+  - match: { errors.count: 1 }
+  - length: { errors.details: 1 }
+  - is_true: errors.details.dummy_missing
+  - match: { errors.details.dummy_missing.type: "resource_not_found_exception" }
+
+  - do:
+      security.has_privileges_user_profile:
+        body:
+          uids:
+            - $profile_uid1
+            - $profile_uid2
+          privileges:
+            index:
+              - names:
+                  - index1*
+                  - index2*
+                privileges:
+                  - all
+                  - read
+  - length: { "has_privilege_uids": 0 }
+  - is_false: errors
+
+  - do:
+      security.has_privileges_user_profile:
+        body:
+          uids:
+            - $profile_uid1
+            - dummy
+          privileges:
+            index:
+              - names:
+                  - index1*
+                privileges:
+                  - all
+                  - read
+              - names:
+                  - index1*
+                  - index2*
+                privileges:
+                  - read
+  - length: { "has_privilege_uids": 1 }
+  - match: { "has_privilege_uids.0" : $profile_uid1 }
+  - match: { errors.count: 1 }
+  - length: { errors.details: 1 }
+  - is_true: errors.details.dummy
+  - match: { errors.details.dummy.type: "resource_not_found_exception" }

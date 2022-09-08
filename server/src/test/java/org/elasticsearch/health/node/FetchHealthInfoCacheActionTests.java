@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -30,6 +29,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -38,7 +39,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
-public class UpdateHealthInfoCacheActionTests extends ESTestCase {
+public class FetchHealthInfoCacheActionTests extends ESTestCase {
     private static ThreadPool threadPool;
 
     private ClusterService clusterService;
@@ -48,15 +49,15 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new TestThreadPool("UpdateHealthInfoCacheAction");
+        threadPool = new TestThreadPool("FetchHealthInfoCacheAction");
     }
 
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        clusterService = createClusterService(threadPool);
         CapturingTransport transport = new CapturingTransport();
+        clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(
             clusterService.getSettings(),
             threadPool,
@@ -67,6 +68,8 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
+        int totalNodes = randomIntBetween(1, 200);
+        allNodes = new DiscoveryNode[totalNodes];
         localNode = new DiscoveryNode(
             "local_node",
             buildNewFakeTransportAddress(),
@@ -74,7 +77,17 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
             Version.CURRENT
         );
-        allNodes = new DiscoveryNode[] { localNode };
+        allNodes[0] = localNode;
+        for (int i = 0; i < totalNodes - 1; i++) {
+            DiscoveryNode remoteNode = new DiscoveryNode(
+                "remote_node" + i,
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
+                Version.CURRENT
+            );
+            allNodes[i + 1] = remoteNode;
+        }
     }
 
     @After
@@ -91,14 +104,15 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     }
 
     public void testAction() throws ExecutionException, InterruptedException {
-        DiskHealthInfo diskHealthInfo = new DiskHealthInfo(HealthStatus.GREEN, null);
-        UpdateHealthInfoCacheAction.Request request = new UpdateHealthInfoCacheAction.Request(localNode.getId(), diskHealthInfo);
-        PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
+        FetchHealthInfoCacheAction.Request request = new FetchHealthInfoCacheAction.Request();
+        PlainActionFuture<FetchHealthInfoCacheAction.Response> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
-        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
-        final AcknowledgedResponse expectedResponse = AcknowledgedResponse.of(true);
+        HealthInfoCache healthInfoCache = getTestHealthInfoCache();
+        final FetchHealthInfoCacheAction.Response expectedResponse = new FetchHealthInfoCacheAction.Response(
+            new HealthInfo(healthInfoCache.getHealthInfo().diskInfoByNode())
+        );
         ActionTestUtils.execute(
-            new UpdateHealthInfoCacheAction.TransportAction(
+            new FetchHealthInfoCacheAction.TransportAction(
                 transportService,
                 clusterService,
                 threadPool,
@@ -109,34 +123,41 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
             request,
             listener
         );
-        AcknowledgedResponse actualResponse = listener.get();
+        FetchHealthInfoCacheAction.Response actualResponse = listener.get();
         assertThat(actualResponse, equalTo(expectedResponse));
-        assertThat(healthInfoCache.getHealthInfo().diskInfoByNode().get(localNode.getId()), equalTo(diskHealthInfo));
+        assertThat(actualResponse.getHealthInfo(), equalTo(expectedResponse.getHealthInfo()));
     }
 
-    public void testRequestSerialization() {
-        DiskHealthInfo diskHealthInfo = randomBoolean()
-            ? new DiskHealthInfo(randomFrom(HealthStatus.values()))
-            : new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()));
-        UpdateHealthInfoCacheAction.Request request = new UpdateHealthInfoCacheAction.Request(randomAlphaOfLength(10), diskHealthInfo);
+    private HealthInfoCache getTestHealthInfoCache() {
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
+        for (DiscoveryNode allNode : allNodes) {
+            String nodeId = allNode.getId();
+            healthInfoCache.updateNodeHealth(
+                nodeId,
+                new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
+            );
+        }
+        return healthInfoCache;
+    }
+
+    public void testResponseSerialization() {
+        FetchHealthInfoCacheAction.Response response = new FetchHealthInfoCacheAction.Response(
+            new HealthInfo(getTestHealthInfoCache().getHealthInfo().diskInfoByNode())
+        );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            request,
-            serializedRequest -> copyWriteable(serializedRequest, writableRegistry(), UpdateHealthInfoCacheAction.Request::new),
-            this::mutateRequest
+            response,
+            resopnseWritable -> copyWriteable(resopnseWritable, writableRegistry(), FetchHealthInfoCacheAction.Response::new),
+            this::mutateResponse
         );
     }
 
-    private UpdateHealthInfoCacheAction.Request mutateRequest(UpdateHealthInfoCacheAction.Request request) {
-        String nodeId = request.getNodeId();
-        DiskHealthInfo diskHealthInfo = request.getDiskHealthInfo();
-        switch (randomIntBetween(1, 2)) {
-            case 1 -> nodeId = randomAlphaOfLength(10);
-            case 2 -> diskHealthInfo = new DiskHealthInfo(
-                randomValueOtherThan(diskHealthInfo.healthStatus(), () -> randomFrom(HealthStatus.values())),
-                randomBoolean() ? null : randomFrom(DiskHealthInfo.Cause.values())
-            );
-            default -> throw new IllegalStateException();
-        }
-        return new UpdateHealthInfoCacheAction.Request(nodeId, diskHealthInfo);
+    private FetchHealthInfoCacheAction.Response mutateResponse(FetchHealthInfoCacheAction.Response originalResponse) {
+        Map<String, DiskHealthInfo> diskHealthInfoMap = originalResponse.getHealthInfo().diskInfoByNode();
+        Map<String, DiskHealthInfo> diskHealthInfoMapCopy = new HashMap<>(diskHealthInfoMap);
+        diskHealthInfoMapCopy.put(
+            randomAlphaOfLength(10),
+            new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
+        );
+        return new FetchHealthInfoCacheAction.Response(new HealthInfo(diskHealthInfoMapCopy));
     }
 }

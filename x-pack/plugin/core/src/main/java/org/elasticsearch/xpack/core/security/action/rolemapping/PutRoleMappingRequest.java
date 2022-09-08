@@ -59,6 +59,10 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
 
     @Override
     public ActionRequestValidationException validate() {
+        return validate(true);
+    }
+
+    public ActionRequestValidationException validate(boolean validateMetadata) {
         ActionRequestValidationException validationException = null;
         if (name == null) {
             validationException = addValidationError("role-mapping name is missing", validationException);
@@ -72,7 +76,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         if (rules == null) {
             validationException = addValidationError("role-mapping rules are missing", validationException);
         }
-        if (MetadataUtils.containsReservedMetadata(metadata)) {
+        if (validateMetadata && MetadataUtils.containsReservedMetadata(metadata)) {
             validationException = addValidationError(
                 "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
                 validationException

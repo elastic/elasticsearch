@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.action.reservedstate;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.script.ScriptService;
@@ -58,22 +59,22 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
                   "roles": [ "inter_planetary_role" ],
                   "rules": { "field": { "username": "*" } },
                   "metadata": {
-                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
+                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
+                     "_reserved": true
                   }
                },
                "everyone_fleet": {
                   "enabled": true,
                   "roles": [ "fleet_user" ],
-                  "rules": { "field": { "username": "*" } },
                   "metadata": {
-                     "_uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7"
+                     "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7"
                   }
                }
             }""";
 
         assertEquals(
-            "Validation Failed: 1: metadata keys may not start with [_];",
-            expectThrows(IllegalStateException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+            "failed to parse role-mapping [everyone_fleet]. missing field [rules]",
+            expectThrows(ParsingException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
         );
     }
 
@@ -97,7 +98,8 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
                   "roles": [ "kibana_user" ],
                   "rules": { "field": { "username": "*" } },
                   "metadata": {
-                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
+                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
+                     "_reserved": true
                   }
                },
                "everyone_fleet": {
@@ -105,7 +107,8 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
                   "roles": [ "fleet_user" ],
                   "rules": { "field": { "username": "*" } },
                   "metadata": {
-                     "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7"
+                     "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
+                     "_reserved": true
                   }
                }
             }""";

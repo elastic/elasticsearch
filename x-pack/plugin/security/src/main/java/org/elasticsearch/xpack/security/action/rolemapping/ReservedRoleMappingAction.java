@@ -62,7 +62,8 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
 
         var exceptions = new ArrayList<String>();
         for (var request : requests) {
-            var exception = request.validate();
+            // File based defined role mappings are allowed to use MetadataUtils.RESERVED_PREFIX
+            var exception = request.validate(false);
             if (exception != null) {
                 exceptions.add(exception.getMessage());
             }

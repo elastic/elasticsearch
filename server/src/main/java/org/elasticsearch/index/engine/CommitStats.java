@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Map.entry;
 
@@ -50,6 +51,19 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CommitStats that = (CommitStats) o;
+        return userData.equals(that.userData) && generation == that.generation && Objects.equals(id, that.id) && numDocs == that.numDocs;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(userData, generation, id, numDocs);
     }
 
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {

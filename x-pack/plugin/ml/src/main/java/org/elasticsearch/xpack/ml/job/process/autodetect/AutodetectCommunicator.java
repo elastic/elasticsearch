@@ -414,4 +414,8 @@ public class AutodetectCommunicator implements Closeable {
         }
         categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, categorizationAnalyzerConfig);
     }
+
+    public void setVacating(boolean vacating) {
+        autodetectResultProcessor.setVacating(vacating);
+    }
 }

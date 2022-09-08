@@ -43,6 +43,7 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
+import static org.hamcrest.Matchers.equalTo;
 
 public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
 
@@ -87,6 +88,25 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         final GoogleCloudStorageClientSettings expectedClientSettings = randomClient.v1().values().iterator().next();
         final String clientName = randomClient.v1().keySet().iterator().next();
         assertGoogleCredential(expectedClientSettings.getCredential(), loadCredential(randomClient.v2(), clientName));
+    }
+
+    public void testLoadInvalidCredential() throws Exception {
+        final List<Setting<?>> deprecationWarnings = new ArrayList<>();
+        final Settings.Builder settings = Settings.builder();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        final String clientName = randomBoolean() ? "default" : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        randomClient(clientName, settings, secureSettings, deprecationWarnings);
+        secureSettings.setFile(
+            CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            "invalid".getBytes(StandardCharsets.UTF_8)
+        );
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> loadCredential(settings.setSecureSettings(secureSettings).build(), clientName)
+            ).getMessage(),
+            equalTo("failed to load GCS client credentials from [gcs.client." + clientName + ".credentials_file]")
+        );
     }
 
     public void testProjectIdDefaultsToCredentials() throws Exception {

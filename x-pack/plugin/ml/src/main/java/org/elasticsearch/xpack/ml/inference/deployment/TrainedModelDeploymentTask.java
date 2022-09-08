@@ -167,6 +167,10 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return trainedModelAssignmentNodeService.modelStats(this);
     }
 
+    public void clearCache(ActionListener<AcknowledgedResponse> listener) {
+        trainedModelAssignmentNodeService.clearCache(this, listener);
+    }
+
     public void setFailed(String reason) {
         failed = true;
         trainedModelAssignmentNodeService.failAssignment(this, reason);

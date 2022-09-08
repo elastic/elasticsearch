@@ -179,6 +179,19 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        NodeIndicesStats that = (NodeIndicesStats) o;
+        return Objects.equals(stats, that.stats) && Objects.equals(statsByShard, that.statsByShard);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(stats, statsByShard);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final String level = params.param("level", "node");
         final boolean isLevelValid = "indices".equalsIgnoreCase(level)

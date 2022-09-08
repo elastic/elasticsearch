@@ -279,11 +279,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.roles = roles;
         }
 
-        record DecisionAllocationResult(ShardRouting shard, boolean decision, List<NodeAllocationResult> nodeAllocationResults) {}
+        record ShardAllocationResults(ShardRouting shard, boolean decision, List<NodeAllocationResult> nodeAllocationResults) {}
 
         public ShardsSize storagePreventsAllocation() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
-            List<DecisionAllocationResult> unassignedShards = StreamSupport.stream(
+            List<ShardAllocationResults> unassignedShards = StreamSupport.stream(
                 state.getRoutingNodes().unassigned().spliterator(),
                 false
             )
@@ -316,7 +316,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
 
             // track these to ensure we do not double account if they both cannot remain and allocated due to storage.
-            List<DecisionAllocationResult> unmovableShardNodeAllocationResults = candidates.stream()
+            List<ShardAllocationResults> unmovableShardNodeAllocationResults = candidates.stream()
                 .filter(s -> allocatedToTier(s, allocation))
                 .flatMap(s -> Optional.of(cannotRemainDueToStorage(s, allocation)).filter(e -> e.decision).stream())
                 .toList();
@@ -329,18 +329,18 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .mapToLong(e -> unmovableSize(e.getKey(), e.getValue()))
                 .sum();
 
-            List<DecisionAllocationResult> unallocatedDecisionAllocationResults = candidates.stream()
+            List<ShardAllocationResults> unallocatedShardAllocationResults = candidates.stream()
                 .filter(Predicate.not(unmovableShards::contains))
                 .flatMap(shard -> Optional.of(cannotAllocateDueToStorage(shard, allocation)).filter(e -> e.decision).stream())
                 .toList();
-            long unallocatableBytes = unallocatedDecisionAllocationResults.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
+            long unallocatableBytes = unallocatedShardAllocationResults.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
 
             return new ShardsSize(
                 unallocatableBytes + unmovableBytes,
-                Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedDecisionAllocationResults.stream())
+                Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedShardAllocationResults.stream())
                     .map(e -> e.shard.shardId())
                     .collect(Collectors.toCollection(TreeSet::new)),
-                Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedDecisionAllocationResults.stream())
+                Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedShardAllocationResults.stream())
                     .filter(e -> e.nodeAllocationResults.size() > 0)
                     .min(Comparator.comparing(e -> e.shard.shardId()))
                     .map(e -> e.nodeAllocationResults)
@@ -379,9 +379,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          * Check that disk decider is only decider for a node preventing allocation of the shard.
          * @return true if and only if a node exists in the tier where only disk decider prevents allocation
          */
-        private DecisionAllocationResult cannotAllocateDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
+        private ShardAllocationResults cannotAllocateDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
             if (nodeIds.isEmpty() && needsThisTier(shard, allocation)) {
-                return new DecisionAllocationResult(shard, true, List.of());
+                return new ShardAllocationResults(shard, true, List.of());
             }
             assert allocation.debugDecision() == false;
             // enable debug decisions to see all decisions and preserve the allocation decision label
@@ -396,9 +396,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     List<NodeAllocationResult> resizeOnly = nodesInTier(allocation.routingNodes()).map(
                         node -> new NodeAllocationResult(node.node(), null, allocationDeciders.canAllocate(shard, node, allocation))
                     ).filter(nar -> ReactiveStorageDeciderService.isResizeOnlyNoDecision(nar.getCanAllocateDecision())).toList();
-                    return new DecisionAllocationResult(shard, resizeOnly.isEmpty(), resizeOnly);
+                    return new ShardAllocationResults(shard, resizeOnly.isEmpty(), resizeOnly);
                 }
-                return new DecisionAllocationResult(shard, diskOnly.isEmpty() == false, diskOnly);
+                return new ShardAllocationResults(shard, diskOnly.isEmpty() == false, diskOnly);
             } finally {
                 allocation.debugDecision(false);
             }
@@ -408,14 +408,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          * Check that the disk decider is only decider that says NO to let shard remain on current node.
          * @return true if and only if disk decider is only decider that says NO to canRemain.
          */
-        private DecisionAllocationResult cannotRemainDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
+        private ShardAllocationResults cannotRemainDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
             assert allocation.debugDecision() == false;
             // enable debug decisions to see all decisions and preserve the allocation decision label
             allocation.debugDecision(true);
             try {
                 RoutingNode node = allocation.routingNodes().node(shard.currentNodeId());
                 Decision decision = allocationDeciders.canRemain(shard, node, allocation);
-                return new DecisionAllocationResult(
+                return new ShardAllocationResults(
                     shard,
                     isDiskOnlyNoDecision(decision),
                     List.of(new NodeAllocationResult(node.node(), null, decision))

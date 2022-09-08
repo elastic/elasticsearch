@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
-import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -43,16 +42,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
             DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
             assertThat(healthNode, notNullValue());
-            assertBusy(() -> {
-                Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, healthNode.getName())
-                    .getHealthInfo()
-                    .diskInfoByNode();
-                assertThat(healthInfoCache.size(), equalTo(nodeIds.length));
-                for (String nodeId : nodeIds) {
-                    assertThat(healthInfoCache.get(nodeId), equalTo(GREEN));
-                }
-            });
-            assertResultsCanBeFetched(internalCluster, healthNode, List.of(nodeIds), null);
+            assertBusy(() -> { assertResultsCanBeFetched(internalCluster, healthNode, List.of(nodeIds), null); });
         } catch (IOException e) {
             throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
         }
@@ -72,24 +62,13 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             }).findAny().orElseThrow();
             internalCluster.stopNode(nodeToLeave.getName());
             assertBusy(() -> {
-                Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, healthNode.getName())
-                    .getHealthInfo()
-                    .diskInfoByNode();
-                assertThat(healthInfoCache.size(), equalTo(nodes.size() - 1));
-                for (DiscoveryNode node : nodes) {
-                    if (node.getId().equals(nodeToLeave.getId())) {
-                        assertThat(healthInfoCache.containsKey(node.getId()), equalTo(false));
-                    } else {
-                        assertThat(healthInfoCache.get(node.getId()), equalTo(GREEN));
-                    }
-                }
+                assertResultsCanBeFetched(
+                    internalCluster,
+                    healthNode,
+                    nodes.stream().filter(node -> node.equals(nodeToLeave) == false).map(DiscoveryNode::getId).toList(),
+                    nodeToLeave.getId()
+                );
             });
-            assertResultsCanBeFetched(
-                internalCluster,
-                healthNode,
-                nodes.stream().filter(node -> node.equals(nodeToLeave) == false).map(DiscoveryNode::getId).toList(),
-                nodeToLeave.getId()
-            );
         } catch (IOException e) {
             throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
         }
@@ -106,16 +85,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
             assertThat(newHealthNode, notNullValue());
             logger.info("Previous health node {}, new health node {}.", healthNodeToBeShutDown, newHealthNode);
-            assertBusy(() -> {
-                Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, newHealthNode.getName())
-                    .getHealthInfo()
-                    .diskInfoByNode();
-                assertThat(healthInfoCache.size(), equalTo(nodeIds.length));
-                for (String nodeId : nodeIds) {
-                    assertThat(healthInfoCache.get(nodeId), equalTo(GREEN));
-                }
-            });
-            assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null);
+            assertBusy(() -> { assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null); });
         } catch (IOException e) {
             throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
         }
@@ -133,16 +103,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             ensureStableCluster(nodeIds.length);
             DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
             assertThat(newHealthNode, notNullValue());
-            assertBusy(() -> {
-                Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, newHealthNode.getName())
-                    .getHealthInfo()
-                    .diskInfoByNode();
-                assertThat(healthInfoCache.size(), equalTo(nodeIds.length));
-                for (String nodeId : nodeIds) {
-                    assertThat(healthInfoCache.get(nodeId), equalTo(GREEN));
-                }
-            });
-            assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null);
+            assertBusy(() -> { assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null); });
         } catch (IOException e) {
             throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
         }

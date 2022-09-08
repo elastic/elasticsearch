@@ -172,6 +172,13 @@ public class Segment implements Writeable {
         }
     }
 
+    private static final byte SORT_STRING_SET = 0;
+    private static final byte SORT_INT = 1;
+    private static final byte SORT_FLOAT = 2;
+    private static final byte SORT_DOUBLE = 3;
+    private static final byte SORT_LONG = 4;
+    private static final byte SORT_STRING_SINGLE = 5;
+
     private static Sort readSegmentSort(StreamInput in) throws IOException {
         int size = in.readVInt();
         if (size == 0) {
@@ -181,11 +188,18 @@ public class Segment implements Writeable {
         for (int i = 0; i < size; i++) {
             String field = in.readString();
             byte type = in.readByte();
-            if (type == 0) {
+            if (type == SORT_STRING_SET) {
                 Boolean missingFirst = in.readOptionalBoolean();
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
                 fields[i] = new SortedSetSortField(field, reverse, max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
+                if (missingFirst != null) {
+                    fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
+                }
+            } else if (type == SORT_STRING_SINGLE) {
+                Boolean missingFirst = in.readOptionalBoolean();
+                boolean reverse = in.readBoolean();
+                fields[i] = new SortField(field, SortField.Type.STRING, reverse);
                 if (missingFirst != null) {
                     fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
                 }
@@ -194,10 +208,10 @@ public class Segment implements Writeable {
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
                 final SortField.Type numericType = switch (type) {
-                    case 1 -> SortField.Type.INT;
-                    case 2 -> SortField.Type.FLOAT;
-                    case 3 -> SortField.Type.DOUBLE;
-                    case 4 -> SortField.Type.LONG;
+                    case SORT_INT -> SortField.Type.INT;
+                    case SORT_FLOAT -> SortField.Type.FLOAT;
+                    case SORT_DOUBLE -> SortField.Type.DOUBLE;
+                    case SORT_LONG -> SortField.Type.LONG;
                     default -> throw new IOException("invalid index sort type:[" + type + "] for numeric field:[" + field + "]");
                 };
                 fields[i] = new SortedNumericSortField(
@@ -222,21 +236,33 @@ public class Segment implements Writeable {
         out.writeArray((o, field) -> {
             o.writeString(field.getField());
             if (field instanceof SortedSetSortField) {
-                o.writeByte((byte) 0);
+                o.writeByte(SORT_STRING_SET);
                 o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
                 o.writeBoolean(((SortedSetSortField) field).getSelector() == SortedSetSelector.Type.MAX);
                 o.writeBoolean(field.getReverse());
             } else if (field instanceof SortedNumericSortField) {
                 switch (((SortedNumericSortField) field).getNumericType()) {
-                    case INT -> o.writeByte((byte) 1);
-                    case FLOAT -> o.writeByte((byte) 2);
-                    case DOUBLE -> o.writeByte((byte) 3);
-                    case LONG -> o.writeByte((byte) 4);
+                    case INT -> o.writeByte(SORT_INT);
+                    case FLOAT -> o.writeByte(SORT_FLOAT);
+                    case DOUBLE -> o.writeByte(SORT_DOUBLE);
+                    case LONG -> o.writeByte(SORT_LONG);
                     default -> throw new IOException("invalid index sort field:" + field);
                 }
                 o.writeGenericValue(field.getMissingValue());
                 o.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
                 o.writeBoolean(field.getReverse());
+            } else if (field.getType().equals(SortField.Type.STRING)) {
+                if (o.getVersion().before(Version.V_8_5_0)) {
+                    // The closest supported version before 8.5.0 was SortedSet fields, so we mimic that
+                    o.writeByte(SORT_STRING_SET);
+                    o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
+                    o.writeBoolean(true);
+                    o.writeBoolean(field.getReverse());
+                } else {
+                    o.writeByte(SORT_STRING_SINGLE);
+                    o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
+                    o.writeBoolean(field.getReverse());
+                }
             } else {
                 throw new IOException("invalid index sort field:" + field);
             }

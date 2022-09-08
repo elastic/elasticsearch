@@ -1620,7 +1620,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Script script;
     private final MetricType metricType;
-    private final boolean allowMultipleValues;
+    private boolean allowMultipleValues;
     private final Version indexCreatedVersion;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
@@ -1769,4 +1769,8 @@ public class NumberFieldMapper extends FieldMapper {
         return type.syntheticFieldLoader(name(), simpleName());
     }
 
+    // For testing only:
+    void setAllowMultipleValues(boolean allowMultipleValues) {
+        this.allowMultipleValues = allowMultipleValues;
+    }
 }

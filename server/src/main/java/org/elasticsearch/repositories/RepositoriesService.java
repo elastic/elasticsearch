@@ -219,7 +219,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     // If recreating a corrupted repository with the same settings, reset the corrupt flag.
                                     // Setting the safe generation to unknown, so that a consistent generation is found.
                                     logger.info(
-                                        "repository [{}/{}] with generation [{}] is marked as corrupted, resetting the corruption marker",
+                                        "repository [{}/{}] is marked as corrupted, resetting the corruption marker",
                                         repositoryMetadata.name(),
                                         repositoryMetadata.uuid()
                                     );

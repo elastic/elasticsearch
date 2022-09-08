@@ -169,7 +169,7 @@ Only `histogram` fields support the `histogram` metric type.
 `min`, and `max`.
 // end::time-series-metric-summary[]
 +
-Only `aggregate_metric_double` fields support the `gauge` metric type.
+Only `aggregate_metric_double` fields support the `summary` metric type.
 
 // tag::time-series-metric-null[]
 `null` (Default):: Not a time series metric.

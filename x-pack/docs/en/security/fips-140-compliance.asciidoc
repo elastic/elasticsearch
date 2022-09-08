@@ -11,7 +11,7 @@ configured JVM.
 IMPORTANT: The JVM bundled with {es} is not configured for FIPS 140-2. You must 
 configure an external JDK with a FIPS 140-2 certified Java Security Provider.
 Refer to the {es}
-[JVM support matrix](https://www.elastic.co/support/matrix#matrix_jvm) for
+https://www.elastic.co/support/matrix#matrix_jvm[JVM support matrix] for
 supported JVM configurations.
 
 After configuring your JVM for FIPS 140-2, you can run {es} in FIPS 140-2 mode by

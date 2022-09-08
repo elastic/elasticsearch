@@ -6,5 +6,5 @@ an exception from your security organization to upgrade to {es} {version},
 or remain on {es} 7.x until Java 17 is certified. 
 ifeval::["{release-state}"=="released"]
 Alternatively, consider using {ess} in the
-[FedRAMP-certified GovCloud region](https://www.elastic.co/industries/public-sector/fedramp).
+https://www.elastic.co/industries/public-sector/fedramp[FedRAMP-certified GovCloud region].
 endif::[]

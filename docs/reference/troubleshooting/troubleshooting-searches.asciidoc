@@ -38,6 +38,15 @@ aliases:
 GET _all?filter_path=*.aliases
 ----
 
+Instead of an error, it is possible to retrieve partial search results if some
+of the indices you're querying are unavailable. Set `ignore_unavailable` to
+`true`:
+
+[source,console]
+----
+GET /my-alias/_search?ignore_unavailable=true
+----
+
 [discrete]
 [[troubleshooting-searches-data]]
 === Ensure the data stream or index contains data

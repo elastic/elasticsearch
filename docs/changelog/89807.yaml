@@ -1,5 +1,5 @@
 pr: 89807
-summary: Introduce `FieldMappingStats` in `CommonStats`
+summary: Introduce node mappings stats
 area: "Stats"
 type: enhancement
 issues: []

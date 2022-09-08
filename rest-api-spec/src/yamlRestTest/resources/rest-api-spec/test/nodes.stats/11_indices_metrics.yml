@@ -399,7 +399,7 @@
   - skip:
       features: [arbitrary_key]
       version: " - 8.4.99"
-      reason:  "field mappings added in version 8.5.0"
+      reason:  "mappings added in version 8.5.0"
   - do:
       nodes.info: {}
   - set:
@@ -418,7 +418,7 @@
   - skip:
       features: [arbitrary_key]
       version: " - 8.4.99"
-      reason:  "field mappings added in version 8.5.0"
+      reason:  "mappings added in version 8.5.0"
 
   - do:
       indices.create:
@@ -512,7 +512,7 @@
   - skip:
       features: [arbitrary_key]
       version: " - 8.4.99"
-      reason:  "field mappings added in version 8.5.0"
+      reason:  "mappings added in version 8.5.0"
 
   - do:
       indices.create:

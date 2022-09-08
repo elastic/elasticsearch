@@ -9,7 +9,6 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -36,11 +35,10 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
     private static final DiskHealthInfo GREEN = new DiskHealthInfo(HealthStatus.GREEN, null);
 
     public void testNodesReportingHealth() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster(); Client client = internalCluster.client()) {
-            decreasePollingInterval(client);
-            ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
-            String[] nodeIds = state.getNodes().getNodes().keySet().toArray(new String[0]);
-            DiscoveryNode healthNode = waitAndGetHealthNode(client);
+        try (InternalTestCluster internalCluster = internalCluster()) {
+            decreasePollingInterval(internalCluster);
+            String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
+            DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
             assertThat(healthNode, notNullValue());
             assertBusy(() -> {
                 Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, healthNode.getName())
@@ -56,11 +54,10 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
     }
 
     public void testNodeLeavingCluster() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster(); Client client = internalCluster.client()) {
-            decreasePollingInterval(client);
-            ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
-            Collection<DiscoveryNode> nodes = state.getNodes().getNodes().values();
-            DiscoveryNode healthNode = waitAndGetHealthNode(client);
+        try (InternalTestCluster internalCluster = internalCluster()) {
+            decreasePollingInterval(internalCluster);
+            Collection<DiscoveryNode> nodes = getNodes(internalCluster).values();
+            DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
             assertThat(healthNode, notNullValue());
             DiscoveryNode nodeToLeave = nodes.stream().filter(node -> {
                 boolean isMaster = node.getName().equals(internalCluster.getMasterName());
@@ -87,15 +84,14 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
     }
 
     public void testHealthNodeFailOver() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster(); Client client = internalCluster.client()) {
-            decreasePollingInterval(client);
-            ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
-            String[] nodeIds = state.getNodes().getNodes().keySet().toArray(new String[0]);
-            DiscoveryNode healthNodeToBeShutDown = waitAndGetHealthNode(client);
+        try (InternalTestCluster internalCluster = internalCluster()) {
+            decreasePollingInterval(internalCluster);
+            String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
+            DiscoveryNode healthNodeToBeShutDown = waitAndGetHealthNode(internalCluster);
             assertThat(healthNodeToBeShutDown, notNullValue());
             internalCluster.restartNode(healthNodeToBeShutDown.getName());
             ensureStableCluster(nodeIds.length);
-            DiscoveryNode newHealthNode = waitAndGetHealthNode(client);
+            DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
             assertThat(newHealthNode, notNullValue());
             logger.info("Previous health node {}, new health node {}.", healthNodeToBeShutDown, newHealthNode);
             assertBusy(() -> {
@@ -112,17 +108,16 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
     }
 
     public void testMasterFailure() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster(); Client client = internalCluster.client()) {
-            decreasePollingInterval(client);
-            ClusterState state = internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState();
-            String[] nodeIds = state.getNodes().getNodes().keySet().toArray(new String[0]);
-            DiscoveryNode healthNodeBeforeIncident = waitAndGetHealthNode(client);
+        try (InternalTestCluster internalCluster = internalCluster()) {
+            decreasePollingInterval(internalCluster);
+            String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
+            DiscoveryNode healthNodeBeforeIncident = waitAndGetHealthNode(internalCluster);
             assertThat(healthNodeBeforeIncident, notNullValue());
             String masterName = internalCluster.getMasterName();
             logger.info("Restarting elected master node {}.", masterName);
             internalCluster.restartNode(masterName);
             ensureStableCluster(nodeIds.length);
-            DiscoveryNode newHealthNode = waitAndGetHealthNode(client);
+            DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
             assertThat(newHealthNode, notNullValue());
             assertBusy(() -> {
                 Map<String, DiskHealthInfo> healthInfoCache = internalCluster.getInstance(HealthInfoCache.class, newHealthNode.getName())
@@ -138,23 +133,36 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
     }
 
     @Nullable
-    private static DiscoveryNode waitAndGetHealthNode(Client client) throws InterruptedException {
+    private DiscoveryNode waitAndGetHealthNode(InternalTestCluster internalCluster) throws InterruptedException {
         DiscoveryNode[] healthNode = new DiscoveryNode[1];
         waitUntil(() -> {
-            ClusterState state = client.admin().cluster().prepareState().clear().setMetadata(true).setNodes(true).get().getState();
+            ClusterState state = internalCluster.client()
+                .admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .get()
+                .getState();
             healthNode[0] = HealthNode.findHealthNode(state);
             return healthNode[0] != null;
         }, 2, TimeUnit.SECONDS);
         return healthNode[0];
     }
 
-    private void decreasePollingInterval(Client client) {
-        client.admin()
+    private void decreasePollingInterval(InternalTestCluster internalCluster) {
+        internalCluster.client()
+            .admin()
             .cluster()
             .updateSettings(
                 new ClusterUpdateSettingsRequest().persistentSettings(
                     Settings.builder().put(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(10))
                 )
             );
+    }
+
+    private static Map<String, DiscoveryNode> getNodes(InternalTestCluster internalCluster) {
+        return internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState().getNodes().getNodes();
     }
 }

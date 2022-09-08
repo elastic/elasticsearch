@@ -33,7 +33,7 @@ keyword:
   - match:
       _source:
         kwd: foo
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
 ---
 fetch without refresh also produces synthetic source:
@@ -64,7 +64,7 @@ fetch without refresh also produces synthetic source:
         refresh: false # no refreshing!
         body:
           obj.kwd: foo
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   - do:
       get:
@@ -78,7 +78,7 @@ fetch without refresh also produces synthetic source:
       _source: # synthetic source will convert the dotted field names into an object, even when loading from the translog
         obj:
           kwd: foo
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
 ---
 force_synthetic_source_ok:
@@ -106,7 +106,7 @@ force_synthetic_source_ok:
         refresh: true
         body:
           obj.kwd: foo
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   # When _source is used in the fetch the original _source is perfect
   - do:
@@ -127,7 +127,7 @@ force_synthetic_source_ok:
       _source:
         obj:
           kwd: foo
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
 ---
 force_synthetic_source_bad_mapping:
@@ -190,7 +190,7 @@ stored text:
               text:
                 type: text
                 store: true
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   - do:
       index:
@@ -199,7 +199,7 @@ stored text:
         refresh: true
         body:
           text: the quick brown fox
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   - do:
       get:
@@ -212,7 +212,39 @@ stored text:
   - match:
       _source:
         text: the quick brown fox
-#  - is_false: fields  TODO fix me
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    1
+        stored_fields: text
+        _source: true
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        text: the quick brown fox
+  - match:
+      fields:
+        text: [the quick brown fox]
+
+  - do:
+      get:
+        index: test
+        id:    1
+        stored_fields: garbage
+        _source: true
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        text: the quick brown fox
+  - is_false: fields
 
 ---
 stored keyword:
@@ -231,7 +263,7 @@ stored keyword:
               kwd:
                 type: keyword
                 store: true
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   - do:
       index:
@@ -240,7 +272,7 @@ stored keyword:
         refresh: true
         body:
           kwd: the quick brown fox
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   - do:
       get:
@@ -253,7 +285,7 @@ stored keyword:
   - match:
       _source:
         kwd: the quick brown fox
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
 ---
 doc values keyword with ignore_above:
@@ -308,7 +340,7 @@ doc values keyword with ignore_above:
   - match:
       _source:
         kwd: the quick brown fox
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   - do:
       get:
@@ -321,7 +353,7 @@ doc values keyword with ignore_above:
   - match:
       _source:
         kwd: short
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   - do:
       get:
@@ -336,7 +368,7 @@ doc values keyword with ignore_above:
         kwd:
           - short
           - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
 ---
 stored keyword with ignore_above:
@@ -393,7 +425,7 @@ stored keyword with ignore_above:
   - match:
       _source:
         kwd: the quick brown fox
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   - do:
       get:
@@ -406,7 +438,7 @@ stored keyword with ignore_above:
   - match:
       _source:
         kwd: short
-#  - is_false: fields  TODO fix me
+  - is_false: fields
 
   - do:
       get:
@@ -421,4 +453,4 @@ stored keyword with ignore_above:
         kwd:
           - short
           - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
-#  - is_false: fields  TODO fix me
+  - is_false: fields

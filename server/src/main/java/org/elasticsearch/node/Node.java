@@ -711,7 +711,8 @@ public class Node implements Closeable {
                     namedWriteableRegistry,
                     clusterModule.getIndexNameExpressionResolver(),
                     repositoriesServiceReference::get,
-                    tracer
+                    tracer,
+                    clusterModule.getAllocationService().getAllocationDeciders()
                 )
             ).toList();
 

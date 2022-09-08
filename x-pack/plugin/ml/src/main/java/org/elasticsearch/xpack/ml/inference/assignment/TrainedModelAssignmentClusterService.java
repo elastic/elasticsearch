@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -69,6 +70,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private final ThreadPool threadPool;
     private final NodeLoadDetector nodeLoadDetector;
     private final SystemAuditor systemAuditor;
+    private final NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
     private volatile int maxMemoryPercentage;
     private volatile boolean useAuto;
     private volatile int maxOpenJobs;
@@ -78,12 +80,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ClusterService clusterService,
         ThreadPool threadPool,
         NodeLoadDetector nodeLoadDetector,
-        SystemAuditor systemAuditor
+        SystemAuditor systemAuditor,
+        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper
     ) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.nodeLoadDetector = Objects.requireNonNull(nodeLoadDetector);
         this.systemAuditor = Objects.requireNonNull(systemAuditor);
+        this.nodeAvailabilityZoneMapper = Objects.requireNonNull(nodeAvailabilityZoneMapper);
         this.maxMemoryPercentage = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
         this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
@@ -462,6 +466,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
             TrainedModelAssignmentMetadata.fromState(currentState),
             nodeLoads,
+            nodeAvailabilityZoneMapper,
             modelToAdd
         );
         return rebalancer.rebalance();

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -81,6 +82,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             snapshotRepo,
             policy
         );
+    }
+
+    @After
+    public void tearDownDataStreams() throws Exception {
+        wipeDataStreams();
     }
 
     @Override

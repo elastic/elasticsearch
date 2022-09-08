@@ -138,24 +138,30 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     public void testReturnStartedShards() {
-        assertThat(
-            Arrays.stream(routingNode.started()).map(ShardRouting::shardId).collect(Collectors.toSet()),
-            equalTo(Set.of(ShardId.fromString("[test][0]")))
-        );
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"))));
 
-        ShardRouting newShard = TestShardRouting.newShardRouting("test1", 1, "node-1", false, ShardRoutingState.STARTED);
+        ShardRouting startedShard = TestShardRouting.newShardRouting("test1", 1, "node-1", false, ShardRoutingState.STARTED);
 
-        routingNode.add(newShard);
-        assertThat(
-            Arrays.stream(routingNode.started()).map(ShardRouting::shardId).collect(Collectors.toSet()),
-            equalTo(Set.of(ShardId.fromString("[test][0]"), ShardId.fromString("[test1][1]")))
-        );
+        routingNode.add(startedShard);
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"), ShardId.fromString("[test1][1]"))));
 
-        routingNode.remove(newShard);
-        assertThat(
-            Arrays.stream(routingNode.started()).map(ShardRouting::shardId).collect(Collectors.toSet()),
-            equalTo(Set.of(ShardId.fromString("[test][0]")))
+        ShardRouting relocatingShard = TestShardRouting.newShardRouting(
+            "test2",
+            2,
+            "node-1",
+            "node-2",
+            false,
+            ShardRoutingState.RELOCATING
         );
+        routingNode.add(relocatingShard);
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"), ShardId.fromString("[test1][1]"))));
+
+        routingNode.remove(startedShard);
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"))));
+    }
+
+    private static Set<ShardId> startedShardsSet(RoutingNode routingNode) {
+        return Arrays.stream(routingNode.started()).map(ShardRouting::shardId).collect(Collectors.toSet());
     }
 
 }

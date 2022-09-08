@@ -35,10 +35,11 @@ repositories {
 
   // Cloud builds bundle some beats
   ivy {
+    name = 'beats'
     if (useLocalArtifacts) {
       url "file://${buildDir}/artifacts/"
       patternLayout {
-        artifact '/[organisation]/[module]-[revision]-linux-[classifier].[ext]'
+        artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
       }
     } else {
       url "https://artifacts-snapshot.elastic.co/"
@@ -492,4 +493,9 @@ subprojects { Project subProject ->
       builtBy exportTaskName
     }
   }
+}
+
+tasks.named('resolveAllDependencies') {
+  // Don't try and resolve filebeat or metricbeat snapshots as they may not always be available
+  configs = configurations.matching { it.name.endsWith('beat') == false }
 }

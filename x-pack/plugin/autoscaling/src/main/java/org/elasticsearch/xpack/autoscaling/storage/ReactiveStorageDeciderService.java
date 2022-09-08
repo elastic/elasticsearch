@@ -281,16 +281,13 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         record ShardAllocationResults(ShardRouting shard, boolean decision, List<NodeAllocationResult> nodeAllocationResults) {}
 
-        public ShardsSize storagePreventsAllocation() {
+        public ShardsAllocationResults storagePreventsAllocation() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
-            List<ShardAllocationResults> unassignedShards = StreamSupport.stream(
-                state.getRoutingNodes().unassigned().spliterator(),
-                false
-            )
+            List<ShardAllocationResults> unassignedShards = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .flatMap(shard -> Optional.of(cannotAllocateDueToStorage(shard, allocation)).filter(r -> r.decision).stream())
                 .toList();
-            return new ShardsSize(
+            return new ShardsAllocationResults(
                 unassignedShards.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum(),
                 unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
                 unassignedShards.stream()
@@ -301,7 +298,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             );
         }
 
-        public ShardsSize storagePreventsRemainOrMove() {
+        public ShardsAllocationResults storagePreventsRemainOrMove() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
 
             List<ShardRouting> candidates = new LinkedList<>();
@@ -318,7 +315,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             // track these to ensure we do not double account if they both cannot remain and allocated due to storage.
             List<ShardAllocationResults> unmovableShardNodeAllocationResults = candidates.stream()
                 .filter(s -> allocatedToTier(s, allocation))
-                .flatMap(s -> Optional.of(cannotRemainDueToStorage(s, allocation)).filter(e -> e.decision).stream())
+                .map(s -> cannotRemainDueToStorage(s, allocation))
+                .flatMap(r -> r.decision ? Stream.of(r) : Stream.empty())
                 .toList();
             Set<ShardRouting> unmovableShards = unmovableShardNodeAllocationResults.stream().map(e -> e.shard).collect(Collectors.toSet());
 
@@ -335,7 +333,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .toList();
             long unallocatableBytes = unallocatedShardAllocationResults.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
 
-            return new ShardsSize(
+            return new ShardsAllocationResults(
                 unallocatableBytes + unmovableBytes,
                 Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedShardAllocationResults.stream())
                     .map(e -> e.shard.shardId())

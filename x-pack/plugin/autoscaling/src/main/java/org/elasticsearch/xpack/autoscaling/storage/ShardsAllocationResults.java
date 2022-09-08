@@ -13,4 +13,4 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.List;
 import java.util.SortedSet;
 
-record ShardsSize(long sizeInBytes, SortedSet<ShardId> shardIds, List<NodeAllocationResult> nodeAllocationResults) {}
+record ShardsAllocationResults(long sizeInBytes, SortedSet<ShardId> shardIds, List<NodeAllocationResult> nodeAllocationResults) {}

@@ -387,7 +387,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private interface VerificationSubject {
-        ShardsSize invoke(ReactiveStorageDeciderService.AllocationState state);
+        ShardsAllocationResults invoke(ReactiveStorageDeciderService.AllocationState state);
     }
 
     private void verify(
@@ -422,9 +422,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             DISK_THRESHOLD_SETTINGS,
             createAllocationDeciders(allocationDeciders)
         );
-        ShardsSize shardsSize = subject.invoke(allocationState);
-        assertThat(shardsSize.sizeInBytes(), equalTo(expectedSizeInBytes));
-        assertThat(shardsSize.shardIds(), equalTo(expectedShardIds));
+        ShardsAllocationResults shardsAllocationResults = subject.invoke(allocationState);
+        assertThat(shardsAllocationResults.sizeInBytes(), equalTo(expectedSizeInBytes));
+        assertThat(shardsAllocationResults.shardIds(), equalTo(expectedShardIds));
         // It seems very hard to verify nodeAllocationResults of ShardsSize with custom allocation deciders, so
         // verify only expectedSize and shards
     }

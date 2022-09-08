@@ -396,7 +396,7 @@ class S3Service implements Closeable {
             try {
                 return delegate.getCredentials();
             } catch (Exception e) {
-                logger.error("Unable to load credentials from " + delegate, e);
+                logger.error(() -> "Unable to load credentials from " + delegate, e);
                 throw e;
             }
         }

@@ -16,8 +16,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.utils.MlProcessors;
 
 import java.time.Instant;
 import java.util.List;
@@ -138,30 +138,12 @@ class MlProcessorAutoscalingDecider {
         Processors maxNodeProcessors = Processors.ZERO;
         Processors tierProcessors = Processors.ZERO;
         for (DiscoveryNode node : mlNodes) {
-            Processors nodeProcessors = getProcessors(node);
+            Processors nodeProcessors = MlProcessors.get(node);
             if (nodeProcessors.compareTo(maxNodeProcessors) > 0) {
                 maxNodeProcessors = nodeProcessors;
             }
             tierProcessors = tierProcessors.plus(nodeProcessors);
         }
         return MlProcessorAutoscalingCapacity.builder(maxNodeProcessors, tierProcessors).build();
-    }
-
-    private Processors getProcessors(DiscoveryNode node) {
-        String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
-        if (allocatedProcessorsString == null) {
-            return Processors.ZERO;
-        }
-        try {
-            double processorsAsDouble = Double.parseDouble(allocatedProcessorsString);
-            return processorsAsDouble > 0 ? Processors.of(processorsAsDouble) : Processors.ZERO;
-        } catch (NumberFormatException e) {
-            assert e == null
-                : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
-                    + " should parse because we set it internally: invalid value was ["
-                    + allocatedProcessorsString
-                    + "]";
-            return Processors.ZERO;
-        }
     }
 }

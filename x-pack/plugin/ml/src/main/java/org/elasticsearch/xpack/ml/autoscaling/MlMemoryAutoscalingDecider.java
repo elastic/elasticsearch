@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -30,6 +29,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.utils.MlProcessors;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.time.Duration;
@@ -819,20 +819,7 @@ class MlMemoryAutoscalingDecider {
         int totalRequiredProcessors = assignments.stream()
             .mapToInt(t -> t.getTaskParams().getNumberOfAllocations() * t.getTaskParams().getThreadsPerAllocation())
             .sum();
-        int totalMlProcessors = mlNodes.stream().mapToInt(node -> {
-            String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
-            try {
-                double allocatedProcessorsAsDouble = Double.parseDouble(allocatedProcessorsString);
-                return allocatedProcessorsAsDouble > 0 ? Processors.of(allocatedProcessorsAsDouble).roundUp() : 0;
-            } catch (NumberFormatException e) {
-                assert e == null
-                    : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
-                        + " should parse because we set it internally: invalid value was ["
-                        + allocatedProcessorsString
-                        + "]";
-                return 0;
-            }
-        }).sum();
+        int totalMlProcessors = mlNodes.stream().mapToInt(node -> MlProcessors.get(node).roundUp()).sum();
         return totalRequiredProcessors * 2 > totalMlProcessors;
     }
 

@@ -510,6 +510,8 @@ public final class MockTransportService extends TransportService {
                     // Some request handlers read back a BytesTransportRequest
                     // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
                     // in those cases we just copy the raw bytes back to a BytesTransportRequest.
+                    // This is only needed for the BwC for JOIN_VALIDATE_ACTION_NAME and can be removed in the next major
+                    assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
                     clonedRequest = new BytesTransportRequest(bStream.bytes().streamInput());
                 } else {
                     RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);

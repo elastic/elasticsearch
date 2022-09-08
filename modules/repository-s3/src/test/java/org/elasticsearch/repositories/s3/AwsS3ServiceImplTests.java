@@ -240,12 +240,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         var mockLogger = Mockito.mock(Logger.class);
 
         var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
-        try {
-            credentialsProvider.getCredentials();
-            fail("Shouldn't successfully get credentials");
-        } catch (IllegalStateException e) {
-            assertEquals(mockProviderErrorMessage, e.getMessage());
-        }
+        var exception = expectThrows(IllegalStateException.class, credentialsProvider::getCredentials);
+        assertEquals(mockProviderErrorMessage, exception.getMessage());
 
         var messageCaptor = ArgumentCaptor.forClass(String.class);
         var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
@@ -262,12 +258,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         var mockLogger = Mockito.mock(Logger.class);
 
         var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
-        try {
-            credentialsProvider.refresh();
-            fail("Shouldn't successfully refresh");
-        } catch (IllegalStateException e) {
-            assertEquals(mockProviderErrorMessage, e.getMessage());
-        }
+        var exception = expectThrows(IllegalStateException.class, credentialsProvider::refresh);
+        assertEquals(mockProviderErrorMessage, exception.getMessage());
 
         var messageCaptor = ArgumentCaptor.forClass(String.class);
         var throwableCaptor = ArgumentCaptor.forClass(Throwable.class);

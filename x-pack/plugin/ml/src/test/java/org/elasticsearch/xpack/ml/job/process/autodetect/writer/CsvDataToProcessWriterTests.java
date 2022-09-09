@@ -138,15 +138,10 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
         List<String[]> expectedRecords = new ArrayList<>();
         // The "." field is the control field; "..." is the pre-tokenized tokens field
-        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA) {
-            expectedRecords.add(new String[] { "time", "message", "...", "." });
-            expectedRecords.add(new String[] { "1", "Node 1 started", "Node,started", "" });
-            expectedRecords.add(new String[] { "2", "Node 2 started", "Node,started", "" });
-        } else {
-            expectedRecords.add(new String[] { "time", "message", "." });
-            expectedRecords.add(new String[] { "1", "Node 1 started", "" });
-            expectedRecords.add(new String[] { "2", "Node 2 started", "" });
-        }
+        expectedRecords.add(new String[] { "time", "message", "...", "." });
+        expectedRecords.add(new String[] { "1", "Node 1 started", "Node,started", "" });
+        expectedRecords.add(new String[] { "2", "Node 2 started", "Node,started", "" });
+
         assertWrittenRecordsEqualTo(expectedRecords);
 
         verify(dataCountsReporter).finishReporting();
@@ -365,8 +360,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
     }
 
     private CsvDataToProcessWriter createWriter() {
-        boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-            && analysisConfig.getCategorizationFieldName() != null;
+        boolean includeTokensField = analysisConfig.getCategorizationFieldName() != null;
         return new CsvDataToProcessWriter(
             true,
             includeTokensField,

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -20,6 +21,7 @@ import org.elasticsearch.health.ImpactArea;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This indicator reports the health of master stability.
@@ -48,6 +50,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     );
 
     private final CoordinationDiagnosticsService coordinationDiagnosticsService;
+    private final ClusterService clusterService;
 
     // Keys for the details map:
     private static final String DETAILS_CURRENT_MASTER = "current_master";
@@ -73,8 +76,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         new HealthIndicatorImpact(3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP))
     );
 
-    public StableMasterHealthIndicatorService(CoordinationDiagnosticsService coordinationDiagnosticsService) {
+    public StableMasterHealthIndicatorService(
+        CoordinationDiagnosticsService coordinationDiagnosticsService,
+        ClusterService clusterService
+    ) {
         this.coordinationDiagnosticsService = coordinationDiagnosticsService;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -162,12 +169,38 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap()
                         .entrySet()
                         .stream()
-                        .map(entry -> Map.of("node_id", entry.getKey(), CLUSTER_FORMATION_MESSAGE, entry.getValue()))
+                        .map(
+                            entry -> Map.of(
+                                "node_id",
+                                entry.getKey(),
+                                "name",
+                                getNameForNodeId(entry.getKey()),
+                                CLUSTER_FORMATION_MESSAGE,
+                                entry.getValue()
+                            )
+                        )
                         .toList()
                 );
             }
             return builder.endObject();
         };
+    }
+
+    /**
+     * Returns the name of the node with the given nodeId, as seen in the cluster state at this moment. The name of a node is optional,
+     * so if the node does not have a name (or the node with the given nodeId is no longer in the cluster state), an empty string is
+     * returned.
+     * @param nodeId The id of the node whose name is to be returned
+     * @return The current name of the node, or empty string if the node is not in the cluster state or does not have a name
+     */
+    private String getNameForNodeId(String nodeId) {
+        DiscoveryNode node = clusterService.state().nodes().get(nodeId);
+        if (node == null) {
+            return "";
+        } else {
+            String nodeName = node.getName();
+            return Objects.requireNonNullElse(nodeName, "");
+        }
     }
 
     /**

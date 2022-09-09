@@ -1,0 +1,113 @@
+setup:
+  - do:
+      indices.create:
+        index: test0
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+                fielddata: true
+
+  - do:
+      index:
+        index: test0
+        id: "1"
+        body:
+          text: "Lots of text."
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+                fielddata: true
+
+  - do:
+      index:
+        index: test1
+        id: "1"
+        body:
+          text: "Lots of text."
+
+  - do:
+      indices.refresh: {}
+
+---
+"test_leaf_cache_field_first":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test0
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+  - match: { hits.hits.0.fields.field_0.0: 'Lots of text. lots' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test0
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+            field_1:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+            field_2:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+            field_3:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+  - match: { hits.hits.0.fields.field_0.0: 'Lots of text. lots' }
+  - match: { hits.hits.0.fields.field_1.0: 'lots Lots of text.' }
+  - match: { hits.hits.0.fields.field_2.0: 'Lots of text. lots' }
+  - match: { hits.hits.0.fields.field_3.0: 'lots Lots of text.' }
+
+---
+"test_leaf_cache_doc_first":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+  - match: { hits.hits.0.fields.field_0.0: 'lots Lots of text.' }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          script_fields:
+            field_0:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+            field_1:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+            field_2:
+              script:
+                source: "doc['text'].value + ' ' + $('text', '')"
+            field_3:
+              script:
+                source: "/* avoid stash */ $('text', '') + ' ' + doc['text'].value"
+  - match: { hits.hits.0.fields.field_0.0: 'lots Lots of text.' }
+  - match: { hits.hits.0.fields.field_1.0: 'Lots of text. lots' }
+  - match: { hits.hits.0.fields.field_2.0: 'lots Lots of text.' }
+  - match: { hits.hits.0.fields.field_3.0: 'Lots of text. lots' }

@@ -44,16 +44,14 @@ class TransformScheduledTaskQueue {
     }
 
     /**
-     * @return whether the queue is empty.
-     */
-    public synchronized boolean isEmpty() {
-        return tasks.isEmpty();
-    }
-
-    /**
-     * @return the task with the *lowest* priority.
+     * @return the task with the *lowest* priority or null if the queue is empty.
      */
     public synchronized TransformScheduledTask first() {
+        // gh#88991 concurrent access: the empty check must run within the synchronized context
+        if (tasks.isEmpty()) {
+            return null;
+        }
+
         return tasks.first();
     }
 

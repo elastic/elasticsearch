@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class RequestCacheStats implements Writeable, ToXContentFragment {
 
@@ -73,6 +74,19 @@ public class RequestCacheStats implements Writeable, ToXContentFragment {
         out.writeVLong(evictions);
         out.writeVLong(hitCount);
         out.writeVLong(missCount);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RequestCacheStats that = (RequestCacheStats) o;
+        return memorySize == that.memorySize && evictions == that.evictions && hitCount == that.hitCount && missCount == that.missCount;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(memorySize, evictions, hitCount, missCount);
     }
 
     @Override

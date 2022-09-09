@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -112,7 +113,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivileg
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
@@ -196,7 +197,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportGetBuiltinPriv
 import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
-import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportGetProfilesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSetProfileEnabledAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSuggestProfilesAction;
@@ -298,7 +299,7 @@ import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesA
 import org.elasticsearch.xpack.security.rest.action.profile.RestActivateProfileAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestDisableProfileAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestEnableProfileAction;
-import org.elasticsearch.xpack.security.rest.action.profile.RestGetProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestGetProfilesAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestSuggestProfilesAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
@@ -547,7 +548,8 @@ public class Security extends Plugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         try {
             return createComponents(
@@ -1240,7 +1242,7 @@ public class Security extends Plugin
             new ActionHandler<>(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
             new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
             new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
-            new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
+            new ActionHandler<>(GetProfilesAction.INSTANCE, TransportGetProfilesAction.class),
             new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
             new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
             new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
@@ -1322,7 +1324,7 @@ public class Security extends Plugin
             new RestKibanaEnrollAction(settings, getLicenseState()),
             new RestNodeEnrollmentAction(settings, getLicenseState()),
             new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-            new RestGetProfileAction(settings, getLicenseState()),
+            new RestGetProfilesAction(settings, getLicenseState()),
             new RestActivateProfileAction(settings, getLicenseState()),
             new RestUpdateProfileDataAction(settings, getLicenseState()),
             new RestSuggestProfilesAction(settings, getLicenseState()),

@@ -115,16 +115,19 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertEquals("failed to parse port", e.getMessage());
     }
 
-    public void testRemoteClusterOptionalCredentialSettingValues() {
+    public void testRemoteClusterEmptyOrNullApiKey() {
         assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
         // simple validation
         Settings settings = Settings.builder()
-            .put("cluster.remote.foo.authorization", "ApiKey apikey1")
-            .put("cluster.remote.bar.authorization", "ApiKey apikey2")
-            .put("cluster.remote.emptystring.authorization", "")
-            .put("cluster.remote.nullstring.authorization", (String) null)
+            .put("cluster.remote.cluster1.authorization", "apikey")
+            .put("cluster.remote.cluster2.authorization", "")
+            .put("cluster.remote.cluster3.authorization", (String) null)
             .build();
-        SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+        try {
+            SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+        } catch (Throwable t) {
+            fail("Cluster Settings must be able to accept a null, empty, or non-empty string. Exception: " + t.getMessage());
+        }
     }
 
     public void testRemoteClusterAuthorizationSettingDependencies() {

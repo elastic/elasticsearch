@@ -184,11 +184,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             // MaxRetryAllocationDecider#canForceAllocatePrimary should return YES decisions because canAllocate returns YES here
             assertEquals(
                 Decision.Type.YES,
-                new MaxRetryAllocationDecider().canForceAllocatePrimary(
-                    unassignedPrimary,
-                    null,
-                    newRoutingAllocation(clusterState)
-                ).type()
+                new MaxRetryAllocationDecider().canForceAllocatePrimary(unassignedPrimary, null, newRoutingAllocation(clusterState)).type()
             );
         }
         // now we go and check that we are actually stick to unassigned on the next failure
@@ -208,11 +204,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             // MaxRetryAllocationDecider#canForceAllocatePrimary should return a NO decision because canAllocate returns NO here
             assertEquals(
                 Decision.Type.NO,
-                new MaxRetryAllocationDecider().canForceAllocatePrimary(
-                    unassignedPrimary,
-                    null,
-                    newRoutingAllocation(clusterState)
-                ).type()
+                new MaxRetryAllocationDecider().canForceAllocatePrimary(unassignedPrimary, null, newRoutingAllocation(clusterState)).type()
             );
         }
 
@@ -280,11 +272,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         // Counter reset, so MaxRetryAllocationDecider#canForceAllocatePrimary should return a YES decision
         assertEquals(
             Decision.Type.YES,
-            new MaxRetryAllocationDecider().canForceAllocatePrimary(
-                unassignedPrimary,
-                null,
-                newRoutingAllocation(clusterState)
-            ).type()
+            new MaxRetryAllocationDecider().canForceAllocatePrimary(unassignedPrimary, null, newRoutingAllocation(clusterState)).type()
         );
     }
 

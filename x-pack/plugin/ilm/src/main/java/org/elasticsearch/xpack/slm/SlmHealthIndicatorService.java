@@ -26,7 +26,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -60,16 +59,14 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("iso8601").withZone(ZoneOffset.UTC);
 
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID = "check_recent_snapshot_failures";
-    public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ACTION = "Check the snapshot lifecycle policies "
-        + "[/_slm/policy/<policy_name>?human] for detailed failure info.";
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
 
     // Visible for testing
-    static Diagnosis.Definition checkRecentlyFailedSnapshots(String causeText) {
+    static Diagnosis.Definition checkRecentlyFailedSnapshots(String causeText, String actionText) {
         return new Diagnosis.Definition(
             DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID,
             causeText,
-            DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ACTION,
+            actionText,
             DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL
         );
     }
@@ -136,17 +133,28 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     )
                 );
 
-                String cause = unhealthyPolicies.stream()
+                String unhealthyPolicyCauses = unhealthyPolicies.stream()
                     .map(
-                        policy -> String.format(
-                            Locale.getDefault(),
-                            "An automated snapshot [%s] has not had [%d] successful executions since [%s]",
-                            policy.getName(),
-                            policy.getInvocationsSinceLastSuccess(),
-                            FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp())
-                        )
+                        policy -> "- ["
+                            + policy.getName()
+                            + "] has not had ["
+                            + policy.getInvocationsSinceLastSuccess()
+                            + "] successful executions since ["
+                            + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp())
+                            + "]"
                     )
                     .collect(Collectors.joining("\n"));
+                String cause = (unhealthyPolicies.size() > 1
+                    ? "Several automated snapshot policies are unhealthy:\n"
+                    : "An automated snapshot policy is unhealthy:\n") + unhealthyPolicyCauses;
+
+                String unhealthyPolicyActions = unhealthyPolicies.stream()
+                    .map(policy -> "- /_slm/policy/" + policy.getName() + "?human")
+                    .collect(Collectors.joining("\n"));
+                String action = "Check the snapshot lifecycle "
+                    + (unhealthyPolicies.size() > 1 ? "policies" : "policy")
+                    + " for detailed failure info:\n"
+                    + unhealthyPolicyActions;
 
                 return createIndicator(
                     YELLOW,
@@ -155,7 +163,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     impacts,
                     List.of(
                         new Diagnosis(
-                            checkRecentlyFailedSnapshots(cause),
+                            checkRecentlyFailedSnapshots(cause, action),
                             unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
                         )
                     )

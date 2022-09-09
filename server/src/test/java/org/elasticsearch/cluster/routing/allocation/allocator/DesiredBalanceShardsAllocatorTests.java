@@ -38,6 +38,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -64,7 +65,7 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
-    public void testAllocate() throws Exception {
+    public void testAllocate() {
 
         var settings = Settings.EMPTY;
         var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -90,7 +91,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             settings,
             clusterSettings,
             new FakeThreadPoolMasterService("node-1", "test", threadPool, deterministicTaskQueue::scheduleNow),
-            new ClusterApplierService("node-1", settings, clusterSettings, threadPool)
+            new ClusterApplierService("node-1", settings, clusterSettings, threadPool) {
+                @Override
+                protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                    return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
+                }
+            }
         );
         clusterService.getClusterApplierService().setInitialState(initialState);
         clusterService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
@@ -144,7 +150,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
         allocationServiceRef.set(allocationService);
 
-        var latch = new CountDownLatch(1);
+        var listenerCalled = new AtomicBoolean(false);
 
         clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
@@ -154,7 +160,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                     .metadata(Metadata.builder().put(indexMetadata, true))
                     .routingTable(RoutingTable.builder().addAsNew(indexMetadata))
                     .build();
-                return allocationService.reroute(newState, "test", ActionListener.wrap(latch::countDown));
+                return allocationService.reroute(newState, "test", ActionListener.wrap(() -> listenerCalled.set(true)));
             }
 
             @Override
@@ -165,10 +171,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
 
         try {
-            assertTrue(latch.await(1, TimeUnit.SECONDS));
-            var routing = clusterService.state().routingTable();
-            assertTrue(routing.hasIndex("index-1"));
-            assertTrue(routing.index("index-1").shard(0).primaryShard().assignedToNode());
+            assertTrue(listenerCalled.get());
+            assertTrue(clusterService.state().routingTable().index("index-1").shard(0).primaryShard().assignedToNode());
         } finally {
             clusterService.close();
         }

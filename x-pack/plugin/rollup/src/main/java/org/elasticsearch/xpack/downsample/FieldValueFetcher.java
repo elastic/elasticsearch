@@ -17,47 +17,24 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
-import java.io.IOException;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Utility class used for fetching field values by reading field data
  */
 class FieldValueFetcher {
-
-    private static final Set<Class<?>> VALID_METRIC_TYPES = Set.of(
-        Long.class,
-        Double.class,
-        BigInteger.class,
-        String.class,
-        BytesRef.class
-    );
-    private static final Set<Class<?>> VALID_LABEL_TYPES = Set.of(
-        Long.class,
-        Double.class,
-        BigInteger.class,
-        String.class,
-        BytesRef.class,
-        Boolean.class
-    );
-
     private final String name;
     private final MappedFieldType fieldType;
     private final DocValueFormat format;
     private final IndexFieldData<?> fieldData;
-    private final Function<Object, Object> valueFunc;
 
-    protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData, Function<Object, Object> valueFunc) {
+    protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         this.name = name;
         this.fieldType = fieldType;
         this.format = fieldType.docValueFormat(null, null);
         this.fieldData = fieldData;
-        this.valueFunc = valueFunc;
     }
 
     public String name() {
@@ -77,24 +54,7 @@ class FieldValueFetcher {
     }
 
     FormattedDocValues getLeaf(LeafReaderContext context) {
-
-        final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(format);
-        return new FormattedDocValues() {
-            @Override
-            public boolean advanceExact(int docId) throws IOException {
-                return delegate.advanceExact(docId);
-            }
-
-            @Override
-            public int docValueCount() throws IOException {
-                return delegate.docValueCount();
-            }
-
-            @Override
-            public Object nextValue() throws IOException {
-                return valueFunc.apply(delegate.nextValue());
-            }
-        };
+        return fieldData.load(context).getFormattedValues(format);
     }
 
     Object format(Object value) {
@@ -114,7 +74,7 @@ class FieldValueFetcher {
     /**
      * Retrieve field fetchers for a list of fields.
      */
-    private static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields, Set<Class<?>> validTypes) {
+    private static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
         List<FieldValueFetcher> fetchers = new ArrayList<>(fields.length);
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);
@@ -123,33 +83,22 @@ class FieldValueFetcher {
             } else if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
                 for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
                     IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
-                    fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field, validTypes)));
+                    fetchers.add(new FieldValueFetcher(field, fieldType, fieldData));
                 }
             } else {
                 IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field, validTypes)));
+                fetchers.add(new FieldValueFetcher(field, fieldType, fieldData));
             }
         }
         return Collections.unmodifiableList(fetchers);
     }
 
-    static Function<Object, Object> getValidator(String field, Set<Class<?>> validTypes) {
-        return value -> {
-            if (validTypes.contains(value.getClass()) == false) {
-                throw new IllegalArgumentException(
-                    "Expected [" + validTypes + "] for field [" + field + "], " + "got [" + value.getClass() + "]"
-                );
-            }
-            return value;
-        };
-    }
-
     static List<FieldValueFetcher> forMetrics(SearchExecutionContext context, String[] metricFields) {
-        return build(context, metricFields, VALID_METRIC_TYPES);
+        return build(context, metricFields);
     }
 
     static List<FieldValueFetcher> forLabels(SearchExecutionContext context, String[] labelFields) {
-        return build(context, labelFields, VALID_LABEL_TYPES);
+        return build(context, labelFields);
     }
 
 }

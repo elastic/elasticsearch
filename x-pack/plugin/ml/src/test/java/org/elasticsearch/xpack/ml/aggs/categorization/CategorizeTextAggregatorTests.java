@@ -12,6 +12,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -45,7 +46,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
             ),
-            List.of(new MachineLearning(Settings.EMPTY))
+            List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin())
         );
     }
 

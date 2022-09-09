@@ -879,6 +879,49 @@ setup:
   - match: { aggregations.foo.histo.buckets.3.key_as_string: "2016-01-04T01:00:00.000Z" }
   - match: { aggregations.foo.histo.buckets.3.doc_count: 0 }
 
+
+---
+"date_histogram with extended_bounds and offset":
+  - skip:
+      version: " - 7.17.6"
+      reason: fixed in 7.17.7
+
+  - do:
+      indices.create:
+        index: test_date_offset
+        body:
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
+      bulk:
+        index: test_date_offset
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"date": 1639447293418}'
+
+  - do:
+      search:
+        index: test_*
+        body:
+          size: 0
+          aggs:
+            by_date:
+              date_histogram:
+                field: date
+                calendar_interval: day
+                offset: "18000000ms"
+                extended_bounds:
+                  max: 1639457999999
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.by_date.buckets: 1 }
+  - match: { aggregations.by_date.buckets.0.key_as_string: "2021-12-13T05:00:00.000Z" }
+  - match: { aggregations.by_date.buckets.0.key: 1639371600000 }
+  - match: { aggregations.by_date.buckets.0.doc_count: 1 }
+
 ---
 "Tiny tiny tiny range":
   - skip:

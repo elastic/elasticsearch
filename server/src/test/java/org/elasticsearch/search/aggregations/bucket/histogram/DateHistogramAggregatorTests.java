@@ -821,6 +821,19 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    public void testExtendedBoundsWithOffset() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true),
+            List.of("1639447293418"),
+            List.of("2021-12-13T05:00:00.000Z"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.DAY)
+                .offset("18000000ms")
+                .extendedBounds(new LongBounds(null, 1639457999999L)),
+            false
+        );
+    }
+
     public void testHardBoundsUsesFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
             aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),

@@ -3,6 +3,8 @@ lexer grammar EsqlBaseLexer;
 FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
 ROW : 'row' -> pushMode(EXPRESSION);
 WHERE : 'where' -> pushMode(EXPRESSION);
+SORT : 'sort' -> pushMode(EXPRESSION);
+LIMIT : 'limit' -> pushMode(EXPRESSION);
 UNKNOWN_COMMAND : ~[ \r\n\t]+ -> pushMode(EXPRESSION);
 
 LINE_COMMENT
@@ -60,13 +62,18 @@ DECIMAL_LITERAL
     ;
 
 AND : 'and';
+ASC : 'asc';
 ASSIGN : '=';
 COMMA : ',';
+DESC : 'desc';
 DOT : '.';
 FALSE : 'false';
+FIRST : 'first';
+LAST : 'last';
 LP : '(';
 NOT : 'not';
 NULL : 'null';
+NULLS : 'nulls';
 OR : 'or';
 RP : ')';
 TRUE : 'true';

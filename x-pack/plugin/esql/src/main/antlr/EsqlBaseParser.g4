@@ -15,7 +15,11 @@ singleStatement
     ;
 
 query
-    : sourceCommand (PIPE processingCommand)*
+    : sourceCommand pipe*
+    ;
+
+pipe
+    : PIPE processingCommand
     ;
 
 sourceCommand
@@ -25,6 +29,8 @@ sourceCommand
 
 processingCommand
     : whereCommand
+    | limitCommand
+    | sortCommand
     ;
 
 whereCommand
@@ -92,6 +98,18 @@ constant
     | number                                                                            #numericLiteral
     | booleanValue                                                                      #booleanLiteral
     | string                                                                            #stringLiteral
+    ;
+
+limitCommand
+    : LIMIT INTEGER_LITERAL
+    ;
+
+sortCommand
+    : SORT orderExpression (COMMA orderExpression)*
+    ;
+
+orderExpression
+    : booleanExpression ordering=(ASC | DESC)? (NULLS nullOrdering=(FIRST | LAST))?
     ;
 
 booleanValue

@@ -986,15 +986,15 @@ shared across the shards of an index on a node.
 =======
 `total_count`::
 (integer)
-Number of mappings.
+Number of mappings, including <<runtime,runtime>> and <<object,object>> fields.
 
 `total_estimated_overhead`::
 (<<byte-units,byte value>>)
-Estimated overhead size of mappings.
+Estimated heap overhead of mappings on this node, which allows for 1kiB of heap for every mapped field.
 
 `total_estimated_overhead_in_bytes`::
 (integer)
-Estimated overhead size, in bytes, of mappings.
+Estimated heap overhead, in bytes, of mappings on this node, which allows for 1kiB of heap for every mapped field.
 =======
 
 ======

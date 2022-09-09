@@ -32,7 +32,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IncludeExcludeTests extends ESTestCase {
     public void testEmptyTermsWithOrds() throws IOException {
@@ -364,6 +364,6 @@ public class IncludeExcludeTests extends ESTestCase {
     public void testLongIncludeExclude() {
         String longString = Strings.repeat('a', 10000);
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(longString, null, null, null));
-        assertThat(iae.getCause(), instanceOf(StackOverflowError.class));
+        assertThat(iae.getMessage(), equalTo("failed to parse regexp due to stack overflow"));
     }
 }

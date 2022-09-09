@@ -11,6 +11,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -163,6 +164,83 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
                     "PSYoungGen      total 2572800K, used 1759355K [0x0000000759500000, 0x0000000800000000, 0x0000000800000000)"
                 )
             );
+        }
+    }
+
+    public void testMaybeTruncateCategorizationField() {
+        {
+            DataDescription.Builder dd = new DataDescription.Builder();
+            dd.setTimeField("time_field");
+
+            Detector.Builder detector = new Detector.Builder("count", "");
+            detector.setByFieldName("mlcategory");
+            AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+            builder.setCategorizationFieldName("message");
+            AnalysisConfig ac = builder.build();
+
+            boolean includeTokensFields = randomBoolean();
+            AbstractDataToProcessWriter writer = new JsonDataToProcessWriter(
+                true,
+                includeTokensFields,
+                autodetectProcess,
+                dd.build(),
+                ac,
+                dataCountsReporter,
+                NamedXContentRegistry.EMPTY
+            );
+
+            String truncatedField = writer.maybeTruncateCatgeorizationField(randomAlphaOfLengthBetween(1002, 2000));
+            assertEquals(AnalysisConfig.MAX_CATEGORIZATION_FIELD_LENGTH, truncatedField.length());
+        }
+        {
+            DataDescription.Builder dd = new DataDescription.Builder();
+            dd.setTimeField("time_field");
+
+            Detector.Builder detector = new Detector.Builder("count", "");
+            detector.setByFieldName("mlcategory");
+            AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+            builder.setCategorizationFieldName("message");
+            AnalysisConfig ac = builder.build();
+
+            boolean includeTokensFields = randomBoolean();
+            AbstractDataToProcessWriter writer = new JsonDataToProcessWriter(
+                true,
+                includeTokensFields,
+                autodetectProcess,
+                dd.build(),
+                ac,
+                dataCountsReporter,
+                NamedXContentRegistry.EMPTY
+            );
+
+            String categorizationField = randomAlphaOfLengthBetween(1, 1000);
+            String truncatedField = writer.maybeTruncateCatgeorizationField(categorizationField);
+            assertEquals(categorizationField.length(), truncatedField.length());
+        }
+        {
+            DataDescription.Builder dd = new DataDescription.Builder();
+            dd.setTimeField("time_field");
+
+            Detector.Builder detector = new Detector.Builder("count", "");
+            detector.setByFieldName("mlcategory");
+            detector.setPartitionFieldName("message");
+            AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+            builder.setCategorizationFieldName("message");
+            AnalysisConfig ac = builder.build();
+
+            boolean includeTokensFields = randomBoolean();
+            AbstractDataToProcessWriter writer = new JsonDataToProcessWriter(
+                true,
+                includeTokensFields,
+                autodetectProcess,
+                dd.build(),
+                ac,
+                dataCountsReporter,
+                NamedXContentRegistry.EMPTY
+            );
+
+            String truncatedField = writer.maybeTruncateCatgeorizationField(randomAlphaOfLengthBetween(1002, 2000));
+            assertFalse(AnalysisConfig.MAX_CATEGORIZATION_FIELD_LENGTH == truncatedField.length());
         }
     }
 }

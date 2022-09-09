@@ -72,13 +72,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
 
-        var clusterService = new ClusterService(
-            settings,
-            clusterSettings,
-            new FakeThreadPoolMasterService("node-1", "test", threadPool, deterministicTaskQueue::scheduleNow),
-            new ClusterApplierService("node-1", settings, clusterSettings, threadPool)
-        );
-
         var localNode = new DiscoveryNode(
             "node-1",
             "node-1",
@@ -93,6 +86,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
 
+        var clusterService = new ClusterService(
+            settings,
+            clusterSettings,
+            new FakeThreadPoolMasterService("node-1", "test", threadPool, deterministicTaskQueue::scheduleNow),
+            new ClusterApplierService("node-1", settings, clusterSettings, threadPool)
+        );
         clusterService.getClusterApplierService().setInitialState(initialState);
         clusterService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
         clusterService.getMasterService()
@@ -145,6 +144,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
         allocationServiceRef.set(allocationService);
 
+        var latch = new CountDownLatch(1);
+
         clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -153,7 +154,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                     .metadata(Metadata.builder().put(indexMetadata, true))
                     .routingTable(RoutingTable.builder().addAsNew(indexMetadata))
                     .build();
-                return allocationService.reroute(newState, "test", ActionListener.noop());
+                return allocationService.reroute(newState, "test", ActionListener.wrap(latch::countDown));
             }
 
             @Override
@@ -164,12 +165,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
 
         try {
-            // see org.elasticsearch.cluster.service.ClusterApplierService.threadPoolExecutor
-            assertBusy(() -> {
-                var routing = clusterService.state().routingTable();
-                assertTrue(routing.hasIndex("index-1"));
-                assertTrue(routing.index("index-1").shard(0).primaryShard().assignedToNode());
-            });
+            assertTrue(latch.await(1, TimeUnit.SECONDS));
+            var routing = clusterService.state().routingTable();
+            assertTrue(routing.hasIndex("index-1"));
+            assertTrue(routing.index("index-1").shard(0).primaryShard().assignedToNode());
         } finally {
             clusterService.close();
         }

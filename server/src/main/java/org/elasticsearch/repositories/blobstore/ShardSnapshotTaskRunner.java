@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -32,6 +33,9 @@ public class ShardSnapshotTaskRunner {
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
 
     abstract static class SnapshotTask implements Comparable<SnapshotTask>, Runnable {
+        private static final Comparator<SnapshotTask> COMPARATOR = Comparator.comparingInt(SnapshotTask::priority)
+            .thenComparingLong(t -> t.context.snapshotStartTime());
+
         protected final SnapshotShardContext context;
 
         SnapshotTask(SnapshotShardContext context) {
@@ -46,11 +50,7 @@ public class ShardSnapshotTaskRunner {
 
         @Override
         public final int compareTo(SnapshotTask other) {
-            int res = Integer.compare(priority(), other.priority());
-            if (res != 0) {
-                return res;
-            }
-            return Long.compare(context.snapshotStartTime(), other.context.snapshotStartTime());
+            return COMPARATOR.compare(this, other);
         }
     }
 

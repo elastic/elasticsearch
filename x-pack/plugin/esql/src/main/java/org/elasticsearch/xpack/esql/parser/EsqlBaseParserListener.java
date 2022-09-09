@@ -28,6 +28,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitQuery(EsqlBaseParser.QueryContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#pipe}.
+   * @param ctx the parse tree
+   */
+  void enterPipe(EsqlBaseParser.PipeContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#pipe}.
+   * @param ctx the parse tree
+   */
+  void exitPipe(EsqlBaseParser.PipeContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#sourceCommand}.
    * @param ctx the parse tree
    */
@@ -307,6 +317,36 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitStringLiteral(EsqlBaseParser.StringLiteralContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand}.
+   * @param ctx the parse tree
+   */
+  void enterLimitCommand(EsqlBaseParser.LimitCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#limitCommand}.
+   * @param ctx the parse tree
+   */
+  void exitLimitCommand(EsqlBaseParser.LimitCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#sortCommand}.
+   * @param ctx the parse tree
+   */
+  void enterSortCommand(EsqlBaseParser.SortCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#sortCommand}.
+   * @param ctx the parse tree
+   */
+  void exitSortCommand(EsqlBaseParser.SortCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#orderExpression}.
+   * @param ctx the parse tree
+   */
+  void enterOrderExpression(EsqlBaseParser.OrderExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#orderExpression}.
+   * @param ctx the parse tree
+   */
+  void exitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#booleanValue}.
    * @param ctx the parse tree

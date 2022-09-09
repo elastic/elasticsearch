@@ -79,6 +79,10 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'unsigned_long/50_script_values/script_score query',
     'unsigned_long/50_script_values/Script query',
     'data_stream/140_data_stream_aliases/Fix IndexNotFoundException error when handling remove alias action',
+    'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with time series mappings',
+    'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with wrong time series mappings',
+    'analytics/histogram/histogram with wrong time series mappings',
+    'analytics/histogram/histogram with time series mappings',
   ].join(',')
 }
 

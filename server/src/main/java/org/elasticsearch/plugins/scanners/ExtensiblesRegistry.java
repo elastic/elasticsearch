@@ -33,7 +33,8 @@ import static org.elasticsearch.core.Strings.format;
  * The reason for indirectly extensible classes is to allow stable plugin apis to create hierarchies
  *
  * Example:
- * @Extensible
+ * <pre>
+ * &#64;Extensible
  * interface E{
  *     public void foo();
  * }
@@ -44,11 +45,11 @@ import static org.elasticsearch.core.Strings.format;
  *
  * }
  *
- * @Extensible
+ * &#64;Extensible
  * class E2 {
  *     public void bar(){}
  * }
- *
+ * </pre>
  * the content of extensibles.json should be
  * {
  *     "E" : "E",

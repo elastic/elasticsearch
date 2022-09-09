@@ -461,9 +461,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
-            stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
-            Map<String, NameToPluginInfo> namedComponents = stablePluginsRegistry.getNamedComponents();
-            // System.out.println(namedComponents); some interim assertions would be good here..
+            // TODO to be removed - just for debugging
+            if (bundle.pluginDescriptor().isStable()) {
+                stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
+                Map<String, NameToPluginInfo> namedComponents = stablePluginsRegistry.getNamedComponents();
+                // System.out.println(namedComponents); some interim assertions would be good here..
+            }
             if (bundle.pluginDescriptor().isStable() == false) {
                 Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
                 if (pluginClassLoader != pluginClass.getClassLoader()) {

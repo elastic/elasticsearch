@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
@@ -32,26 +31,18 @@ public class ExtensibleFileReader {
 
     public Map<String, String> readFromFile() {
         Map<String, String> res = new HashMap<>();
-        try (InputStream in = /*new BufferedInputStream(*/getClass().getClassLoader().getResourceAsStream(extensibleFile))/*)*/ {
+        // todo should it be BufferedInputStream ?
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream(extensibleFile)) {
             if (in != null) {
                 try (XContentParser parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, in)) {
-                    // validation class exist??
-                    return parser.mapStrings()
-                        .entrySet()
-                        .stream()
-                        .collect(Collectors.toMap(e -> classNameToSlashes(e.getKey()), e -> classNameToSlashes(e.getValue())));
-                    // todo decide if dot or /classes names should be used
+                    // TODO should we validate the classes actually exist?
+                    return parser.mapStrings();
                 }
             }
-
         } catch (IOException e) {
             logger.error("failed reading extensible file", e);
         }
         return res;
     }
 
-    // todo duplication
-    private static String classNameToSlashes(String className) {
-        return className.replace('.', '/');
-    }
 }

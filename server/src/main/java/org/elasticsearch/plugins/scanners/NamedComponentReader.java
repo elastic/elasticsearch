@@ -10,6 +10,7 @@ package org.elasticsearch.plugins.scanners;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -25,17 +26,28 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
-public class NamedComponentScanner {
+/**
+ * Reads named components declared by a plugin in a cache file.
+ * Cache file is expected to be present in plugin's lib directory
+ *
+ * The content of a cache file is a JSON representation of a map where:
+ * keys -> name of the extensible interface (a class/interface marked with @Extensible)
+ * values -> a map of name to implementation class name
+ */
+public class NamedComponentReader {
 
-    private Logger logger = LogManager.getLogger(NamedComponentScanner.class);
+    private Logger logger = LogManager.getLogger(NamedComponentReader.class);
     private static final String NAMED_COMPONENTS_FILE_NAME = "named_components.json";
+    /**
+     * a registry of known classes marked or indirectly marked (extending marked class) with @Extensible
+     */
     private final ExtensiblesRegistry extensiblesRegistry;
 
-    public NamedComponentScanner() {
+    public NamedComponentReader() {
         this.extensiblesRegistry = ExtensiblesRegistry.INSTANCE;
     }
 
-    NamedComponentScanner(ExtensiblesRegistry extensiblesRegistry) {
+    NamedComponentReader(ExtensiblesRegistry extensiblesRegistry) {
         this.extensiblesRegistry = extensiblesRegistry;
     }
 
@@ -48,21 +60,23 @@ public class NamedComponentScanner {
     Map<String, NameToPluginInfo> findNamedComponents(Path pluginDir, ClassLoader pluginClassLoader) {
         try {
             Path namedComponent = findNamedComponentCacheFile(pluginDir);
-            return readFromFile(namedComponent, pluginClassLoader);
+            if (namedComponent != null) {
+                Map<String, NameToPluginInfo> namedComponents = readFromFile(namedComponent, pluginClassLoader);
+                logger.debug(() -> Strings.format("Plugin in dir %s declared named components %s.", pluginDir, namedComponents));
+
+                return namedComponents;
+            }
+            logger.debug(() -> Strings.format("No named component defined in plugin dir %s", pluginDir));
         } catch (IOException e) {
             logger.error("unable to read named components", e);
-            return emptyMap();
         }
+        return emptyMap();
     }
 
     private Path findNamedComponentCacheFile(Path pluginDir) throws IOException {
         try (Stream<Path> list = Files.list(pluginDir)) {
-            return list.filter(p -> p.getFileName().equals(NAMED_COMPONENTS_FILE_NAME)).findFirst().get();
+            return list.filter(p -> p.getFileName().toString().equals(NAMED_COMPONENTS_FILE_NAME)).findFirst().orElse(null);
         }
-    }
-
-    private String pathToClassName(String classWithSlashes) {
-        return classWithSlashes.replace('/', '.');
     }
 
     @SuppressWarnings("unchecked")

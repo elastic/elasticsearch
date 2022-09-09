@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 public class StablePluginsRegistryTests extends ESTestCase {
 
     public void testAddingNamedComponentsFromMultiplePlugins() {
-        NamedComponentScanner scanner = Mockito.mock(NamedComponentScanner.class);
+        NamedComponentReader scanner = Mockito.mock(NamedComponentReader.class);
         ClassLoader loader = Mockito.mock(ClassLoader.class);
         ClassLoader loader2 = Mockito.mock(ClassLoader.class);
 

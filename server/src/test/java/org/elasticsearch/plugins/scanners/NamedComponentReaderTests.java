@@ -22,18 +22,18 @@ import java.util.Map;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.equalTo;
 
-public class NamedComponentScannerTests extends ESTestCase {
+public class NamedComponentReaderTests extends ESTestCase {
     ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("file_does_not_exist.txt");// forcing to do classpath scan
-    NamedComponentScanner namedComponentScanner = new NamedComponentScanner(extensiblesRegistry);
+    NamedComponentReader namedComponentReader = new NamedComponentReader(extensiblesRegistry);
 
     @SuppressForbidden(reason = "test resource")
     public void testReadNamedComponentsFromFile() throws IOException {
         final String resource = this.getClass().getClassLoader().getResource("named_components.json").getPath();
         Path namedComponentPath = PathUtils.get(resource);
 
-        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.readFromFile(
+        Map<String, NameToPluginInfo> namedComponents = namedComponentReader.readFromFile(
             namedComponentPath,
-            NamedComponentScannerTests.class.getClassLoader()
+            NamedComponentReaderTests.class.getClassLoader()
         );
 
         assertThat(
@@ -43,7 +43,7 @@ public class NamedComponentScannerTests extends ESTestCase {
                 new PluginInfo(
                     "test_named_component",
                     "org.elasticsearch.plugins.scanners.named_components_test_classes.TestNamedComponent",
-                    NamedComponentScannerTests.class.getClassLoader()
+                    NamedComponentReaderTests.class.getClassLoader()
                 )
             )
         );
@@ -69,8 +69,8 @@ public class NamedComponentScannerTests extends ESTestCase {
 
         // jar can be ignored.. cached file is only read atm, verification maybe later?
 
-        ClassLoader classLoader = NamedComponentScannerTests.class.getClassLoader();
-        Map<String, NameToPluginInfo> namedComponents = namedComponentScanner.findNamedComponents(pluginDir, classLoader);
+        ClassLoader classLoader = NamedComponentReaderTests.class.getClassLoader();
+        Map<String, NameToPluginInfo> namedComponents = namedComponentReader.findNamedComponents(pluginDir, classLoader);
 
         assertThat(
             namedComponents.get("org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface")

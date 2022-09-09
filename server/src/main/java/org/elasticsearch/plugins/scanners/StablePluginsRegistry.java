@@ -13,6 +13,11 @@ import org.elasticsearch.plugins.PluginBundle;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * A registry of classes declared by plugins as named components.
+ * Named components are classes annotated with @NamedComponent(name) and can be referred later by a name given in this annotation.
+ * Named components implement/extend Extensibles (classes/interfaces marked with @Extensible)
+ */
 public class StablePluginsRegistry {
 
     /*
@@ -24,15 +29,15 @@ public class StablePluginsRegistry {
         {"nori" -> {nori, org.elasticserach.plugin.analysis.new_nori.NoriReadingFormFilterFactory, classloaderInstance}
      */
     private final Map<String /*Extensible */, NameToPluginInfo> namedComponents;
-    private final NamedComponentScanner namedComponentsScanner;
+    private final NamedComponentReader namedComponentsScanner;
 
     public StablePluginsRegistry() {
-        this(new NamedComponentScanner(), new HashMap<>());
+        this(new NamedComponentReader(), new HashMap<>());
     }
 
     // for testing
-    StablePluginsRegistry(NamedComponentScanner namedComponentScanner, HashMap<String /*Extensible */, NameToPluginInfo> namedComponents) {
-        this.namedComponentsScanner = namedComponentScanner;
+    StablePluginsRegistry(NamedComponentReader namedComponentReader, HashMap<String /*Extensible */, NameToPluginInfo> namedComponents) {
+        this.namedComponentsScanner = namedComponentReader;
         this.namedComponents = namedComponents;
     }
 

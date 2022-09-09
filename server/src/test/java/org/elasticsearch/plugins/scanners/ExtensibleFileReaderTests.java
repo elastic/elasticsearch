@@ -24,10 +24,10 @@ public class ExtensibleFileReaderTests extends ESTestCase {
             stringStringMap,
             equalTo(
                 Map.of(
-                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass",
-                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass",
-                    "org/elasticsearch/plugins/scanners/extensible_test_classes/SubClass",
-                    "org/elasticsearch/plugins/scanners/extensible_test_classes/ExtensibleClass"
+                    "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
+                    "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
+                    "org.elasticsearch.plugins.scanners.extensible_test_classes.SubClass",
+                    "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass"
                 )
             )
         );

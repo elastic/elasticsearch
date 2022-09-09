@@ -11,6 +11,7 @@ package org.elasticsearch.script.field;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -20,6 +21,7 @@ import java.util.Objects;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class WriteFieldTests extends ESTestCase {
 
@@ -85,7 +87,7 @@ public class WriteFieldTests extends ESTestCase {
         assertTrue(new WriteField("null", () -> a).exists());
     }
 
-    public void testMove() {
+    public void testMoveString() {
         String src = "a.b.c";
         String dst = "d.e.f";
         Map<String, Object> root = new HashMap<>();
@@ -120,7 +122,7 @@ public class WriteFieldTests extends ESTestCase {
         assertFalse(branches.get("b").containsKey("c"));
     }
 
-    public void testOverwrite() {
+    public void testOverwriteString() {
         String src = "a.b.c";
         String dst = "d.e.f";
         Map<String, Object> root = new HashMap<>();
@@ -387,6 +389,22 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals("foo", new WriteField("a.c", () -> root).get(0, "bar"));
     }
 
+    public void testDoc() {
+        Map<String, Object> root = new HashMap<>();
+        WriteField wf = new WriteField("abc.def.hij", () -> root);
+        NestedDocument doc = wf.doc();
+        doc.field("lmn.opq").set(5);
+        doc.field("lmn.r").append("foo").append("bar");
+
+        doc = wf.doc();
+        doc.field("rst.uvw").set(6);
+        doc.field("rst.x.y").append("baz").append("qux");
+
+        assertEquals(5, getMap(root, "abc.def.hij.lmn").get("opq"));
+        assertEquals(List.of("foo", "bar"), getList(root, "abc.def.hij.lmn.r"));
+        assertNull(root);
+    }
+
     public MapOfMaps addPath(Map<String, Object> root, String path, Object value) {
         String[] elements = path.split("\\.");
 
@@ -403,6 +421,35 @@ public class WriteFieldTests extends ESTestCase {
         container.put(elements[elements.length - 1], value);
         return containers;
     }
+
+    private Map<String, Object> getMap(Map<String, Object> map, String path) {
+        String[] elements = path.split("\\.");
+        return getMap(map, elements, elements.length);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getMap(Map<String, Object> map, String[] elements, int stop) {
+        Object value;
+        Map<String, Object> next = map;
+        for (int i = 0; i < stop; i++) {
+            value = next.get(elements[i]);
+            assertThat(Arrays.toString(elements) + ":" + elements[i] + ":" + i, value, instanceOf(Map.class));
+            next = (Map<String, Object>) value;
+        }
+        return next;
+    }
+
+
+    @SuppressWarnings("unchecked")
+    public List<Object> getList(Map<String, Object> map, String path) {
+        String[] elements = path.split("\\.");
+        int last = elements.length - 1;
+        Map<String, Object> inner = getMap(map, elements, last);
+        Object value = inner.get(elements[last]);
+        assertThat(path, value, instanceOf(List.class));
+        return (List<Object>) value;
+    }
+
 
     private static class MapOfMaps {
         Map<String, Map<String, Object>> maps = new HashMap<>();

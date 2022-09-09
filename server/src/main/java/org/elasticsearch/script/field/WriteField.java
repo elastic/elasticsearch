@@ -463,10 +463,10 @@ public class WriteField implements Field<Object> {
      */
     @SuppressWarnings("unchecked")
     public NestedDocument doc() {
-        NestedDocument doc = new NestedDocument(this, 0, new HashMap<>());
 
         Object value = get(MISSING);
         if (value == MISSING) {
+            NestedDocument doc = new NestedDocument(this, 0, new HashMap<>());
             set(doc);
             return doc;
         }
@@ -478,11 +478,13 @@ public class WriteField implements Field<Object> {
         } else if (value instanceof Map<?, ?> map) {
             docs = new ArrayList<>(4);
             docs.add((Map<String, Object>) map);
+            set(docs);
 
         } else {
             throw new IllegalStateException("Cannot append a doc at [" + path + "] to [" + value + "] of type [" + typeName(value) + "]");
         }
 
+        NestedDocument doc = new NestedDocument(this, docs.size(), new HashMap<>());
         docs.add(doc.getDoc());
         return doc;
     }
@@ -554,7 +556,7 @@ public class WriteField implements Field<Object> {
         }
 
         if (value instanceof Map<?, ?> map) {
-            return () -> new Iterator<NestedDocument>() {
+            return () -> new Iterator<>() {
                 private boolean done = false;
 
                 @Override

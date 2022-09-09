@@ -32,10 +32,12 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -231,54 +233,66 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertHasShardsFromNodes(
-            clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("disk:ebs", clusterState.nodes()),
-            "node1"
+        assertThat(
+            getShardNodeIds(
+                clusterState.routingTable()
+                    .index("test")
+                    .shard(0)
+                    .onlyNodeSelectorActiveInitializingShardsIt("disk:ebs", clusterState.nodes())
+            ),
+            contains("node1")
         );
 
-        assertHasShardsFromNodes(
+        assertThat(
+            getShardNodeIds(
+                clusterState.routingTable()
+                    .index("test")
+                    .shard(0)
+                    .onlyNodeSelectorActiveInitializingShardsIt("dis*:eph*", clusterState.nodes())
+            ),
+            contains("node2")
+        );
+
+        assertThat(
+            getShardNodeIds(
+                clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("fred", clusterState.nodes())
+            ),
+            contains("node1")
+        );
+
+        assertThat(
+            getShardNodeIds(
+                clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("bar*", clusterState.nodes())
+            ),
+            contains("node2")
+        );
+
+        var nodeIds = getShardNodeIds(
             clusterState.routingTable()
                 .index("test")
                 .shard(0)
-                .onlyNodeSelectorActiveInitializingShardsIt("dis*:eph*", clusterState.nodes()),
-            "node2"
+                .onlyNodeSelectorActiveInitializingShardsIt(new String[] { "disk:eph*", "disk:ebs" }, clusterState.nodes())
+        );
+        assertThat(nodeIds, containsInAnyOrder("node1", "node2"));
+
+        assertThat(
+            getShardNodeIds(
+                clusterState.routingTable()
+                    .index("test")
+                    .shard(0)
+                    .onlyNodeSelectorActiveInitializingShardsIt(new String[] { "disk:*", "invalid_name" }, clusterState.nodes())
+            ),
+            equalTo(nodeIds) // order is not deterministic but needs to be consistent across the queries
         );
 
-        assertHasShardsFromNodes(
-            clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("fred", clusterState.nodes()),
-            "node1"
-        );
-
-        assertHasShardsFromNodes(
-            clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("bar*", clusterState.nodes()),
-            "node2"
-        );
-
-        assertHasShardsFromNodes(
-            clusterState.routingTable()
-                .index("test")
-                .shard(0)
-                .onlyNodeSelectorActiveInitializingShardsIt(new String[] { "disk:eph*", "disk:ebs" }, clusterState.nodes()),
-            "node1",
-            "node2"
-        );
-
-        assertHasShardsFromNodes(
-            clusterState.routingTable()
-                .index("test")
-                .shard(0)
-                .onlyNodeSelectorActiveInitializingShardsIt(new String[] { "disk:*", "invalid_name" }, clusterState.nodes()),
-            "node1",
-            "node2"
-        );
-
-        assertHasShardsFromNodes(
-            clusterState.routingTable()
-                .index("test")
-                .shard(0)
-                .onlyNodeSelectorActiveInitializingShardsIt(new String[] { "disk:*", "disk:*" }, clusterState.nodes()),
-            "node1",
-            "node2"
+        assertThat(
+            getShardNodeIds(
+                clusterState.routingTable()
+                    .index("test")
+                    .shard(0)
+                    .onlyNodeSelectorActiveInitializingShardsIt(new String[] { "disk:*", "disk:*" }, clusterState.nodes())
+            ),
+            equalTo(nodeIds) // order is not deterministic but needs to be consistent across the queries
         );
 
         try {
@@ -288,17 +302,16 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             // expected exception
         }
 
-        assertHasShardsFromNodes(
-            clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("fred", clusterState.nodes()),
-            "node1"
+        assertThat(
+            getShardNodeIds(
+                clusterState.routingTable().index("test").shard(0).onlyNodeSelectorActiveInitializingShardsIt("fred", clusterState.nodes())
+            ),
+            contains("node1")
         );
     }
 
-    private void assertHasShardsFromNodes(ShardsIterator iterator, String... nodes) {
-        assertThat(
-            StreamSupport.stream(iterator.spliterator(), false).map(ShardRouting::currentNodeId).toList(),
-            containsInAnyOrder(nodes)
-        );
+    private static List<String> getShardNodeIds(ShardsIterator iterator) {
+        return StreamSupport.stream(iterator.spliterator(), false).map(ShardRouting::currentNodeId).toList();
     }
 
     public void testShardsAndPreferNodeRouting() {

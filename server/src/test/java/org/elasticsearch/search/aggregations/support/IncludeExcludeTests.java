@@ -363,7 +363,7 @@ public class IncludeExcludeTests extends ESTestCase {
 
     public void testLongIncludeExclude() {
         String longString = Strings.repeat('a', 10000);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(longString, null));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(longString, null, null, null));
         assertThat(iae.getCause(), instanceOf(StackOverflowError.class));
     }
 }

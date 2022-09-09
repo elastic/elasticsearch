@@ -19,7 +19,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;

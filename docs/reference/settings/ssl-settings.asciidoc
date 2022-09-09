@@ -74,6 +74,10 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 
++{ssl-prefix}.ssl.verification_mode+::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode]
+
 ===== Java keystore files
 
 When using Java keystore files (JKS), which contain the private key, certificate

@@ -1223,6 +1223,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86603")
     public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
         MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
             b.field("type", "text");

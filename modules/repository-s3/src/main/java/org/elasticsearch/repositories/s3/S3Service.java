@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -223,7 +224,12 @@ class S3Service implements Closeable {
             if (webIdentityTokenCredentialsProvider.isActive()) {
                 logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials");
                 return new PrivilegedAWSCredentialsProvider(
-                    new AWSCredentialsProviderChain(webIdentityTokenCredentialsProvider, new EC2ContainerCredentialsProviderWrapper())
+                    new AWSCredentialsProviderChain(
+                        List.of(
+                            new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER),
+                            new ErrorLoggingCredentialsProvider(new EC2ContainerCredentialsProviderWrapper(), LOGGER)
+                        )
+                    )
                 );
             } else {
                 logger.debug("Using instance profile credentials");
@@ -371,6 +377,37 @@ class S3Service implements Closeable {
         public void shutdown() throws IOException {
             if (credentialsProvider != null) {
                 IOUtils.close(credentialsProvider, () -> stsClient.shutdown());
+            }
+        }
+    }
+
+    static class ErrorLoggingCredentialsProvider implements AWSCredentialsProvider {
+
+        private final AWSCredentialsProvider delegate;
+        private final Logger logger;
+
+        ErrorLoggingCredentialsProvider(AWSCredentialsProvider delegate, Logger logger) {
+            this.delegate = Objects.requireNonNull(delegate);
+            this.logger = Objects.requireNonNull(logger);
+        }
+
+        @Override
+        public AWSCredentials getCredentials() {
+            try {
+                return delegate.getCredentials();
+            } catch (Exception e) {
+                logger.error(() -> "Unable to load credentials from " + delegate, e);
+                throw e;
+            }
+        }
+
+        @Override
+        public void refresh() {
+            try {
+                delegate.refresh();
+            } catch (Exception e) {
+                logger.error(() -> "Unable to refresh " + delegate, e);
+                throw e;
             }
         }
     }

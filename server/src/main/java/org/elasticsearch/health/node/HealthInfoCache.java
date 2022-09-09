@@ -59,8 +59,12 @@ public class HealthInfoCache implements ClusterStateListener {
         }
     }
 
-    // A shallow copy is enough because the inner data is immutable.
-    public Map<String, DiskHealthInfo> getDiskHealthInfo() {
-        return Map.copyOf(diskInfoByNode);
+    /**
+     * This returns all the health info stored in this cache
+     * @return A HealthInfo object wrapping all health data in the cache
+     */
+    public HealthInfo getHealthInfo() {
+        // A shallow copy is enough because the inner data is immutable.
+        return new HealthInfo(Map.copyOf(diskInfoByNode));
     }
 }

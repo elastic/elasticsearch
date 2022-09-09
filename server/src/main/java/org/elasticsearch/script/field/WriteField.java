@@ -58,30 +58,46 @@ public class WriteField implements Field<Object> {
      * Move this path to another path in the map.
      *
      * @throws IllegalArgumentException if the other path has contents
-     * @throws UnsupportedOperationException
      */
-    public void move(String path) {
-        throw new UnsupportedOperationException("unimplemented");
+    public WriteField move(String path) {
+        WriteField dest = new WriteField(path, rootSupplier);
+        if (dest.isEmpty() == false) {
+            throw new IllegalArgumentException("Cannot move to non-empty destination [" + path + "]");
+        }
+        return overwrite(path);
     }
 
     /**
-     * Move this path to another path in the map, overwriting the destination path if it exists
+     * Move this path to another path in the map, overwriting the destination path if it exists.
      *
-     * @throws UnsupportedOperationException
+     * If this Field has no value, the value at {@param path} is removed.
      */
-    public void overwrite(String path) {
-        throw new UnsupportedOperationException("unimplemented");
+    public WriteField overwrite(String path) {
+        Object value = get(MISSING);
+        remove();
+        setPath(path);
+        if (value == MISSING) {
+            // The source has a missing value, remove the value, if it exists, at the destination
+            // to match the missing value at the source.
+            remove();
+        } else {
+            setLeaf();
+            set(value);
+        }
+        return this;
     }
 
     // Path Delete
 
     /**
      * Removes this path from the map.
-     *
-     * @throws UnsupportedOperationException
      */
     public void remove() {
-        throw new UnsupportedOperationException("unimplemented");
+        resolveDepthFlat();
+        if (leaf == null) {
+            return;
+        }
+        container.remove(leaf);
     }
 
     // Value Create
@@ -317,6 +333,16 @@ public class WriteField implements Field<Object> {
         }
 
         return this;
+    }
+
+    /**
+     * Change the path and clear the existing resolution by setting {@link #leaf} and {@link #container} to null.
+     * Caller needs to re-resolve after this call.
+     */
+    protected void setPath(String path) {
+        this.path = path;
+        this.leaf = null;
+        this.container = null;
     }
 
     /**

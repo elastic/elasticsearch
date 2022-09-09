@@ -263,6 +263,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -704,6 +705,7 @@ public class ActionModule extends AbstractModule {
 
         if (HealthNode.isEnabled()) {
             actions.register(UpdateHealthInfoCacheAction.INSTANCE, UpdateHealthInfoCacheAction.TransportAction.class);
+            actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());

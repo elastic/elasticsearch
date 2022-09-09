@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTransportAction<
     OpenIdConnectPrepareAuthenticationRequest,
@@ -56,7 +57,7 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
             List<OpenIdConnectRealm> matchingRealms = this.realms.stream()
                 .filter(r -> r instanceof OpenIdConnectRealm && ((OpenIdConnectRealm) r).isIssuerValid(request.getIssuer()))
                 .map(r -> (OpenIdConnectRealm) r)
-                .toList();
+                .collect(Collectors.toList());
             if (matchingRealms.isEmpty()) {
                 listener.onFailure(
                     new ElasticsearchSecurityException("Cannot find OpenID Connect realm with issuer [{}]", request.getIssuer())

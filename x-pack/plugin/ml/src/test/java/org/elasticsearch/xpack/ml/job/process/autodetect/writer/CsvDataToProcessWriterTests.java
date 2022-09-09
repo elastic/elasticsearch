@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;

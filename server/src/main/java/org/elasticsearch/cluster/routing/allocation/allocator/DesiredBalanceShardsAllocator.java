@@ -54,7 +54,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
     private final ReconcileDesiredBalanceExecutor executor = new ReconcileDesiredBalanceExecutor();
-    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;// TODO convert to local var?
+    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
 
     @FunctionalInterface
     public interface DesiredBalanceReconcilerAction {
@@ -118,6 +118,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
+
+        // Starts reconciliation towards desired balance that might have not been updated with a recent calculation yet.
+        // This is fine as balance should have incremental rather than radical changes.
+        // This should speed up achieving the desired balance in cases current state is still different from it (due to THROTTLING).
+        reconcile(currentDesiredBalance, allocation);
     }
 
     @Override

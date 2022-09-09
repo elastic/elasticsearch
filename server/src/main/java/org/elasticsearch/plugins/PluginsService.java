@@ -28,8 +28,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.plugins.scanners.NameToPluginInfo;
-import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
@@ -104,8 +102,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
 
-    private final StablePluginsRegistry stablePluginsRegistry;
-
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
         "plugin.mandatory",
         Collections.emptyList(),
@@ -115,14 +111,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     /**
      * Constructs a new PluginService
-     *  @param settings         The settings of the system
+     *
+     * @param settings         The settings of the system
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
         this.settings = settings;
         this.configPath = configPath;
-        this.stablePluginsRegistry = new StablePluginsRegistry();
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
 
@@ -413,7 +409,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return "constructor for extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]";
     }
 
-    private void loadBundle(PluginBundle bundle, Map<String, LoadedPlugin> loaded) {
+    private Plugin loadBundle(PluginBundle bundle, Map<String, LoadedPlugin> loaded) {
         String name = bundle.plugin.getName();
         logger.debug(() -> "Loading bundle: " + name);
 
@@ -461,29 +457,22 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
-            // TODO to be removed - just for debugging
-            if (bundle.pluginDescriptor().isStable()) {
-                stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
-                Map<String, NameToPluginInfo> namedComponents = stablePluginsRegistry.getNamedComponents();
-                // System.out.println(namedComponents); some interim assertions would be good here..
+
+            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
+            if (pluginClassLoader != pluginClass.getClassLoader()) {
+                throw new IllegalStateException(
+                    "Plugin ["
+                        + name
+                        + "] must reference a class loader local Plugin class ["
+                        + bundle.plugin.getClassname()
+                        + "] (class loader ["
+                        + pluginClass.getClassLoader()
+                        + "])"
+                );
             }
-            if (bundle.pluginDescriptor().isStable() == false) {
-                Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
-                if (pluginClassLoader != pluginClass.getClassLoader()) {
-                    throw new IllegalStateException(
-                        "Plugin ["
-                            + name
-                            + "] must reference a class loader local Plugin class ["
-                            + bundle.plugin.getClassname()
-                            + "] (class loader ["
-                            + pluginClass.getClassLoader()
-                            + "])"
-                    );
-                }
-                Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-                loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
-                // return plugin;
-            }
+            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+            loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
+            return plugin;
         } finally {
             privilegedSetContextClassLoader(cl);
         }
@@ -766,7 +755,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return urls.stream().map(PluginsService::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
     }
 
-    public static final URI uncheckedToURI(URL url) {
+    static final URI uncheckedToURI(URL url) {
         try {
             return url.toURI();
         } catch (URISyntaxException e) {

@@ -46,8 +46,8 @@ class org.elasticsearch.script.IngestScript {
 class org.elasticsearch.script.field.WriteField {
     String getName()
     boolean exists()
-    void move(String)
-    void overwrite(String)
+    WriteField move(String)
+    WriteField overwrite(String)
     void remove()
     WriteField set(def)
     WriteField append(def)

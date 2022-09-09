@@ -19,16 +19,18 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan;
-import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlanner;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.ZoneAwareAssignmentPlanner;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
+import org.elasticsearch.xpack.ml.utils.MlProcessors;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -41,15 +43,18 @@ class TrainedModelAssignmentRebalancer {
 
     private final TrainedModelAssignmentMetadata currentMetadata;
     private final Map<DiscoveryNode, NodeLoad> nodeLoads;
+    private final NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
     private final Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd;
 
     TrainedModelAssignmentRebalancer(
         TrainedModelAssignmentMetadata currentMetadata,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
+        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper,
         Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd
     ) {
         this.currentMetadata = Objects.requireNonNull(currentMetadata);
         this.nodeLoads = Objects.requireNonNull(nodeLoads);
+        this.nodeAvailabilityZoneMapper = Objects.requireNonNull(nodeAvailabilityZoneMapper);
         this.modelToAdd = Objects.requireNonNull(modelToAdd);
     }
 
@@ -78,24 +83,16 @@ class TrainedModelAssignmentRebalancer {
     }
 
     AssignmentPlan computeAssignmentPlan() {
-        List<AssignmentPlan.Node> planNodes = nodeLoads.entrySet()
-            .stream()
-            .filter(e -> Strings.isNullOrEmpty(e.getValue().getError()))
-            .map(
-                e -> new AssignmentPlan.Node(
-                    e.getKey().getId(),
-                    // We subtract native inference memory as the planner expects available memory for
-                    // native inference including current assignments.
-                    getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(e.getValue()),
-                    getNodeAllocatedProcessors(e.getKey()).orElse(0)
-                )
-            )
-            .toList();
+        final Map<List<String>, List<AssignmentPlan.Node>> nodesByZone = createNodesByZoneMap();
 
         final List<AssignmentPlan.Model> planModels = new ArrayList<>(
             currentMetadata.modelAssignments().size() + (modelToAdd.isPresent() ? 1 : 0)
         );
-        final Set<String> assignableNodeIds = planNodes.stream().map(AssignmentPlan.Node::id).collect(Collectors.toSet());
+        final Set<String> assignableNodeIds = nodesByZone.values()
+            .stream()
+            .flatMap(List::stream)
+            .map(AssignmentPlan.Node::id)
+            .collect(Collectors.toSet());
         currentMetadata.modelAssignments().values().stream().map(assignment -> {
             Map<String, Integer> currentAssignments = assignment.getNodeRoutingTable()
                 .entrySet()
@@ -127,20 +124,38 @@ class TrainedModelAssignmentRebalancer {
                 )
             )
         );
-        return new AssignmentPlanner(planNodes, planModels).computePlan();
+        return new ZoneAwareAssignmentPlanner(nodesByZone, planModels).computePlan();
     }
 
-    private static OptionalInt getNodeAllocatedProcessors(DiscoveryNode node) {
-        String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
-        try {
-            return OptionalInt.of(Integer.parseInt(allocatedProcessorsString));
-        } catch (NumberFormatException e) {
-            assert e == null
-                : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
-                    + " should parse because we set it internally: invalid value was "
-                    + allocatedProcessorsString;
-            return OptionalInt.empty();
-        }
+    private Map<List<String>, List<AssignmentPlan.Node>> createNodesByZoneMap() {
+        Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone = nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone();
+        return mlNodesByZone.entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> {
+            Collection<DiscoveryNode> discoveryNodes = e.getValue();
+            List<AssignmentPlan.Node> nodes = new ArrayList<>();
+            for (DiscoveryNode discoveryNode : discoveryNodes) {
+                if (nodeLoads.containsKey(discoveryNode)) {
+                    NodeLoad load = nodeLoads.get(discoveryNode);
+                    if (Strings.isNullOrEmpty(load.getError())) {
+                        nodes.add(
+                            new AssignmentPlan.Node(
+                                discoveryNode.getId(),
+                                // We subtract native inference memory as the planner expects available memory for
+                                // native inference including current assignments.
+                                getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(load),
+                                MlProcessors.get(discoveryNode).roundUp()
+                            )
+                        );
+                    } else {
+                        logger.warn(
+                            format("ignoring node [%s] as detecting its load failed with [%s]", discoveryNode.getId(), load.getError())
+                        );
+                    }
+                } else {
+                    logger.warn(format("ignoring node [%s] as no load could be detected", discoveryNode.getId()));
+                }
+            }
+            return nodes;
+        }));
     }
 
     private static long getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(NodeLoad load) {
@@ -238,7 +253,7 @@ class TrainedModelAssignmentRebalancer {
             // But we should also check if we managed to assign a model during the rebalance for which
             // we check if the node has used up any of its allocated processors.
             boolean isPerNodeOverheadAccountedFor = load.getNumAssignedJobsAndModels() > 0
-                || assignmentPlan.getRemainingNodeCores(load.getNodeId()) < getNodeAllocatedProcessors(node).orElse(0);
+                || assignmentPlan.getRemainingNodeCores(load.getNodeId()) < MlProcessors.get(node).roundUp();
             long requiredMemory = model.memoryBytes() + (isPerNodeOverheadAccountedFor
                 ? 0
                 : MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
@@ -267,7 +282,7 @@ class TrainedModelAssignmentRebalancer {
                     "This node has insufficient allocated processors. Available processors [{}], free processors [{}], "
                         + "processors required for each allocation of this model [{}]",
                     new Object[] {
-                        getNodeAllocatedProcessors(node).orElse(0),
+                        MlProcessors.get(node).roundUp(),
                         assignmentPlan.getRemainingNodeCores(node.getId()),
                         model.threadsPerAllocation() }
                 )

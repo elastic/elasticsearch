@@ -259,14 +259,5 @@ public final class TransportSettings {
         Setting.Property.NodeScope
     );
 
-    // Minimum version to accept during handshake in TransportService.handshake().
-    // If not set, the fallback value V_EMPTY indicates this setting should be ignored in TransportService.handshake().
-    // Example: 8.4.0 supports 7.17.0 bwc and 8.5.0 fwc, but a cluster admin may only want to accept 8.4.0 or lower.
-    public static final Setting<Version> MAX_VERSION = Setting.versionSetting(
-        "transport.max_version",
-        Version.V_EMPTY,
-        Setting.Property.NodeScope
-    );
-
     private TransportSettings() {}
 }

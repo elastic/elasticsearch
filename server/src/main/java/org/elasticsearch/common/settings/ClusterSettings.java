@@ -378,7 +378,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
         TransportSettings.RST_ON_CLOSE,
         TransportSettings.MIN_VERSION,
-        TransportSettings.MAX_VERSION,
         NetworkService.NETWORK_SERVER,
         NetworkService.GLOBAL_NETWORK_HOST_SETTING,
         NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING,

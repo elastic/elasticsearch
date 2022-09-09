@@ -81,6 +81,11 @@ public class ComputingExtractor implements HitExtractor, BucketExtractor {
     }
 
     @Override
+    public Object extract(SearchHit hit, boolean allowMultivalue) {
+        return processor.process(hit);
+    }
+
+    @Override
     public String hitName() {
         return hitName;
     }

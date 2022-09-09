@@ -17,7 +17,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
-public class SequenceKey implements Accountable {
+public class SequenceKey implements Accountable, Comparable<SequenceKey> {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SequenceKey.class);
 
@@ -62,5 +62,19 @@ public class SequenceKey implements Accountable {
     @Override
     public String toString() {
         return CollectionUtils.isEmpty(keys) ? "NONE" : Arrays.toString(keys);
+    }
+
+    @Override
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public int compareTo(SequenceKey o) {
+        for (int i = 0; i < this.keys.length && i < o.keys.length; i++) {
+            if (keys[i] instanceof Comparable) {
+                int result = ((Comparable) keys[i]).compareTo(o.keys[i]);
+                if (result != 0) {
+                    return result;
+                }
+            }
+        }
+        return this.keys.length - o.keys.length;
     }
 }

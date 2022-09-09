@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
@@ -80,17 +81,21 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     @Override
     public Object extract(SearchHit hit) {
+        return this.extract(hit, false);
+    }
+
+    @Override
+    public Object extract(SearchHit hit, boolean allowMultivalue) {
         Object value = null;
-        DocumentField field = null;
         if (hitName != null) {
-            value = unwrapFieldsMultiValue(extractNestedField(hit));
+            value = extractNestedField(hit);
         } else {
-            field = hit.field(fieldName);
+            DocumentField field = hit.field(fieldName);
             if (field != null) {
-                value = unwrapFieldsMultiValue(field.getValues());
+                value = field.getValues();
             }
         }
-        return value;
+        return unwrapFieldsMultiValue(value, allowMultivalue);
     }
 
     /*
@@ -147,13 +152,13 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return value;
     }
 
-    protected Object unwrapFieldsMultiValue(Object values) {
+    protected Object unwrapFieldsMultiValue(Object values, boolean allowMultivalue) {
         if (values == null) {
             return null;
         }
         if (values instanceof Map && hitName != null) {
             // extract the sub-field from a nested field (dep.dep_name -> dep_name)
-            return unwrapFieldsMultiValue(((Map<?, ?>) values).get(fieldName.substring(hitName.length() + 1)));
+            return unwrapFieldsMultiValue(((Map<?, ?>) values).get(fieldName.substring(hitName.length() + 1)), allowMultivalue);
         }
         if (values instanceof List<?> list) {
             if (list.isEmpty()) {
@@ -161,7 +166,11 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             } else {
                 if (isPrimitive(list) == false) {
                     if (list.size() == 1 || arrayLeniency) {
-                        return unwrapFieldsMultiValue(list.get(0));
+                        return unwrapFieldsMultiValue(list.get(0), allowMultivalue);
+                    } else if (allowMultivalue) {
+                        values = ((List<?>) values).stream()
+                            .map(x -> unwrapFieldsMultiValue(x, false)) // no arrays of arrays
+                            .collect(Collectors.toList());
                     } else {
                         throw new QlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
                     }
@@ -169,12 +178,21 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             }
         }
 
-        Object unwrapped = unwrapCustomValue(values);
-        if (unwrapped != null) {
+        Object unwrapped = null;
+        if (values instanceof List<?>) {
+            unwrapped = ((List<?>) values).stream().map(x -> unwrapCustomValue(x)).filter(Objects::nonNull).collect(Collectors.toList());
+        } else {
+            unwrapped = unwrapCustomValue(values);
+        }
+        if (unwrapped != null && isEmptyList(unwrapped) == false) {
             return unwrapped;
         }
 
         return values;
+    }
+
+    private boolean isEmptyList(Object unwrapped) {
+        return unwrapped instanceof List && ((List) unwrapped).isEmpty();
     }
 
     protected abstract Object unwrapCustomValue(Object values);

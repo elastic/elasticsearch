@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -620,17 +621,64 @@ public class TumblingWindow implements Executable {
 
             return new Iterator<>() {
 
+                SearchHit lastHit = delegate.hasNext() ? delegate.next() : null;
+                List<Object[]> remainingHitJoinKeys = extractJoinKeys(lastHit);
+
+                /**
+                 * extract the join key from a hit. If there are multivalues, the result is the cartesian product.
+                 * eg.
+                 * - if the key is ['a', 'b'], the result is a list containing ['a', 'b']
+                 * - if the key is ['a', ['b', 'c]], the result is a list containing ['a', 'b'] and ['a', 'c']
+                 */
+                private List<Object[]> extractJoinKeys(SearchHit hit) {
+                    if (hit == null) {
+                        return null;
+                    }
+                    Object[] originalKeys = criterion.key(hit);
+
+                    List<Object[]> partial = new ArrayList<>();
+                    partial.add(originalKeys == null ? null : new Object[originalKeys.length]);
+
+                    for (int i = 0; originalKeys != null && i < originalKeys.length; i++) {
+                        if (originalKeys[i] instanceof List<?>) {
+                            List<Object[]> newPartial = new ArrayList<>();
+                            List<?> possibleValues = (List<?>) originalKeys[i];
+                            for (Object possibleValue : possibleValues) {
+                                for (Object[] partialKey : partial) {
+                                    Object[] newKey = new Object[originalKeys.length];
+                                    if (i > 0) {
+                                        System.arraycopy(partialKey, 0, newKey, 0, i);
+                                    }
+                                    newKey[i] = possibleValue;
+                                    newPartial.add(newKey);
+                                }
+                            }
+                            partial = newPartial;
+                        } else {
+                            for (Object[] key : partial) {
+                                key[i] = originalKeys[i];
+                            }
+                        }
+                    }
+                    return partial;
+                }
+
                 @Override
                 public boolean hasNext() {
-                    return delegate.hasNext();
+                    return remainingHitJoinKeys != null && remainingHitJoinKeys.isEmpty() == false || delegate.hasNext();
                 }
 
                 @Override
                 public Tuple<KeyAndOrdinal, HitReference> next() {
-                    SearchHit hit = delegate.next();
-                    SequenceKey k = key(criterion.key(hit));
-                    Ordinal o = criterion.ordinal(hit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(qualifiedIndex(hit)), hit.getId()));
+                    if (remainingHitJoinKeys.isEmpty()) {
+                        lastHit = delegate.next();
+                        remainingHitJoinKeys = extractJoinKeys(lastHit);
+                    }
+                    Object[] joinKeys = remainingHitJoinKeys.remove(0);
+
+                    SequenceKey k = key(joinKeys);
+                    Ordinal o = criterion.ordinal(lastHit);
+                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(qualifiedIndex(lastHit)), lastHit.getId()));
                 }
             };
         };

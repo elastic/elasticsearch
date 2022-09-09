@@ -537,5 +537,10 @@ public class CircuitBreakerTests extends ESTestCase {
         public Timestamp extract(SearchHit hit) {
             return Timestamp.of(String.valueOf(hit.docId()));
         }
+
+        @Override
+        public Object extract(SearchHit hit, boolean allowMultivalue) {
+            return extract(hit);
+        }
     }
 }

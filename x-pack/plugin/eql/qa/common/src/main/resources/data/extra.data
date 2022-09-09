@@ -2,26 +2,31 @@
  {
   "@timestamp": "1",
   "event_type": "REQUEST",
-  "transID": 1234,
-  "sequence": 1
+  "transID": [1234, 599999],
+  "sequence": 1,
+  "tags": ["tag1", "tag2"]
  },
  {
   "@timestamp": "2",
   "event_type": "ERROR",
   "transID": 1234,
-  "sequence": 2
+  "sequence": 2,
+  "tags": "tag1"
  },
  {
   "@timestamp": "3",
   "event_type": "STAT",
-  "transID": 1234,
-  "sequence": 3
+  "transID": [1234, 9876554],
+  "sequence": 3,
+  "tags": ["tag3", "tag4"]
  },
  {
   "@timestamp": "10",
   "event_type": "REQUEST",
   "transID": 1235,
-  "sequence": 4
+  "sequence": 4,
+  "tags": ["tag3", "tag4"],
+  "items": ["item1", "item2", "item3"]
  },
  {
   "@timestamp": "11",
@@ -58,13 +63,15 @@
   "event_type": "process",
   "transID": 1,
   "process.pid": 123,
-  "sequence": 10
+  "sequence": 10,
+  "tags": "tag6"
  },
  {
   "@timestamp": "1",
   "event_type": "process",
   "transID": 2,
-  "sequence": 11
+  "sequence": 11,
+  "tags": ["tag5", "tag6"]
  },
  {
   "@timestamp": "2",
@@ -149,7 +156,8 @@
   "process.entity_id": 512,
   "process.pid": 123,
   "version": "bad",
-  "sequence": 22
+  "sequence": 22,
+  "tags": []
  },
  {
   "@timestamp": "12",
@@ -158,6 +166,8 @@
   "process.entity_id": 512,
   "process.pid": 123,
   "version": "1.2.4-SNAPSHOT",
-  "sequence": 23
+  "sequence": 23,
+  "tags": ["tag1", "tag3", "tag4"],
+  "items": ["item0", "item1", "item2"]
  }
 ]

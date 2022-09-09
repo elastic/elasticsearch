@@ -37,6 +37,11 @@ public class ScoreExtractor implements HitExtractor {
 
     @Override
     public Object extract(SearchHit hit) {
+        return extract(hit, false);
+    }
+
+    @Override
+    public Object extract(SearchHit hit, boolean allowMultivalue) {
         return hit.getScore();
     }
 

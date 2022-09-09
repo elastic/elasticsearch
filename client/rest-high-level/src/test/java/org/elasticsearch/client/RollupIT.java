@@ -170,7 +170,6 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(responseException.status().getStatus(), is(404));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67749")
     public void testPutStartAndGetRollupJob() throws Exception {
         // TODO expand this to also test with histogram and terms?
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));

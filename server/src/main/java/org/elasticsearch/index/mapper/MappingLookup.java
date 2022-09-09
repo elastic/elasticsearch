@@ -221,10 +221,9 @@ public final class MappingLookup {
     }
 
     /**
-     * Returns the sum of all mappings, including field mappers (inclusive of alias fields and objects' flattened leaves), object mappers,
-     * and runtime fields.
+     * Returns the total number of fields defined in the mappings, including field mappers, object mappers as well as runtime fields.
      */
-    public long getTotalMappings() {
+    public long getTotalFieldsCount() {
         return fieldMappers.size() + objectMappers.size() + runtimeFieldMappersCount;
     }
 
@@ -273,8 +272,7 @@ public final class MappingLookup {
     }
 
     void checkFieldLimit(long limit, int additionalFieldsToAdd) {
-        if (fieldMappers.size() + objectMappers.size() + runtimeFieldMappersCount + additionalFieldsToAdd - mapping
-            .getSortedMetadataMappers().length > limit) {
+        if (getTotalFieldsCount() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
             throw new IllegalArgumentException(
                 "Limit of total fields ["
                     + limit

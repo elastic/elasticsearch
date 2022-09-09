@@ -113,6 +113,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
      * Tests that if an *index* structure creation fails on relocation to a new node, the shard
      * is not stuck but properly failed.
      */
+    @AwaitsFix(bugUrl = "desired balance")
     public void testIndexShardFailedOnRelocation() throws Throwable {
         String node1 = internalCluster().startNode();
         client().admin()

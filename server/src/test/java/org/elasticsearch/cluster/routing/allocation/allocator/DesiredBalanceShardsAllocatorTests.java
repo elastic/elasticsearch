@@ -180,14 +180,17 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
     private static final String TEST_INDEX = "test-index";
 
+    @AwaitsFix(bugUrl = "desired balance")
     public void testGatewayAllocatorPreemptsAllocation() {
         testAllocate(GatewayAllocatorBehaviour.ALLOCATE);
     }
 
+    @AwaitsFix(bugUrl = "desired balance")
     public void testGatewayAllocatorStillFetching() {
         testAllocate(GatewayAllocatorBehaviour.STILL_FETCHING);
     }
 
+    @AwaitsFix(bugUrl = "desired balance")
     public void testGatewayAllocatorDoesNothing() {
         testAllocate(GatewayAllocatorBehaviour.DO_NOTHING);
     }
@@ -398,6 +401,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         terminate(threadPool);
     }
 
+
+    @AwaitsFix(bugUrl = "desired balance")
     public void testCallListenersOnlyAfterProducingFreshInput() {
 
         var secondInputSubmitted = new CountDownLatch(1);
@@ -513,6 +518,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
     }
 
+
+    @AwaitsFix(bugUrl = "desired balance")
     public void testFailListenersOnNoLongerMasterException() throws Exception {
 
         var node1 = createDiscoveryNode("node-1");
@@ -586,6 +593,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
     }
 
+
+    @AwaitsFix(bugUrl = "desired balance")
     public void testConcurrency() throws Exception {
 
         var threadPool = new TestThreadPool(getTestName());

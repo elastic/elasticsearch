@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -523,14 +522,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final State state;
 
-    private final ImmutableOpenMap<String, AliasMetadata> aliases;
+    private final Map<String, AliasMetadata> aliases;
 
     private final Settings settings;
 
     @Nullable
     private final MappingMetadata mapping;
 
-    private final ImmutableOpenMap<String, DiffableStringMap> customData;
+    private final Map<String, DiffableStringMap> customData;
 
     private final Map<Integer, Set<String>> inSyncAllocationIds;
 
@@ -545,7 +544,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Version indexCompatibilityVersion;
 
     private final ActiveShardCount waitForActiveShards;
-    private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
+    private final Map<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
     private final boolean isHidden;
 
@@ -592,8 +591,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int numberOfReplicas,
         final Settings settings,
         final MappingMetadata mapping,
-        final ImmutableOpenMap<String, AliasMetadata> aliases,
-        final ImmutableOpenMap<String, DiffableStringMap> customData,
+        final Map<String, AliasMetadata> aliases,
+        final Map<String, DiffableStringMap> customData,
         final Map<Integer, Set<String>> inSyncAllocationIds,
         final DiscoveryNodeFilters requireFilters,
         final DiscoveryNodeFilters initialRecoveryFilters,
@@ -604,7 +603,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int routingPartitionSize,
         final List<String> routingPaths,
         final ActiveShardCount waitForActiveShards,
-        final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
+        final Map<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
         final boolean isHidden,
         final IndexLongFieldRange timestampRange,
@@ -639,8 +638,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.totalNumberOfShards = numberOfShards * (numberOfReplicas + 1);
         this.settings = settings;
         this.mapping = mapping;
-        this.customData = customData;
-        this.aliases = aliases;
+        this.customData = Map.copyOf(customData);
+        this.aliases = Map.copyOf(aliases);
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.requireFilters = requireFilters;
         this.includeFilters = includeFilters;
@@ -652,7 +651,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.routingPartitionSize = routingPartitionSize;
         this.routingPaths = routingPaths;
         this.waitForActiveShards = waitForActiveShards;
-        this.rolloverInfos = rolloverInfos;
+        this.rolloverInfos = Map.copyOf(rolloverInfos);
         this.isSystem = isSystem;
         assert isHidden == INDEX_HIDDEN_SETTING.get(settings);
         this.isHidden = isHidden;
@@ -1342,11 +1341,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Settings settings;
         @Nullable
         private final Diff<Settings> settingsDiff;
-        private final Diff<ImmutableOpenMap<String, MappingMetadata>> mappings;
-        private final Diff<ImmutableOpenMap<String, AliasMetadata>> aliases;
-        private final Diff<ImmutableOpenMap<String, DiffableStringMap>> customData;
+        private final Diff<Map<String, MappingMetadata>> mappings;
+        private final Diff<Map<String, AliasMetadata>> aliases;
+        private final Diff<Map<String, DiffableStringMap>> customData;
         private final Diff<Map<Integer, Set<String>>> inSyncAllocationIds;
-        private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
+        private final Diff<Map<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
         private final IndexLongFieldRange timestampRange;
 
@@ -1363,12 +1362,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             primaryTerms = after.primaryTerms;
             // TODO: find a nicer way to do BwC here and just work with Diff<MappingMetadata> here and in networking
             mappings = DiffableUtils.diff(
-                before.mapping == null
-                    ? ImmutableOpenMap.of()
-                    : ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, before.mapping).build(),
-                after.mapping == null
-                    ? ImmutableOpenMap.of()
-                    : ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, after.mapping).build(),
+                before.mapping == null ? Map.of() : Map.of(MapperService.SINGLE_MAPPING_NAME, before.mapping),
+                after.mapping == null ? Map.of() : Map.of(MapperService.SINGLE_MAPPING_NAME, after.mapping),
                 DiffableUtils.getStringKeySerializer()
             );
             aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
@@ -1413,19 +1408,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 settingsDiff = null;
             }
             primaryTerms = in.readVLongArray();
-            mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
-            aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), ALIAS_METADATA_DIFF_VALUE_READER);
-            customData = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_DIFF_VALUE_READER);
+            mappings = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
+            aliases = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), ALIAS_METADATA_DIFF_VALUE_READER);
+            customData = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_DIFF_VALUE_READER);
             inSyncAllocationIds = DiffableUtils.readJdkMapDiff(
                 in,
                 DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance()
             );
-            rolloverInfos = DiffableUtils.readImmutableOpenMapDiff(
-                in,
-                DiffableUtils.getStringKeySerializer(),
-                ROLLOVER_INFO_DIFF_VALUE_READER
-            );
+            rolloverInfos = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), ROLLOVER_INFO_DIFF_VALUE_READER);
             if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 isSystem = in.readBoolean();
             } else {
@@ -1479,13 +1470,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.settings(settingsDiff.apply(part.settings));
             }
             builder.primaryTerms(primaryTerms);
-            builder.mapping = mappings.apply(
-                ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, part.mapping).build()
-            ).get(MapperService.SINGLE_MAPPING_NAME);
-            builder.aliases.putAllFromMap(aliases.apply(part.aliases));
-            builder.customMetadata.putAllFromMap(customData.apply(part.customData));
+            builder.mapping = mappings.apply(Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, part.mapping))
+                .get(MapperService.SINGLE_MAPPING_NAME);
+            builder.aliases.putAll(aliases.apply(part.aliases));
+            builder.customMetadata.putAll(customData.apply(part.customData));
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
-            builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
+            builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
             return builder.build();
@@ -1628,10 +1618,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private long[] primaryTerms = null;
         private Settings settings = Settings.EMPTY;
         private MappingMetadata mapping;
-        private final ImmutableOpenMap.Builder<String, AliasMetadata> aliases;
-        private final ImmutableOpenMap.Builder<String, DiffableStringMap> customMetadata;
+        private final Map<String, AliasMetadata> aliases;
+        private final Map<String, DiffableStringMap> customMetadata;
         private final Map<Integer, Set<String>> inSyncAllocationIds;
-        private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
+        private final Map<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
         private boolean isSystem;
         private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
@@ -1639,10 +1629,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder(String index) {
             this.index = index;
-            this.aliases = ImmutableOpenMap.builder();
-            this.customMetadata = ImmutableOpenMap.builder();
+            this.aliases = new HashMap<>();
+            this.customMetadata = new HashMap<>();
             this.inSyncAllocationIds = new HashMap<>();
-            this.rolloverInfos = ImmutableOpenMap.builder();
+            this.rolloverInfos = new HashMap<>();
             this.isSystem = false;
         }
 
@@ -1656,11 +1646,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.settings = indexMetadata.getSettings();
             this.primaryTerms = indexMetadata.primaryTerms.clone();
             this.mapping = indexMetadata.mapping;
-            this.aliases = ImmutableOpenMap.builder(indexMetadata.aliases);
-            this.customMetadata = ImmutableOpenMap.builder(indexMetadata.customData);
+            this.aliases = new HashMap<>(indexMetadata.aliases);
+            this.customMetadata = new HashMap<>(indexMetadata.customData);
             this.routingNumShards = indexMetadata.routingNumShards;
             this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
-            this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
+            this.rolloverInfos = new HashMap<>(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
             this.lifecycleExecutionState = indexMetadata.lifecycleExecutionState;
@@ -1985,7 +1975,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 tierPreference = null;
             }
 
-            ImmutableOpenMap<String, DiffableStringMap> newCustomMetadata = customMetadata.build();
+            Map<String, DiffableStringMap> newCustomMetadata = new HashMap<>(customMetadata);
             Map<String, String> custom = newCustomMetadata.get(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
             if (custom != null && custom.isEmpty() == false) {
                 lifecycleExecutionState = LifecycleExecutionState.fromCustomMetadata(custom);
@@ -2010,7 +2000,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 numberOfReplicas,
                 settings,
                 mapping,
-                aliases.build(),
+                aliases,
                 newCustomMetadata,
                 Map.ofEntries(denseInSyncAllocationIds),
                 requireFilters,
@@ -2022,7 +2012,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 routingPartitionSize,
                 routingPaths,
                 waitForActiveShards,
-                rolloverInfos.build(),
+                rolloverInfos,
                 isSystem,
                 INDEX_HIDDEN_SETTING.get(settings),
                 timestampRange,

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -206,10 +205,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private final Settings persistentSettings;
     private final Settings settings;
     private final DiffableStringMap hashesOfConsistentSettings;
-    private final ImmutableOpenMap<String, IndexMetadata> indices;
-    private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
-    private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final Map<String, IndexMetadata> indices;
+    private final Map<String, Set<Index>> aliasedIndices;
+    private final Map<String, IndexTemplateMetadata> templates;
+    private final Map<String, Custom> customs;
     private final Map<String, ReservedStateMetadata> reservedStateMetadata;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
@@ -238,10 +237,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         DiffableStringMap hashesOfConsistentSettings,
         int totalNumberOfShards,
         int totalOpenIndexShards,
-        ImmutableOpenMap<String, IndexMetadata> indices,
-        ImmutableOpenMap<String, Set<Index>> aliasedIndices,
-        ImmutableOpenMap<String, IndexTemplateMetadata> templates,
-        ImmutableOpenMap<String, Custom> customs,
+        Map<String, IndexMetadata> indices,
+        Map<String, Set<Index>> aliasedIndices,
+        Map<String, IndexTemplateMetadata> templates,
+        Map<String, Custom> customs,
         String[] allIndices,
         String[] visibleIndices,
         String[] allOpenIndices,
@@ -261,10 +260,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         this.persistentSettings = persistentSettings;
         this.settings = settings;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
-        this.indices = indices;
-        this.aliasedIndices = aliasedIndices;
-        this.customs = customs;
-        this.templates = templates;
+        this.indices = Map.copyOf(indices);
+        this.aliasedIndices = Map.copyOf(aliasedIndices);
+        this.customs = Map.copyOf(customs);
+        this.templates = Map.copyOf(templates);
         this.totalNumberOfShards = totalNumberOfShards;
         this.totalOpenIndexShards = totalOpenIndexShards;
         this.allIndices = allIndices;
@@ -334,8 +333,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap());
 
         // drop it into the indices
-        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
-        builder.put(index.getName(), indexMetadataBuilder.build());
+        var updatedIndices = new HashMap<>(indices);
+        updatedIndices.put(index.getName(), indexMetadataBuilder.build());
 
         // construct a new Metadata object directly rather than using Metadata.builder(this).[...].build().
         // the Metadata.Builder validation needs to handle the general case where anything at all could
@@ -352,7 +351,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             hashesOfConsistentSettings,
             totalNumberOfShards,
             totalOpenIndexShards,
-            builder.build(),
+            Map.copyOf(updatedIndices),
             aliasedIndices,
             templates,
             customs,
@@ -409,8 +408,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         if (updates.isEmpty()) {
             return this;
         }
-        final var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
-        updatedIndicesBuilder.putAllFromMap(updates);
+        var updatedIndices = new HashMap<>(indices);
+        updatedIndices.putAll(updates);
         return new Metadata(
             clusterUUID,
             clusterUUIDCommitted,
@@ -422,7 +421,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             hashesOfConsistentSettings,
             totalNumberOfShards,
             totalOpenIndexShards,
-            updatedIndicesBuilder.build(),
+            updatedIndices,
             aliasedIndices,
             templates,
             customs,
@@ -560,7 +559,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
+            return Collections.emptyMap();
         }
         String[] patterns = new String[aliases.length];
         boolean[] include = new boolean[aliases.length];
@@ -575,7 +574,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
         }
         boolean matchAllAliases = patterns.length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
+        Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = indices.get(index);
             List<AliasMetadata> filteredValues = new ArrayList<>();
@@ -602,7 +601,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
         }
-        return mapBuilder.build();
+        return Collections.unmodifiableMap(mapBuilder);
     }
 
     /**
@@ -623,10 +622,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
+            return Collections.emptyMap();
         }
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
+        Map<String, MappingMetadata> indexMapBuilder = new HashMap<>();
         Set<String> indicesKeys = indices.keySet();
         Stream.of(concreteIndices).filter(indicesKeys::contains).forEach(index -> {
             onNextIndex.run();
@@ -634,7 +633,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
             indexMapBuilder.put(index, filterFields(indexMetadata.mapping(), fieldPredicate));
         });
-        return indexMapBuilder.build();
+        return Collections.unmodifiableMap(indexMapBuilder);
     }
 
     /**
@@ -642,7 +641,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      */
     public Map<String, IndexAbstraction.DataStream> findDataStreams(String... concreteIndices) {
         assert concreteIndices != null;
-        final ImmutableOpenMap.Builder<String, IndexAbstraction.DataStream> builder = ImmutableOpenMap.builder();
+        final Map<String, IndexAbstraction.DataStream> builder = new HashMap<>();
         final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
         for (String indexName : concreteIndices) {
             IndexAbstraction index = lookup.get(indexName);
@@ -652,7 +651,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 builder.put(indexName, index.getParentDataStream());
             }
         }
-        return builder.build();
+        return Collections.unmodifiableMap(builder);
     }
 
     @SuppressWarnings("unchecked")
@@ -1158,9 +1157,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private final Settings transientSettings;
         private final Settings persistentSettings;
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
-        private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
-        private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<Map<String, IndexMetadata>> indices;
+        private final Diff<Map<String, IndexTemplateMetadata>> templates;
+        private final Diff<Map<String, Custom>> customs;
         private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
         MetadataDiff(Metadata before, Metadata after) {
@@ -1200,9 +1199,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             } else {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
             }
-            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
-            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            indices = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
+            templates = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
+            customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
                 reservedStateMetadata = DiffableUtils.readJdkMapDiff(
                     in,
@@ -1353,10 +1352,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private Settings persistentSettings = Settings.EMPTY;
         private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
-        private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
-        private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
-        private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
-        private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final Map<String, IndexMetadata> indices;
+        private final Map<String, Set<Index>> aliasedIndices;
+        private final Map<String, IndexTemplateMetadata> templates;
+        private final Map<String, Custom> customs;
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
 
@@ -1382,10 +1381,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             this.persistentSettings = metadata.persistentSettings;
             this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
-            this.indices = ImmutableOpenMap.builder(metadata.indices);
-            this.aliasedIndices = ImmutableOpenMap.builder(metadata.aliasedIndices);
-            this.templates = ImmutableOpenMap.builder(metadata.templates);
-            this.customs = ImmutableOpenMap.builder(metadata.customs);
+            this.indices = new HashMap<>(metadata.indices);
+            this.aliasedIndices = new HashMap<>(metadata.aliasedIndices);
+            this.templates = new HashMap<>(metadata.templates);
+            this.customs = new HashMap<>(metadata.customs);
             this.previousIndicesLookup = metadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
             this.checkForUnusedMappings = false;
@@ -1394,10 +1393,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         private Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
-            indices = ImmutableOpenMap.builder(indexCountHint);
-            aliasedIndices = ImmutableOpenMap.builder();
-            templates = ImmutableOpenMap.builder();
-            customs = ImmutableOpenMap.builder();
+            indices = new HashMap<>(indexCountHint);
+            aliasedIndices = new HashMap<>();
+            templates = new HashMap<>();
+            customs = new HashMap<>();
             reservedStateMetadata = new HashMap<>();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
             previousIndicesLookup = null;
@@ -1608,7 +1607,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder templates(Map<String, IndexTemplateMetadata> templates) {
-            this.templates.putAllFromMap(templates);
+            this.templates.putAll(templates);
             return this;
         }
 
@@ -1676,13 +1675,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 dataStream.validate(indices::get);
             }
 
-            this.customs.put(
-                DataStreamMetadata.TYPE,
-                new DataStreamMetadata(
-                    ImmutableOpenMap.<String, DataStream>builder().putAllFromMap(dataStreams).build(),
-                    ImmutableOpenMap.<String, DataStreamAlias>builder().putAllFromMap(dataStreamAliases).build()
-                )
-            );
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
             return this;
         }
 
@@ -1748,13 +1741,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder removeCustomIf(BiPredicate<String, Custom> p) {
-            customs.removeAll(p);
+            customs.entrySet().removeIf(e -> p.test(e.getKey(), e.getValue()));
             return this;
         }
 
         public Builder customs(Map<String, Custom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
-            this.customs.putAllFromMap(customs);
+            this.customs.putAll(customs);
             return this;
         }
 
@@ -1799,7 +1792,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder updateSettings(Settings settings, String... indices) {
             if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(new String[0]);
+                indices = this.indices.keySet().toArray(new String[0]);
             }
             for (String index : indices) {
                 IndexMetadata indexMetadata = this.indices.get(index);
@@ -1908,7 +1901,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final List<String> visibleOpenIndices = new ArrayList<>();
             final List<String> allClosedIndices = new ArrayList<>();
             final List<String> visibleClosedIndices = new ArrayList<>();
-            final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
+            final Map<String, IndexMetadata> indicesMap = indices;
 
             int oldestIndexVersionId = Version.CURRENT.id;
             int totalNumberOfShards = 0;
@@ -1947,7 +1940,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 }
             }
 
-            var aliasedIndices = this.aliasedIndices.build();
+            var aliasedIndices = this.aliasedIndices;
             for (var entry : aliasedIndices.entrySet()) {
                 List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
                 validateAlias(entry.getKey(), aliasIndices);
@@ -1990,8 +1983,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 totalOpenIndexShards,
                 indicesMap,
                 aliasedIndices,
-                templates.build(),
-                customs.build(),
+                templates,
+                customs,
                 allIndicesArray,
                 visibleIndicesArray,
                 allOpenIndicesArray,
@@ -2007,7 +2000,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         private static void ensureNoNameCollisions(
             Set<String> indexAliases,
-            ImmutableOpenMap<String, IndexMetadata> indicesMap,
+            Map<String, IndexMetadata> indicesMap,
             DataStreamMetadata dataStreamMetadata
         ) {
             final ArrayList<String> duplicates = new ArrayList<>();
@@ -2059,7 +2052,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
          * Iterates the detected duplicates between datastreams and aliases and collects them into the duplicates list as helpful messages.
          */
         private static void collectAliasDuplicates(
-            ImmutableOpenMap<String, IndexMetadata> indicesMap,
+            Map<String, IndexMetadata> indicesMap,
             DataStreamMetadata dataStreamMetadata,
             Set<String> aliasDuplicatesWithDataStreams,
             ArrayList<String> duplicates
@@ -2084,7 +2077,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
          * Collect all duplicate names across indices and aliases that were detected into a list of helpful duplicate failure messages.
          */
         private static void collectAliasDuplicates(
-            ImmutableOpenMap<String, IndexMetadata> indicesMap,
+            Map<String, IndexMetadata> indicesMap,
             Set<String> aliasDuplicatesWithIndices,
             ArrayList<String> duplicates
         ) {
@@ -2099,7 +2092,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         static SortedMap<String, IndexAbstraction> buildIndicesLookup(
             DataStreamMetadata dataStreamMetadata,
-            ImmutableOpenMap<String, IndexMetadata> indices
+            Map<String, IndexMetadata> indices
         ) {
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
             Map<String, IndexAbstraction.DataStream> indexToDataStreamLookup = new HashMap<>();

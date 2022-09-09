@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -149,9 +148,9 @@ public class MetadataDeleteIndexService {
         final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
         RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
         if (updatedRestoreInProgress != restoreInProgress) {
-            ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);
+            Map<String, ClusterState.Custom> builder = new HashMap<>(customs);
             builder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-            customs = builder.build();
+            customs = builder;
         }
 
         return allocationService.reroute(

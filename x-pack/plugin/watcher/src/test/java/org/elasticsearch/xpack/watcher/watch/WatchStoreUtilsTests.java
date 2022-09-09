@@ -10,12 +10,10 @@ package org.elasticsearch.xpack.watcher.watch;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -48,11 +46,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
                 indexNames.stream().map(indexName -> new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE)).collect(Collectors.toList())
             )
         );
-        ImmutableOpenMap<String, DataStreamAlias> dataStreamAliases = ImmutableOpenMap.of();
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(
-            ImmutableOpenMap.<String, DataStream>builder().putAllFromMap(dataStreams).build(),
-            dataStreamAliases
-        );
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(dataStreams, Map.of());
         customsBuilder.put(DataStreamMetadata.TYPE, dataStreamMetadata);
         metadataBuilder.customs(customsBuilder);
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(dataStreamName, metadataBuilder.build());

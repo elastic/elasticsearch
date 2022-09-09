@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -134,10 +135,14 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             assertThat(recentMasterMap.get("name"), not(emptyOrNullString()));
             assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
         }
-        Map<String, String> clusterFormationMap = (Map<String, String>) detailsMap.get("cluster_formation");
-        assertThat(clusterFormationMap.size(), equalTo(2));
-        assertThat(clusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
-        assertThat(clusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
+        List<Map<String, String>> clusterFormations = (List<Map<String, String>>) detailsMap.get("cluster_formation");
+        assertThat(clusterFormations.size(), equalTo(2));
+        Map<String, String> nodeToClusterFormationMap = new HashMap<>();
+        for (Map<String, String> clusterFormationMap : clusterFormations) {
+            nodeToClusterFormationMap.put(clusterFormationMap.get("node_id"), clusterFormationMap.get("cluster_formation_message"));
+        }
+        assertThat(nodeToClusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
+        assertThat(nodeToClusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
         List<Diagnosis> diagnosis = result.diagnosisList();
         assertThat(diagnosis.size(), equalTo(1));
         assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));

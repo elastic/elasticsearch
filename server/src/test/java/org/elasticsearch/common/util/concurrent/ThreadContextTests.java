@@ -64,7 +64,6 @@ public class ThreadContextTests extends ESTestCase {
         // foo is the only existing transient header that is cleared
         try (
             ThreadContext.StoredContext stashed = threadContext.newStoredContext(
-                false,
                 randomFrom(List.of("foo", "foo"), List.of("foo"), List.of("foo", "acme"))
             )
         ) {
@@ -105,7 +104,6 @@ public class ThreadContextTests extends ESTestCase {
         // test stashed missing header stays missing
         try (
             ThreadContext.StoredContext stashed = threadContext.newStoredContext(
-                randomBoolean(),
                 randomFrom(Arrays.asList("acme", "acme"), Arrays.asList("acme"))
             )
         ) {
@@ -113,22 +111,6 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.putTransient("acme", "foo");
         }
         assertNull(threadContext.getTransient("acme"));
-
-        // test preserved response headers
-        try (
-            ThreadContext.StoredContext stashed = threadContext.newStoredContext(
-                true,
-                randomFrom(List.of("foo", "foo"), List.of("foo"), List.of("foo", "acme"))
-            )
-        ) {
-            threadContext.addResponseHeader("baz", "bar");
-            threadContext.addResponseHeader("foo", "baz");
-        }
-        assertEquals("bar", threadContext.getResponseHeaders().get("foo").get(0));
-        assertEquals("baz", threadContext.getResponseHeaders().get("foo").get(1));
-        assertEquals(2, threadContext.getResponseHeaders().get("foo").size());
-        assertEquals("bar", threadContext.getResponseHeaders().get("baz").get(0));
-        assertEquals(1, threadContext.getResponseHeaders().get("baz").size());
     }
 
     public void testStashWithOrigin() {
@@ -188,7 +170,7 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
-        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(false);
+        ThreadContext.StoredContext storedContext = threadContext.newStoredContext();
         threadContext.putHeader("foo.bar", "baz");
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertNull(threadContext.getHeader("foo"));

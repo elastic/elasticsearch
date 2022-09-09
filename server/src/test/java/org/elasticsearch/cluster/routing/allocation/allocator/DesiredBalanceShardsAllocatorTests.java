@@ -64,6 +64,117 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
+    public void testAllocate() throws Exception {
+
+        var settings = Settings.EMPTY;
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+
+        var clusterService = new ClusterService(
+            settings,
+            clusterSettings,
+            new FakeThreadPoolMasterService("node-1", "test", threadPool, deterministicTaskQueue::scheduleNow),
+            new ClusterApplierService("node-1", settings, clusterSettings, threadPool)
+        );
+
+        var localNode = new DiscoveryNode(
+            "node-1",
+            "node-1",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
+
+        var initialState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
+
+        clusterService.getClusterApplierService().setInitialState(initialState);
+        clusterService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
+        clusterService.getMasterService()
+            .setClusterStatePublisher(ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService()));
+        clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
+        clusterService.start();
+
+        var allocationServiceRef = new SetOnce<AllocationService>();
+
+        final var reconcileAction = new DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction() {
+            @Override
+            public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+            }
+        };
+
+        final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+                final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
+                final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    unassignedIterator.next();
+                    unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
+                }
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        }, threadPool, clusterService, reconcileAction);
+
+        final var allocationService = new AllocationService(new AllocationDeciders(List.of()), new GatewayAllocator() {
+
+            @Override
+            public void beforeAllocation(RoutingAllocation allocation) {}
+
+            @Override
+            public void allocateUnassigned(
+                ShardRouting shardRouting,
+                RoutingAllocation allocation,
+                UnassignedAllocationHandler unassignedAllocationHandler
+            ) {
+                unassignedAllocationHandler.initialize(allocation.nodes().getLocalNodeId(), null, 0L, allocation.changes());
+            }
+
+            @Override
+            public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+        }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
+        allocationServiceRef.set(allocationService);
+
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                var indexMetadata = createIndex("index-1");
+                var newState = ClusterState.builder(currentState)
+                    .metadata(Metadata.builder().put(indexMetadata, true))
+                    .routingTable(RoutingTable.builder().addAsNew(indexMetadata))
+                    .build();
+                return allocationService.reroute(newState, "test", ActionListener.noop());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        deterministicTaskQueue.runAllTasks();
+
+        try {
+            // see org.elasticsearch.cluster.service.ClusterApplierService.threadPoolExecutor
+            assertBusy(() -> {
+                var routing = clusterService.state().routingTable();
+                assertTrue(routing.hasIndex("index-1"));
+                assertTrue(routing.index("index-1").shard(0).primaryShard().assignedToNode());
+            });
+        } finally {
+            clusterService.close();
+        }
+    }
+
     private static final String TEST_INDEX = "test-index";
 
     public void testGatewayAllocatorPreemptsAllocation() {

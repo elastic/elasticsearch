@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
@@ -971,13 +970,20 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             builder.field("assigned", assigned);
             builder.field("assigned_shards", assignedShardIds.stream().limit(MAX_AMOUNT_OF_SHARDS).toList());
             builder.field("assigned_shards_count", assignedShardIds.size());
-            AbstractAllocationDecision.nodeDecisionsToXContent(
-                unassignedAllocationResults,
-                builder,
-                params,
-                "unassigned_allocation_results"
-            );
-            AbstractAllocationDecision.nodeDecisionsToXContent(assignedAllocationResults, builder, params, "assigned_allocation_results");
+            if (unassignedAllocationResults != null && unassignedAllocationResults.size() > 0) {
+                builder.startArray("unassigned_allocation_results");
+                for (NodeAllocationResult explanation : unassignedAllocationResults) {
+                    explanation.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
+            if (assignedAllocationResults != null && assignedAllocationResults.size() > 0) {
+                builder.startArray("assigned_allocation_results");
+                for (NodeAllocationResult explanation : assignedAllocationResults) {
+                    explanation.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
             builder.endObject();
             return builder;
         }

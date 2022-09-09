@@ -333,7 +333,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
         TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").field("c")
             .subAggregation(builder)
-            .order(BucketOrder.aggregation("test", "m",true));
+            .order(BucketOrder.aggregation("test", "m", true));
         Terms result = (Terms) collect(terms, new MatchAllDocsQuery(), writer -> {
             writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 1.0), doubleField("m", 9.0)));
             writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 2.0), doubleField("m", 3.0)));
@@ -355,7 +355,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC), 2);
         TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").field("c")
             .subAggregation(builder)
-            .order(BucketOrder.aggregation("test", "m",true));
+            .order(BucketOrder.aggregation("test", "m", true));
         Terms result = (Terms) collect(terms, new MatchAllDocsQuery(), writer -> {
             writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 1.0), doubleField("m", 9.0)));
             writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 2.0), doubleField("m", 3.0)));

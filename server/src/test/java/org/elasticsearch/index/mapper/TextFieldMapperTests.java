@@ -530,12 +530,13 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            () -> disabledMapper.fieldType("field")
+                .fielddataBuilder(new FieldDataContext("index", null, null, MappedFieldType.FielddataOperation.SEARCH))
         );
         assertThat(
             e.getMessage(),
             containsString(
-                "Field data is disabled on [field] in []. Text fields are not optimised for operations that require per-document field data"
+                "Field data is disabled on [field] in [index]. Text fields are not optimised for operations that require per-document field data"
             )
         );
 

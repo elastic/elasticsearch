@@ -10,12 +10,15 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
@@ -84,4 +87,37 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         assertThat(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), equalTo(""));
     }
 
+    public void testRemoteClusterEmptyOrNullApiKey() {
+        assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
+        // simple validation
+        Settings settings = Settings.builder()
+            .put("cluster.remote.cluster1.authorization", "apikey")
+            .put("cluster.remote.cluster2.authorization", "")
+            .put("cluster.remote.cluster3.authorization", (String) null)
+            .build();
+        try {
+            SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+        } catch (Throwable t) {
+            fail("Cluster Settings must be able to accept a null, empty, or non-empty string. Exception: " + t.getMessage());
+        }
+    }
+
+    public void testRemoteClusterAuthorizationSettingDependencies() {
+        assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
+        AbstractScopedSettings service = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION))
+        );
+        {
+            Settings missingDependentSetting = Settings.builder().put("cluster.remote.foo.authorization", randomBoolean()).build();
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> service.validate(missingDependentSetting, true)
+            );
+            assertEquals(
+                "missing required setting [cluster.remote.foo.seeds] for setting [cluster.remote.foo.authorization]",
+                iae.getMessage()
+            );
+        }
+    }
 }

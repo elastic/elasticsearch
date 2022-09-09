@@ -115,40 +115,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertEquals("failed to parse port", e.getMessage());
     }
 
-    public void testRemoteClusterEmptyOrNullApiKey() {
-        assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
-        // simple validation
-        Settings settings = Settings.builder()
-            .put("cluster.remote.cluster1.authorization", "apikey")
-            .put("cluster.remote.cluster2.authorization", "")
-            .put("cluster.remote.cluster3.authorization", (String) null)
-            .build();
-        try {
-            SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
-        } catch (Throwable t) {
-            fail("Cluster Settings must be able to accept a null, empty, or non-empty string. Exception: " + t.getMessage());
-        }
-    }
-
-    public void testRemoteClusterAuthorizationSettingDependencies() {
-        assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
-        AbstractScopedSettings service = new ClusterSettings(
-            Settings.EMPTY,
-            new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION))
-        );
-        {
-            Settings missingDependentSetting = Settings.builder().put("cluster.remote.foo.authorization", randomBoolean()).build();
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
-                () -> service.validate(missingDependentSetting, true)
-            );
-            assertEquals(
-                "missing required setting [cluster.remote.foo.seeds] for setting [cluster.remote.foo.authorization]",
-                iae.getMessage()
-            );
-        }
-    }
-
     public void testGroupClusterIndices() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (

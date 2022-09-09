@@ -46,10 +46,20 @@ public class ReactiveReasonTests extends ESTestCase {
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         DiscoveryNode discoveryNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         List<NodeAllocationResult> unassignedShardAllocationDecision = List.of(
-            new NodeAllocationResult(discoveryNode, AllocationDecision.NO, Decision.NO, 1)
+            new NodeAllocationResult(
+                discoveryNode,
+                AllocationDecision.NO,
+                Decision.single(Decision.Type.NO, "no_label", "No space to allocate"),
+                1
+            )
         );
         List<NodeAllocationResult> assignedShardAllocateDecision = List.of(
-            new NodeAllocationResult(discoveryNode, AllocationDecision.YES, Decision.YES, 1)
+            new NodeAllocationResult(
+                discoveryNode,
+                AllocationDecision.YES,
+                Decision.single(Decision.Type.YES, "yes_label", "There's enough space"),
+                1
+            )
         );
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
@@ -97,10 +107,18 @@ public class ReactiveReasonTests extends ESTestCase {
             List<Map<String, Object>> unassignedAllocateResults = (List<Map<String, Object>>) map.get("unassigned_allocation_results");
             assertEquals("no", unassignedAllocateResults.get(0).get("node_decision"));
             assertEquals("node1", unassignedAllocateResults.get(0).get("node_id"));
+            List<Map<String, Object>> unassignedDeciders = (List<Map<String, Object>>) unassignedAllocateResults.get(0).get("deciders");
+            assertEquals("NO", unassignedDeciders.get(0).get("decision"));
+            assertEquals("no_label", unassignedDeciders.get(0).get("decider"));
+            assertEquals("No space to allocate", unassignedDeciders.get(0).get("explanation"));
 
             List<Map<String, Object>> assignedAllocateResults = (List<Map<String, Object>>) map.get("assigned_allocation_results");
             assertEquals("yes", assignedAllocateResults.get(0).get("node_decision"));
             assertEquals("node1", assignedAllocateResults.get(0).get("node_id"));
+            List<Map<String, Object>> assignedDeciders = (List<Map<String, Object>>) assignedAllocateResults.get(0).get("deciders");
+            assertEquals("YES", assignedDeciders.get(0).get("decision"));
+            assertEquals("yes_label", assignedDeciders.get(0).get("decider"));
+            assertEquals("There's enough space", assignedDeciders.get(0).get("explanation"));
         }
     }
 

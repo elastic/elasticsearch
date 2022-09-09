@@ -31,7 +31,7 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class NestedSearchIT extends ESIntegTestCase {
+public class IntervalQueriesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

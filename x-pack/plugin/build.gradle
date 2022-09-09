@@ -105,6 +105,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     "roles/30_prohibited_role_query/Test use prohibited query inside role query",
     "put role request with a term lookup (deprecated) and type. Requires validation in REST layer"
   )
+  task.skipTest("ml/jobs_crud/Test update job", "Behaviour change #89824 - added limit filter to categorization analyzer")
   task.skipTest("ml/jobs_crud/Test create job with delimited format", "removing undocumented functionality")
   task.skipTest("ml/datafeeds_crud/Test update datafeed to point to missing job", "behaviour change #44752 - not allowing to update datafeed job_id")
   task.skipTest(

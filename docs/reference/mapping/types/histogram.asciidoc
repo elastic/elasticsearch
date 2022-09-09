@@ -24,9 +24,6 @@ per document. Nested arrays are not supported.
 ========
 
 [role="child_attributes"]
-[[histogram-params]]
-==== Parameters
-
 [[histogram-uses]]
 ==== Uses
 

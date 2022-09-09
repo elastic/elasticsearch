@@ -121,7 +121,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
 
     private final List<String> configuredSeedNodes;
-    private final String configuredAuthorization;
+    private final String authorization;
     private final List<Supplier<DiscoveryNode>> seedNodes;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
@@ -158,7 +158,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         int maxNumRemoteConnections,
         Predicate<DiscoveryNode> nodePredicate,
         List<String> configuredSeedNodes,
-        String configuredAuthorization
+        String authorization
     ) {
         this(
             clusterAlias,
@@ -169,7 +169,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             maxNumRemoteConnections,
             nodePredicate,
             configuredSeedNodes,
-            configuredAuthorization,
+            authorization,
             configuredSeedNodes.stream()
                 .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
                 .toList()
@@ -185,7 +185,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         int maxNumRemoteConnections,
         Predicate<DiscoveryNode> nodePredicate,
         List<String> configuredSeedNodes,
-        String configuredAuthorization,
+        String authorization,
         List<Supplier<DiscoveryNode>> seedNodes
     ) {
         super(clusterAlias, transportService, connectionManager, settings);
@@ -193,7 +193,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
         this.configuredSeedNodes = configuredSeedNodes;
-        this.configuredAuthorization = configuredAuthorization;
+        this.authorization = authorization;
         this.seedNodes = seedNodes;
     }
 
@@ -218,7 +218,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         String authorization = REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         return nodeConnections != maxNumRemoteConnections
             || seedsChanged(configuredSeedNodes, addresses)
-            || (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED && authorizationChanged(configuredAuthorization, authorization))
+            || (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED && authorizationChanged(this.authorization, authorization))
             || proxyChanged(proxyAddress, proxy);
     }
 
@@ -525,12 +525,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return oldSeeds.equals(newSeeds) == false;
     }
 
-    private static boolean authorizationChanged(String oldOptionalCredential, String newOptionalCredential) {
-        if (oldOptionalCredential == null || oldOptionalCredential.isEmpty()) {
-            return (newOptionalCredential == null || newOptionalCredential.isEmpty()) == false;
+    private static boolean authorizationChanged(String oldAuthorization, String newAuthorization) {
+        if (oldAuthorization == null || oldAuthorization.isEmpty()) {
+            return (newAuthorization == null || newAuthorization.isEmpty()) == false;
         }
 
-        return Objects.equals(oldOptionalCredential, newOptionalCredential) == false;
+        return Objects.equals(oldAuthorization, newAuthorization) == false;
     }
 
     private static boolean proxyChanged(String oldProxy, String newProxy) {

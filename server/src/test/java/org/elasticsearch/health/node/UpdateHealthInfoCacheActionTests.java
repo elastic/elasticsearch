@@ -111,7 +111,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         );
         AcknowledgedResponse actualResponse = listener.get();
         assertThat(actualResponse, equalTo(expectedResponse));
-        assertThat(healthInfoCache.getDiskHealthInfo().get(localNode.getId()), equalTo(diskHealthInfo));
+        assertThat(healthInfoCache.getHealthInfo().diskInfoByNode().get(localNode.getId()), equalTo(diskHealthInfo));
     }
 
     public void testRequestSerialization() {

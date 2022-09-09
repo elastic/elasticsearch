@@ -391,6 +391,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             coordinationState.get().handleCommit(applyCommitRequest);
             final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoMasterBlock(committedState) : committedState;
+            updateSingleNodeClusterChecker(); // in case nodes increase/decrease, possibly update the single-node checker
             if (applyCommitRequest.getSourceNode().equals(getLocalNode())) {
                 // master node applies the committed state at the end of the publication process, not here.
                 applyListener.onResponse(null);
@@ -761,8 +762,19 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    private void cancelSingleNodeClusterChecker() {
+    private void updateSingleNodeClusterChecker() {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+
+        if (mode == Mode.LEADER && applierState.nodes().size() == 1) {
+            if (singleNodeClusterChecker == null) {
+                // Make a single-node checker if none exists
+                singleNodeClusterChecker = transportService.getThreadPool()
+                    .scheduleWithFixedDelay(() -> { checkSingleNodeCluster(); }, this.singleNodeClusterSeedHostsCheckInterval, Names.SAME);
+            }
+            return;
+        }
+
+        // In case of a multi-node cluster, there is no need for the single-node checker so cancel it
         if (singleNodeClusterChecker != null) {
             singleNodeClusterChecker.cancel();
             singleNodeClusterChecker = null;
@@ -770,7 +782,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void checkSingleNodeCluster() {
-        if (applierState.nodes().size() > 1) {
+        if (mode != Mode.LEADER || applierState.nodes().size() > 1) {
             return;
         }
 
@@ -802,7 +814,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             mode,
             lastKnownLeader
         );
-        cancelSingleNodeClusterChecker();
 
         if (mode != Mode.CANDIDATE) {
             final Mode prevMode = mode;
@@ -831,6 +842,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             }
         }
 
+        updateSingleNodeClusterChecker();
         preVoteCollector.update(getPreVoteResponse(), null);
     }
 
@@ -859,12 +871,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert leaderChecker.leader() == null : leaderChecker.leader();
         followersChecker.updateFastResponseState(getCurrentTerm(), mode);
 
-        if (applierState.nodes().size() > 1) {
-            cancelSingleNodeClusterChecker();
-        } else if (singleNodeClusterChecker == null) {
-            singleNodeClusterChecker = transportService.getThreadPool()
-                .scheduleWithFixedDelay(() -> { checkSingleNodeCluster(); }, this.singleNodeClusterSeedHostsCheckInterval, Names.SAME);
-        }
+        updateSingleNodeClusterChecker();
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
@@ -884,7 +891,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 lastKnownLeader
             );
         }
-        cancelSingleNodeClusterChecker();
 
         final boolean restartLeaderChecker = (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) == false;
 
@@ -895,6 +901,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
         }
 
+        updateSingleNodeClusterChecker();
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
         clusterFormationFailureHelper.stop();
@@ -1046,6 +1053,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             assert lagDetector.getTrackedNodes().contains(getLocalNode()) == false : lagDetector.getTrackedNodes();
             assert followersChecker.getKnownFollowers().equals(lagDetector.getTrackedNodes())
                 : followersChecker.getKnownFollowers() + " vs " + lagDetector.getTrackedNodes();
+            assert singleNodeClusterChecker == null || (mode == Mode.LEADER && applierState.nodes().size() == 1)
+                : "Single node checker must exist iff there is a single-node cluster";
 
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
@@ -1091,10 +1100,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     : coordinationState.get().getLastAcceptedConfiguration()
                         + " != "
                         + coordinationState.get().getLastCommittedConfiguration();
-
-                if (coordinationState.get().getLastAcceptedState().nodes().size() == 1) {
-                    assert singleNodeClusterChecker != null;
-                }
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -1112,7 +1117,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
                 assert clusterFormationFailureHelper.isRunning() == false;
-                assert singleNodeClusterChecker == null;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;

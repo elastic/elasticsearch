@@ -53,6 +53,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.common;
     exports org.elasticsearch.xpack.core.datastreams;
     exports org.elasticsearch.xpack.core.deprecation;
+    exports org.elasticsearch.xpack.core.downsample;
     exports org.elasticsearch.xpack.core.enrich.action;
     exports org.elasticsearch.xpack.core.enrich;
     exports org.elasticsearch.xpack.core.eql;

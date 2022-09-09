@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
@@ -33,9 +35,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
  * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceComputer} and then takes
@@ -54,6 +59,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
     private final ReconcileDesiredBalanceExecutor executor = new ReconcileDesiredBalanceExecutor();
+    private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
 
     @FunctionalInterface
@@ -145,17 +151,15 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         return moves;
     }
 
-    private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
-        boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
+    private void setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         if (logger.isTraceEnabled()) {
-            if (hasChanges) {
+            if (DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance)) {
                 logger.trace("desired balance changed: {}\n{}", newDesiredBalance, diff(currentDesiredBalance, newDesiredBalance));
             } else {
                 logger.trace("desired balance unchanged: {}", newDesiredBalance);
             }
         }
         currentDesiredBalance = newDesiredBalance;
-        return hasChanges;
     }
 
     protected void submitReconcileTask(DesiredBalance desiredBalance) {
@@ -168,7 +172,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     protected final void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
-        new DesiredBalanceReconciler(desiredBalance, allocation).run();
+        allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
+        new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering).run();
     }
 
     private void onNoLongerMaster() {
@@ -176,6 +181,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             currentDesiredBalance = DesiredBalance.INITIAL;
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
+            allocationOrdering.clear();
         }
     }
 
@@ -252,5 +258,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
         }
         return builder.append(newLine).toString();
+    }
+
+    private static Set<String> getNodeIds(RoutingNodes nodes) {
+        return nodes.stream().map(RoutingNode::nodeId).collect(toSet());
     }
 }

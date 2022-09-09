@@ -155,7 +155,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -1826,7 +1826,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService,
                     indicesService,
                     recoverySettings,
-                    SourceOnlyRecoveryPlannerService.INSTANCE
+                    PeerOnlyRecoveryPlannerService.INSTANCE
                 );
 
                 final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);

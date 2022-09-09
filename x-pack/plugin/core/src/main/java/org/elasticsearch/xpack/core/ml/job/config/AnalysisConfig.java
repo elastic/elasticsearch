@@ -69,6 +69,12 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public static final String ML_CATEGORY_FIELD = "mlcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
 
+    // Since the C++ backend truncates the categorization field at length 1000, adding an ellipsis on truncation, it makes no sense to
+    // send potentially very long strings to it. For the backend logic still to work we need to send more than that, hence we truncate
+    // at length 1001.
+    //
+    // Also, because we do the tokenization on the Java side now the tokens will still be sent correctly (separately) to the C++ backend
+    // even if they extend beyond the length of a truncated example.
     public static final int MAX_CATEGORIZATION_FIELD_LENGTH = 1001;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
@@ -336,13 +342,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
     public List<String> fields() {
         return collectNonNullAndNonEmptyDetectorFields(Detector::getFieldName);
-    }
-
-    public String maybeTruncateCatgeorizationField(String categorizationField) {
-        if (termFields().contains(categorizationFieldName) == false) {
-            return categorizationField.substring(0, Math.min(categorizationField.length(), MAX_CATEGORIZATION_FIELD_LENGTH));
-        }
-        return categorizationField;
     }
 
     private List<String> collectNonNullAndNonEmptyDetectorFields(Function<Detector, String> fieldGetter) {

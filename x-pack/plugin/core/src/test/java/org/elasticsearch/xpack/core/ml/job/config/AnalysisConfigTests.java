@@ -390,41 +390,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertFalse(config2.equals(config1));
     }
 
-    public void testMaybeTruncateCategorizationField() {
-        {
-            Detector.Builder det = new Detector.Builder("count", "");
-            det.setByFieldName("mlcategory");
-            AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(det.build()));
-            builder.setCategorizationFieldName("message");
-            AnalysisConfig ac = builder.build();
-
-            String truncatedField = ac.maybeTruncateCatgeorizationField(randomAlphaOfLengthBetween(1002, 2000));
-            assertEquals(AnalysisConfig.MAX_CATEGORIZATION_FIELD_LENGTH, truncatedField.length());
-        }
-        {
-            Detector.Builder det = new Detector.Builder("count", "");
-            det.setByFieldName("mlcategory");
-            AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(det.build()));
-            builder.setCategorizationFieldName("message");
-            AnalysisConfig ac = builder.build();
-
-            String categorizationField = randomAlphaOfLengthBetween(1, 1000);
-            String truncatedField = ac.maybeTruncateCatgeorizationField(categorizationField);
-            assertEquals(categorizationField.length(), truncatedField.length());
-        }
-        {
-            Detector.Builder det = new Detector.Builder("count", "");
-            det.setByFieldName("mlcategory");
-            det.setPartitionFieldName("message");
-            AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(det.build()));
-            builder.setCategorizationFieldName("message");
-            AnalysisConfig ac = builder.build();
-
-            String truncatedField = ac.maybeTruncateCatgeorizationField(randomAlphaOfLengthBetween(1002, 2000));
-            assertFalse(AnalysisConfig.MAX_CATEGORIZATION_FIELD_LENGTH == truncatedField.length());
-        }
-    }
-
     public void testEquals_GivenDifferentDetector() {
         AnalysisConfig config1 = createConfigWithDetectors(Collections.singletonList(new Detector.Builder("min", "low_count").build()));
 

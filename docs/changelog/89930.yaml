@@ -1,0 +1,5 @@
+pr: 89930
+summary: Fix double sending of response in `TransportOpenIdConnectPrepareAuthenticationAction`
+area: Authentication
+type: bug
+issues: []

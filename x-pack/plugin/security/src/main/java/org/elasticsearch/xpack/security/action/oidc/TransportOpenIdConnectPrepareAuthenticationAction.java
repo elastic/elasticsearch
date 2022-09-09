@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTransportAction<
     OpenIdConnectPrepareAuthenticationRequest,
@@ -42,7 +40,7 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
             OpenIdConnectPrepareAuthenticationAction.NAME,
             transportService,
             actionFilters,
-            (Writeable.Reader<OpenIdConnectPrepareAuthenticationRequest>) OpenIdConnectPrepareAuthenticationRequest::new
+            OpenIdConnectPrepareAuthenticationRequest::new
         );
         this.realms = realms;
     }
@@ -58,15 +56,17 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
             List<OpenIdConnectRealm> matchingRealms = this.realms.stream()
                 .filter(r -> r instanceof OpenIdConnectRealm && ((OpenIdConnectRealm) r).isIssuerValid(request.getIssuer()))
                 .map(r -> (OpenIdConnectRealm) r)
-                .collect(Collectors.toList());
+                .toList();
             if (matchingRealms.isEmpty()) {
                 listener.onFailure(
                     new ElasticsearchSecurityException("Cannot find OpenID Connect realm with issuer [{}]", request.getIssuer())
                 );
+                return;
             } else if (matchingRealms.size() > 1) {
                 listener.onFailure(
                     new ElasticsearchSecurityException("Found multiple OpenID Connect realm with issuer [{}]", request.getIssuer())
                 );
+                return;
             } else {
                 realm = matchingRealms.get(0);
             }

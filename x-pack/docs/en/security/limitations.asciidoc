@@ -79,6 +79,8 @@ including the following queries:
 ** `percolate` query
 * If suggesters are specified and document level security is enabled, the specified suggesters are ignored.
 * A search request cannot be profiled if document level security is enabled.
+* The <<search-terms-enum,terms enum API>> does not return terms if document 
+level security is enabled.
 
 [discrete]
 [[alias-limitations]]

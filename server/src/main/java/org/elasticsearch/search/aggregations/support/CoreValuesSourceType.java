@@ -162,13 +162,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-            if ((fieldContext.indexFieldData() instanceof IndexGeoPointFieldData) == false) {
-                throw new IllegalArgumentException(
-                    "Expected geo_point type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
-                );
+            if (fieldContext.indexFieldData()instanceof IndexGeoPointFieldData pointFieldData) {
+                return new ValuesSource.GeoPoint.Fielddata(pointFieldData);
             }
-
-            return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
+            throw new IllegalArgumentException(
+                "Expected geo_point type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+            );
         }
 
         @Override

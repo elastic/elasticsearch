@@ -34,12 +34,13 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
         int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         AllocationService allocationService = createAllocationService();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
         DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
         for (int i = 0; i < 5; i++) {
             discoNodes.add(newNode("node-" + i));
         }
+        discoNodes.masterNodeId("node-0").localNodeId("node-0");
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(discoNodes)
             .metadata(metadata)

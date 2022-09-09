@@ -14,19 +14,21 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
-public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
+public class GetMappingsResponse extends ActionResponse implements ToXContentFragment, ChunkedToXContent {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
@@ -65,8 +67,8 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (final Map.Entry<String, MappingMetadata> indexEntry : getMappings().entrySet()) {
+    public Iterator<ToXContent> toXContentChunked() {
+        return getMappings().entrySet().stream().map(indexEntry -> (ToXContent) (builder, params) -> {
             builder.startObject(indexEntry.getKey());
             boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.getValue() != null) {
@@ -83,8 +85,8 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                 builder.startObject(MAPPINGS.getPreferredName()).endObject();
             }
             builder.endObject();
-        }
-        return builder;
+            return builder;
+        }).iterator();
     }
 
     @Override

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -17,7 +16,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -28,6 +26,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTransportMasterNodeAction<SetResetModeActionRequest> {
 
@@ -73,25 +73,20 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
         final boolean isResetModeEnabled = isResetMode(state);
         // Noop, nothing for us to do, simply return fast to the caller
         if (request.isEnabled() == isResetModeEnabled) {
-            logger.debug(() -> new ParameterizedMessage("Reset mode noop for [{}]", featureName()));
+            logger.debug(() -> "Reset mode noop for [" + featureName() + "]");
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
 
         logger.debug(
-            () -> new ParameterizedMessage(
-                "Starting to set [reset_mode] for [{}] to [{}] from [{}]",
-                featureName(),
-                request.isEnabled(),
-                isResetModeEnabled
-            )
+            () -> format("Starting to set [reset_mode] for [%s] to [%s] from [%s]", featureName(), request.isEnabled(), isResetModeEnabled)
         );
 
         ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(r -> {
-            logger.debug(() -> new ParameterizedMessage("Completed reset mode request for [{}]", featureName()));
+            logger.debug(() -> "Completed reset mode request for [" + featureName() + "]");
             listener.onResponse(r);
         }, e -> {
-            logger.debug(() -> new ParameterizedMessage("Completed reset mode for [{}] request but with failure", featureName()), e);
+            logger.debug(() -> "Completed reset mode for [" + featureName() + "] request but with failure", e);
             listener.onFailure(e);
         });
 
@@ -103,29 +98,25 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             wrappedListener.onResponse(acknowledgedResponse);
         }, wrappedListener::onFailure);
 
-        clusterService.submitStateUpdateTask(
-            featureName() + "-set-reset-mode",
-            new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
+        submitUnbatchedTask(featureName() + "-set-reset-mode", new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
 
-                @Override
-                protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    logger.trace(() -> new ParameterizedMessage("Cluster update response built for [{}]: {}", featureName(), acknowledged));
-                    return AcknowledgedResponse.of(acknowledged);
-                }
+            @Override
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                logger.trace(() -> format("Cluster update response built for [%s]: %s", featureName(), acknowledged));
+                return AcknowledgedResponse.of(acknowledged);
+            }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    logger.trace(() -> new ParameterizedMessage("Executing cluster state update for [{}]", featureName()));
-                    return setState(currentState, request);
-                }
-            },
-            newExecutor()
-        );
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                logger.trace(() -> "Executing cluster state update for [" + featureName() + "]");
+                return setState(currentState, request);
+            }
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override

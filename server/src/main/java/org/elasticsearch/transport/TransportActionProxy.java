@@ -61,7 +61,7 @@ public final class TransportActionProxy {
             );
         }
 
-        private boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
+        private static boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
             final Task targetTask = wrapped.createTask(0, proxyTask.getType(), proxyTask.getAction(), TaskId.EMPTY_TASK_ID, Map.of());
             assert targetTask instanceof CancellableTask == proxyTask instanceof CancellableTask
                 : "Cancellable property of proxy action ["

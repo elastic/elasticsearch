@@ -19,10 +19,10 @@ dependencies {
   testImplementation project(':modules:data-streams')
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 tasks.named("test").configure {
   if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }

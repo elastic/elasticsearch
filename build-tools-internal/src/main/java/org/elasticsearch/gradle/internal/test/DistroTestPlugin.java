@@ -96,7 +96,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
         project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
         project.getPlugins().apply(JdkDownloadPlugin.class);
-        project.getPluginManager().apply("elasticsearch.build");
+        project.getPluginManager().apply("elasticsearch.java");
 
         Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),

@@ -121,7 +121,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
 
         shards = new HashMap<>();
-        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
             int shardId = shardRoutingTable.shardId().id();
             shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
         }

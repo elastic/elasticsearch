@@ -192,8 +192,8 @@ non keyword matches routing_path:
 ---
 runtime field matching routing path:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -234,8 +234,8 @@ runtime field matching routing path:
 ---
 "dynamic: runtime matches routing_path":
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -271,8 +271,8 @@ runtime field matching routing path:
 ---
 "dynamic: false matches routing_path":
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:

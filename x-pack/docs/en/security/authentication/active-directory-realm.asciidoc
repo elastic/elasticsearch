@@ -9,7 +9,7 @@ The {security-features} use LDAP to communicate with Active Directory, so
 `active_directory` realms are similar to <<ldap-realm, `ldap` realms>>. Like
 LDAP directories, Active Directory stores users and groups hierarchically. The
 directory's hierarchy is built from containers such as the _organizational unit_
-(`ou`), _organization_ (`o`), and _domain controller_ (`dc`).
+(`ou`), _organization_ (`o`), and _domain component_ (`dc`).
 
 The path to an entry is a _Distinguished Name_ (DN) that uniquely identifies a
 user or group. User and group names typically have attributes such as a

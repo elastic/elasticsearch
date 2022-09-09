@@ -9,6 +9,7 @@
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -17,7 +18,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -56,7 +56,7 @@ public class OsProbeTests extends ESTestCase {
             }
 
         };
-        final OsInfo info = osProbe.osInfo(refreshInterval, allocatedProcessors);
+        final OsInfo info = osProbe.osInfo(refreshInterval, Processors.of((double) allocatedProcessors));
         assertNotNull(info);
         assertThat(info.getRefreshInterval(), equalTo(refreshInterval));
         assertThat(info.getName(), equalTo(Constants.OS_NAME));
@@ -208,7 +208,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about cpuacct
         List<String> procSelfCgroupLines = getProcSelfGroupLines(1, hierarchy).stream()
             .map(line -> line.replaceFirst(",cpuacct", ""))
-            .collect(Collectors.toList());
+            .toList();
 
         final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
 
@@ -223,7 +223,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about cpu
         List<String> procSelfCgroupLines = getProcSelfGroupLines(1, hierarchy).stream()
             .map(line -> line.replaceFirst(":cpu,", ":"))
-            .collect(Collectors.toList());
+            .toList();
 
         final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
 
@@ -238,7 +238,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about memory
         List<String> procSelfCgroupLines = getProcSelfGroupLines(1, hierarchy).stream()
             .filter(line -> line.contains(":memory:") == false)
-            .collect(Collectors.toList());
+            .toList();
 
         final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
 

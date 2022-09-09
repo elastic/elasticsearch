@@ -115,7 +115,7 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
 
     }
 
-    private String parserLocation(String parserName, Supplier<XContentLocation> location) {
+    private static String parserLocation(String parserName, Supplier<XContentLocation> location) {
         return parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
     }
 

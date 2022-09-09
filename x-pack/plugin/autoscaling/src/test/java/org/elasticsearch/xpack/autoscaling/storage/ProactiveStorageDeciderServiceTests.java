@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +27,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -46,6 +43,7 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -369,20 +367,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .stream()
             .map(ClusterInfo::shardIdentifierFromRouting)
             .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000), (v1, v2) -> v1));
-        ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
-        for (ObjectCursor<String> cursor : state.nodes().getDataNodes().keys()) {
-            String id = cursor.value;
-            builder.put(id, new DiskUsage(id, id, "/test", Long.MAX_VALUE, Long.MAX_VALUE));
+        Map<String, DiskUsage> diskUsage = new HashMap<>();
+        for (var id : state.nodes().getDataNodes().keySet()) {
+            diskUsage.put(id, new DiskUsage(id, id, "/test", Long.MAX_VALUE, Long.MAX_VALUE));
         }
-        ImmutableOpenMap<String, DiskUsage> diskUsage = builder.build();
-        return new ClusterInfo(
-            diskUsage,
-            diskUsage,
-            ImmutableOpenMap.<String, Long>builder().putAllFromMap(shardSizes).build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
-        );
+        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
     }
 
     private ClusterState.Builder applyCreatedDates(

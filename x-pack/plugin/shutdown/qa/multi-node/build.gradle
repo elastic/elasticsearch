@@ -10,4 +10,5 @@ dependencies {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
+  readinessEnabled = true
 }

@@ -64,7 +64,7 @@ public class IndicesAccessControl {
         return granted;
     }
 
-    public Collection<?> getDeniedIndices() {
+    public Collection<String> getDeniedIndices() {
         return this.indexPermissions.entrySet()
             .stream()
             .filter(e -> e.getValue().granted == false)
@@ -108,11 +108,7 @@ public class IndicesAccessControl {
     }
 
     private List<String> getIndexNames(Predicate<IndexAccessControl> predicate) {
-        return indexPermissions.entrySet()
-            .stream()
-            .filter(entry -> predicate.test(entry.getValue()))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableList());
+        return indexPermissions.entrySet().stream().filter(entry -> predicate.test(entry.getValue())).map(Map.Entry::getKey).toList();
     }
 
     public enum DlsFlsUsage {

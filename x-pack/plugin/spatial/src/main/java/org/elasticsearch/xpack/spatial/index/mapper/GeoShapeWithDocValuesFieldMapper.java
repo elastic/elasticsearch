@@ -11,20 +11,19 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
@@ -42,14 +41,19 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.script.field.AbstractScriptFieldFactory;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.Field;
+import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -57,7 +61,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Extension of {@link org.elasticsearch.index.mapper.GeoShapeFieldMapper} that supports docValues
@@ -121,8 +124,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, ignoreMalformed, ignoreZValue, coerce, orientation, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { indexed, hasDocValues, ignoreMalformed, ignoreZValue, coerce, orientation, meta };
         }
 
         @Override
@@ -179,9 +182,14 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             this.geoFormatterFactory = geoFormatterFactory;
         }
 
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new AbstractLatLonShapeIndexFieldData.Builder(name(), GeoShapeValuesSourceType.instance(), GeoShapeDocValuesField::new);
+            return (cache, breakerService) -> new LatLonShapeIndexFieldData(
+                name(),
+                GeoShapeValuesSourceType.instance(),
+                GeoShapeDocValuesField::new
+            );
         }
 
         @Override
@@ -190,7 +198,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
                 throw new QueryShardException(
@@ -198,13 +206,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                     ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
                 );
             }
-            final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
-            if (luceneGeometries.length == 0) {
-                return new MatchNoDocsQuery();
-            }
-            Query query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            Query query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
             if (hasDocValues()) {
-                final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+                final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
                 query = new IndexOrDocValuesQuery(query, queryDocValues);
             }
             return query;
@@ -300,9 +304,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
         if (fieldType().hasDocValues()) {
             String name = fieldType().name();
-            BinaryGeoShapeDocValuesField docValuesField = (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
+            BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
-                docValuesField = new BinaryGeoShapeDocValuesField(name);
+                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
                 context.doc().addWithKey(name, docValuesField);
             }
             docValuesField.add(fields, geometry);
@@ -342,12 +346,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         super.checkIncomingMergeType(mergeWith);
     }
 
-    public static class GeoShapeDocValuesField
+    public static class GeoShapeDocValuesField extends AbstractScriptFieldFactory<ShapeValues.ShapeValue>
         implements
-            DocValuesField<GeoShapeValues.GeoShapeValue>,
-            ScriptDocValues.GeometrySupplier<GeoShapeValues.GeoShapeValue> {
+            Field<ShapeValues.ShapeValue>,
+            DocValuesScriptFieldFactory,
+            ScriptDocValues.GeometrySupplier<GeoPoint, ShapeValues.ShapeValue> {
 
-        private final GeoShapeValues in;
+        private final ShapeValues in;
         protected final String name;
 
         private GeoShapeValues.GeoShapeValue value;
@@ -355,9 +360,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         // maintain bwc by making bounding box and centroid available to GeoShapeValues (ScriptDocValues)
         private final GeoPoint centroid = new GeoPoint();
         private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
-        private AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues geoShapeScriptValues;
+        private LeafShapeFieldData.ShapeScriptValues<GeoPoint> geoShapeScriptValues;
 
-        public GeoShapeDocValuesField(GeoShapeValues in, String name) {
+        public GeoShapeDocValuesField(ShapeValues in, String name) {
             this.in = in;
             this.name = name;
         }
@@ -365,8 +370,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
-                value = in.value();
-                centroid.reset(value.lat(), value.lon());
+                value = (GeoShapeValues.GeoShapeValue) in.value();
+                centroid.reset(value.getY(), value.getX());
                 boundingBox.topLeft().reset(value.boundingBox().maxY(), value.boundingBox().minX());
                 boundingBox.bottomRight().reset(value.boundingBox().minY(), value.boundingBox().maxX());
             } else {
@@ -375,7 +380,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public ScriptDocValues<GeoShapeValues.GeoShapeValue> getScriptDocValues() {
+        public ScriptDocValues<ShapeValues.ShapeValue> toScriptDocValues() {
             if (geoShapeScriptValues == null) {
                 geoShapeScriptValues = new AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues(this);
             }
@@ -384,7 +389,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public GeoShapeValues.GeoShapeValue getInternal(int index) {
+        public ShapeValues.ShapeValue getInternal(int index) {
             if (index != 0) {
                 throw new UnsupportedOperationException();
             }
@@ -402,6 +407,15 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public GeoBoundingBox getInternalBoundingBox() {
             return boundingBox;
+        }
+
+        @Override
+        public GeoPoint getInternalLabelPosition() {
+            try {
+                return new GeoPoint(value.labelPosition());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to parse geo shape label position: " + e.getMessage(), e);
+            }
         }
 
         @Override
@@ -432,8 +446,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public Iterator<GeoShapeValues.GeoShapeValue> iterator() {
-            return new Iterator<GeoShapeValues.GeoShapeValue>() {
+        public Iterator<ShapeValues.ShapeValue> iterator() {
+            return new Iterator<>() {
                 private int index = 0;
 
                 @Override
@@ -442,7 +456,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 }
 
                 @Override
-                public GeoShapeValues.GeoShapeValue next() {
+                public ShapeValues.ShapeValue next() {
                     if (hasNext() == false) {
                         throw new NoSuchElementException();
                     }

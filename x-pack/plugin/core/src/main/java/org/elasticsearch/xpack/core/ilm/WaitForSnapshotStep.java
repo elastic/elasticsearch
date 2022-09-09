@@ -108,7 +108,7 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
         };
     }
 
-    private IllegalStateException error(String message, Object... args) {
+    private static IllegalStateException error(String message, Object... args) {
         return new IllegalStateException(String.format(Locale.ROOT, message, args));
     }
 

@@ -42,6 +42,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -54,7 +55,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -113,7 +113,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .map(DiscoveryNode::getName)
                 .filter(nodeName -> nodeWithoutRemoteClusterClientRole.equals(nodeName) == false)
                 .filter(nodeName -> nodeName.equals(pureDataNode) == false)
-                .collect(Collectors.toList())
+                .toList()
         );
 
         final SearchResponse resp = localCluster.client(nodeWithRemoteClusterClientRole)
@@ -157,7 +157,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 for (TransportService transportService : transportServices) {
                     Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                     for (CancellableTask cancellableTask : cancellableTasks) {
-                        assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                        if (TransportActionProxy.isProxyAction(cancellableTask.getAction())) {
+                            assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                        }
                     }
                 }
             });
@@ -182,7 +184,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .stream()
                 .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getName)
-                .collect(Collectors.toList());
+                .toList();
             assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(3));
             List<String> seedNodes = randomSubsetOf(between(1, remoteDataNodes.size() - 1), remoteDataNodes);
             disconnectFromRemoteClusters();
@@ -237,7 +239,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             for (TransportService transportService : transportServices) {
                 Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                 for (CancellableTask cancellableTask : cancellableTasks) {
-                    assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                    if (cancellableTask.getAction().contains(SearchAction.INSTANCE.name())) {
+                        assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                    }
                 }
             }
         });

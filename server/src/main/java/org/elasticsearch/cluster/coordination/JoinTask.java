@@ -9,28 +9,21 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster) implements ClusterStateTaskListener {
+public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster, long term) implements ClusterStateTaskListener {
 
-    public static JoinTask singleNode(DiscoveryNode node, String reason, ActionListener<Void> listener) {
-        return new JoinTask(List.of(new NodeJoinTask(node, reason, listener)), false);
+    public static JoinTask singleNode(DiscoveryNode node, String reason, ActionListener<Void> listener, long term) {
+        return new JoinTask(List.of(new NodeJoinTask(node, reason, listener)), false, term);
     }
 
-    public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream) {
-        return new JoinTask(nodeJoinTaskStream.toList(), true);
-    }
-
-    public JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster) {
-        this.nodeJoinTasks = Collections.unmodifiableList(nodeJoinTasks);
-        this.isBecomingMaster = isBecomingMaster;
+    public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream, long term) {
+        return new JoinTask(nodeJoinTaskStream.toList(), true, term);
     }
 
     public int nodeCount() {
@@ -42,11 +35,6 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         for (NodeJoinTask nodeJoinTask : nodeJoinTasks) {
             nodeJoinTask.listener.onFailure(e);
         }
-    }
-
-    @Override
-    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        assert false : "not called";
     }
 
     @Override

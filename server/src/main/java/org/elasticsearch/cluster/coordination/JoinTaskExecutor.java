@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,7 +31,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -49,25 +49,49 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState, List<TaskContext<JoinTask>> joinTaskContexts) throws Exception {
+    public ClusterState execute(BatchExecutionContext<JoinTask> batchExecutionContext) throws Exception {
+        // The current state that MasterService uses might have been updated by a (different) master in a higher term already. If so, stop
+        // processing the current cluster state update, there's no point in continuing to compute it as it will later be rejected by
+        // Coordinator#publish anyhow.
+        assert batchExecutionContext.taskContexts().isEmpty() == false : "Expected to have non empty join tasks list";
+
+        var term = batchExecutionContext.taskContexts().stream().mapToLong(t -> t.getTask().term()).max().getAsLong();
+
+        var split = batchExecutionContext.taskContexts().stream().collect(Collectors.partitioningBy(t -> t.getTask().term() == term));
+        for (TaskContext<JoinTask> outdated : split.get(false)) {
+            outdated.onFailure(
+                new NotMasterException("Higher term encountered (encountered: " + term + " > used: " + outdated.getTask().term() + ")")
+            );
+        }
+
+        final var joinTaskContexts = split.get(true);
+        final var initialState = batchExecutionContext.initialState();
+
+        if (initialState.term() > term) {
+            logger.trace("encountered higher term {} than current {}, there is a newer master", initialState.term(), term);
+            throw new NotMasterException(
+                "Higher term encountered (current: " + initialState.term() + " > used: " + term + "), there is a newer master"
+            );
+        }
 
         final boolean isBecomingMaster = joinTaskContexts.stream().anyMatch(t -> t.getTask().isBecomingMaster());
-
-        final DiscoveryNodes currentNodes = currentState.nodes();
+        final DiscoveryNodes currentNodes = initialState.nodes();
         boolean nodesChanged = false;
         ClusterState.Builder newState;
 
         if (currentNodes.getMasterNode() == null && isBecomingMaster) {
+            assert initialState.term() < term : "there should be at most one become master task per election (= by term)";
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
             // during the cluster state publishing guarantees that we have enough
-            newState = becomeMasterAndTrimConflictingNodes(currentState, joinTaskContexts);
+            newState = becomeMasterAndTrimConflictingNodes(initialState, joinTaskContexts, term);
             nodesChanged = true;
-        } else if (currentNodes.isLocalNodeElectedMaster() == false) {
+        } else if (currentNodes.isLocalNodeElectedMaster()) {
+            assert initialState.term() == term : "term should be stable for the same master";
+            newState = ClusterState.builder(initialState);
+        } else {
             logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
             throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not master for join request");
-        } else {
-            newState = ClusterState.builder(currentState);
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
@@ -77,9 +101,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
         Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
         Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
         // if the cluster is not fully-formed then the min version is not meaningful
-        final boolean enforceVersionBarrier = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
+        final boolean enforceVersionBarrier = initialState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
-        Map<String, String> joiniedNodeNameIds = new HashMap<>();
+        Map<String, String> joinedNodeIdsByNodeName = new HashMap<>();
         for (final var joinTaskContext : joinTaskContexts) {
             final var joinTask = joinTaskContext.getTask();
             final List<Runnable> onTaskSuccess = new ArrayList<>(joinTask.nodeCount());
@@ -95,13 +119,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
-                        ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
+                        ensureIndexCompatibility(node.getVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
                         if (node.isMasterNode()) {
-                            joiniedNodeNameIds.put(node.getName(), node.getId());
+                            joinedNodeIdsByNodeName.put(node.getName(), node.getId());
                         }
                     } catch (IllegalArgumentException | IllegalStateException e) {
                         onTaskSuccess.add(() -> nodeJoinTask.listener().onFailure(e));
@@ -110,17 +134,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
                 onTaskSuccess.add(() -> nodeJoinTask.listener().onResponse(null));
             }
-            joinTaskContext.success(new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterState clusterState) {
-                    for (Runnable joinCompleter : onTaskSuccess) {
-                        joinCompleter.run();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    joinTask.onFailure(e);
+            joinTaskContext.success(() -> {
+                for (Runnable joinCompleter : onTaskSuccess) {
+                    joinCompleter.run();
                 }
             });
         }
@@ -132,37 +148,39 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 ActionListener.wrap(r -> logger.trace("post-join reroute completed"), e -> logger.debug("post-join reroute failed", e))
             );
 
-            if (joiniedNodeNameIds.isEmpty() == false) {
-                Set<CoordinationMetadata.VotingConfigExclusion> currentVotingConfigExclusions = currentState.getVotingConfigExclusions();
-                Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusions = currentVotingConfigExclusions.stream()
-                    .map(e -> {
-                        // Update nodeId in VotingConfigExclusion when a new node with excluded node name joins
-                        if (CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER.equals(e.getNodeId())
-                            && joiniedNodeNameIds.containsKey(e.getNodeName())) {
-                            return new CoordinationMetadata.VotingConfigExclusion(joiniedNodeNameIds.get(e.getNodeName()), e.getNodeName());
-                        } else {
-                            return e;
-                        }
-                    })
-                    .collect(Collectors.toSet());
+            if (joinedNodeIdsByNodeName.isEmpty() == false) {
+                final var currentVotingConfigExclusions = initialState.getVotingConfigExclusions();
+                final var newVotingConfigExclusions = currentVotingConfigExclusions.stream().map(e -> {
+                    // Update nodeId in VotingConfigExclusion when a new node with excluded node name joins
+                    if (CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER.equals(e.getNodeId())
+                        && joinedNodeIdsByNodeName.containsKey(e.getNodeName())) {
+                        return new CoordinationMetadata.VotingConfigExclusion(
+                            joinedNodeIdsByNodeName.get(e.getNodeName()),
+                            e.getNodeName()
+                        );
+                    } else {
+                        return e;
+                    }
+                }).collect(Collectors.toSet());
 
                 // if VotingConfigExclusions did get updated
                 if (newVotingConfigExclusions.equals(currentVotingConfigExclusions) == false) {
-                    CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder(currentState.coordinationMetadata())
+                    final var coordMetadataBuilder = CoordinationMetadata.builder(initialState.coordinationMetadata())
+                        .term(term)
                         .clearVotingConfigExclusions();
                     newVotingConfigExclusions.forEach(coordMetadataBuilder::addVotingConfigExclusion);
-                    Metadata newMetadata = Metadata.builder(currentState.metadata())
-                        .coordinationMetadata(coordMetadataBuilder.build())
-                        .build();
-                    return allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).metadata(newMetadata).build());
+                    newState.metadata(Metadata.builder(initialState.metadata()).coordinationMetadata(coordMetadataBuilder.build()).build());
                 }
             }
 
-            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build());
+            final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
+                newState.nodes(nodesBuilder).build()
+            );
+            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
-                || updatedState.nodes().getMinNodeVersion().onOrAfter(currentState.nodes().getMinNodeVersion())
+                || updatedState.nodes().getMinNodeVersion().onOrAfter(initialState.nodes().getMinNodeVersion())
                 : "min node version decreased from ["
-                    + currentState.nodes().getMinNodeVersion()
+                    + initialState.nodes().getMinNodeVersion()
                     + "] to ["
                     + updatedState.nodes().getMinNodeVersion()
                     + "]";
@@ -176,9 +194,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
         ClusterState currentState,
-        List<TaskContext<JoinTask>> taskContexts
+        List<TaskContext<JoinTask>> taskContexts,
+        long term
     ) {
         assert currentState.nodes().getMasterNodeId() == null : currentState;
+        assert currentState.term() < term : term + " vs " + currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
@@ -207,6 +227,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
+            .metadata(
+                Metadata.builder(currentState.metadata())
+                    .coordinationMetadata(CoordinationMetadata.builder(currentState.coordinationMetadata()).term(term).build())
+                    .build()
+            )
             .build();
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
         allocationService.cleanCaches();

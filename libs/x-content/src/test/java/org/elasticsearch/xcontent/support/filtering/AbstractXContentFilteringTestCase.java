@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -324,8 +325,9 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     @Override
-    protected final void testFilter(Builder expected, Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
-        testFilter(expected, sample, includes, excludes, false);
+    protected final void testFilter(Builder expected, Builder sample, Collection<String> includes, Collection<String> excludes)
+        throws IOException {
+        testFilter(expected, sample, Set.copyOf(includes), Set.copyOf(excludes), false);
     }
 
     private void testFilter(Builder expected, Builder sample, Set<String> includes, Set<String> excludes, boolean matchFieldNamesWithDots)

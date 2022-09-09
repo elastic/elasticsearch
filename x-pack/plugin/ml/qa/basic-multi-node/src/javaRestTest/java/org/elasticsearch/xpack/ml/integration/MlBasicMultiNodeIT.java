@@ -15,7 +15,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.yaml.snakeyaml.util.UriEncoder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -525,7 +524,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         }
         xContentBuilder.endObject();
 
-        Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/" + UriEncoder.encode(jobId));
+        // url encoding is needed for the invalid case, which contains a space
+        String encodedJobId = jobId.replace(" ", "%20");
+        Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/" + encodedJobId);
         request.setJsonEntity(Strings.toString(xContentBuilder));
         return client().performRequest(request);
     }

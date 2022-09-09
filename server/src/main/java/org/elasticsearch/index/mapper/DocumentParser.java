@@ -19,11 +19,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.DotExpandingXContentParser;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -84,19 +85,29 @@ public final class DocumentParser {
         }
         String remainingPath = context.path().pathAsText("");
         if (remainingPath.isEmpty() == false) {
-            throw new IllegalStateException("found leftover path elements: " + remainingPath);
+            throwOnLeftoverPathElements(remainingPath);
         }
 
         return new ParsedDocument(
             context.version(),
             context.seqID(),
-            context.sourceToParse().id(),
+            context.id(),
             source.routing(),
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             createDynamicUpdate(context)
-        );
+        ) {
+            @Override
+            public String documentDescription() {
+                IdFieldMapper idMapper = (IdFieldMapper) mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
+                return idMapper.documentDescription(this);
+            }
+        };
+    }
+
+    private static void throwOnLeftoverPathElements(String remainingPath) {
+        throw new IllegalStateException("found leftover path elements: " + remainingPath);
     }
 
     private static void internalParseDocument(
@@ -132,8 +143,10 @@ public final class DocumentParser {
         }
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
-            (ft, lookup) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+            (ft, lookup, fto) -> ft.fielddataBuilder(
+                new FieldDataContext(context.indexSettings().getIndex().getName(), lookup, context.mappingLookup()::sourcePaths, fto)
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            new SourceLookup.ReaderSourceProvider()
         );
         // field scripts can be called both by the loop at the end of this method and via
         // the document reader, so to ensure that we don't run them multiple times we
@@ -162,8 +175,12 @@ public final class DocumentParser {
         // will result in START_OBJECT
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new MapperParsingException("Malformed content, must start with an object");
+            throwNoStartOnObject();
         }
+    }
+
+    private static void throwNoStartOnObject() {
+        throw new MapperParsingException("Malformed content, must start with an object");
     }
 
     private static void validateEnd(XContentParser parser) throws IOException {
@@ -172,23 +189,34 @@ public final class DocumentParser {
         // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
         token = parser.nextToken();
         if (token != null) {
-            throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
+            throwNotAtEnd(token);
         }
+    }
+
+    private static void throwNotAtEnd(XContentParser.Token token) {
+        throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
     }
 
     private static boolean isEmptyDoc(RootObjectMapper root, XContentParser parser) throws IOException {
         if (root.isEnabled()) {
             final XContentParser.Token token = parser.nextToken();
-            if (token == XContentParser.Token.END_OBJECT) {
-                // empty doc, we can handle it...
-                return true;
-            } else if (token != XContentParser.Token.FIELD_NAME) {
-                throw new MapperParsingException(
-                    "Malformed content, after first object, either the type field" + " or the actual properties should exist"
-                );
+            switch (token) {
+                case END_OBJECT:
+                    // empty doc, we can handle it...
+                    return true;
+                case FIELD_NAME:
+                    return false;
+                default:
+                    throwOnMalformedContent();
             }
         }
         return false;
+    }
+
+    private static void throwOnMalformedContent() {
+        throw new MapperParsingException(
+            "Malformed content, after first object, either the type field or the actual properties should exist"
+        );
     }
 
     private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
@@ -235,13 +263,7 @@ public final class DocumentParser {
 
         String currentFieldName = parser.currentName();
         if (token.isValue()) {
-            throw new MapperParsingException(
-                "object mapping for ["
-                    + mapper.name()
-                    + "] tried to parse field ["
-                    + currentFieldName
-                    + "] as object, but found a concrete value"
-            );
+            throwOnConcreteValue(mapper, currentFieldName);
         }
 
         if (mapper.isNested()) {
@@ -260,46 +282,81 @@ public final class DocumentParser {
         innerParseObject(context, mapper);
         // restore the enable path flag
         if (mapper.isNested()) {
-            nested(context, (NestedObjectMapper) mapper);
+            copyNestedFields(context, (NestedObjectMapper) mapper);
         }
+    }
+
+    private static void throwOnConcreteValue(ObjectMapper mapper, String currentFieldName) {
+        throw new MapperParsingException(
+            "object mapping for ["
+                + mapper.name()
+                + "] tried to parse field ["
+                + currentFieldName
+                + "] as object, but found a concrete value"
+        );
     }
 
     private static void innerParseObject(DocumentParserContext context, ObjectMapper mapper) throws IOException {
 
-        XContentParser.Token token = context.parser().currentToken();
-        String currentFieldName = context.parser().currentName();
+        final XContentParser parser = context.parser();
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = null;
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
 
         while (token != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = context.parser().currentName();
-                if (currentFieldName.isBlank()) {
-                    throw new MapperParsingException(
-                        "Field name cannot contain only whitespace: [" + context.path().pathAsText(currentFieldName) + "]"
-                    );
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                parseObject(context, mapper, currentFieldName);
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                parseArray(context, mapper, currentFieldName);
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                parseNullValue(context, mapper, currentFieldName);
-            } else if (token == null) {
-                throw new MapperParsingException(
-                    "object mapping for ["
-                        + mapper.name()
-                        + "] tried to parse field ["
-                        + currentFieldName
-                        + "] as object, but got EOF, has a concrete value been provided to it?"
-                );
-            } else if (token.isValue()) {
-                parseValue(context, mapper, currentFieldName, token);
+            if (token == null) {
+                throwEOF(mapper, context);
             }
-            token = context.parser().nextToken();
+            switch (token) {
+                case FIELD_NAME:
+                    currentFieldName = parser.currentName();
+                    if (currentFieldName.isBlank()) {
+                        throwFieldNameBlank(context, currentFieldName);
+                    }
+                    break;
+                case START_OBJECT:
+                    parseObject(context, mapper, currentFieldName);
+                    break;
+                case START_ARRAY:
+                    parseArray(context, mapper, currentFieldName);
+                    break;
+                case VALUE_NULL:
+                    parseNullValue(context, mapper, currentFieldName);
+                    break;
+                default:
+                    if (token.isValue()) {
+                        parseValue(context, mapper, currentFieldName, token);
+                    }
+                    break;
+            }
+            token = parser.nextToken();
         }
     }
 
-    private static void nested(DocumentParserContext context, NestedObjectMapper nested) {
+    private static void throwFieldNameBlank(DocumentParserContext context, String currentFieldName) {
+        throw new MapperParsingException(
+            "Field name cannot contain only whitespace: [" + context.path().pathAsText(currentFieldName) + "]"
+        );
+    }
+
+    private static void throwEOF(ObjectMapper mapper, DocumentParserContext context) throws IOException {
+        throw new MapperParsingException(
+            "object mapping for ["
+                + mapper.name()
+                + "] tried to parse field ["
+                + context.parser().currentName()
+                + "] as object, but got EOF, has a concrete value been provided to it?"
+        );
+    }
+
+    private static void copyNestedFields(DocumentParserContext context, NestedObjectMapper nested) {
+        if (context.isWithinCopyTo()) {
+            // Only process the nested document after we've finished parsing the actual
+            // doc; we can't copy_to outside of the current nested context, so if we are
+            // in a copy_to context then we're adding data within the doc and we haven't
+            // finished parsing yet.
+            return;
+        }
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
@@ -318,7 +375,7 @@ public final class DocumentParser {
     private static void addFields(Version indexCreatedVersion, LuceneDocument nestedDoc, LuceneDocument rootDoc) {
         String nestedPathFieldName = NestedPathFieldMapper.name(indexCreatedVersion);
         for (IndexableField field : nestedDoc.getFields()) {
-            if (field.name().equals(nestedPathFieldName) == false) {
+            if (field.name().equals(nestedPathFieldName) == false && field.name().equals(IdFieldMapper.NAME) == false) {
                 rootDoc.add(field);
             }
         }
@@ -339,7 +396,8 @@ public final class DocumentParser {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            // NOTE: we don't support nested fields in tsdb so it's safe to assume the standard id mapper.
+            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
@@ -350,70 +408,127 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
-        if (mapper instanceof ObjectMapper) {
-            parseObjectOrNested(context, (ObjectMapper) mapper);
+        if (mapper instanceof ObjectMapper objectMapper) {
+            parseObjectOrNested(context, objectMapper);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMapper.parse(context);
-            List<String> copyToFields = fieldMapper.copyTo().copyToFields();
-            if (context.isWithinCopyTo() == false && copyToFields.isEmpty() == false) {
-                XContentParser.Token currentToken = context.parser().currentToken();
-                if (currentToken.isValue() == false && currentToken != XContentParser.Token.VALUE_NULL) {
-                    // sanity check, we currently support copy-to only for value-type field, not objects
-                    throw new MapperParsingException(
-                        "Cannot copy field ["
-                            + mapper.name()
-                            + "] to fields "
-                            + copyToFields
-                            + ". Copy-to currently only works for value-type fields, not objects."
-                    );
+            if (context.isWithinCopyTo() == false) {
+                List<String> copyToFields = fieldMapper.copyTo().copyToFields();
+                if (copyToFields.isEmpty() == false) {
+                    XContentParser.Token currentToken = context.parser().currentToken();
+                    if (currentToken.isValue() == false && currentToken != XContentParser.Token.VALUE_NULL) {
+                        // sanity check, we currently support copy-to only for value-type field, not objects
+                        throwOnCopyToOnObject(mapper, copyToFields);
+                    }
+                    parseCopyFields(context, copyToFields);
                 }
-                parseCopyFields(context, copyToFields);
             }
         } else if (mapper instanceof FieldAliasMapper) {
-            String verb = context.isWithinCopyTo() ? "copy" : "write";
-            throw new MapperParsingException("Cannot " + verb + " to a field alias [" + mapper.name() + "].");
+            throwOnCopyToOnFieldAlias(context, mapper);
         } else {
-            throw new IllegalStateException(
-                "The provided mapper [" + mapper.name() + "] has an unrecognized type [" + mapper.getClass().getSimpleName() + "]."
-            );
+            throwOnUnrecognizedMapperType(mapper);
         }
     }
 
-    private static void parseObject(final DocumentParserContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
+    private static void throwOnUnrecognizedMapperType(Mapper mapper) {
+        throw new IllegalStateException(
+            "The provided mapper [" + mapper.name() + "] has an unrecognized type [" + mapper.getClass().getSimpleName() + "]."
+        );
+    }
+
+    private static void throwOnCopyToOnFieldAlias(DocumentParserContext context, Mapper mapper) {
+        throw new MapperParsingException(
+            "Cannot " + (context.isWithinCopyTo() ? "copy" : "write") + " to a field alias [" + mapper.name() + "]."
+        );
+    }
+
+    private static void throwOnCopyToOnObject(Mapper mapper, List<String> copyToFields) {
+        throw new MapperParsingException(
+            "Cannot copy field ["
+                + mapper.name()
+                + "] to fields "
+                + copyToFields
+                + ". Copy-to currently only works for value-type fields, not objects."
+        );
+    }
+
+    private static void parseObject(final DocumentParserContext context, ObjectMapper parentObjectMapper, String currentFieldName)
+        throws IOException {
         assert currentFieldName != null;
-        Mapper objectMapper = getMapper(context, mapper, currentFieldName);
+        Mapper objectMapper = getMapper(context, parentObjectMapper, currentFieldName);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
+            if (objectMapper instanceof ObjectMapper objMapper) {
+                if (objMapper.subobjects() == false) {
+                    context.path().setWithinLeafObject(true);
+                }
+            }
             parseObjectOrField(context, objectMapper);
+            context.path().setWithinLeafObject(false);
             context.path().remove();
         } else {
-            ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
-            if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
-            } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
-                failIfMatchesRoutingPath(context, mapper, currentFieldName);
-                // not dynamic, read everything up to end object
-                context.parser().skipChildren();
+            parseObjectDynamic(context, parentObjectMapper, currentFieldName);
+        }
+    }
+
+    private static void parseObjectDynamic(DocumentParserContext context, ObjectMapper parentObjectMapper, String currentFieldName)
+        throws IOException {
+        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentObjectMapper, context);
+        if (dynamic == ObjectMapper.Dynamic.STRICT) {
+            throw new StrictDynamicMappingException(parentObjectMapper.fullPath(), currentFieldName);
+        } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
+            failIfMatchesRoutingPath(context, parentObjectMapper, currentFieldName);
+            // not dynamic, read everything up to end object
+            context.parser().skipChildren();
+        } else {
+            Mapper dynamicObjectMapper;
+            if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
+                // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
+                // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
+                dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
-                Mapper dynamicObjectMapper;
-                if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
-                    // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
-                    // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
-                    dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
-                } else {
-                    dynamicObjectMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, currentFieldName);
-                    context.addDynamicMapper(dynamicObjectMapper);
-                }
-                if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
+                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
+                context.addDynamicMapper(dynamicObjectMapper);
+            }
+            if (parentObjectMapper.subobjects() == false) {
+                if (dynamicObjectMapper instanceof NestedObjectMapper) {
                     throw new MapperParsingException(
-                        "It is forbidden to create dynamic nested objects ([" + dynamicObjectMapper.name() + "]) through `copy_to`"
+                        "Tried to add nested object ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + parentObjectMapper.name()
+                            + "] which does not support subobjects"
                     );
                 }
-                context.path().add(currentFieldName);
-                parseObjectOrField(context, dynamicObjectMapper);
-                context.path().remove();
+                if (dynamicObjectMapper instanceof ObjectMapper) {
+                    throw new MapperParsingException(
+                        "Tried to add subobject ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + parentObjectMapper.name()
+                            + "] which does not support subobjects"
+                    );
+                }
             }
+            if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
+                throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper);
+            }
+            context.path().add(currentFieldName);
+            if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
+                if (objectMapper.subobjects() == false) {
+                    context.path().setWithinLeafObject(true);
+                }
+            }
+            parseObjectOrField(context, dynamicObjectMapper);
+            context.path().setWithinLeafObject(false);
+            context.path().remove();
         }
+    }
+
+    private static void throwOnCreateDynamicNestedViaCopyTo(Mapper dynamicObjectMapper) {
+        throw new MapperParsingException(
+            "It is forbidden to create dynamic nested objects ([" + dynamicObjectMapper.name() + "]) through `copy_to`"
+        );
     }
 
     private static void parseArray(DocumentParserContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
@@ -432,10 +547,9 @@ public final class DocumentParser {
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(parentMapper.fullPath(), lastFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
-                // TODO: shouldn't this skip, not parse?
-                parseNonDynamicArray(context, parentMapper, lastFieldName, lastFieldName);
+                context.parser().skipChildren();
             } else {
-                Mapper objectMapperFromTemplate = dynamic.getDynamicFieldsBuilder().createObjectMapperFromTemplate(context, lastFieldName);
+                Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, lastFieldName);
                 if (objectMapperFromTemplate == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, lastFieldName);
                 } else {
@@ -448,7 +562,6 @@ public final class DocumentParser {
                         parseNonDynamicArray(context, parentMapper, lastFieldName, lastFieldName);
                     }
                 }
-
             }
         }
     }
@@ -473,18 +586,22 @@ public final class DocumentParser {
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 parseNullValue(context, mapper, lastFieldName);
             } else if (token == null) {
-                throw new MapperParsingException(
-                    "object mapping for ["
-                        + mapper.name()
-                        + "] with array for ["
-                        + arrayFieldName
-                        + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?"
-                );
+                throwEOFOnParseArray(mapper, arrayFieldName);
             } else {
                 assert token.isValue();
                 parseValue(context, mapper, lastFieldName, token);
             }
         }
+    }
+
+    private static void throwEOFOnParseArray(ObjectMapper mapper, String arrayFieldName) {
+        throw new MapperParsingException(
+            "object mapping for ["
+                + mapper.name()
+                + "] with array for ["
+                + arrayFieldName
+                + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?"
+        );
     }
 
     private static void parseValue(
@@ -494,14 +611,7 @@ public final class DocumentParser {
         XContentParser.Token token
     ) throws IOException {
         if (currentFieldName == null) {
-            throw new MapperParsingException(
-                "object mapping ["
-                    + parentMapper.name()
-                    + "] trying to serialize a value with"
-                    + " no field associated with it, current value ["
-                    + context.parser().textOrNull()
-                    + "]"
-            );
+            throwOnNoFieldName(context, parentMapper);
         }
         Mapper mapper = getLeafMapper(context, parentMapper, currentFieldName);
         if (mapper != null) {
@@ -509,6 +619,17 @@ public final class DocumentParser {
         } else {
             parseDynamicValue(context, parentMapper, currentFieldName, token);
         }
+    }
+
+    private static void throwOnNoFieldName(DocumentParserContext context, ObjectMapper parentMapper) throws IOException {
+        throw new MapperParsingException(
+            "object mapping ["
+                + parentMapper.name()
+                + "] trying to serialize a value with"
+                + " no field associated with it, current value ["
+                + context.parser().textOrNull()
+                + "]"
+        );
     }
 
     private static void parseNullValue(DocumentParserContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
@@ -600,7 +721,7 @@ public final class DocumentParser {
 
     // looks up a child mapper
     // returns null if no such child mapper exists - note that unlike getLeafMapper,
-    // we do not check for shadowing runtime fields because they only apply to leaf
+    // we do not check for runtime fields with same name as they only apply to leaf
     // fields
     private static Mapper getMapper(final DocumentParserContext context, ObjectMapper objectMapper, String fieldName) {
         if (context.path().atRoot()) {
@@ -613,7 +734,7 @@ public final class DocumentParser {
         return objectMapper.getMapper(fieldName);
     }
 
-    // looks up a child mapper, taking into account field names that expand to objects
+    // looks up a child mapper
     // if no mapper is found, checks to see if a runtime field with the specified
     // field name exists and if so returns a no-op mapper to prevent indexing
     private static Mapper getLeafMapper(final DocumentParserContext context, ObjectMapper objectMapper, String fieldName) {
@@ -625,7 +746,10 @@ public final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        if (context.isShadowed(fieldPath)) {
+        MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
+        if (fieldType != null) {
+            // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
+            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
             return NO_OP_FIELDMAPPER;
         }
         return null;
@@ -711,7 +835,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
         }
     }
 
@@ -737,7 +861,11 @@ public final class DocumentParser {
             XContentParser parser
         ) throws IOException {
             super(mappingLookup, indexSettings, indexAnalyzers, parserContext, source);
-            this.parser = DotExpandingXContentParser.expandDots(parser);
+            if (mappingLookup.getMapping().getRoot().subobjects()) {
+                this.parser = DotExpandingXContentParser.expandDots(parser, this.path::isWithinLeafObject);
+            } else {
+                this.parser = parser;
+            }
             this.document = new LuceneDocument();
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();

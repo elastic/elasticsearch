@@ -219,7 +219,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             out.writeStringCollection(categorizationFilters);
         }
         out.writeOptionalWriteable(perPartitionCategorizationConfig);
-        out.writeMap(customSettings);
+        out.writeGenericMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
         if (jobVersion != null) {
             out.writeBoolean(true);

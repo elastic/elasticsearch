@@ -120,8 +120,9 @@ public class TestClustersPlugin implements Plugin<Project> {
         Provider<ReaperService> reaper
     ) {
         // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(ElasticsearchCluster.class, name -> {
-            return new ElasticsearchCluster(
+        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
+            ElasticsearchCluster.class,
+            name -> new ElasticsearchCluster(
                 project.getPath(),
                 name,
                 project,
@@ -133,8 +134,8 @@ public class TestClustersPlugin implements Plugin<Project> {
                 new File(project.getBuildDir(), "testclusters"),
                 runtimeJavaProvider,
                 isReleasedVersion
-            );
-        });
+            )
+        );
         project.getExtensions().add(EXTENSION_NAME, container);
         container.configureEach(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
         return container;

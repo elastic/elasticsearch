@@ -23,7 +23,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
-import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -85,7 +84,7 @@ final class ServerTransportFilter {
          requests from all the nodes are attached with a user (either a serialize
          user an authentication token
          */
-        String securityAction = actionMapper.action(action, request);
+        String securityAction = SecurityActionMapper.action(action, request);
 
         TransportChannel unwrappedChannel = transportChannel;
         if (unwrappedChannel instanceof TaskTransportChannel) {
@@ -94,7 +93,7 @@ final class ServerTransportFilter {
 
         if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)) {
             TcpChannel tcpChannel = ((TcpTransportChannel) unwrappedChannel).getChannel();
-            if (tcpChannel instanceof Netty4TcpChannel || tcpChannel instanceof NioTcpChannel) {
+            if (tcpChannel instanceof Netty4TcpChannel) {
                 if (tcpChannel.isOpen()) {
                     SSLEngineUtils.extractClientCertificates(logger, threadContext, tcpChannel);
                 }

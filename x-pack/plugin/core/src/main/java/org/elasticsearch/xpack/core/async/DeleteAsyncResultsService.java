@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -83,7 +82,7 @@ public class DeleteAsyncResultsService {
         try {
             AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
             AsyncTask task = hasCancelTaskPrivilege
-                ? store.getTask(taskManager, searchId, AsyncTask.class)
+                ? AsyncTaskIndexService.getTask(taskManager, searchId, AsyncTask.class)
                 : store.getTaskAndCheckAuthentication(taskManager, searchId, AsyncTask.class);
             if (task != null) {
                 // the task was found and gets cancelled. The response may or may not be found, but we will return 200 anyways.
@@ -117,7 +116,7 @@ public class DeleteAsyncResultsService {
             if (status == RestStatus.NOT_FOUND && taskWasFound) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
-                logger.error(() -> new ParameterizedMessage("failed to clean async result [{}]", taskId.getEncoded()), exc);
+                logger.error(() -> "failed to clean async result [" + taskId.getEncoded() + "]", exc);
                 listener.onFailure(new ResourceNotFoundException(taskId.getEncoded()));
             }
         }));

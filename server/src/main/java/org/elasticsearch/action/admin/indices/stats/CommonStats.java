@@ -40,9 +40,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
@@ -210,6 +208,55 @@ public class CommonStats implements Writeable, ToXContentFragment {
             out.writeOptionalWriteable(bulk);
         }
         out.writeOptionalWriteable(shards);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CommonStats that = (CommonStats) o;
+        return Objects.equals(docs, that.docs)
+            && Objects.equals(store, that.store)
+            && Objects.equals(indexing, that.indexing)
+            && Objects.equals(get, that.get)
+            && Objects.equals(search, that.search)
+            && Objects.equals(merge, that.merge)
+            && Objects.equals(refresh, that.refresh)
+            && Objects.equals(flush, that.flush)
+            && Objects.equals(warmer, that.warmer)
+            && Objects.equals(queryCache, that.queryCache)
+            && Objects.equals(fieldData, that.fieldData)
+            && Objects.equals(completion, that.completion)
+            && Objects.equals(segments, that.segments)
+            && Objects.equals(translog, that.translog)
+            && Objects.equals(requestCache, that.requestCache)
+            && Objects.equals(recoveryStats, that.recoveryStats)
+            && Objects.equals(bulk, that.bulk)
+            && Objects.equals(shards, that.shards);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            docs,
+            store,
+            indexing,
+            get,
+            search,
+            merge,
+            refresh,
+            flush,
+            warmer,
+            queryCache,
+            fieldData,
+            completion,
+            segments,
+            translog,
+            requestCache,
+            recoveryStats,
+            bulk,
+            shards
+        );
     }
 
     public void add(CommonStats stats) {
@@ -471,30 +518,30 @@ public class CommonStats implements Writeable, ToXContentFragment {
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final Stream<ToXContent> stream = Arrays.stream(
-            new ToXContent[] {
-                docs,
-                shards,
-                store,
-                indexing,
-                get,
-                search,
-                merge,
-                refresh,
-                flush,
-                warmer,
-                queryCache,
-                fieldData,
-                completion,
-                segments,
-                translog,
-                requestCache,
-                recoveryStats,
-                bulk }
-        ).filter(Objects::nonNull);
-        for (ToXContent toXContent : ((Iterable<ToXContent>) stream::iterator)) {
+        addIfNonNull(builder, params, docs);
+        addIfNonNull(builder, params, shards);
+        addIfNonNull(builder, params, store);
+        addIfNonNull(builder, params, indexing);
+        addIfNonNull(builder, params, get);
+        addIfNonNull(builder, params, search);
+        addIfNonNull(builder, params, merge);
+        addIfNonNull(builder, params, refresh);
+        addIfNonNull(builder, params, flush);
+        addIfNonNull(builder, params, warmer);
+        addIfNonNull(builder, params, queryCache);
+        addIfNonNull(builder, params, fieldData);
+        addIfNonNull(builder, params, completion);
+        addIfNonNull(builder, params, segments);
+        addIfNonNull(builder, params, translog);
+        addIfNonNull(builder, params, requestCache);
+        addIfNonNull(builder, params, recoveryStats);
+        addIfNonNull(builder, params, bulk);
+        return builder;
+    }
+
+    private static void addIfNonNull(XContentBuilder builder, Params params, @Nullable ToXContent toXContent) throws IOException {
+        if (toXContent != null) {
             toXContent.toXContent(builder, params);
         }
-        return builder;
     }
 }

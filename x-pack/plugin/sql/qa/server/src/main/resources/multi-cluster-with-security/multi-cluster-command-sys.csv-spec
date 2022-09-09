@@ -121,6 +121,11 @@ SYS COLUMNS CATALOG 'my_remote_cluster' TABLE LIKE '%';
 
    TABLE_CAT:s    |  TABLE_SCHEM:s|  TABLE_NAME:s    |    COLUMN_NAME:s |   DATA_TYPE:i |   TYPE_NAME:s |  COLUMN_SIZE:i| BUFFER_LENGTH:i|DECIMAL_DIGITS:i|NUM_PREC_RADIX:i | NULLABLE:i|    REMARKS:s  |  COLUMN_DEF:s |SQL_DATA_TYPE:i|SQL_DATETIME_SUB:i|CHAR_OCTET_LENGTH:i|ORDINAL_POSITION:i|IS_NULLABLE:s|SCOPE_CATALOG:s|SCOPE_SCHEMA:s|SCOPE_TABLE:s|SOURCE_DATA_TYPE:sh|IS_AUTOINCREMENT:s|IS_GENERATEDCOLUMN:s
 -----------------+---------------+-------------------+------------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+----------------+-----------------+----------------+---------------+---------------+---------------+---------------+----------------+----------------+------------------
+my_remote_cluster|null           |apps               |id                |4              |INTEGER        |11             |4              |null           |10             |1              |null           |null           |4              |0               |null             |1               |YES            |null           |null           |null           |null            |NO              |NO
+my_remote_cluster|null           |apps               |name              |12             |TEXT           |2147483647     |2147483647     |null           |null           |1              |null           |null           |12             |0               |2147483647       |2               |YES            |null           |null           |null           |null            |NO              |NO
+my_remote_cluster|null           |apps               |name.raw          |12             |KEYWORD        |32766          |2147483647     |null           |null           |1              |null           |null           |12             |0               |2147483647       |3               |YES            |null           |null           |null           |null            |NO              |NO
+my_remote_cluster|null           |apps               |version           |12             |VERSION        |2147483647     |2147483647     |null           |null           |1              |null           |null           |12             |0               |null             |4               |YES            |null           |null           |null           |null            |NO              |NO
+my_remote_cluster|null           |apps               |version.raw       |12             |KEYWORD        |32766          |2147483647     |null           |null           |1              |null           |null           |12             |0               |2147483647       |5               |YES            |null           |null           |null           |null            |NO              |NO
 my_remote_cluster|null           |logs               |@timestamp        |93             |DATETIME       |34             |8              |null           |null           |1              |null           |null           |9              |3               |null             |1               |YES            |null           |null           |null           |null            |NO              |NO
 my_remote_cluster|null           |logs               |bytes_in          |4              |INTEGER        |11             |4              |null           |10             |1              |null           |null           |4              |0               |null             |2               |YES            |null           |null           |null           |null            |NO              |NO
 my_remote_cluster|null           |logs               |bytes_out         |4              |INTEGER        |11             |4              |null           |10             |1              |null           |null           |4              |0               |null             |3               |YES            |null           |null           |null           |null            |NO              |NO
@@ -172,6 +177,7 @@ SYS TABLES CATALOG LIKE 'my_remote_cluster';
 
     TABLE_CAT:s  |  TABLE_SCHEM:s|  TABLE_NAME:s     |  TABLE_TYPE:s |    REMARKS:s  |   TYPE_CAT:s  |  TYPE_SCHEM:S |   TYPE_NAME:s |SELF_REFERENCING_COL_NAME:s|REF_GENERATION:s
 -----------------+---------------+-------------------+---------------+---------------+---------------+---------------+---------------+-------------------------+---------------
+my_remote_cluster|null           |apps               |TABLE          |               |null           |null           |null           |null                     |null
 my_remote_cluster|null           |empty_mapping      |TABLE          |               |null           |null           |null           |null                     |null
 my_remote_cluster|null           |logs               |TABLE          |               |null           |null           |null           |null                     |null
 my_remote_cluster|null           |logs_nanos         |TABLE          |               |null           |null           |null           |null                     |null
@@ -201,6 +207,7 @@ SYS TABLES CATALOG LIKE 'my_remote_cluster' "" TYPE '';
 
     TABLE_CAT:s  |  TABLE_SCHEM:s|  TABLE_NAME:s     |  TABLE_TYPE:s |    REMARKS:s  |   TYPE_CAT:s  |  TYPE_SCHEM:S |   TYPE_NAME:s |SELF_REFERENCING_COL_NAME:s|REF_GENERATION:s
 -----------------+---------------+-------------------+---------------+---------------+---------------+---------------+---------------+-------------------------+---------------
+my_remote_cluster|null           |apps               |TABLE          |               |null           |null           |null           |null                     |null
 my_remote_cluster|null           |empty_mapping      |TABLE          |               |null           |null           |null           |null                     |null
 my_remote_cluster|null           |logs               |TABLE          |               |null           |null           |null           |null                     |null
 my_remote_cluster|null           |logs_nanos         |TABLE          |               |null           |null           |null           |null                     |null
@@ -214,7 +221,7 @@ SYS TABLES CATALOG LIKE '%' LIKE '';
 
     TABLE_CAT:s  |  TABLE_SCHEM:s|  TABLE_NAME:s |  TABLE_TYPE:s |    REMARKS:s  |   TYPE_CAT:s  |  TYPE_SCHEM:S |   TYPE_NAME:s |SELF_REFERENCING_COL_NAME:s|REF_GENERATION:s
 -----------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+-------------------------+---------------
-integTest        |null           |null           |null           |null           |null           |null           |null           |null                     |null
+javaRestTest        |null           |null           |null           |null           |null           |null           |null           |null                     |null
 my_remote_cluster|null           |null           |null           |null           |null           |null           |null           |null                     |null
 ;
 

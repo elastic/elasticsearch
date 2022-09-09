@@ -241,8 +241,9 @@ empty start end times:
 ---
 set start_time and end_time:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       indices.create:
         index: test_index
@@ -303,8 +304,9 @@ set start_time and end_time:
 ---
 set start_time and end_time without timeseries mode:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       catch: /\[index.time_series.start_time\] requires \[index.mode=time_series\]/
       indices.create:
@@ -328,8 +330,9 @@ set start_time and end_time without timeseries mode:
 ---
 set bad start_time and end_time:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       indices.create:
         index: test_index
@@ -368,8 +371,9 @@ set bad start_time and end_time:
 ---
 check start_time and end_time with data_nano:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       indices.create:
         index: test_index
@@ -427,8 +431,9 @@ check start_time and end_time with data_nano:
 ---
 check start_time boundary with data_nano:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       indices.create:
         index: test_index
@@ -477,8 +482,9 @@ check start_time boundary with data_nano:
 ---
 check end_time boundary with data_nano:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       indices.create:
         index: test_index
@@ -529,7 +535,8 @@ check end_time boundary with data_nano:
 check time_series default time bound value:
   - skip:
       version: " - 8.1.99"
-      reason: behavior was changed in 8.2.0
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       indices.create:
         index: test_index
@@ -561,7 +568,8 @@ check time_series default time bound value:
 check time_series empty time bound value:
   - skip:
       version: " - 8.1.99"
-      reason: introduced in 8.2.0
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       indices.create:
         index: test_index

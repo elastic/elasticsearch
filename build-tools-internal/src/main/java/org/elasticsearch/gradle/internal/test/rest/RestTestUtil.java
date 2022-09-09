@@ -14,6 +14,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskProvider;
 
 /**
  * Utility class to configure the necessary tasks and dependencies.
@@ -32,7 +33,7 @@ public class RestTestUtil {
     /**
      * Creates a {@link RestIntegTestTask} task with a custom name for the provided source set
      */
-    public static Provider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet, String taskName) {
+    public static TaskProvider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet, String taskName) {
         // lazily create the test task
         return project.getTasks().register(taskName, RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
@@ -45,10 +46,25 @@ public class RestTestUtil {
     }
 
     /**
-     * Setup the dependencies needed for the REST tests.
+     * Setup the dependencies needed for the YAML REST tests.
      */
-    public static void setupTestDependenciesDefaults(Project project, SourceSet sourceSet) {
-        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
+    public static void setupYamlRestTestDependenciesDefaults(Project project, SourceSet sourceSet) {
+        Project yamlTestRunnerProject = project.findProject(":test:yaml-rest-runner");
+        // we shield the project dependency to make integration tests easier
+        if (yamlTestRunnerProject != null) {
+            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), yamlTestRunnerProject);
+        }
     }
 
+    /**
+     * Setup the dependencies needed for the Java REST tests.
+     */
+    public static void setupJavaRestTestDependenciesDefaults(Project project, SourceSet sourceSet) {
+        // TODO: this should just be test framework, but some cleanup is needed in places incorrectly specifying java vs yaml
+        // we shield the project dependency to make integration tests easier
+        Project yamlTestRunnerProject = project.findProject(":test:yaml-rest-runner");
+        if (yamlTestRunnerProject != null) {
+            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), yamlTestRunnerProject);
+        }
+    }
 }

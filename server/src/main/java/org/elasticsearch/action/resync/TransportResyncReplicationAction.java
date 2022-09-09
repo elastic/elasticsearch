@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.resync;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -38,6 +37,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<
     ResyncReplicationRequest,
@@ -203,11 +204,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                     for (int i = 0; i < failures.length; i++) {
                         final ReplicationResponse.ShardInfo.Failure f = failures[i];
                         logger.info(
-                            new ParameterizedMessage(
-                                "{} primary-replica resync to replica on node [{}] failed",
-                                f.fullShardId(),
-                                f.nodeId()
-                            ),
+                            () -> format("%s primary-replica resync to replica on node [%s] failed", f.fullShardId(), f.nodeId()),
                             f.getCause()
                         );
                     }

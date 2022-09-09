@@ -9,6 +9,7 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -203,7 +204,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
         assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
-        searcher.count(query);
+        searcher.search(new ConstantScoreQuery(query), 1);
         assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
 
         searcher.close();
@@ -249,7 +250,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
         assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
-        searcher.count(query);
+        searcher.search(new ConstantScoreQuery(query), 1);
         assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
 
         searcher.close();

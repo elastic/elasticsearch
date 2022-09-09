@@ -29,7 +29,7 @@ public class AggregationPhase {
     @Inject
     public AggregationPhase() {}
 
-    public void preProcess(SearchContext context) {
+    public static void preProcess(SearchContext context) {
         if (context.aggregations() == null) {
             return;
         }
@@ -52,13 +52,13 @@ public class AggregationPhase {
             context.queryCollectors().put(AggregationPhase.class, BucketCollector.NO_OP_COLLECTOR);
         } else {
             Collector collector = context.getProfilers() == null
-                ? bucketCollector
-                : new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, List.of());
+                ? bucketCollector.asCollector()
+                : new InternalProfileCollector(bucketCollector.asCollector(), CollectorResult.REASON_AGGREGATION, List.of());
             context.queryCollectors().put(AggregationPhase.class, collector);
         }
     }
 
-    private List<Runnable> getCancellationChecks(SearchContext context) {
+    private static List<Runnable> getCancellationChecks(SearchContext context) {
         List<Runnable> cancellationChecks = new ArrayList<>();
         if (context.lowLevelCancellation()) {
             // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
@@ -88,7 +88,7 @@ public class AggregationPhase {
         return cancellationChecks;
     }
 
-    public void execute(SearchContext context) {
+    public static void execute(SearchContext context) {
         if (context.aggregations() == null) {
             context.queryResult().aggregations(null);
             return;

@@ -24,9 +24,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -73,8 +72,13 @@ public class MetadataMappingService {
         }
 
         @Override
-        public void onAllNodesAcked(@Nullable Exception e) {
-            listener.onResponse(AcknowledgedResponse.of(e == null));
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.of(true));
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.of(false));
         }
 
         @Override
@@ -90,35 +94,25 @@ public class MetadataMappingService {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<PutMappingClusterStateUpdateTask>> taskContexts)
-            throws Exception {
+        public ClusterState execute(BatchExecutionContext<PutMappingClusterStateUpdateTask> batchExecutionContext) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             try {
-                for (final var taskContext : taskContexts) {
+                var currentState = batchExecutionContext.initialState();
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
                     final var task = taskContext.getTask();
                     final PutMappingClusterStateUpdateRequest request = task.request;
-                    try {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
                             final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
-                                MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
+                                MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
                                 mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
-                        taskContext.success(new ActionListener<>() {
-                            @Override
-                            public void onResponse(ClusterState clusterState) {
-                                // listener is notified at the end of acking
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                task.onFailure(e);
-                            }
-                        }, task);
+                        taskContext.success(task);
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }
@@ -129,7 +123,7 @@ public class MetadataMappingService {
             }
         }
 
-        private ClusterState applyRequest(
+        private static ClusterState applyRequest(
             ClusterState currentState,
             PutMappingClusterStateUpdateRequest request,
             Map<Index, MapperService> indexMapperServices
@@ -231,9 +225,9 @@ public class MetadataMappingService {
         for (Index index : request.indices()) {
             final IndexMetadata indexMetadata = metadata.index(index);
             if (indexMetadata == null) {
-                // local store recovery sends a mapping update request during application of a cluster state on t he data node which
-                // might we receive here before the CS update that created the index has been applied on all nodes and thus the index
-                // isn't found in the state yet but will be visible to the CS update below
+                // local store recovery sends a mapping update request during application of a cluster state on the data node which we might
+                // receive here before the CS update that created the index has been applied on all nodes and thus the index isn't found in
+                // the state yet, but will be visible to the CS update below
                 noop = false;
                 break;
             }

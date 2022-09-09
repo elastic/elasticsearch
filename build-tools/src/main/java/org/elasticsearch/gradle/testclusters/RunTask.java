@@ -109,12 +109,10 @@ public class RunTask extends DefaultTestClustersTask {
         }
 
         for (ElasticsearchCluster cluster : getClusters()) {
-            cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
-            httpPort++;
-            cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
-            transportPort++;
             cluster.setPreserveDataDir(preserveData);
             for (ElasticsearchNode node : cluster.getNodes()) {
+                node.setHttpPort(String.valueOf(httpPort++));
+                node.setTransportPort(String.valueOf(transportPort++));
                 additionalSettings.forEach(node::setting);
                 if (dataDir != null) {
                     node.setDataPath(getDataPath.apply(node));
@@ -124,7 +122,6 @@ public class RunTask extends DefaultTestClustersTask {
                 }
             }
         }
-
         if (debug) {
             enableDebug();
         }
@@ -141,8 +138,9 @@ public class RunTask extends DefaultTestClustersTask {
 
         try {
             for (ElasticsearchCluster cluster : getClusters()) {
+                cluster.writeUnicastHostsFiles();
                 for (ElasticsearchNode node : cluster.getNodes()) {
-                    BufferedReader reader = Files.newBufferedReader(node.getEsLogFile());
+                    BufferedReader reader = Files.newBufferedReader(node.getEsOutputFile());
                     toRead.add(reader);
                     aliveChecks.add(node::isProcessAlive);
                 }

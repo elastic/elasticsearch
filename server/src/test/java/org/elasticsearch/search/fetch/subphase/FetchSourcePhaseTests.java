@@ -17,6 +17,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -161,7 +162,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         String[] excludes,
         SearchHit.NestedIdentity nestedIdentity
     ) throws IOException {
-        FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
+        FetchSourceContext fetchSourceContext = FetchSourceContext.of(fetchSource, includes, excludes);
         FetchContext fetchContext = mock(FetchContext.class);
         when(fetchContext.fetchSourceContext()).thenReturn(fetchSourceContext);
         when(fetchContext.getIndexName()).thenReturn("index");
@@ -175,7 +176,10 @@ public class FetchSourcePhaseTests extends ESTestCase {
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
         HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1);
-        hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
+        hitContext.sourceLookup()
+            .setSourceProvider(
+                source == null ? new SourceLookup.NullSourceProvider() : new SourceLookup.BytesSourceProvider(BytesReference.bytes(source))
+            );
 
         FetchSourcePhase phase = new FetchSourcePhase();
         FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);

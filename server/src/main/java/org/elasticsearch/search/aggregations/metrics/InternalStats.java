@@ -56,12 +56,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.count = count;
         this.sum = sum;
         this.min = min;
         this.max = max;
-        this.format = formatter;
     }
 
     /**
@@ -69,7 +68,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
      */
     public InternalStats(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         count = in.readVLong();
         min = in.readDouble();
         max = in.readDouble();

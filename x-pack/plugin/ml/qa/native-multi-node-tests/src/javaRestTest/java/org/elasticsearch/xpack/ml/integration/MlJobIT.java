@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -31,6 +33,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
@@ -150,6 +153,15 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("ml.jobs.opened.count", usage));
     }
 
+    public void testOpenJob_GivenTimeout_Returns408() throws IOException {
+        String jobId = "test-timeout-returns-408";
+        createFarequoteJob(jobId);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> openJob(jobId, Optional.of(TimeValue.timeValueNanos(1L))));
+
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
+    }
+
     private Response createFarequoteJob(String jobId) throws IOException {
         return putJob(jobId, """
             {
@@ -213,7 +225,7 @@ public class MlJobIT extends ESRestTestCase {
                     aliasesResponse,
                     containsString(
                         """
-                            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+                            "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""".formatted(
                             AnomalyDetectorsIndex.jobResultsAliasedName(jobId1),
                             jobId1
                         )
@@ -225,7 +237,7 @@ public class MlJobIT extends ESRestTestCase {
                     aliasesResponse,
                     containsString(
                         """
-                            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+                            "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""".formatted(
                             AnomalyDetectorsIndex.jobResultsAliasedName(jobId2),
                             jobId2
                         )
@@ -908,7 +920,7 @@ public class MlJobIT extends ESRestTestCase {
         }
 
         String expectedReadAliasString = """
-            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+            "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""".formatted(
             AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
             jobId
         );
@@ -960,10 +972,17 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     private void openJob(String jobId) throws IOException {
-        Response openResponse = client().performRequest(
-            new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open")
-        );
-        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
+        Response response = openJob(jobId, Optional.empty());
+        assertThat(entityAsMap(response), hasEntry("opened", true));
+    }
+
+    private Response openJob(String jobId, Optional<TimeValue> timeout) throws IOException {
+        StringBuilder path = new StringBuilder(MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
+        if (timeout.isPresent()) {
+            path.append("?timeout=" + timeout.get().getStringRep());
+        }
+        Response openResponse = client().performRequest(new Request("POST", path.toString()));
+        return openResponse;
     }
 
     private void closeJob(String jobId) throws IOException {

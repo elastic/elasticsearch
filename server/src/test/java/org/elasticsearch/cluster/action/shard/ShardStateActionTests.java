@@ -513,7 +513,7 @@ public class ShardStateActionTests extends ESTestCase {
     private void setUpMasterRetryVerification(int numberOfRetries, AtomicInteger retries, CountDownLatch latch, LongConsumer retryLoop) {
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {
             DiscoveryNodes.Builder masterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-            masterBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().iterator().next().value.getId());
+            masterBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().values().iterator().next().getId());
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(masterBuilder));
         });
 

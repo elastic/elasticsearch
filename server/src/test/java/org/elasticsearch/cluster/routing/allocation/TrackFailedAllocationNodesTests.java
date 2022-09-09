@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
@@ -49,31 +50,31 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
 
         // track the failed nodes if shard is not started
         for (int i = 0; i < maxRetries; i++) {
-            failedNodeIds.add(clusterState.routingTable().index("idx").shard(0).shards().get(0).currentNodeId());
-            clusterState = allocationService.applyFailedShard(
+            failedNodeIds.add(clusterState.routingTable().index("idx").shard(0).shard(0).currentNodeId());
+            clusterState = allocationService.applyFailedShards(
                 clusterState,
-                clusterState.routingTable().index("idx").shard(0).shards().get(0),
-                randomBoolean()
+                List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).shard(0), null, null, randomBoolean())),
+                List.of()
             );
             assertThat(
-                clusterState.routingTable().index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(),
+                clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(),
                 equalTo(failedNodeIds)
             );
         }
 
         // reroute with retryFailed=true should discard the failedNodes
-        assertThat(clusterState.routingTable().index("idx").shard(0).shards().get(0).state(), equalTo(ShardRoutingState.UNASSIGNED));
+        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).state(), equalTo(ShardRoutingState.UNASSIGNED));
         clusterState = allocationService.reroute(clusterState, new AllocationCommands(), false, true).clusterState();
-        assertThat(clusterState.routingTable().index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(), empty());
+        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(), empty());
 
         // do not track the failed nodes while shard is started
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
-        assertThat(clusterState.routingTable().index("idx").shard(0).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
-        clusterState = allocationService.applyFailedShard(
+        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).state(), equalTo(ShardRoutingState.STARTED));
+        clusterState = allocationService.applyFailedShards(
             clusterState,
-            clusterState.routingTable().index("idx").shard(0).shards().get(0),
-            false
+            List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).shard(0), null, null, false)),
+            List.of()
         );
-        assertThat(clusterState.routingTable().index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(), empty());
+        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(), empty());
     }
 }

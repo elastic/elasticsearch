@@ -160,6 +160,21 @@ SELECT UCASE(gender) uppercased, COUNT(*) count FROM "test_emp" WHERE UCASE(gend
 ucaseInline2
 SELECT UCASE('') upper;
 
+leastWithConstantGroup
+SELECT LEAST(first_name, last_name) x FROM test_emp GROUP BY x ORDER BY x;
+
+leastInFilters
+SELECT * FROM test_emp WHERE LEAST(first_name, last_name) = 'foo';
+
+greatestWithConstantGroup
+SELECT GREATEST(first_name, last_name) x FROM test_emp GROUP BY x ORDER BY x;
+
+greatestInFilters
+SELECT * FROM test_emp WHERE GREATEST(first_name, last_name) = 'foo';
+
+equalityInProjections
+SELECT first_name = last_name as x FROM test_emp WHERE emp_no = 10001;
+
 //
 // Group and order by
 //
@@ -273,3 +288,7 @@ SELECT RIGHT("first_name",2) f FROM "test_emp" ORDER BY "first_name" NULLS LAST 
 
 selectRightWithGroupByAndOrderBy
 SELECT RIGHT("first_name",2) f, COUNT(*) count FROM "test_emp" GROUP BY RIGHT("first_name",2) ORDER BY RIGHT("first_name",2) LIMIT 10;
+
+selectOrderByLeast
+SELECT * FROM test_emp ORDER BY LEAST(first_name, last_name);
+

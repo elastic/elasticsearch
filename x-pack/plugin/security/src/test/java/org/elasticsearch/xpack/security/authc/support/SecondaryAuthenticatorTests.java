@@ -35,11 +35,11 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -107,8 +108,8 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Map.of());
         final AnonymousUser anonymous = new AnonymousUser(settings);
 
-        final SecurityIndexManager securityIndex = SecurityMocks.mockSecurityIndexManager(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
-        final SecurityIndexManager tokensIndex = SecurityMocks.mockSecurityIndexManager(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS);
+        final SecurityIndexManager securityIndex = SecurityMocks.mockSecurityIndexManager(SecuritySystemIndices.SECURITY_MAIN_ALIAS);
+        final SecurityIndexManager tokensIndex = SecurityMocks.mockSecurityIndexManager(SecuritySystemIndices.SECURITY_TOKENS_ALIAS);
 
         client = Mockito.mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -162,7 +163,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     }
 
     public void testAuthenticateTransportRequestIsANoOpIfHeaderIsMissing() throws Exception {
-        final TransportRequest request = new AuthenticateRequest();
+        final TransportRequest request = AuthenticateRequest.INSTANCE;
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
@@ -180,7 +181,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
     public void testAuthenticateTransportRequestFailsIfHeaderHasUnrecognizedCredentials() throws Exception {
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Fake " + randomAlphaOfLengthBetween(5, 30));
-        final TransportRequest request = new AuthenticateRequest();
+        final TransportRequest request = AuthenticateRequest.INSTANCE;
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
@@ -210,7 +211,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
     public void testAuthenticateTransportRequestSucceedsWithBasicAuthentication() throws Exception {
         assertAuthenticateWithBasicAuthentication(listener -> {
-            final TransportRequest request = new AuthenticateRequest();
+            final TransportRequest request = AuthenticateRequest.INSTANCE;
             authenticator.authenticate(AuthenticateAction.NAME, request, listener);
         });
     }
@@ -238,7 +239,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         final AtomicReference<ThreadContext.StoredContext> listenerContext = new AtomicReference<>();
         consumer.accept(ActionListener.wrap(result -> {
-            listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
+            listenerContext.set(securityContext.getThreadContext().newStoredContext());
             future.onResponse(result);
         }, e -> future.onFailure(e)));
 
@@ -254,7 +255,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
     public void testAuthenticateTransportRequestFailsWithIncorrectPassword() throws Exception {
         assertAuthenticateWithIncorrectPassword(listener -> {
-            final TransportRequest request = new AuthenticateRequest();
+            final TransportRequest request = AuthenticateRequest.INSTANCE;
             authenticator.authenticate(AuthenticateAction.NAME, request, listener);
         });
     }
@@ -281,7 +282,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         final AtomicReference<ThreadContext.StoredContext> listenerContext = new AtomicReference<>();
         consumer.accept(ActionListener.wrap(future::onResponse, e -> {
-            listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
+            listenerContext.set(securityContext.getThreadContext().newStoredContext());
             future.onFailure(e);
         }));
 
@@ -298,15 +299,14 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
     public void testAuthenticateUsingBearerToken() throws Exception {
         final User user = new User(randomAlphaOfLengthBetween(6, 12));
-        Authentication auth = new Authentication(
-            user,
-            new RealmRef(randomAlphaOfLengthBetween(4, 8), randomAlphaOfLengthBetween(3, 6), randomAlphaOfLengthBetween(8, 12)),
-            null
-        );
+        Authentication auth = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef(randomAlphaOfLengthBetween(4, 8), randomAlphaOfLengthBetween(3, 6), randomAlphaOfLengthBetween(8, 12)))
+            .build(false);
 
         final AtomicReference<String> tokenDocId = new AtomicReference<>();
         final AtomicReference<BytesReference> tokenSource = new AtomicReference<>();
-        SecurityMocks.mockIndexRequest(client, RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, request -> {
+        SecurityMocks.mockIndexRequest(client, SecuritySystemIndices.SECURITY_TOKENS_ALIAS, request -> {
             tokenDocId.set(request.id());
             tokenSource.set(request.source());
         });
@@ -317,9 +317,9 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Bearer " + token);
 
-        SecurityMocks.mockGetRequest(client, RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, tokenDocId.get(), tokenSource.get());
+        SecurityMocks.mockGetRequest(client, SecuritySystemIndices.SECURITY_TOKENS_ALIAS, tokenDocId.get(), tokenSource.get());
 
-        final TransportRequest request = new AuthenticateRequest();
+        final TransportRequest request = AuthenticateRequest.INSTANCE;
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 

@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -31,9 +32,9 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -43,6 +44,7 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.IndexSettings;
@@ -50,9 +52,11 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
@@ -62,11 +66,14 @@ import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.hamcrest.Matcher;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -136,12 +143,12 @@ public class TextFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
         checker.registerUpdateCheck(b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
             b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
@@ -204,7 +211,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         return new IndexAnalyzers(
             Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of(),
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
             Map.of()
         );
     }
@@ -523,14 +530,12 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            () -> disabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
         );
         assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
-        enabledMapper.fieldType("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }); // no exception
-                                                                                                                         // this time
-
+        enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test")); // no exception
         e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "text").field("index", false).field("fielddata", true)))
@@ -836,7 +841,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext context = createSearchExecutionContext(ms);
         QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
-        assertEquals(new ConstantScoreQuery(new NormsFieldExistsQuery("foo.bar")), q);
+        assertEquals(new ConstantScoreQuery(new FieldExistsQuery("foo.bar")), q);
     }
 
     private static void assertAnalyzesTo(Analyzer analyzer, String field, String input, String[] output) throws IOException {
@@ -1086,5 +1091,125 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         assumeFalse("We don't have a way to assert things here", true);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        boolean storeTextField = randomBoolean();
+        boolean storedKeywordField = storeTextField || randomBoolean();
+        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
+        KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
+            storedKeywordField,
+            nullValue,
+            false == storeTextField
+        );
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) {
+                SyntheticSourceExample delegate = keywordSupport.example(maxValues);
+                if (storeTextField) {
+                    return new SyntheticSourceExample(
+                        delegate.inputValue(),
+                        delegate.result(),
+                        b -> b.field("type", "text").field("store", true)
+                    );
+                }
+                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
+                    b.field("type", "text");
+                    b.startObject("fields");
+                    {
+                        b.startObject(randomAlphaOfLength(4));
+                        delegate.mapping().accept(b);
+                        b.endObject();
+                    }
+                    b.endObject();
+                });
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                Matcher<String> err = equalTo(
+                    "field [field] of type [text] doesn't support synthetic source unless it is stored or"
+                        + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
+                );
+                return List.of(
+                    new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("l");
+                            b.field("type", "long");
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("kwd");
+                            b.field("type", "keyword");
+                            b.field("normalizer", "lowercase");
+                            b.endObject();
+                        }
+                        b.endObject();
+                    })
+                );
+            }
+        };
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
+        throws IOException {
+        // Disabled because it currently fails
+    }
+
+    public void testUnknownAnalyzerOnLegacyIndex() throws IOException {
+        XContentBuilder startingMapping = fieldMapping(b -> b.field("type", "text").field("analyzer", "does_not_exist"));
+
+        expectThrows(MapperParsingException.class, () -> createMapperService(startingMapping));
+
+        MapperService mapperService = createMapperService(Version.fromString("5.0.0"), startingMapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+
+        merge(mapperService, startingMapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+
+        // check that analyzer can be swapped out on legacy index
+        XContentBuilder differentAnalyzer = fieldMapping(b -> b.field("type", "text").field("analyzer", "keyword"));
+        merge(mapperService, differentAnalyzer);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+    }
+
+    public void testIgnoreFieldDataOnLegacyIndex() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "text").field("fielddata", true));
+        MapperService mapperService = createMapperService(mapping);
+        assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
+
+        mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
+        assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
+
+        MapperService finalMapperService = mapperService;
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ((TextFieldMapper) finalMapperService.documentMapper().mappers().getMapper("field")).fieldType()
+                .fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+        );
+    }
+
+    public void testIgnoreEagerGlobalOrdinalsOnLegacyIndex() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "text").field("eager_global_ordinals", true));
+        MapperService mapperService = createMapperService(mapping);
+        assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
+
+        mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
+        assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
     }
 }

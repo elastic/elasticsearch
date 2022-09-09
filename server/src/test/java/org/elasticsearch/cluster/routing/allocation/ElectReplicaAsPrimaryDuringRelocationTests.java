@@ -60,7 +60,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
         clusterState = resultingState;
 
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(2));
+        assertThat(clusterState.routingTable().index("test").size(), equalTo(2));
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(2));
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(2));
 

@@ -8,14 +8,13 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:azure-fixture')
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
 }
 
 restResources {
@@ -50,12 +49,12 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
-tasks.named("integTest") {
+tasks.named("javaRestTest") {
   systemProperty 'test.azure.container', azureContainer
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repositories_metering_tests_" + BuildParams.testSeed
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
 
   keystore 'azure.client.repositories_metering.account', azureAccount
@@ -83,6 +82,6 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 tasks.register("azureThirdPartyTest") {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }
 

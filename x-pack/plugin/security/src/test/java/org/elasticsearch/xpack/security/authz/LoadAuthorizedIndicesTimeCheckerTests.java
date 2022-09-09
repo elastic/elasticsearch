@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
@@ -174,7 +175,10 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         MockLogAppender.PatternSeenEventExpectation expectation
     ) throws IllegalAccessException {
         final User user = new User("slow-user", "slow-role");
-        final Authentication authentication = new Authentication(user, new Authentication.RealmRef("test", "test", "foo"), null);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new Authentication.RealmRef("test", "test", "foo"))
+            .build(false);
         final AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(
             authentication,
             new SearchRequest(),

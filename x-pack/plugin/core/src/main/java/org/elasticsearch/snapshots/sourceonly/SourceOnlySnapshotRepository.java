@@ -8,7 +8,6 @@ package org.elasticsearch.snapshots.sourceonly;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -27,7 +26,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -53,6 +52,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * <p>
@@ -105,7 +106,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 metadataToSnapshot(finalizeSnapshotContext.updatedShardGenerations().indices(), finalizeSnapshotContext.clusterMetadata()),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                finalizeSnapshotContext
+                finalizeSnapshotContext,
+                finalizeSnapshotContext::onDone
             )
         );
     }
@@ -148,7 +150,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         final Store store = context.store();
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
-            throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
+            context.onFailure(
+                new IllegalStateException(
+                    context.indexCommit()
+                        + " is not a regular index, but ["
+                        + unwrap.toString()
+                        + "]  and cannot be snapshotted into a source-only repository"
+                )
+            );
+            return;
         }
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
@@ -172,10 +182,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 snapshot.syncSnapshot(snapshotIndexCommit);
             } catch (NoSuchFileException | CorruptIndexException | FileAlreadyExistsException e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "Existing staging directory [{}] appears corrupted and will be pruned and recreated.",
-                        snapPath
-                    ),
+                    () -> format("Existing staging directory [%s] appears corrupted and will be pruned and recreated.", snapPath),
                     e
                 );
                 Lucene.cleanLuceneIndex(overlayDir);
@@ -201,6 +208,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     context.status(),
                     context.getRepositoryMetaVersion(),
                     context.userMetadata(),
+                    context.snapshotStartTime(),
                     context
                 )
             );

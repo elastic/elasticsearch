@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
@@ -24,12 +26,13 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.TotalHitsExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggPathInput;
@@ -122,7 +126,7 @@ public class Querier {
 
         SearchRequest search = prepareRequest(
             sourceBuilder,
-            cfg.requestTimeout(),
+            cfg,
             query.shouldIncludeFrozen(),
             Strings.commaDelimitedListToStringArray(index)
         );
@@ -134,13 +138,11 @@ public class Querier {
         if (cfg.task() != null && cfg.task().isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
         } else if (query.isAggsOnly()) {
-            ActionListener<SearchResponse> l;
             if (query.aggs().useImplicitGroupBy()) {
-                l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
+                client.search(search, new ImplicitGroupActionListener(listener, client, cfg, output, query, search));
             } else {
-                l = new CompositeActionListener(listener, client, cfg, output, query, search);
+                searchWithPointInTime(search, new CompositeActionListener(listener, client, cfg, output, query, search));
             }
-            client.search(search, l);
         } else {
             searchWithPointInTime(search, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
         }
@@ -187,13 +189,13 @@ public class Querier {
         }
     }
 
-    public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeOut, boolean includeFrozen, String... indices) {
-        source.timeout(timeOut);
+    public static SearchRequest prepareRequest(SearchSourceBuilder source, SqlConfiguration cfg, boolean includeFrozen, String... indices) {
+        source.timeout(cfg.requestTimeout());
 
         SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
         searchRequest.indices(indices);
         searchRequest.source(source);
-        searchRequest.allowPartialSearchResults(false);
+        searchRequest.allowPartialSearchResults(cfg.allowPartialSearchResults());
         searchRequest.indicesOptions(
             includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
         );
@@ -452,6 +454,8 @@ public class Querier {
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
+            CompositeAggregationBuilder aggregation = CompositeAggCursor.getCompositeBuilder(request.source());
+            boolean mightProducePartialPages = CompositeAggCursor.couldProducePartialPages(aggregation);
 
             Supplier<CompositeAggRowSet> makeRowSet = isPivot
                 ? () -> new PivotRowSet(
@@ -459,15 +463,19 @@ public class Querier {
                     initBucketExtractors(response),
                     mask,
                     response,
+                    aggregation.size(),
                     query.sortingColumns().isEmpty() ? query.limit() : -1,
-                    null
+                    null,
+                    mightProducePartialPages
                 )
                 : () -> new SchemaCompositeAggRowSet(
                     schema,
                     initBucketExtractors(response),
                     mask,
                     response,
-                    query.sortingColumns().isEmpty() ? query.limit() : -1
+                    aggregation.size(),
+                    query.sortingColumns().isEmpty() ? query.limit() : -1,
+                    mightProducePartialPages
                 );
 
             BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ? (q, r) -> {
@@ -492,13 +500,14 @@ public class Querier {
                 );
 
             CompositeAggCursor.handle(
+                client,
                 response,
                 request.source(),
                 makeRowSet,
                 makeCursor,
                 () -> client.search(request, this),
                 listener,
-                schema
+                mightProducePartialPages
             );
         }
     }
@@ -528,14 +537,15 @@ public class Querier {
             List<QueryContainer.FieldInfo> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
-            ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
+            TotalHits totalHits = response.getHits().getTotalHits();
+            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value);
             for (QueryContainer.FieldInfo ref : refs) {
                 exts.add(createExtractor(ref.extraction(), totalCount));
             }
             return exts;
         }
 
-        private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
+        private BucketExtractor createExtractor(FieldExtraction ref, ConstantExtractor totalCount) {
             if (ref instanceof GroupByRef r) {
                 return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.dataType());
             }
@@ -612,7 +622,8 @@ public class Querier {
                 source,
                 () -> new SchemaSearchHitRowSet(schema, exts, mask, source.size(), query.limit(), response),
                 listener,
-                query.shouldIncludeFrozen()
+                query.shouldIncludeFrozen(),
+                query.allowPartialSearchResults()
             );
         }
 
@@ -656,6 +667,8 @@ public class Querier {
      */
     abstract static class BaseActionListener extends ActionListener.Delegating<SearchResponse, Page> {
 
+        private static final int MAX_WARNING_HEADERS = 20;
+
         final Client client;
         final SqlConfiguration cfg;
         final Schema schema;
@@ -670,11 +683,26 @@ public class Querier {
 
         @Override
         public void onResponse(final SearchResponse response) {
+            if (cfg.allowPartialSearchResults() && response.getFailedShards() > 0) {
+                handleShardFailures(response);
+            }
             handleResponse(response, delegate);
         }
 
         protected abstract void handleResponse(SearchResponse response, ActionListener<Page> listener);
 
+        private static void handleShardFailures(SearchResponse response) {
+            int count = 0;
+            int shardFailuresCount = response.getShardFailures().length;
+            for (ShardSearchFailure shardFailure : response.getShardFailures()) {
+                HeaderWarning.addWarning(shardFailure.getCause().toString());
+                if (++count >= MAX_WARNING_HEADERS - 1 && shardFailuresCount > count) {
+                    int remaining = shardFailuresCount - count;
+                    HeaderWarning.addWarning(remaining + " remaining shard failure" + (remaining > 1 ? "s" : "") + " suppressed");
+                    break;
+                }
+            }
+        }
     }
 
     @SuppressWarnings("rawtypes")

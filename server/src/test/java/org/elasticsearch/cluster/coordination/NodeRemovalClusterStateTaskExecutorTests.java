@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -46,7 +45,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         final List<NodeRemovalClusterStateTaskExecutor.Task> tasks = removeBuilder.build()
             .stream()
             .map(node -> new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed", () -> {}))
-            .collect(Collectors.toList());
+            .toList();
 
         assertSame(clusterState, ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, tasks));
     }

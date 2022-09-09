@@ -22,6 +22,8 @@ import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -44,8 +46,11 @@ public class Netty4HttpRequest implements HttpRequest {
     private final Exception inboundException;
     private final boolean pooled;
 
-    Netty4HttpRequest(FullHttpRequest request) {
+    private final int sequence;
+
+    Netty4HttpRequest(int sequence, FullHttpRequest request) {
         this(
+            sequence,
             request,
             new HttpHeadersMap(request.headers()),
             new AtomicBoolean(false),
@@ -54,8 +59,9 @@ public class Netty4HttpRequest implements HttpRequest {
         );
     }
 
-    Netty4HttpRequest(FullHttpRequest request, Exception inboundException) {
+    Netty4HttpRequest(int sequence, FullHttpRequest request, Exception inboundException) {
         this(
+            sequence,
             request,
             new HttpHeadersMap(request.headers()),
             new AtomicBoolean(false),
@@ -66,16 +72,18 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     private Netty4HttpRequest(
+        int sequence,
         FullHttpRequest request,
         HttpHeadersMap headers,
         AtomicBoolean released,
         boolean pooled,
         BytesReference content
     ) {
-        this(request, headers, released, pooled, content, null);
+        this(sequence, request, headers, released, pooled, content, null);
     }
 
     private Netty4HttpRequest(
+        int sequence,
         FullHttpRequest request,
         HttpHeadersMap headers,
         AtomicBoolean released,
@@ -83,6 +91,7 @@ public class Netty4HttpRequest implements HttpRequest {
         BytesReference content,
         Exception inboundException
     ) {
+        this.sequence = sequence;
         this.request = request;
         this.headers = headers;
         this.content = content;
@@ -152,6 +161,7 @@ public class Netty4HttpRequest implements HttpRequest {
         try {
             final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
             return new Netty4HttpRequest(
+                sequence,
                 new DefaultFullHttpRequest(
                     request.protocolVersion(),
                     request.method(),
@@ -214,12 +224,24 @@ public class Netty4HttpRequest implements HttpRequest {
             headersWithoutContentTypeHeader,
             trailingHeaders
         );
-        return new Netty4HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released, pooled, content);
+        return new Netty4HttpRequest(
+            sequence,
+            requestWithoutHeader,
+            new HttpHeadersMap(requestWithoutHeader.headers()),
+            released,
+            pooled,
+            content
+        );
     }
 
     @Override
     public Netty4HttpResponse createResponse(RestStatus status, BytesReference contentRef) {
-        return new Netty4HttpResponse(request.protocolVersion(), status, contentRef);
+        return new Netty4HttpResponse(sequence, request.protocolVersion(), status, contentRef);
+    }
+
+    @Override
+    public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+        return new Netty4ChunkedHttpResponse(sequence, request.protocolVersion(), status, content);
     }
 
     @Override
@@ -295,7 +317,7 @@ public class Netty4HttpRequest implements HttpRequest {
 
         @Override
         public Collection<List<String>> values() {
-            return httpHeaders.names().stream().map(k -> Collections.unmodifiableList(httpHeaders.getAll(k))).collect(Collectors.toList());
+            return httpHeaders.names().stream().map(k -> Collections.unmodifiableList(httpHeaders.getAll(k))).toList();
         }
 
         @Override

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 
@@ -24,12 +23,7 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
         this.priority = priority;
     }
 
-    protected void execute(ClusterState currentState) throws Exception {}
-
-    @Override
-    public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        assert false : "not called";
-    }
+    protected void execute(ClusterState currentState) {}
 
     protected void onPublicationComplete() {}
 
@@ -53,24 +47,16 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
                 }
 
                 @Override
-                public ClusterState execute(ClusterState currentState, List<TaskContext<LocalMasterServiceTask>> taskContexts)
-                    throws Exception {
-                    final LocalMasterServiceTask thisTask = LocalMasterServiceTask.this;
+                public ClusterState execute(BatchExecutionContext<LocalMasterServiceTask> batchExecutionContext) {
+                    final var thisTask = LocalMasterServiceTask.this;
+                    final var taskContexts = batchExecutionContext.taskContexts();
                     assert taskContexts.size() == 1 && taskContexts.get(0).getTask() == thisTask
                         : "expected one-element task list containing current object but was " + taskContexts;
-                    thisTask.execute(currentState);
-                    taskContexts.get(0).success(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            onPublicationComplete();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            LocalMasterServiceTask.this.onFailure(e);
-                        }
-                    });
-                    return currentState;
+                    try (var ignored = taskContexts.get(0).captureResponseHeaders()) {
+                        thisTask.execute(batchExecutionContext.initialState());
+                    }
+                    taskContexts.get(0).success(() -> onPublicationComplete());
+                    return batchExecutionContext.initialState();
                 }
             }
         );

@@ -74,22 +74,34 @@ public class LuceneDocument implements Iterable<IndexableField> {
     }
 
     public void add(IndexableField field) {
+        assert assertLegalFieldName(field);
+        fields.add(field);
+    }
+
+    private boolean assertLegalFieldName(IndexableField field) {
         // either a meta fields or starts with the prefix
         assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;
-        fields.add(field);
+        return true;
     }
 
     /**
      * Add fields so that they can later be fetched using {@link #getByKey(Object)}.
      */
     public void addWithKey(Object key, IndexableField field) {
+        onlyAddKey(key, field);
+        add(field);
+    }
+
+    /**
+     * only add the key to the keyedFields, it don't add the field to the field list
+     */
+    public void onlyAddKey(Object key, IndexableField field) {
         if (keyedFields == null) {
             keyedFields = new HashMap<>();
         } else if (keyedFields.containsKey(key)) {
             throw new IllegalStateException("Only one field can be stored per key");
         }
         keyedFields.put(key, field);
-        add(field);
     }
 
     /**
@@ -144,5 +156,4 @@ public class LuceneDocument implements Iterable<IndexableField> {
         }
         return null;
     }
-
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -53,9 +54,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -181,7 +182,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             enabled = randomBoolean();
             settings.put("xpack.ml.enabled", enabled);
         }
-        boolean expected = enabled || useDefault;
+        boolean expected = enabled;
         MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
@@ -345,7 +346,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             ),
                             3,
                             null,
-                            new AllocationStats("model_3", null, null, null, Instant.now(), List.of()).setState(AllocationState.STOPPING)
+                            new AssignmentStats("model_3", null, null, null, null, Instant.now(), List.of()).setState(
+                                AssignmentState.STOPPING
+                            )
                         ),
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel4.getModelId(),
@@ -366,41 +369,52 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             ),
                             4,
                             null,
-                            new AllocationStats(
+                            new AssignmentStats(
                                 "model_4",
                                 2,
                                 2,
                                 1000,
+                                ByteSizeValue.ofBytes(1000),
                                 Instant.now(),
                                 List.of(
-                                    AllocationStats.NodeStats.forStartedState(
+                                    AssignmentStats.NodeStats.forStartedState(
                                         new DiscoveryNode("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2), Version.CURRENT),
                                         5,
                                         42.0,
                                         0,
                                         1,
+                                        3L,
                                         2,
                                         3,
                                         Instant.now(),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16)
+                                        randomIntBetween(1, 16),
+                                        1L,
+                                        2L,
+                                        33.0,
+                                        1L
                                     ),
-                                    AllocationStats.NodeStats.forStartedState(
+                                    AssignmentStats.NodeStats.forStartedState(
                                         new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
                                         4,
                                         50.0,
                                         0,
                                         1,
+                                        1L,
                                         2,
                                         3,
                                         Instant.now(),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16)
+                                        randomIntBetween(1, 16),
+                                        2L,
+                                        4L,
+                                        34.0,
+                                        1L
                                     )
                                 )
-                            ).setState(AllocationState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
+                            ).setState(AssignmentState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
                         )
                     ),
                     0,

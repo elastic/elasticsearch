@@ -76,7 +76,7 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
     }
 
     private List<ScriptContextInfo> byName() {
-        return contexts.values().stream().sorted(Comparator.comparing(ScriptContextInfo::getName)).collect(Collectors.toList());
+        return contexts.values().stream().sorted(Comparator.comparing(ScriptContextInfo::getName)).toList();
     }
 
     @Override

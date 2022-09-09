@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
-import com.carrotsearch.hppc.IntArrayList;
 import com.ibm.icu.text.Normalizer;
 import com.ibm.icu.text.Normalizer2;
 
@@ -141,24 +140,29 @@ public final class BasicTokenFilter extends TokenFilter {
         return false;
     }
 
-    void stripAccent() {
+    private void stripAccent() {
         accentBuffer.setLength(0);
+        boolean changed = false;
         if (normalizer.quickCheck(termAtt) != Normalizer.YES) {
             normalizer.normalize(termAtt, accentBuffer);
+            changed = true;
+        } else {
+            accentBuffer.append(termAtt);
         }
-        IntArrayList badIndices = new IntArrayList();
-        IntArrayList charCount = new IntArrayList();
+        List<Integer> badIndices = new ArrayList<>();
+        List<Integer> charCount = new ArrayList<>();
         int index = 0;
+        int deletedIndices = 0;
         for (PrimitiveIterator.OfInt it = accentBuffer.codePoints().iterator(); it.hasNext();) {
             int cp = it.next();
             if (Character.getType(cp) == Character.NON_SPACING_MARK) {
-                badIndices.add(index);
+                // When we iterate to delete accents, we need to account for previously deleted ones
+                badIndices.add(index - deletedIndices);
                 charCount.add(Character.charCount(cp));
+                deletedIndices++;
+                changed = true;
             }
             index++;
-        }
-        if (badIndices.isEmpty()) {
-            return;
         }
         for (int i = 0; i < badIndices.size(); i++) {
             int badIndex = badIndices.get(i);
@@ -167,12 +171,14 @@ public final class BasicTokenFilter extends TokenFilter {
                 accentBuffer.deleteCharAt(badIndex);
             }
         }
-        termAtt.setEmpty().append(accentBuffer);
+        if (changed) {
+            termAtt.setEmpty().append(accentBuffer);
+        }
     }
 
     private LinkedList<DelimitedToken> split() {
         LinkedList<DelimitedToken> splits = new LinkedList<>();
-        int startOffset = offsetAtt.startOffset();
+        final int startOffset = offsetAtt.startOffset();
         int charIndex = 0;
         int lastCharSplit = 0;
         for (PrimitiveIterator.OfInt it = termAtt.codePoints().iterator(); it.hasNext();) {

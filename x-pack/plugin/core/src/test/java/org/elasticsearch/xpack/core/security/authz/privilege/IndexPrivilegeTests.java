@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -17,13 +18,16 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class IndexPrivilegeTests extends ESTestCase {
@@ -40,16 +44,18 @@ public class IndexPrivilegeTests extends ESTestCase {
         final int read = Iterables.indexOf(names, "read"::equals);
         final int write = Iterables.indexOf(names, "write"::equals);
         final int index = Iterables.indexOf(names, "index"::equals);
-        final int create_doc = Iterables.indexOf(names, "create_doc"::equals);
+        final int createDoc = Iterables.indexOf(names, "create_doc"::equals);
         final int delete = Iterables.indexOf(names, "delete"::equals);
+        final int viewIndexMetadata = Iterables.indexOf(names, "view_index_metadata"::equals);
 
         assertThat(read, lessThan(all));
         assertThat(manage, lessThan(all));
         assertThat(monitor, lessThan(manage));
         assertThat(write, lessThan(all));
         assertThat(index, lessThan(write));
-        assertThat(create_doc, lessThan(index));
+        assertThat(createDoc, lessThan(index));
         assertThat(delete, lessThan(write));
+        assertThat(viewIndexMetadata, lessThan(manage));
     }
 
     public void testFindPrivilegesThatGrant() {
@@ -67,4 +73,41 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(Set.copyOf(privileges), equalTo(Set.of("read", "view_index_metadata", "manage", "all")));
     }
 
+    public void testPrivilegesForGetCheckPointAction() {
+        assertThat(
+            findPrivilegesThatGrant(GetCheckpointAction.NAME),
+            containsInAnyOrder("monitor", "view_index_metadata", "manage", "all")
+        );
+    }
+
+    public void testRelationshipBetweenPrivileges() {
+        assertThat(
+            Operations.subsetOf(
+                IndexPrivilege.get(Set.of("view_index_metadata")).automaton,
+                IndexPrivilege.get(Set.of("manage")).automaton
+            ),
+            is(true)
+        );
+
+        assertThat(
+            Operations.subsetOf(IndexPrivilege.get(Set.of("monitor")).automaton, IndexPrivilege.get(Set.of("manage")).automaton),
+            is(true)
+        );
+
+        assertThat(
+            Operations.subsetOf(
+                IndexPrivilege.get(Set.of("create", "create_doc", "index", "delete")).automaton,
+                IndexPrivilege.get(Set.of("write")).automaton
+            ),
+            is(true)
+        );
+
+        assertThat(
+            Operations.subsetOf(
+                IndexPrivilege.get(Set.of("create_index", "delete_index")).automaton,
+                IndexPrivilege.get(Set.of("manage")).automaton
+            ),
+            is(true)
+        );
+    }
 }

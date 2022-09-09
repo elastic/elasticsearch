@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
  */
 public final class TimestampFormatFinder {
 
+    private static final boolean ECS_COMPATIBILITY = false;
     private static final String PREFACE = "preface";
     private static final String EPILOGUE = "epilogue";
 
@@ -278,15 +279,81 @@ public final class TimestampFormatFinder {
         ),
         // The Kibana export format
         new CandidateTimestampFormat(
-            example -> Collections.singletonList("MMM dd, yyyy @ HH:mm:ss.SSS"),
-            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
+            example -> Collections.singletonList("MMM d, yyyy @ HH:mm:ss.SSS"),
+            "\\b[A-Z]\\S{2} \\d{1,2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
             "\\b%{MONTH} %{MONTHDAY}, %{YEAR} @ %{HOUR}:%{MINUTE}:%{SECOND}\\b",
             CUSTOM_TIMESTAMP_GROK_NAME,
-            "    11  1111   11 11 11 111",
+            Arrays.asList("    11  1111   11 11 11 111", "    1  1111   11 11 11 111"),
             0,
             0
         )
     );
+
+    /**
+     * The first match in this list will be chosen, so it needs to be ordered
+     * such that more generic patterns come after more specific patterns.
+     */
+    static final List<CandidateTimestampFormat> ORDERED_CANDIDATE_FORMATS_ECS_V1;
+    static {
+        // From libs/grok/src/main/resources/patterns/ecs-v1/java
+        // TOMCAT_DATESTAMP (?:%{CATALINA8_DATESTAMP})|(?:%{CATALINA7_DATESTAMP})|(?:%{TOMCATLEGACY_DATESTAMP})
+
+        List<CandidateTimestampFormat> items = new ArrayList<>();
+        // CATALINA8_DATESTAMP %{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}
+        // Where SECOND is defined as (?:(?:[0-5]?[0-9]|60)(?:[:.,][0-9]+)?)
+        // ('60' is a leap second in most time standards and thus is valid.)
+        // 29-Aug-2021 12:03:33.578
+        items.add(
+            new CandidateTimestampFormat(
+                example -> Collections.singletonList(
+                    CandidateTimestampFormat.adjustFractionalSecondsFromEndOfExample(example, "dd-MMM-yyyy hh:mm:ss")
+                ),
+                "\\b\\d{2}-[A-Z]\\S{2}-\\d{4} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
+                "\\b%{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}\\b",
+                "CATALINA8_DATESTAMP",
+                "11     1111 11 11 11 111",
+                0,
+                0
+            )
+        );
+        // CATALINA7_DATESTAMP %{MONTH} %{MONTHDAY}, %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} (?:AM|PM)
+        items.add(
+            new CandidateTimestampFormat(
+                example -> Collections.singletonList("MMM dd, yyyy h:mm:ss a"),
+                "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
+                "\\b%{MONTH} %{MONTHDAY}, %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} (?:AM|PM)\\b",
+                "CATALINA7_DATESTAMP",
+                Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11"),
+                0,
+                3
+            )
+        );
+        // From libs/grok/src/main/resources/patterns/ecs-v1/java
+        // TOMCATLEGACY_DATESTAMP %{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND}(?: %{ISO8601_TIMEZONE})?
+        // This is effectively a renaming of TOMCAT_DATESTAMP defined in libs/grok/src/main/resources/patterns/legacy/java
+        items.add(
+            new CandidateTimestampFormat(
+                example -> CandidateTimestampFormat.iso8601LikeFormatFromExample(example, " ", " "),
+                "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
+                "\\b20\\d{2}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9} (?:Z|[+-]%{HOUR}%{MINUTE})\\b",
+                "TOMCATLEGACY_DATESTAMP",
+                "1111 11 11 11 11 11 111",
+                0,
+                13
+            )
+        );
+
+        items.addAll(
+            ORDERED_CANDIDATE_FORMATS.stream()
+                .filter(
+                    p -> (("CATALINA_DATESTAMP".equals(p.outputGrokPatternName) == false)
+                        && ("TOMCAT_DATESTAMP".equals(p.outputGrokPatternName) == false))
+                )
+                .collect(Collectors.toList())
+        );
+
+        ORDERED_CANDIDATE_FORMATS_ECS_V1 = Collections.unmodifiableList(items);
+    }
 
     /**
      * It is expected that the explanation will be shared with other code.
@@ -312,6 +379,27 @@ public final class TimestampFormatFinder {
      * @param errorOnNoTimestamp      Should an exception be thrown if a sample is added that does not contain a recognised timestamp?
      * @param errorOnMultiplePatterns Should an exception be thrown if samples are uploaded that require different Grok patterns?
      * @param timeoutChecker          Will abort the operation if its timeout is exceeded.
+     * @param ecsCompatibility        Mode of compatibility with ECS compliant Grok patterns.
+     */
+    public TimestampFormatFinder(
+        List<String> explanation,
+        boolean requireFullMatch,
+        boolean errorOnNoTimestamp,
+        boolean errorOnMultiplePatterns,
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
+    ) {
+        this(explanation, null, requireFullMatch, errorOnNoTimestamp, errorOnMultiplePatterns, timeoutChecker, ecsCompatibility);
+    }
+
+    /**
+     * Construct without any specific timestamp format override.
+     * @param explanation             List of reasons for making decisions.  May contain items when passed and new reasons
+     *                                can be appended by the methods of this class.
+     * @param requireFullMatch        Must samples added to this object represent a timestamp in their entirety?
+     * @param errorOnNoTimestamp      Should an exception be thrown if a sample is added that does not contain a recognised timestamp?
+     * @param errorOnMultiplePatterns Should an exception be thrown if samples are uploaded that require different Grok patterns?
+     * @param timeoutChecker          Will abort the operation if its timeout is exceeded.
      */
     public TimestampFormatFinder(
         List<String> explanation,
@@ -320,7 +408,7 @@ public final class TimestampFormatFinder {
         boolean errorOnMultiplePatterns,
         TimeoutChecker timeoutChecker
     ) {
-        this(explanation, null, requireFullMatch, errorOnNoTimestamp, errorOnMultiplePatterns, timeoutChecker);
+        this(explanation, null, requireFullMatch, errorOnNoTimestamp, errorOnMultiplePatterns, timeoutChecker, ECS_COMPATIBILITY);
     }
 
     /**
@@ -335,6 +423,7 @@ public final class TimestampFormatFinder {
      * @param errorOnNoTimestamp      Should an exception be thrown if a sample is added that does not contain a recognised timestamp?
      * @param errorOnMultiplePatterns Should an exception be thrown if samples are uploaded that require different Grok patterns?
      * @param timeoutChecker          Will abort the operation if its timeout is exceeded.
+     * @param ecsCompatibility        Mode of compatibility with ECS compliant Grok patterns.
      */
     public TimestampFormatFinder(
         List<String> explanation,
@@ -342,14 +431,16 @@ public final class TimestampFormatFinder {
         boolean requireFullMatch,
         boolean errorOnNoTimestamp,
         boolean errorOnMultiplePatterns,
-        TimeoutChecker timeoutChecker
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
     ) {
         this.explanation = Objects.requireNonNull(explanation);
         this.requireFullMatch = requireFullMatch;
         this.errorOnNoTimestamp = errorOnNoTimestamp;
         this.errorOnMultiplePatterns = errorOnMultiplePatterns;
         this.orderedCandidateFormats = (overrideFormat != null)
-            ? Collections.singletonList(makeCandidateFromOverrideFormat(overrideFormat, timeoutChecker))
+            ? Collections.singletonList(makeCandidateFromOverrideFormat(overrideFormat, timeoutChecker, ecsCompatibility))
+            : ecsCompatibility ? ORDERED_CANDIDATE_FORMATS_ECS_V1
             : ORDERED_CANDIDATE_FORMATS;
         this.timeoutChecker = Objects.requireNonNull(timeoutChecker);
         this.matches = new ArrayList<>();
@@ -445,11 +536,16 @@ public final class TimestampFormatFinder {
     /**
      * Given a user supplied Java timestamp format, return an appropriate candidate timestamp object as required by this class.
      * The returned candidate might be a built-in one, or might be generated from the supplied format.
-     * @param overrideFormat A user supplied Java timestamp format.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param overrideFormat   A user supplied Java timestamp format.
+     * @param timeoutChecker   Will abort the operation if its timeout is exceeded.
+     * @param ecsCompatibility Mode of compatibility with ECS compliant Grok patterns.
      * @return An appropriate candidate timestamp object.
      */
-    static CandidateTimestampFormat makeCandidateFromOverrideFormat(String overrideFormat, TimeoutChecker timeoutChecker) {
+    static CandidateTimestampFormat makeCandidateFromOverrideFormat(
+        String overrideFormat,
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
+    ) {
 
         // First check for a special format string
         switch (overrideFormat.toUpperCase(Locale.ROOT)) {
@@ -475,9 +571,10 @@ public final class TimestampFormatFinder {
         // Additionally it has the full 9 digits of fractional second precision, to avoid the possibility of truncating the fraction.
         String generatedTimestamp = javaTimeFormatter.withZone(ZoneOffset.ofHoursMinutesSeconds(5, 45, 0))
             .format(Instant.ofEpochMilli(981173106123L).plusNanos(456789L));
-        for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS) {
+        BitSet numberPosBitSet = stringToNumberPosBitSet(generatedTimestamp);
+        for (CandidateTimestampFormat candidate : ecsCompatibility ? ORDERED_CANDIDATE_FORMATS_ECS_V1 : ORDERED_CANDIDATE_FORMATS) {
 
-            TimestampMatch match = checkCandidate(candidate, generatedTimestamp, null, true, timeoutChecker);
+            TimestampMatch match = checkCandidate(candidate, generatedTimestamp, numberPosBitSet, true, timeoutChecker);
             if (match != null) {
                 return new CandidateTimestampFormat(example -> {
 
@@ -522,20 +619,27 @@ public final class TimestampFormatFinder {
         boolean requireFullMatch,
         TimeoutChecker timeoutChecker
     ) {
+        Tuple<Integer, Integer> boundsForCandidate = findBoundsForCandidate(candidate, numberPosBitSet);
         if (requireFullMatch) {
-            Map<String, Object> captures = timeoutChecker.grokCaptures(
-                candidate.strictFullMatchGrok,
-                text,
-                "timestamp format determination"
-            );
-            if (captures != null) {
-                return new TimestampMatch(candidate, "", text, "");
+            // Even though the "strict" Grok pattern should only match text that can be parsed using
+            // the corresponding time format, the built in Grok patterns are not as strict as they
+            // could be. Therefore, enforce that the bit pattern also matches, as this will rule out
+            // problems like the %{MONTHDAY} Grok pattern matching both single and double digit days
+            // while the date format only matches double digit days.
+            if (boundsForCandidate.v1() == 0) {
+                Map<String, Object> captures = timeoutChecker.grokCaptures(
+                    candidate.strictFullMatchGrok,
+                    text,
+                    "timestamp format determination"
+                );
+                if (captures != null) {
+                    return new TimestampMatch(candidate, "", text, "");
+                }
             }
         } else {
             // Since a search in a long string that has sections that nearly match will be very slow, it's
             // worth doing an initial sanity check to see if the relative positions of digits necessary to
-            // get a match exist first
-            Tuple<Integer, Integer> boundsForCandidate = findBoundsForCandidate(candidate, numberPosBitSet);
+            // get a match exist first.
             if (boundsForCandidate.v1() >= 0) {
                 assert boundsForCandidate.v2() > boundsForCandidate.v1();
                 String matchIn = text.substring(boundsForCandidate.v1(), Math.min(boundsForCandidate.v2(), text.length()));
@@ -582,7 +686,7 @@ public final class TimestampFormatFinder {
      */
     public void addSample(String text) {
 
-        BitSet numberPosBitSet = requireFullMatch ? null : stringToNumberPosBitSet(text);
+        BitSet numberPosBitSet = stringToNumberPosBitSet(text);
 
         for (CandidateTimestampFormat candidate : orderedCandidateFormats) {
 

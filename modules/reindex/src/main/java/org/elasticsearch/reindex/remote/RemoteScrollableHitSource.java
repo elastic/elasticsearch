@@ -13,7 +13,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -25,18 +24,18 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
+import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -44,6 +43,7 @@ import java.io.InputStream;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.MAIN_ACTION_PARSER;
@@ -51,7 +51,7 @@ import static org.elasticsearch.reindex.remote.RemoteResponseParsers.RESPONSE_PA
 
 public class RemoteScrollableHitSource extends ScrollableHitSource {
     private final RestClient client;
-    private final BytesReference query;
+    private final RemoteInfo remote;
     private final SearchRequest searchRequest;
     Version remoteVersion;
 
@@ -63,11 +63,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         Consumer<AsyncResponse> onResponse,
         Consumer<Exception> fail,
         RestClient client,
-        BytesReference query,
+        RemoteInfo remoteInfo,
         SearchRequest searchRequest
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
-        this.query = query;
+        this.remote = remoteInfo;
         this.searchRequest = searchRequest;
         this.client = client;
     }
@@ -77,7 +77,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
             remoteVersion = version;
             execute(
-                RemoteRequestBuilders.initialSearch(searchRequest, query, remoteVersion),
+                RemoteRequestBuilders.initialSearch(searchRequest, remote.getQuery(), remoteVersion),
                 RESPONSE_PARSER,
                 RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r))
             );
@@ -122,8 +122,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                 if (e instanceof ResponseException re) {
                     if (remoteVersion.before(Version.fromId(2000099)) && re.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "Failed to clear scroll [{}] from pre-2.0 Elasticsearch. This is normal if the request terminated "
+                            () -> format(
+                                "Failed to clear scroll [%s] from pre-2.0 Elasticsearch. This is normal if the request terminated "
                                     + "normally as the scroll has already been cleared automatically.",
                                 scrollId
                             ),
@@ -132,7 +132,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                         return;
                     }
                 }
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
+                logger.warn((Supplier<?>) () -> "Failed to clear scroll [" + scrollId + "]", e);
             }
         });
     }
@@ -146,6 +146,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             try {
                 client.close();
                 logger.debug("Shut down remote connection");
+                remote.close();
             } catch (IOException e) {
                 logger.error("Failed to shutdown the remote connection", e);
             } finally {
@@ -191,7 +192,10 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             // EMPTY is safe here because we don't call namedObject
                             try (
                                 XContentParser xContentParser = xContentType.xContent()
-                                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, content)
+                                    .createParser(
+                                        XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                                        content
+                                    )
                             ) {
                                 parsedResponse = parser.apply(xContentParser, xContentType);
                             } catch (XContentParseException e) {

@@ -87,7 +87,7 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
         big.toXContent(builder, params);
         builder.field(LITTLE_FIELD.getPreferredName());
         little.toXContent(builder, params);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

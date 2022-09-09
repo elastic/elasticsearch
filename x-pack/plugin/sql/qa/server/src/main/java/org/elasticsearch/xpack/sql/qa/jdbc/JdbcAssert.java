@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import com.carrotsearch.hppc.IntObjectHashMap;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.StandardValidator;
@@ -28,8 +26,10 @@ import java.text.ParseException;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TimeZone;
 
 import static java.lang.String.format;
@@ -56,7 +56,7 @@ import static org.junit.Assert.fail;
 public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
 
-    private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
+    private static final Map<Integer, EsType> SQL_TO_TYPE = new HashMap<>();
 
     static {
         for (EsType type : EsType.values()) {

@@ -46,23 +46,27 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -72,10 +76,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntPredicate;
-import java.util.function.Supplier;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
 public class TextFieldMapper extends FieldMapper {
@@ -232,7 +238,7 @@ public class TextFieldMapper extends FieldMapper {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
-        final Parameter<String> indexOptions = TextParams.indexOptions(m -> ((TextFieldMapper) m).indexOptions);
+        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions);
         final Parameter<Boolean> norms = TextParams.norms(true, m -> ((TextFieldMapper) m).norms);
         final Parameter<String> termVectors = TextParams.termVectors(m -> ((TextFieldMapper) m).termVectors);
 
@@ -278,7 +284,8 @@ public class TextFieldMapper extends FieldMapper {
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
-                m -> (((TextFieldMapper) m).positionIncrementGap)
+                m -> (((TextFieldMapper) m).positionIncrementGap),
+                indexCreatedVersion
             );
         }
 
@@ -308,8 +315,8 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 index,
                 store,
                 indexOptions,
@@ -325,11 +332,10 @@ public class TextFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals,
                 indexPhrases,
                 indexPrefixes,
-                meta
-            );
+                meta };
         }
 
-        private TextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
+        private TextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context, Version indexCreatedVersion) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             if (analyzers.positionIncrementGap.isConfigured()) {
@@ -340,10 +346,16 @@ public class TextFieldMapper extends FieldMapper {
                 }
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
-            TextFieldType ft = new TextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
-            ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
-            if (fieldData.getValue()) {
-                ft.setFielddata(true, freqFilter.getValue());
+            TextFieldType ft;
+            if (indexCreatedVersion.isLegacyIndexVersion()) {
+                ft = new LegacyTextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
+                // ignore fieldData and eagerGlobalOrdinals
+            } else {
+                ft = new TextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
+                ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
+                if (fieldData.getValue()) {
+                    ft.setFielddata(true, freqFilter.getValue());
+                }
             }
             return ft;
         }
@@ -429,8 +441,15 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
-            FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
-            TextFieldType tft = buildFieldType(fieldType, context);
+            FieldType fieldType = TextParams.buildFieldType(
+                index,
+                store,
+                indexOptions,
+                // legacy indices do not have access to norms
+                indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
+                termVectors
+            );
+            TextFieldType tft = buildFieldType(fieldType, context, indexCreatedVersion);
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
             SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
@@ -453,7 +472,12 @@ public class TextFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()),
+        MINIMUM_COMPATIBILITY_VERSION
+    );
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 
@@ -834,7 +858,7 @@ public class TextFieldMapper extends FieldMapper {
             return createPhraseQuery(stream, field, slop, enablePositionIncrements);
         }
 
-        private int countTokens(TokenStream ts) throws IOException {
+        private static int countTokens(TokenStream ts) throws IOException {
             ts.reset();
             int count = 0;
             while (ts.incrementToken()) {
@@ -871,28 +895,140 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            if (fielddata == false) {
-                throw new IllegalArgumentException(
-                    "Text fields are not optimised for operations that require per-document "
-                        + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
-                        + "keyword field instead. Alternatively, set fielddata=true on ["
-                        + name()
-                        + "] in order to load "
-                        + "field data by uninverting the inverted index. Note that this can use significant memory."
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (operation == FielddataOperation.SCRIPT) {
+                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                    fieldDataContext.lookupSupplier().get().source(),
+                    TextDocValuesField::new
+                );
+            } else if (operation == FielddataOperation.SEARCH) {
+                if (fielddata == false) {
+                    throw new IllegalArgumentException(
+                        "Text fields are not optimised for operations that require per-document "
+                            + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
+                            + "keyword field instead. Alternatively, set fielddata=true on ["
+                            + name()
+                            + "] in order to load "
+                            + "field data by uninverting the inverted index. Note that this can use significant memory."
+                    );
+                }
+                return new PagedBytesIndexFieldData.Builder(
+                    name(),
+                    filter.minFreq,
+                    filter.maxFreq,
+                    filter.minSegmentSize,
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new DelegateDocValuesField(
+                        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                        n
+                    )
                 );
             }
-            return new PagedBytesIndexFieldData.Builder(
-                name(),
-                filter.minFreq,
-                filter.maxFreq,
-                filter.minSegmentSize,
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
+
+            throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
+        }
+    }
+
+    public static class ConstantScoreTextFieldType extends TextFieldType {
+
+        public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+            super(name, indexed, stored, tsi, meta);
+        }
+
+        public ConstantScoreTextFieldType(String name) {
+            this(
+                name,
+                true,
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                Collections.emptyMap()
             );
+        }
+
+        public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
+            this(
+                name,
+                indexed,
+                stored,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                meta
+            );
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            // Disable scoring
+            return new ConstantScoreQuery(super.termQuery(value, context));
+        }
+
+        @Override
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            SearchExecutionContext context
+        ) {
+            // Disable scoring
+            return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
+        }
+
+        @Override
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext queryShardContext)
+            throws IOException {
+            // Disable scoring
+            return new ConstantScoreQuery(super.phraseQuery(stream, slop, enablePosIncrements, queryShardContext));
+        }
+
+        @Override
+        public Query multiPhraseQuery(
+            TokenStream stream,
+            int slop,
+            boolean enablePositionIncrements,
+            SearchExecutionContext queryShardContext
+        ) throws IOException {
+            // Disable scoring
+            return new ConstantScoreQuery(super.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext));
+        }
+
+        @Override
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext queryShardContext)
+            throws IOException {
+            // Disable scoring
+            return new ConstantScoreQuery(super.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext));
+        }
+
+    }
+
+    static class LegacyTextFieldType extends ConstantScoreTextFieldType {
+
+        private final MappedFieldType existQueryFieldType;
+
+        LegacyTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+            super(name, indexed, stored, tsi, meta);
+            // norms are not available, neither are doc-values, so fall back to _source to run exists query
+            existQueryFieldType = KeywordScriptFieldType.sourceOnly(name()).asMappedFieldTypes().findFirst().get();
+        }
+
+        @Override
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Cannot use span prefix queries on text field " + name() + " of a legacy index");
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "runtime-computed exists query cannot be executed while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
+                );
+            }
+            return existQueryFieldType.existsQuery(context);
         }
 
     }
@@ -916,6 +1052,8 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
+    private final Map<String, NamedAnalyzer> indexAnalyzerMap;
+
     protected TextFieldMapper(
         String simpleName,
         FieldType fieldType,
@@ -927,7 +1065,7 @@ public class TextFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
@@ -951,6 +1089,12 @@ public class TextFieldMapper extends FieldMapper {
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
         this.indexPhrases = builder.indexPhrases.getValue();
+        this.indexAnalyzerMap = Map.copyOf(indexAnalyzers);
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return indexAnalyzerMap;
     }
 
     @Override
@@ -1134,5 +1278,40 @@ public class TextFieldMapper extends FieldMapper {
         b.freqFilter.toXContent(builder, includeDefaults);
         b.indexPrefixes.toXContent(builder, includeDefaults);
         b.indexPhrases.toXContent(builder, includeDefaults);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        if (store) {
+            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    b.value((String) value);
+                }
+            };
+        }
+        for (Mapper sub : this) {
+            if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
+                if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+
+                    return kwd.syntheticFieldLoader(simpleName());
+                }
+            }
+        }
+        throw new IllegalArgumentException(
+            String.format(
+                Locale.ROOT,
+                "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
+                    + " type [keyword] with doc values or stored and without a normalizer",
+                name(),
+                typeName()
+            )
+        );
     }
 }

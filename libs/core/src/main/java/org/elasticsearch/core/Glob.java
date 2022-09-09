@@ -13,6 +13,8 @@ package org.elasticsearch.core;
  */
 public class Glob {
 
+    private Glob() {}
+
     /**
      * Match a String against the given pattern, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an

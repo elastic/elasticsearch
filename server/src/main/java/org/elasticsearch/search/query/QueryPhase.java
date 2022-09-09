@@ -56,19 +56,11 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDo
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
 
-    private final AggregationPhase aggregationPhase;
-    private final SuggestPhase suggestPhase;
-    private final RescorePhase rescorePhase;
+    public QueryPhase() {}
 
-    public QueryPhase() {
-        this.aggregationPhase = new AggregationPhase();
-        this.suggestPhase = new SuggestPhase();
-        this.rescorePhase = new RescorePhase();
-    }
-
-    public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+    public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
-            suggestPhase.execute(searchContext);
+            SuggestPhase.execute(searchContext);
             searchContext.queryResult()
                 .topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
@@ -84,14 +76,14 @@ public class QueryPhase {
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
-        aggregationPhase.preProcess(searchContext);
+        AggregationPhase.preProcess(searchContext);
         boolean rescore = executeInternal(searchContext);
 
         if (rescore) { // only if we do a regular search
-            rescorePhase.execute(searchContext);
+            RescorePhase.execute(searchContext);
         }
-        suggestPhase.execute(searchContext);
-        aggregationPhase.execute(searchContext);
+        SuggestPhase.execute(searchContext);
+        AggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
             searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());

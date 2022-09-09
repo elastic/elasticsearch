@@ -39,7 +39,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -280,7 +279,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         try (Releasable ignored = blockAndWait()) {
             // we preserve the thread context here so that we have a different context in the call to acquire than the context present
             // when the releasable is closed
-            try (ThreadContext.StoredContext ignore = context.newStoredContext(false)) {
+            try (ThreadContext.StoredContext ignore = context.newStoredContext()) {
                 context.putHeader("foo", "bar");
                 context.putTransient("bar", "baz");
                 // test both with and without a executor name
@@ -666,21 +665,21 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         permits.acquire(listener2, null, false, "listener2");
 
         assertThat(permits.getActiveOperationsCount(), equalTo(2));
-        List<String> messages = permits.getActiveOperations().stream().collect(Collectors.toList());
+        List<String> messages = permits.getActiveOperations().stream().toList();
         assertThat(messages, hasSize(2));
         assertThat(messages, containsInAnyOrder(Arrays.asList(containsString("listener1"), containsString("listener2"))));
 
         if (randomBoolean()) {
             listener1.get().close();
             assertThat(permits.getActiveOperationsCount(), equalTo(1));
-            messages = permits.getActiveOperations().stream().collect(Collectors.toList());
+            messages = permits.getActiveOperations().stream().toList();
             assertThat(messages, hasSize(1));
             assertThat(messages, contains(containsString("listener2")));
             listener2.get().close();
         } else {
             listener2.get().close();
             assertThat(permits.getActiveOperationsCount(), equalTo(1));
-            messages = permits.getActiveOperations().stream().collect(Collectors.toList());
+            messages = permits.getActiveOperations().stream().toList();
             assertThat(messages, hasSize(1));
             assertThat(messages, contains(containsString("listener1")));
             listener1.get().close();

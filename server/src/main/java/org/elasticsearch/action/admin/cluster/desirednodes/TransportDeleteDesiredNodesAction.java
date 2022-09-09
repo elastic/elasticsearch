@@ -13,7 +13,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
@@ -26,7 +28,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction<DeleteDesiredNodesAction.Request, ActionResponse.Empty> {
-    private final DesiredNodesClusterStateTaskExecutor taskExecutor;
+
+    private final ClusterStateTaskExecutor<DeleteDesiredNodesTask> taskExecutor = new DeleteDesiredNodesExecutor();
 
     @Inject
     public TransportDeleteDesiredNodesAction(
@@ -47,7 +50,6 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
             in -> ActionResponse.Empty.INSTANCE,
             ThreadPool.Names.SAME
         );
-        this.taskExecutor = new DesiredNodesClusterStateTaskExecutor();
     }
 
     @Override
@@ -57,26 +59,33 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
-        clusterService.submitStateUpdateTask("delete-desired-nodes", new ClusterStateUpdateTask(Priority.HIGH) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return currentState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                listener.onResponse(ActionResponse.Empty.INSTANCE);
-            }
-        }, taskExecutor);
+        clusterService.submitStateUpdateTask(
+            "delete-desired-nodes",
+            new DeleteDesiredNodesTask(listener),
+            ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
+            taskExecutor
+        );
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteDesiredNodesAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    private record DeleteDesiredNodesTask(ActionListener<ActionResponse.Empty> listener) implements ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static class DeleteDesiredNodesExecutor implements ClusterStateTaskExecutor<DeleteDesiredNodesTask> {
+        @Override
+        public ClusterState execute(BatchExecutionContext<DeleteDesiredNodesTask> batchExecutionContext) throws Exception {
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
+            }
+            return batchExecutionContext.initialState().copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
+        }
     }
 }

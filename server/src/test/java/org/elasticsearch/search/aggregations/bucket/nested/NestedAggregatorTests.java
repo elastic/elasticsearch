@@ -16,6 +16,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -33,12 +34,14 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -78,6 +81,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.DoubleStream;
 import java.util.stream.LongStream;
@@ -169,7 +173,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
-                    List<Document> documents = new ArrayList<>();
+                    List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
                     expectedMaxValue = Math.max(
                         expectedMaxValue,
@@ -177,10 +181,12 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     );
                     expectedNestedDocs += numNestedDocs;
 
-                    Document document = new Document();
-                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    LuceneDocument document = new LuceneDocument();
+                    document.add(
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    sequenceIDFields.addFields(document);
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -223,7 +229,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
-                    List<Document> documents = new ArrayList<>();
+                    List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
                     expectedMaxValue = Math.max(
                         expectedMaxValue,
@@ -231,10 +237,12 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     );
                     expectedNestedDocs += numNestedDocs;
 
-                    Document document = new Document();
-                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    LuceneDocument document = new LuceneDocument();
+                    document.add(
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    sequenceIDFields.addFields(document);
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -278,20 +286,22 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
-                    List<Document> documents = new ArrayList<>();
+                    List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
                     expectedSum += generateSumDocs(documents, numNestedDocs, i, NESTED_OBJECT, VALUE_FIELD_NAME);
                     expectedNestedDocs += numNestedDocs;
 
-                    Document document = new Document();
-                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    LuceneDocument document = new LuceneDocument();
+                    document.add(
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    sequenceIDFields.addFields(document);
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
                 // add some random nested docs that don't belong
-                List<Document> documents = new ArrayList<>();
+                List<Iterable<IndexableField>> documents = new ArrayList<>();
                 int numOrphanedDocs = randomIntBetween(0, 20);
                 generateSumDocs(documents, numOrphanedDocs, 1234, "foo", VALUE_FIELD_NAME);
                 iw.addDocuments(documents);
@@ -327,25 +337,25 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, iwc)) {
-                List<Document> documents = new ArrayList<>();
+                List<Iterable<IndexableField>> documents = new ArrayList<>();
 
                 // 1 segment with, 1 root document, with 3 nested sub docs
-                Document document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                LuceneDocument document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                sequenceIDFields.addFields(document);
                 documents.add(document);
                 iw.addDocuments(documents);
                 iw.commit();
@@ -353,26 +363,26 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 documents.clear();
                 // 1 segment with:
                 // 1 document, with 1 nested subdoc
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                sequenceIDFields.addFields(document);
                 documents.add(document);
                 iw.addDocuments(documents);
                 documents.clear();
                 // and 1 document, with 1 nested subdoc
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                sequenceIDFields.addFields(document);
                 documents.add(document);
                 iw.addDocuments(documents);
 
@@ -593,7 +603,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     Terms.Bucket bucket = terms.getBuckets().get(i);
                     assertEquals(book.v1(), bucket.getKeyAsString());
                     Min numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                    assertEquals(book.v2()[0], (int) numPages.getValue());
+                    assertEquals(book.v2()[0], (int) numPages.value());
                 }
             }
         }
@@ -602,65 +612,65 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     public void testPreGetChildLeafCollectors() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-                List<Document> documents = new ArrayList<>();
-                Document document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                List<Iterable<IndexableField>> documents = new ArrayList<>();
+                LuceneDocument document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key1")));
                 document.add(new SortedDocValuesField("value", new BytesRef("a1")));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key2")));
                 document.add(new SortedDocValuesField("value", new BytesRef("b1")));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "_doc", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                sequenceIDFields.addFields(document);
                 documents.add(document);
                 iw.addDocuments(documents);
                 iw.commit();
                 documents.clear();
 
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key1")));
                 document.add(new SortedDocValuesField("value", new BytesRef("a2")));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key2")));
                 document.add(new SortedDocValuesField("value", new BytesRef("b2")));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "_doc", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                sequenceIDFields.addFields(document);
                 documents.add(document);
                 iw.addDocuments(documents);
                 iw.commit();
                 documents.clear();
 
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key1")));
                 document.add(new SortedDocValuesField("value", new BytesRef("a3")));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "nested_field", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key2")));
                 document.add(new SortedDocValuesField("value", new BytesRef("b3")));
                 documents.add(document);
-                document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.FIELD_TYPE));
+                document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "_doc", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                sequenceIDFields.addFields(document);
                 documents.add(document);
                 iw.addDocuments(documents);
                 iw.commit();
@@ -722,15 +732,17 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
-                    List<Document> documents = new ArrayList<>();
+                    List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
                     expectedNestedDocs += numNestedDocs;
-                    generateDocuments(documents, numNestedDocs, i, NESTED_OBJECT, VALUE_FIELD_NAME);
+                    generateDocuments(documents, numNestedDocs, i, NESTED_OBJECT, VALUE_FIELD_NAME, (doc, n) -> {});
 
-                    Document document = new Document();
-                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    LuceneDocument document = new LuceneDocument();
+                    document.add(
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    sequenceIDFields.addFields(document);
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -763,14 +775,16 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
-                    List<Document> documents = new ArrayList<>();
+                    List<Iterable<IndexableField>> documents = new ArrayList<>();
                     expectedMaxValue = Math.max(expectedMaxValue, generateMaxDocs(documents, 1, i, NESTED_OBJECT, VALUE_FIELD_NAME));
                     expectedNestedDocs += 1;
 
-                    Document document = new Document();
-                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    LuceneDocument document = new LuceneDocument();
+                    document.add(
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    sequenceIDFields.addFields(document);
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -854,15 +868,19 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     public static CheckedConsumer<RandomIndexWriter, IOException> buildResellerData(int numProducts, int numResellers) {
         return iw -> {
             for (int p = 0; p < numProducts; p++) {
-                List<Document> documents = new ArrayList<>();
-                generateDocuments(documents, numResellers, p, "nested_reseller", "value");
-                for (int r = 0; r < documents.size(); r++) {
-                    documents.get(r).add(new SortedNumericDocValuesField("reseller_id", r));
-                }
-                Document document = new Document();
-                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(p)), IdFieldMapper.Defaults.FIELD_TYPE));
+                List<Iterable<IndexableField>> documents = new ArrayList<>();
+                generateDocuments(
+                    documents,
+                    numResellers,
+                    p,
+                    "nested_reseller",
+                    "value",
+                    (doc, n) -> doc.add(new SortedNumericDocValuesField("reseller_id", n))
+                );
+                LuceneDocument document = new LuceneDocument();
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(p)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                sequenceIDFields.addFields(document);
                 document.add(new SortedNumericDocValuesField("product_id", p));
                 documents.add(document);
                 iw.addDocuments(documents);
@@ -876,43 +894,55 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         return new MappedFieldType[] { productIdField, resellerIdField };
     }
 
-    private double generateMaxDocs(List<Document> documents, int numNestedDocs, int id, String path, String fieldName) {
-        return DoubleStream.of(generateDocuments(documents, numNestedDocs, id, path, fieldName)).max().orElse(Double.NEGATIVE_INFINITY);
+    private double generateMaxDocs(List<Iterable<IndexableField>> documents, int numNestedDocs, int id, String path, String fieldName) {
+        return DoubleStream.of(generateDocuments(documents, numNestedDocs, id, path, fieldName, (doc, n) -> {}))
+            .max()
+            .orElse(Double.NEGATIVE_INFINITY);
     }
 
-    private double generateSumDocs(List<Document> documents, int numNestedDocs, int id, String path, String fieldName) {
-        return DoubleStream.of(generateDocuments(documents, numNestedDocs, id, path, fieldName)).sum();
+    private double generateSumDocs(List<Iterable<IndexableField>> documents, int numNestedDocs, int id, String path, String fieldName) {
+        return DoubleStream.of(generateDocuments(documents, numNestedDocs, id, path, fieldName, (doc, n) -> {})).sum();
     }
 
-    private static double[] generateDocuments(List<Document> documents, int numNestedDocs, int id, String path, String fieldName) {
+    private static double[] generateDocuments(
+        List<Iterable<IndexableField>> documents,
+        int numNestedDocs,
+        int id,
+        String path,
+        String fieldName,
+        BiConsumer<Document, Integer> extra
+    ) {
         double[] values = new double[numNestedDocs];
         for (int nested = 0; nested < numNestedDocs; nested++) {
             Document document = new Document();
-            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(id)), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            document.add(
+                new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(id)), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE)
+            );
             document.add(new Field(NestedPathFieldMapper.NAME, path, NestedPathFieldMapper.Defaults.FIELD_TYPE));
             long value = randomNonNegativeLong() % 10000;
             document.add(new SortedNumericDocValuesField(fieldName, value));
+            extra.accept(document, nested);
             documents.add(document);
             values[nested] = value;
         }
         return values;
     }
 
-    public static List<Document> generateBook(String id, String[] authors, int[] numPages) {
-        List<Document> documents = new ArrayList<>();
+    public static List<Iterable<IndexableField>> generateBook(String id, String[] authors, int[] numPages) {
+        List<Iterable<IndexableField>> documents = new ArrayList<>();
 
         for (int numPage : numPages) {
             Document document = new Document();
-            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
             document.add(new Field(NestedPathFieldMapper.NAME, "nested_chapters", NestedPathFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedNumericDocValuesField("num_pages", numPage));
             documents.add(document);
         }
 
-        Document document = new Document();
-        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
+        LuceneDocument document = new LuceneDocument();
+        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         document.add(new Field(NestedPathFieldMapper.NAME, "book", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-        document.add(sequenceIDFields.primaryTerm);
+        sequenceIDFields.addFields(document);
         for (String author : authors) {
             document.add(new Field("author", author, KeywordFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedSetDocValuesField("author", new BytesRef(author)));

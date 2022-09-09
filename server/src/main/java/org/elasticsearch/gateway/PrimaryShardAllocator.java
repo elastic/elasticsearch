@@ -9,7 +9,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -37,6 +36,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * The primary shard allocator allocates unassigned primary shards to nodes that hold
@@ -241,24 +242,23 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         Collection<NodeGatewayStartedShards> ineligibleShards;
         if (nodesToAllocate != null) {
             final Set<DiscoveryNode> discoNodes = new HashSet<>();
-            nodeResults.addAll(
-                Stream.of(nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards)
-                    .flatMap(Collection::stream)
-                    .map(dnode -> {
-                        discoNodes.add(dnode.nodeShardState.getNode());
-                        return new NodeAllocationResult(
+            Stream.of(nodesToAllocate.yesNodeShards, nodesToAllocate.throttleNodeShards, nodesToAllocate.noNodeShards)
+                .flatMap(Collection::stream)
+                .forEach(dnode -> {
+                    discoNodes.add(dnode.nodeShardState.getNode());
+                    nodeResults.add(
+                        new NodeAllocationResult(
                             dnode.nodeShardState.getNode(),
                             shardStoreInfo(dnode.nodeShardState, inSyncAllocationIds),
                             dnode.decision
-                        );
-                    })
-                    .collect(Collectors.toList())
-            );
+                        )
+                    );
+                });
             ineligibleShards = fetchedShardData.getData()
                 .values()
                 .stream()
                 .filter(shardData -> discoNodes.contains(shardData.getNode()) == false)
-                .collect(Collectors.toList());
+                .toList();
         } else {
             // there were no shard copies that were eligible for being assigned the allocation,
             // so all fetched shard data are ineligible shards
@@ -268,7 +268,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         nodeResults.addAll(
             ineligibleShards.stream()
                 .map(shardData -> new NodeAllocationResult(shardData.getNode(), shardStoreInfo(shardData, inSyncAllocationIds), null))
-                .collect(Collectors.toList())
+                .toList()
         );
 
         return nodeResults;
@@ -320,8 +320,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 final String finalAllocationId = allocationId;
                 if (nodeShardState.storeException() instanceof ShardLockObtainFailedException) {
                     logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] on node [{}] has allocation id [{}] but the store can not be "
+                        () -> format(
+                            "[%s] on node [%s] has allocation id [%s] but the store can not be "
                                 + "opened as it's locked, treating as valid shard",
                             shard,
                             nodeShardState.getNode(),
@@ -331,8 +331,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                     );
                 } else {
                     logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] on node [{}] has allocation id [{}] but the store can not be " + "opened, treating as no allocation id",
+                        () -> format(
+                            "[%s] on node [%s] has allocation id [%s] but the store can not be " + "opened, treating as no allocation id",
                             shard,
                             nodeShardState.getNode(),
                             finalAllocationId

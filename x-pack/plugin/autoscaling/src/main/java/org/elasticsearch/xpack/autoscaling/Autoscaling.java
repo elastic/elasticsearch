@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -50,7 +51,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacity
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
-import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
+import org.elasticsearch.xpack.autoscaling.capacity.nodeinfo.AutoscalingNodeInfoService;
 import org.elasticsearch.xpack.autoscaling.existence.FrozenExistenceDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
@@ -113,19 +114,19 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         this.clusterServiceHolder.set(clusterService);
-        return List.of(
-            new AutoscalingCalculateCapacityService.Holder(this),
-            autoscalingLicenseChecker,
-            new AutoscalingMemoryInfoService(clusterService, client)
-        );
+        this.allocationDeciders.set(allocationDeciders);
+        var capacityServiceHolder = new AutoscalingCalculateCapacityService.Holder(this);
+        return List.of(capacityServiceHolder, autoscalingLicenseChecker, new AutoscalingNodeInfoService(clusterService, client));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(AutoscalingMemoryInfoService.FETCH_TIMEOUT);
+        return List.of(AutoscalingNodeInfoService.FETCH_TIMEOUT);
     }
 
     @Override
@@ -220,9 +221,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         );
     }
 
-    public Set<AutoscalingDeciderService> createDeciderServices(AllocationDeciders deciders) {
-        this.allocationDeciders.set(deciders);
+    public Set<AutoscalingDeciderService> createDeciderServices() {
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
-
 }

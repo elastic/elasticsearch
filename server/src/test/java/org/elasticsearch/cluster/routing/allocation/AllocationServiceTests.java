@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -42,7 +41,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -58,12 +56,12 @@ import static org.hamcrest.Matchers.not;
 public class AllocationServiceTests extends ESTestCase {
 
     public void testFirstListElementsToCommaDelimitedStringReportsAllElementsIfShort() {
-        List<String> strings = IntStream.range(0, between(0, 10)).mapToObj(i -> randomAlphaOfLength(10)).collect(Collectors.toList());
+        List<String> strings = IntStream.range(0, between(0, 10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
         assertAllElementsReported(strings, randomBoolean());
     }
 
     public void testFirstListElementsToCommaDelimitedStringReportsAllElementsIfDebugEnabled() {
-        List<String> strings = IntStream.range(0, between(0, 100)).mapToObj(i -> randomAlphaOfLength(10)).collect(Collectors.toList());
+        List<String> strings = IntStream.range(0, between(0, 100)).mapToObj(i -> randomAlphaOfLength(10)).toList();
         assertAllElementsReported(strings, true);
     }
 
@@ -76,10 +74,7 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     public void testFirstListElementsToCommaDelimitedStringReportsFirstElementsIfLong() {
-        List<String> strings = IntStream.range(0, between(0, 100))
-            .mapToObj(i -> randomAlphaOfLength(between(6, 10)))
-            .distinct()
-            .collect(Collectors.toList());
+        List<String> strings = IntStream.range(0, between(0, 100)).mapToObj(i -> randomAlphaOfLength(between(6, 10))).distinct().toList();
         final String abbreviated = AllocationService.firstListElementsToCommaDelimitedString(strings, Function.identity(), false);
         for (int i = 0; i < strings.size(); i++) {
             if (i < 10) {
@@ -98,7 +93,7 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     public void testFirstListElementsToCommaDelimitedStringUsesFormatterNotToString() {
-        List<String> strings = IntStream.range(0, between(1, 100)).mapToObj(i -> "original").collect(Collectors.toList());
+        List<String> strings = IntStream.range(0, between(1, 100)).mapToObj(i -> "original").toList();
         final String abbreviated = AllocationService.firstListElementsToCommaDelimitedString(strings, s -> "formatted", randomBoolean());
         assertThat(abbreviated, containsString("formatted"));
         assertThat(abbreviated, not(containsString("original")));
@@ -187,8 +182,8 @@ public class AllocationServiceTests extends ESTestCase {
 
         // permit the testGatewayAllocator to allocate primaries to every node
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                final ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                final ShardRouting primaryShard = indexRoutingTable.shard(i).primaryShard();
                 for (DiscoveryNode node : clusterState.nodes()) {
                     testGatewayAllocator.addKnownAllocation(primaryShard.initialize(node.getId(), FAKE_IN_SYNC_ALLOCATION_ID, 0L));
                 }

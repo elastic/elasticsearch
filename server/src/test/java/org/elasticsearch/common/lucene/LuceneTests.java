@@ -50,8 +50,8 @@ import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
@@ -69,61 +69,11 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneTests extends ESTestCase {
     private static final NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(Collections.emptyList());
-
-    public void testWaitForIndex() throws Exception {
-        final MockDirectoryWrapper dir = newMockDirectory();
-
-        final AtomicBoolean succeeded = new AtomicBoolean(false);
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        // Create a shadow Engine, which will freak out because there is no
-        // index yet
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    latch.await();
-                    if (Lucene.waitForIndex(dir, 5000)) {
-                        succeeded.set(true);
-                    } else {
-                        fail("index should have eventually existed!");
-                    }
-                } catch (InterruptedException e) {
-                    // ignore interruptions
-                } catch (Exception e) {
-                    fail("should have been able to create the engine! " + e.getMessage());
-                }
-            }
-        });
-        t.start();
-
-        // count down latch
-        // now shadow engine should try to be created
-        latch.countDown();
-
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
-        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
-        iwc.setMaxBufferedDocs(2);
-        IndexWriter writer = new IndexWriter(dir, iwc);
-        Document doc = new Document();
-        doc.add(new TextField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-        writer.addDocument(doc);
-        writer.commit();
-
-        t.join();
-
-        writer.close();
-        dir.close();
-        assertTrue("index should have eventually existed", succeeded.get());
-    }
 
     public void testCleanIndex() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
@@ -567,7 +517,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapLiveDocsNotExposeAbortedDocuments() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()))
+            // disable merges on refresh as we will verify the deleted documents
+            .setMaxFullFlushMergeWaitMillis(-1);
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         List<String> liveDocs = new ArrayList<>();

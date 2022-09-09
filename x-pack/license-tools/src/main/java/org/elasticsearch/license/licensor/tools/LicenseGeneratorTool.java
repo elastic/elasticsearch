@@ -9,12 +9,13 @@ package org.elasticsearch.license.licensor.tools;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.cli.LoggingAwareCommand;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.License;
@@ -28,7 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class LicenseGeneratorTool extends LoggingAwareCommand {
+public class LicenseGeneratorTool extends Command {
 
     private final OptionSpec<String> publicKeyPathOption;
     private final OptionSpec<String> privateKeyPathOption;
@@ -45,10 +46,6 @@ public class LicenseGeneratorTool extends LoggingAwareCommand {
         licenseFileOption = parser.accepts("licenseFile", "license json spec file").withRequiredArg();
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new LicenseGeneratorTool().main(args, Terminal.DEFAULT));
-    }
-
     @Override
     protected void printAdditionalHelp(Terminal terminal) {
         terminal.println("This tool generate elasticsearch license(s) for the provided");
@@ -59,7 +56,7 @@ public class LicenseGeneratorTool extends LoggingAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
         Path privateKeyPath = parsePath(privateKeyPathOption.value(options));
         if (Files.exists(privateKeyPath) == false) {

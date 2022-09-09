@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -98,11 +96,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
+    protected static final int LARGE_POOL_SIZE = 5;
+
     // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
     // threads so that blocking some threads on one repository doesn't block other repositories from doing work
     protected static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-        .put("thread_pool.snapshot.core", 5)
-        .put("thread_pool.snapshot.max", 5)
+        .put("thread_pool.snapshot.core", LARGE_POOL_SIZE)
+        .put("thread_pool.snapshot.max", LARGE_POOL_SIZE)
         .build();
 
     @Override
@@ -198,7 +198,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void stopNode(final String node) throws IOException {
         logger.info("--> stopping node {}", node);
-        internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
+        internalCluster().stopNode(node);
     }
 
     protected static String startDataNodeWithLargeSnapshotPool() {
@@ -529,7 +529,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             SnapshotState.FAILED,
             Collections.emptyMap()
         );
-        PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(
+        PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
                     ShardGenerations.EMPTY,
@@ -537,7 +537,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
-                    f
+                    f,
+                    info -> {}
                 )
             )
         );
@@ -649,7 +650,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return updater.apply(currentState);
@@ -664,7 +665,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         future.get();
     }
 

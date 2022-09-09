@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -55,15 +53,15 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                 .get();
             assertThat(mappingsResponse, notNullValue());
             assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
-            for (ObjectObjectCursor<String, MappingMetadata> metadatas : mappingsResponse.getMappings()) {
-                if (metadatas.key.startsWith(HistoryStoreField.INDEX_PREFIX) == false) {
+            for (var metadatas : mappingsResponse.getMappings().entrySet()) {
+                if (metadatas.getKey().startsWith(HistoryStoreField.INDEX_PREFIX) == false) {
                     continue;
                 }
-                MappingMetadata metadata = metadatas.value;
+                MappingMetadata metadata = metadatas.getValue();
                 assertThat(metadata, notNullValue());
                 try {
                     Map<String, Object> source = metadata.getSourceAsMap();
-                    logger.info("checking index [{}] with metadata:\n[{}]", metadatas.key, metadata.source().toString());
+                    logger.info("checking index [{}] with metadata:\n[{}]", metadatas.getKey(), metadata.source().toString());
                     assertThat(extractValue("properties.trigger_event.properties.type.type", source), is((Object) "keyword"));
                     assertThat(extractValue("properties.trigger_event.properties.triggered_time.type", source), is((Object) "date"));
                     assertThat(

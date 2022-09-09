@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -25,25 +24,12 @@ import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.mockito.ArgumentMatcher;
 
 import static java.util.Collections.emptyMap;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 public class TransportStopILMActionTests extends ESTestCase {
-
-    private static final ActionListener<AcknowledgedResponse> EMPTY_LISTENER = new ActionListener<>() {
-        @Override
-        public void onResponse(AcknowledgedResponse response) {
-
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-
-        }
-    };
 
     public void testStopILMClusterStatePriorityIsImmediate() {
         ClusterService clusterService = mock(ClusterService.class);
@@ -64,9 +50,9 @@ public class TransportStopILMActionTests extends ESTestCase {
             emptyMap()
         );
         StopILMRequest request = new StopILMRequest();
-        transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
+        transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, ActionListener.noop());
 
-        verify(clusterService).submitStateUpdateTask(
+        verify(clusterService).submitUnbatchedStateUpdateTask(
             eq("ilm_operation_mode_update[stopping]"),
             argThat(new ArgumentMatcher<AckedClusterStateUpdateTask>() {
 
@@ -77,8 +63,7 @@ public class TransportStopILMActionTests extends ESTestCase {
                     actualPriority = other.priority();
                     return actualPriority == Priority.IMMEDIATE;
                 }
-            }),
-            any()
+            })
         );
     }
 

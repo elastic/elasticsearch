@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -32,7 +34,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -287,10 +291,31 @@ public abstract class AggregationContext implements Releasable {
      * Return true if any of the aggregations in this context is a time-series aggregation that requires an in-sort order execution.
      *
      * A side-effect of such execution is that all leaves are walked simultaneously and therefore we can no longer rely on
-     * {@link org.elasticsearch.search.aggregations.BucketCollector#getLeafCollector(LeafReaderContext)} to be called only after the
+     * {@link BucketCollector#getLeafCollector(AggregationExecutionContext)} to be called only after the
      * previous leaf was fully collected.
      */
     public abstract boolean isInSortOrderExecutionRequired();
+
+    public abstract Set<String> sourcePath(String fullName);
+
+    /**
+     * Does this index have a {@code _doc_count} field in any segment?
+     */
+    public final boolean hasDocCountField() throws IOException {
+        /*
+         * When we add the second filter we check if there are any _doc_count
+         * fields and bail out of filter-by filter mode if there are. _doc_count
+         * fields are expensive to decode and the overhead of iterating per
+         * filter causes us to decode doc counts over and over again.
+         */
+        Term term = new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME);
+        for (LeafReaderContext c : searcher().getLeafContexts()) {
+            if (c.reader().docFreq(term) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
@@ -410,7 +435,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-            return context.getForField(ft);
+            return context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
         }
 
         @Override
@@ -547,6 +572,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean isInSortOrderExecutionRequired() {
             return inSortOrderExecutionRequired;
+        }
+
+        @Override
+        public Set<String> sourcePath(String fullName) {
+            return context.sourcePath(fullName);
         }
 
         @Override

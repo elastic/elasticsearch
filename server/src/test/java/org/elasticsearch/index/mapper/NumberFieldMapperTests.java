@@ -11,19 +11,23 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -303,15 +307,30 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected <T> T compileScript(Script script, ScriptContext<T> context) {
-        if (context == LongFieldScript.CONTEXT) {
-            return (T) LongFieldScript.PARSE_FROM_SOURCE;
-        }
-        if (context == DoubleFieldScript.CONTEXT) {
-            return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
-        }
-        throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+                if (context == LongFieldScript.CONTEXT) {
+                    return (T) LongFieldScript.PARSE_FROM_SOURCE;
+                }
+                if (context == DoubleFieldScript.CONTEXT) {
+                    return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
+                }
+                throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+            }
+
+            @Override
+            ScriptFactory emptyFieldScript() {
+                return null;
+            }
+
+            @Override
+            ScriptFactory nonEmptyFieldScript() {
+                return null;
+            }
+        };
     }
 
     public void testScriptableTypes() throws IOException {
@@ -329,6 +348,88 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testAllowMultipleValuesField() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+
+        Mapper mapper = mapperService.mappingLookup().getMapper("field");
+        if (mapper instanceof NumberFieldMapper numberFieldMapper) {
+            numberFieldMapper.setAllowMultipleValues(false);
+        } else {
+            fail("mapper [" + mapper.getClass() + "] error, not number field");
+        }
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
+    }
+
     protected abstract Number randomNumber();
 
+    protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final Function<Number, Number> round;
+        private final Long nullValue = usually() ? null : randomNumber().longValue();
+        private final boolean coerce = rarely();
+
+        protected NumberSyntheticSourceSupport(Function<Number, Number> round) {
+            this.round = round;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            if (randomBoolean()) {
+                Tuple<Object, Number> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), round.apply(v.v2()), this::mapping);
+            }
+            List<Tuple<Object, Number>> values = randomList(1, maxVals, this::generateValue);
+            List<Object> in = values.stream().map(Tuple::v1).toList();
+            List<Number> outList = values.stream().map(t -> round.apply(t.v2())).sorted().toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<Object, Number> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            Number n = randomNumber();
+            Object in = n;
+            Number out = n;
+            if (coerce && randomBoolean()) {
+                in = in.toString();
+            }
+            return Tuple.tuple(in, out);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            minimalMapping(b);
+            if (coerce) {
+                b.field("coerce", true);
+            }
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("doc_values", false);
+                    }
+                ),
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("ignore_malformed", true);
+                    }
+                )
+            );
+        }
+    }
 }

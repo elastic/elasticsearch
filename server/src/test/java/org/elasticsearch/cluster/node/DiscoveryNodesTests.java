@@ -132,7 +132,7 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
         }
         int numNodeIds = randomIntBetween(0, 3);
-        String[] nodeIds = discoveryNodes.getNodes().keys().toArray(String.class);
+        String[] nodeIds = discoveryNodes.getNodes().keySet().toArray(new String[0]);
         for (int i = 0; i < numNodeIds; i++) {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
@@ -157,7 +157,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         final List<DiscoveryNode> inputNodes = randomNodes(10);
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         inputNodes.forEach(discoBuilder::add);
-        final List<DiscoveryNode> returnedNodes = discoBuilder.build().mastersFirstStream().collect(Collectors.toList());
+        final List<DiscoveryNode> returnedNodes = discoBuilder.build().mastersFirstStream().toList();
         assertEquals(returnedNodes.size(), inputNodes.size());
         assertEquals(new HashSet<>(returnedNodes), new HashSet<>(inputNodes));
         final List<DiscoveryNode> sortedNodes = new ArrayList<>(returnedNodes);
@@ -274,13 +274,13 @@ public class DiscoveryNodesTests extends ESTestCase {
         Set<DiscoveryNode> newNodes = new HashSet<>(nodesB);
         newNodes.removeAll(nodesA);
         assertThat(delta.added(), equalTo(newNodes.isEmpty() == false));
-        assertThat(delta.addedNodes(), containsInAnyOrder(newNodes.stream().collect(Collectors.toList()).toArray()));
+        assertThat(delta.addedNodes(), containsInAnyOrder(newNodes.stream().toList().toArray()));
         assertThat(delta.addedNodes().size(), equalTo(newNodes.size()));
 
         Set<DiscoveryNode> removedNodes = new HashSet<>(nodesA);
         removedNodes.removeAll(nodesB);
         assertThat(delta.removed(), equalTo(removedNodes.isEmpty() == false));
-        assertThat(delta.removedNodes(), containsInAnyOrder(removedNodes.stream().collect(Collectors.toList()).toArray()));
+        assertThat(delta.removedNodes(), containsInAnyOrder(removedNodes.stream().toList().toArray()));
         assertThat(delta.removedNodes().size(), equalTo(removedNodes.size()));
     }
 
@@ -389,6 +389,9 @@ public class DiscoveryNodesTests extends ESTestCase {
     }
 
     public void testMaxMinNodeVersion() {
+        assertEquals(Version.CURRENT, DiscoveryNodes.EMPTY_NODES.getMaxNodeVersion());
+        assertEquals(Version.CURRENT.minimumCompatibilityVersion(), DiscoveryNodes.EMPTY_NODES.getMinNodeVersion());
+
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.add(
             new DiscoveryNode(

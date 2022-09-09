@@ -245,7 +245,7 @@ class BulkPrimaryExecutionContext {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     response = new IndexResponse(
                         primary.shardId(),
-                        requestToExecute.id(),
+                        indexResult.getId(),
                         result.getSeqNo(),
                         result.getTerm(),
                         indexResult.getVersion(),
@@ -270,20 +270,19 @@ class BulkPrimaryExecutionContext {
                 executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
             }
-            case FAILURE -> executionResult = BulkItemResponse.failure(
-                current.id(),
-                docWriteRequest.opType(),
-                // Make sure to use request.index() here, if you
-                // use docWriteRequest.index() it will use the
-                // concrete index instead of an alias if used!
-                new BulkItemResponse.Failure(
-                    request.index(),
-                    docWriteRequest.id(),
-                    result.getFailure(),
-                    result.getSeqNo(),
-                    result.getTerm()
-                )
-            );
+            case FAILURE -> {
+                /*
+                 * Make sure to use request.index() here, if you
+                 * use docWriteRequest.index() it will use the
+                 * concrete index instead of an alias if used!
+                 */
+                String index = request.index();
+                executionResult = BulkItemResponse.failure(
+                    current.id(),
+                    docWriteRequest.opType(),
+                    new BulkItemResponse.Failure(index, result.getId(), result.getFailure(), result.getSeqNo(), result.getTerm())
+                );
+            }
             default -> throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());
         }
         currentItemState = ItemProcessingState.EXECUTED;

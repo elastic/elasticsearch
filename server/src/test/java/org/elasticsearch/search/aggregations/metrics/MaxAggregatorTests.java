@@ -26,7 +26,7 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -181,7 +181,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
         }, max -> {
@@ -191,7 +191,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
@@ -222,7 +222,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
@@ -234,7 +234,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     public void testUnmappedWithMissingField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
 
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
@@ -263,7 +263,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SCRIPT_NAME, Collections.emptyMap()));
 
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
@@ -441,7 +441,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Global global = (Global) aggregator.buildTopLevel();
@@ -486,7 +486,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         MaxAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Max max = (Max) aggregator.buildAggregation(0L);
@@ -695,7 +695,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Global global = (Global) aggregator.buildTopLevel();
@@ -737,7 +737,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Terms terms = (Terms) aggregator.buildTopLevel();
@@ -790,7 +790,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator));
         bucketCollector.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
+        indexSearcher.search(new MatchAllDocsQuery(), bucketCollector.asCollector());
         bucketCollector.postCollection();
 
         Max max = (Max) maxAggregator.buildAggregation(0L);
@@ -840,7 +840,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
             BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator, termsAggregator));
             bucketCollector.preCollection();
-            indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
+            indexSearcher.search(new MatchAllDocsQuery(), bucketCollector.asCollector());
             bucketCollector.postCollection();
 
             Max max = (Max) maxAggregator.buildTopLevel();
@@ -896,7 +896,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Max max = (Max) aggregator.buildAggregation(0L);
@@ -942,7 +942,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Max max = (Max) aggregator.buildAggregation(0L);
@@ -959,7 +959,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         context = createAggregationContext(indexSearcher, null, fieldType);
         aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         max = (Max) aggregator.buildAggregation(0L);

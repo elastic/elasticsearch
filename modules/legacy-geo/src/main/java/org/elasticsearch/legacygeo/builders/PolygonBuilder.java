@@ -93,10 +93,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
     public void writeTo(StreamOutput out) throws IOException {
         shell.writeTo(out);
         orientation.writeTo(out);
-        out.writeVInt(holes.size());
-        for (LineStringBuilder hole : holes) {
-            hole.writeTo(out);
-        }
+        out.writeList(holes);
     }
 
     public Orientation orientation() {

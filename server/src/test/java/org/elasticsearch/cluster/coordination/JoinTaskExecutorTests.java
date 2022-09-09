@@ -11,9 +11,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
+import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -23,19 +29,36 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class JoinTaskExecutorTests extends ESTestCase {
+
+    private static final ActionListener<Void> NOT_COMPLETED_LISTENER = ActionListener.wrap(
+        () -> { throw new AssertionError("should not complete publication"); }
+    );
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();
@@ -147,7 +170,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         // in the cluster but with a different set of roles: the node didn't change roles, but the cluster state came via an older master.
         // In this case we must properly process its join to ensure that the roles are correct.
 
-        final AllocationService allocationService = mock(AllocationService.class);
+        final AllocationService allocationService = createAllocationService();
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
@@ -174,15 +197,402 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             joinTaskExecutor,
-            List.of(
-                JoinTask.singleNode(
-                    actualNode,
-                    "test",
-                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
-                )
-            )
+            List.of(JoinTask.singleNode(actualNode, "test", NOT_COMPLETED_LISTENER, 0L))
         );
 
         assertThat(resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
+    }
+
+    public void testRejectsStatesWithStaleTerm() {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final long executorTerm = randomLongBetween(0L, Long.MAX_VALUE - 1);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).build())
+            .metadata(
+                Metadata.builder()
+                    .coordinationMetadata(CoordinationMetadata.builder().term(randomLongBetween(executorTerm + 1, Long.MAX_VALUE)).build())
+                    .build()
+            )
+            .build();
+
+        assertThat(
+            expectThrows(
+                NotMasterException.class,
+                () -> ClusterStateTaskExecutorUtils.executeHandlingResults(
+                    clusterState,
+                    joinTaskExecutor,
+                    randomBoolean()
+                        ? List.of(JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER, executorTerm))
+                        : List.of(
+                            JoinTask.completingElection(
+                                Stream.of(new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER)),
+                                executorTerm
+                            )
+                        ),
+                    t -> fail("should not succeed"),
+                    (t, e) -> assertThat(e, instanceOf(NotMasterException.class))
+                )
+            ).getMessage(),
+            containsString("there is a newer master")
+        );
+    }
+
+    public void testRejectsStatesWithOtherMaster() {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final long executorTerm = randomNonNegativeLong();
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
+        final var localNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(localNode)
+                    .add(masterNode)
+                    .localNodeId(localNode.getId())
+                    .masterNodeId(masterNode.getId())
+                    .build()
+            )
+            .metadata(
+                Metadata.builder()
+                    .coordinationMetadata(CoordinationMetadata.builder().term(randomLongBetween(0L, executorTerm)).build())
+                    .build()
+            )
+            .build();
+
+        assertThat(
+            expectThrows(
+                NotMasterException.class,
+                () -> ClusterStateTaskExecutorUtils.executeHandlingResults(
+                    clusterState,
+                    joinTaskExecutor,
+                    randomBoolean()
+                        ? List.of(JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER, executorTerm))
+                        : List.of(
+                            JoinTask.completingElection(
+                                Stream.of(new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER)),
+                                executorTerm
+                            )
+                        ),
+                    t -> fail("should not succeed"),
+                    (t, e) -> assertThat(e, instanceOf(NotMasterException.class))
+                )
+            ).getMessage(),
+            containsString("not master for join request")
+        );
+    }
+
+    public void testRejectsStatesWithNoMasterIfNotBecomingMaster() {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final long executorTerm = randomNonNegativeLong();
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).build())
+            .metadata(
+                Metadata.builder()
+                    .coordinationMetadata(CoordinationMetadata.builder().term(randomLongBetween(0L, executorTerm)).build())
+                    .build()
+            )
+            .build();
+
+        assertThat(
+            expectThrows(
+                NotMasterException.class,
+                () -> ClusterStateTaskExecutorUtils.executeHandlingResults(
+                    clusterState,
+                    joinTaskExecutor,
+                    List.of(JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER, executorTerm)),
+                    t -> fail("should not succeed"),
+                    (t, e) -> assertThat(e, instanceOf(NotMasterException.class))
+                )
+            ).getMessage(),
+            containsString("not master for join request")
+        );
+    }
+
+    public void testRemovesOlderNodeInstancesWhenBecomingMaster() throws Exception {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
+        final var otherNodeOld = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
+        final var otherNodeNew = new DiscoveryNode(
+            otherNodeOld.getName(),
+            otherNodeOld.getId(),
+            UUIDs.randomBase64UUID(random()),
+            otherNodeOld.getHostName(),
+            otherNodeOld.getHostAddress(),
+            otherNodeOld.getAddress(),
+            otherNodeOld.getAttributes(),
+            otherNodeOld.getRoles(),
+            otherNodeOld.getVersion()
+        );
+
+        final var afterElectionClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(masterNode).add(otherNodeOld).localNodeId(masterNode.getId()).build())
+                .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ALL).build())
+                .metadata(
+                    Metadata.builder()
+                        .coordinationMetadata(CoordinationMetadata.builder().term(randomLongBetween(0, executorTerm - 1)).build())
+                        .build()
+                )
+                .build(),
+            joinTaskExecutor,
+            List.of(
+                JoinTask.completingElection(
+                    Stream.of(
+                        new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER),
+                        new JoinTask.NodeJoinTask(otherNodeNew, "test", NOT_COMPLETED_LISTENER)
+                    ),
+                    executorTerm
+                )
+            )
+        );
+        assertThat(afterElectionClusterState.term(), equalTo(executorTerm));
+        assertThat(afterElectionClusterState.nodes().getMasterNode(), equalTo(masterNode));
+        assertFalse(afterElectionClusterState.blocks().hasGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ALL));
+        assertThat(
+            "existing node should be replaced by new one in an election",
+            afterElectionClusterState.nodes().get(otherNodeOld.getId()).getEphemeralId(),
+            equalTo(otherNodeNew.getEphemeralId())
+        );
+
+        assertThat(
+            "existing node should not be replaced if not completing an election",
+            ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                afterElectionClusterState,
+                joinTaskExecutor,
+                List.of(
+                    JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER, executorTerm),
+                    JoinTask.singleNode(otherNodeOld, "test", NOT_COMPLETED_LISTENER, executorTerm)
+                )
+            ).nodes().get(otherNodeNew.getId()).getEphemeralId(),
+            equalTo(otherNodeNew.getEphemeralId())
+        );
+    }
+
+    public void testUpdatesVotingConfigExclusionsIfNeeded() throws Exception {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
+        final var otherNode = new DiscoveryNode(
+            UUIDs.randomBase64UUID(random()),
+            UUIDs.randomBase64UUID(random()),
+            buildNewFakeTransportAddress(),
+            Map.of(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).build())
+            .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ALL).build())
+            .metadata(
+                Metadata.builder()
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder()
+                            .term(randomLongBetween(0, executorTerm - 1))
+                            .addVotingConfigExclusion(
+                                new CoordinationMetadata.VotingConfigExclusion(
+                                    CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER,
+                                    otherNode.getName()
+                                )
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        logger.info("--> {}", clusterState);
+        logger.info("--> {}", otherNode);
+
+        if (randomBoolean()) {
+            clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                clusterState,
+                joinTaskExecutor,
+                List.of(
+                    JoinTask.completingElection(
+                        Stream.of(
+                            new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER),
+                            new JoinTask.NodeJoinTask(otherNode, "test", NOT_COMPLETED_LISTENER)
+                        ),
+                        executorTerm
+                    )
+                )
+            );
+        } else {
+            clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                clusterState,
+                joinTaskExecutor,
+                List.of(
+                    JoinTask.completingElection(
+                        Stream.of(new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER)),
+                        executorTerm
+                    )
+                )
+            );
+            clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                clusterState,
+                joinTaskExecutor,
+                List.of(JoinTask.singleNode(otherNode, "test", NOT_COMPLETED_LISTENER, executorTerm))
+            );
+        }
+
+        assertThat(clusterState.term(), equalTo(executorTerm));
+        assertThat(clusterState.nodes().getMasterNode(), equalTo(masterNode));
+        assertThat(
+            clusterState.coordinationMetadata().getVotingConfigExclusions().iterator().next().getNodeId(),
+            equalTo(otherNode.getId())
+        );
+    }
+
+    public void testIgnoresOlderTerms() throws Exception {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final long currentTerm = randomLongBetween(100, 1000);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).build())
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build()).build())
+            .build();
+
+        var tasks = Stream.concat(
+            Stream.generate(() -> createRandomTask(masterNode, "outdated", randomLongBetween(0, currentTerm - 1)))
+                .limit(randomLongBetween(1, 10)),
+            Stream.of(createRandomTask(masterNode, "current", currentTerm))
+        ).toList();
+
+        ClusterStateTaskExecutorUtils.executeHandlingResults(
+            clusterState,
+            joinTaskExecutor,
+            tasks,
+            t -> assertThat(t.term(), equalTo(currentTerm)),
+            (t, e) -> {
+                assertThat(t.term(), lessThan(currentTerm));
+                assertThat(e, instanceOf(NotMasterException.class));
+            }
+        );
+    }
+
+    public void testDesiredNodesMembershipIsUpgradedWhenNewNodesJoin() throws Exception {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var actualizedDesiredNodes = randomList(0, 5, this::createActualizedDesiredNode);
+        final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
+        final var joiningDesiredNodes = randomList(1, 5, this::createPendingDesiredNode);
+
+        final List<DiscoveryNode> joiningNodes = joiningDesiredNodes.stream()
+            .map(desiredNode -> DesiredNodesTestCase.newDiscoveryNode(desiredNode.externalId()))
+            .toList();
+
+        final var clusterState = DesiredNodesTestCase.createClusterStateWithDiscoveryNodesAndDesiredNodes(
+            actualizedDesiredNodes,
+            pendingDesiredNodes,
+            joiningDesiredNodes,
+            true,
+            false
+        );
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+
+        var tasks = joiningNodes.stream().map(node -> JoinTask.singleNode(node, "join", NOT_COMPLETED_LISTENER, 0L)).toList();
+
+        final var updatedClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, joinTaskExecutor, tasks);
+
+        final var updatedDesiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        assertThat(updatedDesiredNodes, is(notNullValue()));
+
+        assertThat(updatedDesiredNodes.nodes(), hasSize(desiredNodes.nodes().size()));
+        assertDesiredNodesStatusIsCorrect(
+            updatedClusterState,
+            Stream.concat(actualizedDesiredNodes.stream(), joiningDesiredNodes.stream()).map(DesiredNodeWithStatus::desiredNode).toList(),
+            pendingDesiredNodes.stream().map(DesiredNodeWithStatus::desiredNode).toList()
+        );
+    }
+
+    public void testDesiredNodesMembershipIsUpgradedWhenANewMasterIsElected() throws Exception {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var actualizedDesiredNodes = randomList(1, 5, this::createPendingDesiredNode);
+        final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
+
+        final var clusterState = DesiredNodesTestCase.createClusterStateWithDiscoveryNodesAndDesiredNodes(
+            actualizedDesiredNodes,
+            pendingDesiredNodes,
+            Collections.emptyList(),
+            false,
+            false
+        );
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+
+        final var completingElectionTask = JoinTask.completingElection(
+            clusterState.nodes().stream().map(node -> new JoinTask.NodeJoinTask(node, "test", NOT_COMPLETED_LISTENER)),
+            1L
+        );
+
+        final var updatedClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            joinTaskExecutor,
+            List.of(completingElectionTask)
+        );
+
+        final var updatedDesiredNodes = DesiredNodes.latestFromClusterState(updatedClusterState);
+        assertThat(updatedDesiredNodes, is(notNullValue()));
+
+        assertThat(updatedDesiredNodes.nodes(), hasSize(desiredNodes.nodes().size()));
+        assertDesiredNodesStatusIsCorrect(
+            updatedClusterState,
+            actualizedDesiredNodes.stream().map(DesiredNodeWithStatus::desiredNode).toList(),
+            pendingDesiredNodes.stream().map(DesiredNodeWithStatus::desiredNode).toList()
+        );
+    }
+
+    private DesiredNodeWithStatus createActualizedDesiredNode() {
+        return new DesiredNodeWithStatus(randomDesiredNode(), DesiredNodeWithStatus.Status.ACTUALIZED);
+    }
+
+    private DesiredNodeWithStatus createPendingDesiredNode() {
+        return new DesiredNodeWithStatus(randomDesiredNode(), DesiredNodeWithStatus.Status.PENDING);
+    }
+
+    private static JoinTask createRandomTask(DiscoveryNode node, String reason, long term) {
+        return randomBoolean()
+            ? JoinTask.singleNode(node, reason, NOT_COMPLETED_LISTENER, term)
+            : JoinTask.completingElection(Stream.of(new JoinTask.NodeJoinTask(node, reason, NOT_COMPLETED_LISTENER)), term);
+    }
+
+    private static AllocationService createAllocationService() {
+        final var allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        when(allocationService.disassociateDeadNodes(any(), anyBoolean(), any())).then(
+            invocationOnMock -> invocationOnMock.getArguments()[0]
+        );
+        return allocationService;
     }
 }

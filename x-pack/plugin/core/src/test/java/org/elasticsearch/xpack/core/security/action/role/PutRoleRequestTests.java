@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,6 +48,17 @@ public class PutRoleRequestTests extends ESTestCase {
 
         // Fail
         assertValidationError("unknown cluster privilege [" + unknownClusterPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationErrorWithTooLongRoleName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(
+            randomAlphaOfLengthBetween(NativeRealmValidationUtil.MAX_NAME_LENGTH + 1, NativeRealmValidationUtil.MAX_NAME_LENGTH * 2)
+        );
+        request.cluster("manage_security");
+
+        // Fail
+        assertValidationError("Role names must be at least 1 and no more than " + NativeRealmValidationUtil.MAX_NAME_LENGTH, request);
     }
 
     public void testValidationSuccessWithCorrectClusterPrivilegeName() {

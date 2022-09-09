@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Constructs a query that only match on documents that the field has a value in them.
@@ -132,9 +131,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     public static Query newFilter(SearchExecutionContext context, String fieldPattern, boolean checkRewrite) {
-        Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern).stream()
-            .map(context::getFieldType)
-            .collect(Collectors.toList());
+        Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern).stream().map(context::getFieldType).toList();
 
         if (fields.isEmpty()) {
             if (checkRewrite) {

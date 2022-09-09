@@ -18,25 +18,23 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collector;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
@@ -101,36 +99,145 @@ public final class ThreadContext implements Writeable {
     /**
      * Removes the current context and resets a default context. The removed context can be
      * restored by closing the returned {@link StoredContext}.
+     * @return a stored context that will restore the current context to its state at the point this method was called
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        /**
+
+        /*
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
          * The same is applied to Task.TRACE_ID.
-         * Otherwise when context is stash, it should be empty.
+         * Otherwise when context is stashed, it should be empty.
          */
-
-        if (HEADERS_TO_COPY.stream().anyMatch(header -> context.requestHeaders.containsKey(header))) {
-            Map<String, String> map = headers(context, HEADERS_TO_COPY);
-            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
-            threadLocal.set(threadContextStruct);
-        } else {
-            threadLocal.set(DEFAULT_CONTEXT);
+        boolean hasHeadersToCopy = false;
+        if (context.requestHeaders.isEmpty() == false) {
+            for (String header : HEADERS_TO_COPY) {
+                if (context.requestHeaders.containsKey(header)) {
+                    hasHeadersToCopy = true;
+                    break;
+                }
+            }
         }
+
+        boolean hasTransientHeadersToCopy = context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+
+        ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
+        if (hasHeadersToCopy) {
+            Map<String, String> copiedHeaders = getHeadersToCopy(context);
+            threadContextStruct = DEFAULT_CONTEXT.putHeaders(copiedHeaders);
+        }
+        if (hasTransientHeadersToCopy) {
+            threadContextStruct = threadContextStruct.putTransient(
+                Task.APM_TRACE_CONTEXT,
+                context.transientHeaders.get(Task.APM_TRACE_CONTEXT)
+            );
+        }
+        threadLocal.set(threadContextStruct);
+
+        // If the node and thus the threadLocal get closed while this task is still executing, we don't want this runnable to fail with an
+        // uncaught exception
+        return storedOriginalContext(context);
+    }
+
+    /**
+     * When using a {@link org.elasticsearch.tracing.Tracer} to capture activity in Elasticsearch, when a parent span is already
+     * in progress, it is necessary to start a new context before beginning a child span. This method creates a context,
+     * moving tracing-related fields to different names so that a new child span can be started. This child span will pick up
+     * the moved fields and use them to establish the parent-child relationship.
+     *
+     * @return a stored context, which can be restored when this context is no longer needed.
+     */
+    public StoredContext newTraceContext() {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(originalContext.requestHeaders);
+        final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
+
+        final String previousTraceParent = newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
+        if (previousTraceParent != null) {
+            newTransientHeaders.put("parent_" + Task.TRACE_PARENT_HTTP_HEADER, previousTraceParent);
+        }
+
+        final String previousTraceState = newRequestHeaders.remove(Task.TRACE_STATE);
+        if (previousTraceState != null) {
+            newTransientHeaders.put("parent_" + Task.TRACE_STATE, previousTraceState);
+        }
+
+        final Object previousTraceContext = newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
+        if (previousTraceContext != null) {
+            newTransientHeaders.put("parent_" + Task.APM_TRACE_CONTEXT, previousTraceContext);
+        }
+
+        // this is the context when this method returns
+        final ThreadContextStruct newContext = new ThreadContextStruct(
+            newRequestHeaders,
+            originalContext.responseHeaders,
+            newTransientHeaders,
+            originalContext.isSystemContext,
+            originalContext.warningHeadersSize
+        );
+        threadLocal.set(newContext);
+        // Tracing shouldn't interrupt the propagation of response headers, so in the same as
+        // #newStoredContextPreservingResponseHeaders(), pass on any potential changes to the response headers.
         return () -> {
-            // If the node and thus the threadLocal get closed while this task
-            // is still executing, we don't want this runnable to fail with an
-            // uncaught exception
-            threadLocal.set(context);
+            var found = threadLocal.get();
+            if (found != newContext) {
+                threadLocal.set(originalContext.putResponseHeaders(found.responseHeaders));
+            } else {
+                threadLocal.set(originalContext);
+            }
         };
     }
 
-    private Map<String, String> headers(ThreadContextStruct context, Set<String> headersToCopy) {
-        Map<String, String> map = Maps.newMapWithExpectedSize(headersToCopy.size());
-        for (String header : headersToCopy) {
-            if (context.requestHeaders.containsKey(header)) {
-                map.put(header, context.requestHeaders.get(header));
+    public boolean hasTraceContext() {
+        final ThreadContextStruct context = threadLocal.get();
+        return context.requestHeaders.containsKey(Task.TRACE_PARENT_HTTP_HEADER)
+            || context.requestHeaders.containsKey(Task.TRACE_STATE)
+            || context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+    }
+
+    /**
+     * When using a {@link org.elasticsearch.tracing.Tracer}, sometimes you need to start a span completely unrelated
+     * to any current span. In order to avoid any parent/child relationship being created, this method creates a new
+     * context that clears all the tracing fields.
+     *
+     * @return a stored context, which can be restored when this context is no longer needed.
+     */
+    public StoredContext clearTraceContext() {
+        final ThreadContextStruct context = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(context.requestHeaders);
+        final Map<String, Object> newTransientHeaders = new HashMap<>(context.transientHeaders);
+
+        newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
+        newRequestHeaders.remove(Task.TRACE_STATE);
+
+        newTransientHeaders.remove("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
+        newTransientHeaders.remove("parent_" + Task.TRACE_STATE);
+        newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
+        newTransientHeaders.remove("parent_" + Task.APM_TRACE_CONTEXT);
+
+        threadLocal.set(
+            new ThreadContextStruct(
+                newRequestHeaders,
+                context.responseHeaders,
+                newTransientHeaders,
+                context.isSystemContext,
+                context.warningHeadersSize
+            )
+        );
+        return storedOriginalContext(context);
+    }
+
+    private StoredContext storedOriginalContext(ThreadContextStruct originalContext) {
+        return () -> threadLocal.set(originalContext);
+    }
+
+    private static Map<String, String> getHeadersToCopy(ThreadContextStruct context) {
+        Map<String, String> map = Maps.newMapWithExpectedSize(HEADERS_TO_COPY.size());
+        for (String header : HEADERS_TO_COPY) {
+            final String value = context.requestHeaders.get(header);
+            if (value != null) {
+                map.put(header, value);
             }
         }
         return map;
@@ -179,15 +286,28 @@ public final class ThreadContext implements Writeable {
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);
         threadLocal.set(DEFAULT_CONTEXT.putHeaders(newHeader));
-        return () -> threadLocal.set(context);
+        return storedOriginalContext(context);
+    }
+
+    /**
+     * Just like {@link #stashContext()} but no default context is set and the response headers of the restore thread will be preserved.
+     */
+    public StoredContext newStoredContextPreservingResponseHeaders() {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        return () -> {
+            var found = threadLocal.get();
+            if (found != originalContext) {
+                threadLocal.set(originalContext.putResponseHeaders(found.responseHeaders));
+            }
+        };
     }
 
     /**
      * Just like {@link #stashContext()} but no default context is set.
-     * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
-    public StoredContext newStoredContext(boolean preserveResponseHeaders) {
-        return newStoredContext(preserveResponseHeaders, List.of());
+    public StoredContext newStoredContext() {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        return storedOriginalContext(originalContext);
     }
 
     /**
@@ -195,9 +315,8 @@ public final class ThreadContext implements Writeable {
      * to clear specific transient headers in the new context. All headers (with the possible exception of {@code responseHeaders}) are
      * restored by closing the returned {@link StoredContext}.
      *
-     * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
-    public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
+    public StoredContext newStoredContext(Collection<String> transientHeadersToClear) {
         final ThreadContextStruct originalContext = threadLocal.get();
         // clear specific transient headers from the current context
         Map<String, Object> newTransientHeaders = null;
@@ -209,6 +328,7 @@ public final class ThreadContext implements Writeable {
                 newTransientHeaders.remove(transientHeaderToClear);
             }
         }
+        // this is the context when this method returns
         if (newTransientHeaders != null) {
             ThreadContextStruct threadContextStruct = new ThreadContextStruct(
                 originalContext.requestHeaders,
@@ -219,19 +339,11 @@ public final class ThreadContext implements Writeable {
             );
             threadLocal.set(threadContextStruct);
         }
-        // this is the context when this method returns
-        final ThreadContextStruct newContext = threadLocal.get();
-        return () -> {
-            if (preserveResponseHeaders && threadLocal.get() != newContext) {
-                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
-            } else {
-                threadLocal.set(originalContext);
-            }
-        };
+        return storedOriginalContext(originalContext);
     }
 
     /**
-     * Returns a supplier that gathers a {@link #newStoredContext(boolean)} and restores it once the
+     * Returns a supplier that gathers a {@link #newStoredContextPreservingResponseHeaders()} and restores it once the
      * returned supplier is invoked. The context returned from the supplier is a stored version of the
      * suppliers callers context that should be restored once the originally gathered context is not needed anymore.
      * For instance this method should be used like this:
@@ -252,7 +364,7 @@ public final class ThreadContext implements Writeable {
      * @return a restorable context supplier
      */
     public Supplier<StoredContext> newRestorableContext(boolean preserveResponseHeaders) {
-        return wrapRestorable(newStoredContext(preserveResponseHeaders));
+        return wrapRestorable(preserveResponseHeaders ? newStoredContextPreservingResponseHeaders() : newStoredContext());
     }
 
     /**
@@ -261,7 +373,7 @@ public final class ThreadContext implements Writeable {
      */
     public Supplier<StoredContext> wrapRestorable(StoredContext storedContext) {
         return () -> {
-            StoredContext context = newStoredContext(false);
+            StoredContext context = newStoredContext();
             storedContext.restore();
             return context;
         };
@@ -301,7 +413,7 @@ public final class ThreadContext implements Writeable {
                 return Collections.singleton(input.readString());
             } else {
                 // use a linked hash set to preserve order
-                final LinkedHashSet<String> values = new LinkedHashSet<>(size);
+                final LinkedHashSet<String> values = Sets.newLinkedHashSetWithExpectedSize(size);
                 for (int i = 0; i < size; i++) {
                     final String value = input.readString();
                     final boolean added = values.add(value);
@@ -425,14 +537,26 @@ public final class ThreadContext implements Writeable {
      * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
      */
     public Runnable preserveContext(Runnable command) {
+        return doPreserveContext(command, false);
+    }
+
+    /**
+     * Saves the current thread context and wraps command in a Runnable that restores that context before running command. Also
+     * starts a new tracing context durin executing. If <code>command</code> has already been wrapped then it is returned unaltered.
+     */
+    public Runnable preserveContextWithTracing(Runnable command) {
+        return doPreserveContext(command, true);
+    }
+
+    private Runnable doPreserveContext(Runnable command, boolean preserveContext) {
         if (command instanceof ContextPreservingAbstractRunnable) {
             return command;
         }
         if (command instanceof ContextPreservingRunnable) {
             return command;
         }
-        if (command instanceof AbstractRunnable) {
-            return new ContextPreservingAbstractRunnable((AbstractRunnable) command);
+        if (command instanceof AbstractRunnable abstractRunnable) {
+            return new ContextPreservingAbstractRunnable(abstractRunnable, preserveContext);
         }
         return new ContextPreservingRunnable(command);
     }
@@ -440,7 +564,7 @@ public final class ThreadContext implements Writeable {
     /**
      * Unwraps a command that was previously wrapped by {@link #preserveContext(Runnable)}.
      */
-    public Runnable unwrap(Runnable command) {
+    public static Runnable unwrap(Runnable command) {
         if (command instanceof WrappedRunnable) {
             return ((WrappedRunnable) command).unwrap();
         }
@@ -470,10 +594,7 @@ public final class ThreadContext implements Writeable {
     }
 
     @FunctionalInterface
-    public interface StoredContext extends AutoCloseable {
-        @Override
-        void close();
-
+    public interface StoredContext extends AutoCloseable, Releasable {
         default void restore() {
             close();
         }
@@ -482,13 +603,13 @@ public final class ThreadContext implements Writeable {
     public static Map<String, String> buildDefaultHeaders(Settings settings) {
         Settings headers = DEFAULT_HEADERS_SETTING.get(settings);
         if (headers == null) {
-            return Collections.emptyMap();
+            return Map.of();
         } else {
             Map<String, String> defaultHeader = new HashMap<>();
             for (String key : headers.names()) {
                 defaultHeader.put(key, headers.get(key));
             }
-            return Collections.unmodifiableMap(defaultHeader);
+            return Map.copyOf(defaultHeader);
         }
     }
 
@@ -521,11 +642,7 @@ public final class ThreadContext implements Writeable {
             Map<String, Object> transientHeaders,
             boolean isSystemContext
         ) {
-            this.requestHeaders = requestHeaders;
-            this.responseHeaders = responseHeaders;
-            this.transientHeaders = transientHeaders;
-            this.isSystemContext = isSystemContext;
-            this.warningHeadersSize = 0L;
+            this(requestHeaders, responseHeaders, transientHeaders, isSystemContext, 0L);
         }
 
         private ThreadContextStruct(
@@ -580,15 +697,11 @@ public final class ThreadContext implements Writeable {
             }
             final Map<String, Set<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
             for (Map.Entry<String, Set<String>> entry : headers.entrySet()) {
-                String key = entry.getKey();
-                final Set<String> existingValues = newResponseHeaders.get(key);
-                if (existingValues != null) {
-                    final Set<String> newValues = Stream.concat(entry.getValue().stream(), existingValues.stream())
-                        .collect(LINKED_HASH_SET_COLLECTOR);
-                    newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
-                } else {
-                    newResponseHeaders.put(key, entry.getValue());
-                }
+                newResponseHeaders.merge(entry.getKey(), entry.getValue(), (existing, added) -> {
+                    final Set<String> updated = new LinkedHashSet<>(added);
+                    updated.addAll(existing);
+                    return Collections.unmodifiableSet(updated);
+                });
             }
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
@@ -635,16 +748,16 @@ public final class ThreadContext implements Writeable {
 
             final Map<String, Set<String>> newResponseHeaders;
             final Set<String> existingValues = responseHeaders.get(key);
+            if (existingValues != null && existingValues.contains(uniqueValue.apply(value))) {
+                return this;
+            }
+            newResponseHeaders = new HashMap<>(responseHeaders);
             if (existingValues != null) {
-                if (existingValues.contains(uniqueValue.apply(value))) {
-                    return this;
-                }
                 // preserve insertion order
-                final Set<String> newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
-                newResponseHeaders = new HashMap<>(responseHeaders);
+                final Set<String> newValues = new LinkedHashSet<>(existingValues);
+                newValues.add(value);
                 newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
             } else {
-                newResponseHeaders = new HashMap<>(responseHeaders);
                 newResponseHeaders.put(key, Collections.singleton(value));
             }
 
@@ -688,12 +801,7 @@ public final class ThreadContext implements Writeable {
                 requestHeaders.putAll(this.requestHeaders);
             }
 
-            out.writeVInt(requestHeaders.size());
-            for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeString(entry.getValue());
-            }
-
+            out.writeMap(requestHeaders, StreamOutput::writeString, StreamOutput::writeString);
             out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);
         }
     }
@@ -706,7 +814,7 @@ public final class ThreadContext implements Writeable {
         private final ThreadContext.StoredContext ctx;
 
         private ContextPreservingRunnable(Runnable in) {
-            ctx = newStoredContext(false);
+            ctx = newStoredContext();
             this.in = in;
         }
 
@@ -730,17 +838,20 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Wraps an AbstractRunnable to preserve the thread context.
+     * Wraps an AbstractRunnable to preserve the thread context, optionally creating a new trace context before
+     * executing.
      */
     private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext creatorsContext;
+        private final boolean useNewTraceContext;
 
         private ThreadContext.StoredContext threadsOriginalContext = null;
 
-        private ContextPreservingAbstractRunnable(AbstractRunnable in) {
-            creatorsContext = newStoredContext(false);
+        private ContextPreservingAbstractRunnable(AbstractRunnable in, boolean useNewTraceContext) {
+            creatorsContext = newStoredContext();
             this.in = in;
+            this.useNewTraceContext = useNewTraceContext;
         }
 
         @Override
@@ -773,6 +884,11 @@ public final class ThreadContext implements Writeable {
         protected void doRun() throws Exception {
             threadsOriginalContext = stashContext();
             creatorsContext.restore();
+            if (useNewTraceContext) {
+                // Discard the return value - we'll restore threadsOriginalContext in `onAfter()`.
+                // noinspection resource
+                newTraceContext();
+            }
             in.doRun();
         }
 
@@ -784,42 +900,6 @@ public final class ThreadContext implements Writeable {
         @Override
         public AbstractRunnable unwrap() {
             return in;
-        }
-    }
-
-    private static final Collector<String, Set<String>, Set<String>> LINKED_HASH_SET_COLLECTOR = new LinkedHashSetCollector<>();
-
-    private static class LinkedHashSetCollector<T> implements Collector<T, Set<T>, Set<T>> {
-        @Override
-        public Supplier<Set<T>> supplier() {
-            return LinkedHashSet::new;
-        }
-
-        @Override
-        public BiConsumer<Set<T>, T> accumulator() {
-            return Set::add;
-        }
-
-        @Override
-        public BinaryOperator<Set<T>> combiner() {
-            return (left, right) -> {
-                left.addAll(right);
-                return left;
-            };
-        }
-
-        @Override
-        public Function<Set<T>, Set<T>> finisher() {
-            return Function.identity();
-        }
-
-        private static final Set<Characteristics> CHARACTERISTICS = Collections.unmodifiableSet(
-            EnumSet.of(Collector.Characteristics.IDENTITY_FINISH)
-        );
-
-        @Override
-        public Set<Characteristics> characteristics() {
-            return CHARACTERISTICS;
         }
     }
 

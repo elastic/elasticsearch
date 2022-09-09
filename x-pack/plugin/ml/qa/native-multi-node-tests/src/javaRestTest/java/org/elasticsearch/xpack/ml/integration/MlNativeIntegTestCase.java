@@ -88,7 +88,7 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -291,15 +291,15 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     Metadata.Custom.class,
-                    TrainedModelAllocationMetadata.NAME,
-                    TrainedModelAllocationMetadata::new
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata::fromStream
                 )
             );
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     NamedDiff.class,
-                    TrainedModelAllocationMetadata.NAME,
-                    TrainedModelAllocationMetadata::readDiffFrom
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata::readDiffFrom
                 )
             );
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
@@ -440,9 +440,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                IngestScript.Factory factory = (params, ctx) -> new IngestScript(params, ctx) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {}
+                    public void execute() {}
                 };
                 return context.factoryClazz.cast(factory);
             }

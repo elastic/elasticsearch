@@ -9,12 +9,14 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -72,7 +74,10 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg").field("another_field")
                 .missing("53.69437,6.475031");
 
-            GeoPoint expectedCentroid = new GeoPoint(53.69437, 6.475031);
+            GeoPoint expectedCentroid = new GeoPoint(
+                GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(53.69437)),
+                GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(6.475031))
+            );
             Document document = new Document();
             document.add(new LatLonDocValuesField("field", 10, 10));
             w.addDocument(document);
@@ -148,10 +153,10 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
 
             assertEquals("my_agg", result.getName());
-            GeoPoint centroid = result.centroid();
+            SpatialPoint centroid = result.centroid();
             assertNotNull(centroid);
-            assertEquals(expectedCentroid.getLat(), centroid.getLat(), GEOHASH_TOLERANCE);
-            assertEquals(expectedCentroid.getLon(), centroid.getLon(), GEOHASH_TOLERANCE);
+            assertEquals(expectedCentroid.getX(), centroid.getX(), GEOHASH_TOLERANCE);
+            assertEquals(expectedCentroid.getY(), centroid.getY(), GEOHASH_TOLERANCE);
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }
     }

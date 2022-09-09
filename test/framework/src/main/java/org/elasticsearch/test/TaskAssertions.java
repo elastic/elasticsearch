@@ -11,11 +11,14 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static junit.framework.TestCase.assertTrue;
 import static junit.framework.TestCase.fail;
@@ -33,7 +36,14 @@ public class TaskAssertions {
 
         assertBusy(() -> {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                if (transportService.getTaskManager().getTasks().values().stream().anyMatch(t -> t.getAction().startsWith(actionPrefix))) {
+                List<Task> matchingTasks = transportService.getTaskManager()
+                    .getTasks()
+                    .values()
+                    .stream()
+                    .filter(t -> t.getAction().startsWith(actionPrefix))
+                    .collect(Collectors.toList());
+                if (matchingTasks.isEmpty() == false) {
+                    logger.trace("--> found {} tasks with prefix [{}]: {}", matchingTasks.size(), actionPrefix, matchingTasks);
                     return;
                 }
             }
@@ -51,6 +61,7 @@ public class TaskAssertions {
                 assertTrue(taskManager.assertCancellableTaskConsistency());
                 for (CancellableTask cancellableTask : taskManager.getCancellableTasks().values()) {
                     if (cancellableTask.getAction().startsWith(actionPrefix)) {
+                        logger.trace("--> found task with prefix [{}] marked as cancelled: [{}]", actionPrefix, cancellableTask);
                         foundTask = true;
                         assertTrue(
                             "task " + cancellableTask.getId() + "/" + cancellableTask.getAction() + " not cancelled",
@@ -60,7 +71,7 @@ public class TaskAssertions {
                 }
             }
             assertTrue("found no cancellable tasks", foundTask);
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public static void assertAllTasksHaveFinished(String actionPrefix) throws Exception {

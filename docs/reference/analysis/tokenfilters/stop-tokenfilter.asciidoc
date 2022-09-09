@@ -19,7 +19,7 @@ In addition to English, the `stop` filter supports predefined
 languages>>. You can also specify your own stop words as an array or file.
 
 The `stop` filter uses Lucene's
-{lucene-analysis-docs}/StopFilter.html[StopFilter].
+{lucene-analysis-docs}/core/StopFilter.html[StopFilter].
 
 [[analysis-stop-tokenfilter-analyze-ex]]
 ==== Example

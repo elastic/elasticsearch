@@ -45,28 +45,24 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
                     "clauses" : [ {
                       "span_term" : {
                         "field1" : {
-                          "value" : "bar",
-                          "boost" : 1.0
+                          "value" : "bar"
                         }
                       }
                     }, {
                       "span_term" : {
                         "field1" : {
-                          "value" : "baz",
-                          "boost" : 1.0
+                          "value" : "baz"
                         }
                       }
                     } ],
                     "slop" : 5,
-                    "in_order" : true,
-                    "boost" : 1.0
+                    "in_order" : true
                   }
                 },
                 "little" : {
                   "span_term" : {
                     "field1" : {
-                      "value" : "foo",
-                      "boost" : 1.0
+                      "value" : "foo"
                     }
                   }
                 },

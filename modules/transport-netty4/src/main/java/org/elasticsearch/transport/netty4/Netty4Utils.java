@@ -17,6 +17,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
 
 import java.io.IOException;
@@ -106,5 +109,12 @@ public class Netty4Utils {
             final ByteBuffer[] byteBuffers = buffer.nioBuffers();
             return BytesReference.fromByteBuffers(byteBuffers);
         }
+    }
+
+    public static Recycler<BytesRef> createRecycler(Settings settings) {
+        // If this method is called by super ctor the processors will not be set. Accessing NettyAllocator initializes netty's internals
+        // setting the processors. We must do it ourselves first just in case.
+        setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
+        return NettyAllocator.getRecycler();
     }
 }

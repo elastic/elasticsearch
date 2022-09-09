@@ -9,14 +9,12 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -35,7 +33,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -46,18 +43,17 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.LuceneDocument;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -71,9 +67,9 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
@@ -92,13 +88,13 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -117,6 +113,7 @@ import java.util.zip.CRC32;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -130,14 +127,14 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RecoverySourceHandlerTests extends ESTestCase {
+public class RecoverySourceHandlerTests extends MapperServiceTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
     );
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
+    private final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
 
     private ThreadPool threadPool;
     private Executor recoveryExecutor;
@@ -248,6 +245,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
     public void testSendSnapshotSendsOps() throws IOException {
+        IndexOpFactory iof = randomBoolean() ? new StandardModeIndexOpFactory() : new TimeSeriesModeIndexOpFactory();
         final int fileChunkSizeInBytes = between(1, 4096);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
@@ -255,13 +253,13 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final List<Translog.Operation> operations = new ArrayList<>();
         final int initialNumberOfDocs = randomIntBetween(10, 1000);
         for (int i = 0; i < initialNumberOfDocs; i++) {
-            final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true)));
+            final Engine.Index index = iof.createIndexOp(i);
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true, index.id())));
         }
         final int numberOfDocsWithValidSequenceNumbers = randomIntBetween(10, 1000);
         for (int i = initialNumberOfDocs; i < initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers; i++) {
-            final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true)));
+            final Engine.Index index = iof.createIndexOp(i);
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true, index.id())));
         }
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long endingSeqNo = randomLongBetween(startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
@@ -312,9 +310,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
         assertThat(result.sentOperations, equalTo(expectedOps));
-        List<Translog.Operation> sortedShippedOps = shippedOps.stream()
-            .sorted(Comparator.comparing(Translog.Operation::seqNo))
-            .collect(Collectors.toList());
+        List<Translog.Operation> sortedShippedOps = shippedOps.stream().sorted(Comparator.comparing(Translog.Operation::seqNo)).toList();
         assertThat(shippedOps.size(), equalTo(expectedOps));
         for (int i = 0; i < shippedOps.size(); i++) {
             assertThat(sortedShippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
@@ -323,14 +319,15 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
     public void testSendSnapshotStopOnError() throws Exception {
+        IndexOpFactory iof = randomBoolean() ? new StandardModeIndexOpFactory() : new TimeSeriesModeIndexOpFactory();
         final int fileChunkSizeInBytes = between(1, 10 * 1024);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final List<Translog.Operation> ops = new ArrayList<>();
         for (int numOps = between(1, 256), i = 0; i < numOps; i++) {
-            final Engine.Index index = getIndex(Integer.toString(i));
-            ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true)));
+            final Engine.Index index = iof.createIndexOp(i);
+            ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true, index.id())));
         }
         final AtomicBoolean wasFailed = new AtomicBoolean();
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
@@ -464,29 +461,70 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertThat(receivedSeqNos, equalTo(sentSeqNos));
     }
 
-    private Engine.Index getIndex(final String id) {
-        final LuceneDocument document = new LuceneDocument();
-        document.add(new TextField("test", "test", Field.Store.YES));
-        final Field idField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
-        final Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
-        final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(idField);
-        document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
-        final BytesReference source = new BytesArray(new byte[] { 1 });
-        final ParsedDocument doc = new ParsedDocument(
-            versionField,
-            seqID,
-            id,
-            null,
-            Arrays.asList(document),
-            source,
-            XContentType.JSON,
-            null
-        );
-        return new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
+    private interface IndexOpFactory {
+        Engine.Index createIndexOp(int docIdent);
+    }
+
+    private class StandardModeIndexOpFactory implements IndexOpFactory {
+        private final MapperService mapper;
+
+        private StandardModeIndexOpFactory() throws IOException {
+            mapper = createMapperService(mapping(b -> {}));
+        }
+
+        @Override
+        public Engine.Index createIndexOp(int docIdent) {
+            SourceToParse source = new SourceToParse(Integer.toString(docIdent), new BytesArray("{}"), XContentType.JSON);
+            return IndexShard.prepareIndex(
+                mapper,
+                source,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                randomNonNegativeLong(),
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                -1,
+                false,
+                UNASSIGNED_SEQ_NO,
+                0
+            );
+        }
+    }
+
+    private class TimeSeriesModeIndexOpFactory implements IndexOpFactory {
+        private final MapperService mapper;
+
+        private TimeSeriesModeIndexOpFactory() throws IOException {
+            mapper = createMapperService(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                    .build(),
+                mapping(b -> b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject())
+            );
+        }
+
+        @Override
+        public Engine.Index createIndexOp(int docIdent) {
+            SourceToParse source = new SourceToParse(null, new BytesArray(String.format(Locale.ROOT, """
+                {
+                    "@timestamp": %s,
+                    "dim": "dim"
+                }""", docIdent)), XContentType.JSON);
+            return IndexShard.prepareIndex(
+                mapper,
+                source,
+                UNASSIGNED_SEQ_NO,
+                randomNonNegativeLong(),
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                -1,
+                false,
+                UNASSIGNED_SEQ_NO,
+                0
+            );
+        }
     }
 
     public void testHandleCorruptedIndexOnSendSendFiles() throws Throwable {
@@ -1040,7 +1078,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
         long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
         assertTrue(
-            handler.canSkipPhase1(
+            handler.hasSameLegacySyncId(
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)
             )
@@ -1055,7 +1093,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 maxSeqNo,
                 () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
             );
-            handler.canSkipPhase1(
+            handler.hasSameLegacySyncId(
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
                 newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs)
             );
@@ -1079,6 +1117,17 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             writer.commit();
             writer.close();
             when(shard.state()).thenReturn(IndexShardState.STARTED);
+            final var indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                        .build()
+                )
+                .build();
+            IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+            when(shard.indexSettings()).thenReturn(indexSettings);
 
             TestRecoveryTargetHandler recoveryTarget = new Phase1RecoveryTargetHandler();
             AtomicReference<ShardRecoveryPlan> computedRecoveryPlanRef = new AtomicReference<>();
@@ -1138,12 +1187,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final List<String> fileNamesToBeRecoveredFromSnapshot = snapshotFilesToRecover.getSnapshotFiles()
                 .stream()
                 .map(fileInfo -> fileInfo.metadata().name())
-                .collect(Collectors.toList());
+                .toList();
 
             final List<String> sourceFilesToRecover = shardRecoveryPlan.getSourceFilesToRecover()
                 .stream()
                 .map(StoreFileMetadata::name)
-                .collect(Collectors.toList());
+                .toList();
 
             Set<String> filesFailedToDownload = Collections.synchronizedSet(new HashSet<>());
             Set<String> filesRecoveredFromSource = Collections.synchronizedSet(new HashSet<>());
@@ -1481,7 +1530,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 .getSnapshotFiles()
                 .stream()
                 .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
-                .collect(Collectors.toList());
+                .toList();
 
             int maxConcurrentSnapshotFileDownloads = randomIntBetween(2, 4);
             CountDownLatch downloadSnapshotFileReceived = new CountDownLatch(maxConcurrentSnapshotFileDownloads);
@@ -1516,7 +1565,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                             .getSnapshotFiles()
                             .stream()
                             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
-                            .collect(Collectors.toList());
+                            .toList();
                         assertThat(receiveFileInfoFromSnapshotCalls.incrementAndGet(), is(equalTo(1)));
                         assertThat(receiveFileInfoFromSourceCalls.get(), is(equalTo(0)));
                     }

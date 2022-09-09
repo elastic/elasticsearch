@@ -30,7 +30,7 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
      * Returns a Base64 encoded {@link SecureString} of a Version 4.0 compatible UUID
      * as defined here: http://www.ietf.org/rfc/rfc4122.txt
      */
-    public SecureString getBase64UUIDSecureString() {
+    public static SecureString getBase64UUIDSecureString() {
         byte[] uuidBytes = null;
         byte[] encodedBytes = null;
         try {
@@ -52,11 +52,11 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
      * randomly initialized by the given {@link java.util.Random} instance
      * as defined here: http://www.ietf.org/rfc/rfc4122.txt
      */
-    public String getBase64UUID(Random random) {
+    public static String getBase64UUID(Random random) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(getUUIDBytes(random));
     }
 
-    private byte[] getUUIDBytes(Random random) {
+    private static byte[] getUUIDBytes(Random random) {
         final byte[] randomBytes = new byte[16];
         random.nextBytes(randomBytes);
         /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)

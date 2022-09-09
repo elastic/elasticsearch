@@ -1,7 +1,7 @@
 setup:
   - skip:
-        version: " - 8.1.0"
-        reason: Suipport for time_series aggs was added in 8.1.0
+        version: " - 8.2.0"
+        reason: Time series indexing changed in 8.2.0
 
   - do:
       indices.create:

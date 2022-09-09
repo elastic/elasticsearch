@@ -15,12 +15,12 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -161,8 +161,8 @@ public class MetricAggExtractor implements BucketExtractor {
         if (agg instanceof Max) {
             return hasValue((Max) agg);
         }
-        if (agg instanceof InternalMin) {
-            return hasValue((InternalMin) agg);
+        if (agg instanceof Min) {
+            return hasValue((Min) agg);
         }
         if (agg instanceof InternalAvg) {
             return hasValue((InternalAvg) agg);

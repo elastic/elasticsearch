@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -111,14 +112,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(sources.size());
-        for (CompositeValuesSourceBuilder<?> builder : sources) {
-            CompositeValuesSourceParserHelper.writeTo(builder, out);
-        }
+        out.writeCollection(sources, (o, v) -> CompositeValuesSourceParserHelper.writeTo(v, o));
         out.writeVInt(size);
         out.writeBoolean(after != null);
         if (after != null) {
-            out.writeMap(after);
+            out.writeGenericMap(after);
         }
     }
 
@@ -173,14 +171,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      * this aggregator or the instance of the parent's factory that is incompatible with
      * the composite aggregation.
      */
-    private AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
+    private static AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
         if (factory == null) {
             return null;
-        } else if (factory instanceof NestedAggregatorFactory || factory instanceof FilterAggregatorFactory) {
-            return validateParentAggregations(factory.getParent());
-        } else {
-            return factory;
-        }
+        } else if (factory instanceof NestedAggregatorFactory
+            || factory instanceof FilterAggregatorFactory
+            || factory instanceof RandomSamplerAggregatorFactory) {
+                return validateParentAggregations(factory.getParent());
+            } else {
+                return factory;
+            }
     }
 
     private static void validateSources(List<CompositeValuesSourceBuilder<?>> sources) {

@@ -148,7 +148,10 @@ public abstract class BlendedTermQuery extends Query {
             if (prev > current) {
                 actualDf++;
             }
-            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, Math.min(maxDoc, actualDf));
+
+            int docCount = reader.getDocCount(terms[i].field());
+            int newDocFreq = Math.min(actualDf, docCount);
+            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, newDocFreq);
             prev = current;
             sumTTF += ctx.totalTermFreq();
         }
@@ -162,7 +165,7 @@ public abstract class BlendedTermQuery extends Query {
         }
     }
 
-    private TermStates adjustTTF(IndexReaderContext readerContext, TermStates termContext, long sumTTF) throws IOException {
+    private static TermStates adjustTTF(IndexReaderContext readerContext, TermStates termContext, long sumTTF) throws IOException {
         assert termContext.wasBuiltFor(readerContext);
         TermStates newTermContext = new TermStates(readerContext);
         List<LeafReaderContext> leaves = readerContext.leaves();
@@ -246,7 +249,7 @@ public abstract class BlendedTermQuery extends Query {
         visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this).consumeTerms(this, terms);
     }
 
-    private class TermAndBoost implements Comparable<TermAndBoost> {
+    private static class TermAndBoost implements Comparable<TermAndBoost> {
         protected final Term term;
         protected float boost;
 

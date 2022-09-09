@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -213,13 +214,13 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });
 
-        // limitKey gets only keys owned by the original user, not including the derived keys since they are not
-        // owned by the user (realm_name is _es_api_key).
+        // limitKey gets only itself. It cannot view other keys owned by the owner user. This is consistent with how
+        // get api key works
         assertQuery(limitKeyAuthHeader, "", apiKeys -> {
-            assertThat(apiKeys.size(), equalTo(2));
+            assertThat(apiKeys.size(), equalTo(1));
             assertThat(
                 apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of("power-key-1", "limit-key-1"))
+                equalTo(Set.of("limit-key-1"))
             );
             apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });
@@ -231,7 +232,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final int total = randomIntBetween(8, 12);
         final List<String> apiKeyNames = IntStream.range(0, total)
             .mapToObj(i -> String.format(Locale.ROOT, "k-%02d", i))
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         final List<String> apiKeyIds = new ArrayList<>(total);
         for (int i = 0; i < total; i++) {
             apiKeyIds.add(createApiKey(apiKeyNames.get(i), null, authHeader).v1());
@@ -276,21 +277,21 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         // assert sort values match the field of API key information
         if ("name".equals(sortField)) {
             assertThat(
-                apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
-                equalTo(apiKeyInfos.stream().map(m -> (String) extractSortValues(m).get(0)).collect(Collectors.toUnmodifiableList()))
+                apiKeyInfos.stream().map(m -> (String) m.get("name")).toList(),
+                equalTo(apiKeyInfos.stream().map(m -> (String) extractSortValues(m).get(0)).toList())
             );
         } else {
             assertThat(
-                apiKeyInfos.stream().map(m -> (long) m.get("creation")).collect(Collectors.toUnmodifiableList()),
-                equalTo(apiKeyInfos.stream().map(m -> (long) extractSortValues(m).get(0)).collect(Collectors.toUnmodifiableList()))
+                apiKeyInfos.stream().map(m -> (long) m.get("creation")).toList(),
+                equalTo(apiKeyInfos.stream().map(m -> (long) extractSortValues(m).get(0)).toList())
             );
         }
         assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("id")).collect(Collectors.toUnmodifiableList()),
+            apiKeyInfos.stream().map(m -> (String) m.get("id")).toList(),
             equalTo(apiKeyIds.subList(from, total))
         );
         assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
+            apiKeyInfos.stream().map(m -> (String) m.get("name")).toList(),
             equalTo(apiKeyNames.subList(from, total))
         );
 
@@ -365,6 +366,105 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         final String invalidFieldName = randomFrom("doc_type", "api_key_invalidated", "metadata_flattened.letter");
         assertQueryError(authHeader, 400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
+    }
+
+    public void testExistsQuery() throws IOException, InterruptedException {
+        final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
+
+        // No expiration
+        createApiKey("test-exists-1", null, null, Map.of("value", 42), authHeader);
+        // A short-lived key
+        createApiKey("test-exists-2", "1ms", null, Map.of("label", "prod"), authHeader);
+        createApiKey("test-exists-3", "1d", null, Map.of("value", 42, "label", "prod"), authHeader);
+
+        final long startTime = Instant.now().toEpochMilli();
+
+        assertQuery(
+            authHeader,
+            """
+                {"query": {"exists": {"field": "expiration" }}}""",
+            apiKeys -> {
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
+                    containsInAnyOrder("test-exists-2", "test-exists-3")
+                );
+            }
+        );
+
+        assertQuery(
+            authHeader,
+            """
+                {"query": {"exists": {"field": "metadata.value" }}}""",
+            apiKeys -> {
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
+                    containsInAnyOrder("test-exists-1", "test-exists-3")
+                );
+            }
+        );
+
+        assertQuery(
+            authHeader,
+            """
+                {"query": {"exists": {"field": "metadata.label" }}}""",
+            apiKeys -> {
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
+                    containsInAnyOrder("test-exists-2", "test-exists-3")
+                );
+            }
+        );
+
+        // Create an invalidated API key
+        createAndInvalidateApiKey("test-exists-4", authHeader);
+
+        // Ensure the short-lived key is expired
+        final long elapsed = Instant.now().toEpochMilli() - startTime;
+        if (elapsed < 10) {
+            Thread.sleep(10 - elapsed);
+        }
+
+        // Find valid API keys (not invalidated nor expired)
+        assertQuery(
+            authHeader,
+            """
+                {
+                  "query": {
+                    "bool": {
+                      "must": {
+                        "term": {
+                          "invalidated": false
+                        }
+                      },
+                      "should": [
+                        {
+                          "range": {
+                            "expiration": {
+                              "gte": "now"
+                            }
+                          }
+                        },
+                        {
+                          "bool": {
+                            "must_not": {
+                              "exists": {
+                                "field": "expiration"
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "minimum_should_match": 1
+                    }
+                  }
+                }""",
+            apiKeys -> {
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
+                    containsInAnyOrder("test-exists-1", "test-exists-3")
+                );
+            }
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -482,6 +582,16 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         Map<String, Object> metadata,
         String authHeader
     ) throws IOException {
+        return createApiKey(name, randomFrom("10d", null), roleDescriptors, metadata, authHeader);
+    }
+
+    private Tuple<String, String> createApiKey(
+        String name,
+        String expiration,
+        Map<String, Object> roleDescriptors,
+        Map<String, Object> metadata,
+        String authHeader
+    ) throws IOException {
         final Request request = new Request("POST", "/_security/api_key");
         final String roleDescriptorsString = XContentTestUtils.convertToXContent(
             roleDescriptors == null ? Map.of() : roleDescriptors,
@@ -489,13 +599,13 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         ).utf8ToString();
         final String metadataString = XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON)
             .utf8ToString();
-        if (randomBoolean()) {
+        if (expiration == null) {
             request.setJsonEntity("""
                 {"name":"%s", "role_descriptors":%s, "metadata":%s}""".formatted(name, roleDescriptorsString, metadataString));
         } else {
             request.setJsonEntity("""
-                {"name":"%s", "expiration": "10d", "role_descriptors":%s,\
-                "metadata":%s}""".formatted(name, roleDescriptorsString, metadataString));
+                {"name":"%s", "expiration": "%s", "role_descriptors":%s,\
+                "metadata":%s}""".formatted(name, expiration, roleDescriptorsString, metadataString));
         }
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         final Response response = client().performRequest(request);

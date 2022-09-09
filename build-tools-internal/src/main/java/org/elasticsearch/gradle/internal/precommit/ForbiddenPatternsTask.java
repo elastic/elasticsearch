@@ -66,6 +66,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
         .exclude("**/*.zip")
         .exclude("**/*.jks")
         .exclude("**/*.crt")
+        .exclude("**/*.p12")
         .exclude("**/*.keystore")
         .exclude("**/*.png")
         // vim swap file - included here to stop the build falling over if you happen to have a file open :-|

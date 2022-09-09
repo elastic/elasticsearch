@@ -13,7 +13,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * Tracks progress of a data frame analytics job.
@@ -127,8 +126,6 @@ public class ProgressTracker {
     }
 
     public List<PhaseProgress> report() {
-        return Arrays.stream(phasesInOrder)
-            .map(phase -> new PhaseProgress(phase, progressPercentPerPhase.get(phase)))
-            .collect(Collectors.toUnmodifiableList());
+        return Arrays.stream(phasesInOrder).map(phase -> new PhaseProgress(phase, progressPercentPerPhase.get(phase))).toList();
     }
 }

@@ -106,6 +106,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>();
+        final AtomicReference<Map<String, Object>> domainsUsageRef = new AtomicReference<>();
 
         final boolean enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         final CountDown countDown = new CountDown(3);
@@ -123,7 +124,8 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
                     tokenServiceUsage,
                     apiKeyServiceUsage,
                     fips140Usage,
-                    operatorPrivilegesUsage
+                    operatorPrivilegesUsage,
+                    domainsUsageRef.get()
                 );
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             }
@@ -156,8 +158,10 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
             roleMappingStore.usageStats(roleMappingStoreUsageListener);
         }
         if (realms == null || enabled == false) {
+            domainsUsageRef.set(Map.of());
             realmsUsageListener.onResponse(Collections.emptyMap());
         } else {
+            domainsUsageRef.set(realms.domainUsageStats());
             realms.usageStats(realmsUsageListener);
         }
 

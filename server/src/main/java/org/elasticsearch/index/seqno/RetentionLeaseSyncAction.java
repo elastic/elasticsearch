@@ -10,7 +10,6 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -47,6 +46,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Write action responsible for syncing retention leases to replicas. This action is deliberately a write action so that if a replica misses
  * a retention lease sync then that shard will be marked as stale.
@@ -59,7 +60,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
     public static final String ACTION_NAME = "indices:admin/seq_no/retention_lease_sync";
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
-    protected Logger getLogger() {
+    protected static Logger getLogger() {
         return LOGGER;
     }
 
@@ -110,42 +111,44 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
             final Request request = new Request(shardId, retentionLeases);
-            final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_sync", request);
-            transportService.sendChildRequest(
-                clusterService.localNode(),
-                transportPrimaryAction,
-                new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
-                task,
-                transportOptions,
-                new TransportResponseHandler<ReplicationResponse>() {
-                    @Override
-                    public ReplicationResponse read(StreamInput in) throws IOException {
-                        return newResponseInstance(in);
-                    }
-
-                    @Override
-                    public void handleResponse(ReplicationResponse response) {
-                        task.setPhase("finished");
-                        taskManager.unregister(task);
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void handleException(TransportException e) {
-                        if (ExceptionsHelper.unwrap(
-                            e,
-                            IndexNotFoundException.class,
-                            AlreadyClosedException.class,
-                            IndexShardClosedException.class
-                        ) == null) {
-                            getLogger().warn(new ParameterizedMessage("{} retention lease sync failed", shardId), e);
+            try (var ignored = threadContext.newTraceContext()) {
+                final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_sync", request);
+                transportService.sendChildRequest(
+                    clusterService.localNode(),
+                    transportPrimaryAction,
+                    new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
+                    task,
+                    transportOptions,
+                    new TransportResponseHandler<ReplicationResponse>() {
+                        @Override
+                        public ReplicationResponse read(StreamInput in) throws IOException {
+                            return newResponseInstance(in);
                         }
-                        task.setPhase("finished");
-                        taskManager.unregister(task);
-                        listener.onFailure(e);
+
+                        @Override
+                        public void handleResponse(ReplicationResponse response) {
+                            task.setPhase("finished");
+                            taskManager.unregister(task);
+                            listener.onResponse(response);
+                        }
+
+                        @Override
+                        public void handleException(TransportException e) {
+                            if (ExceptionsHelper.unwrap(
+                                e,
+                                IndexNotFoundException.class,
+                                AlreadyClosedException.class,
+                                IndexShardClosedException.class
+                            ) == null) {
+                                getLogger().warn(() -> format("%s retention lease sync failed", shardId), e);
+                            }
+                            task.setPhase("finished");
+                            taskManager.unregister(task);
+                            listener.onFailure(e);
+                        }
                     }
-                }
-            );
+                );
+            }
         }
     }
 

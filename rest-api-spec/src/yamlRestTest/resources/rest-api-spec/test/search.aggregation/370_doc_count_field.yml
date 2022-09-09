@@ -148,10 +148,38 @@ setup:
   - match: { aggregations.composite_agg.buckets.2.doc_count: 11 }
 
 ---
-"Test filters agg with doc_count":
+"Single bucket filters agg with doc_count":
   - skip:
       version: " - 7.99.99"
-      reason: profile info changed in 8.0.0 to be backported to 7.14.0
+      reason: implementation change in 8.0
+      features: default_shards
+
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  abc:
+                    match:
+                      str: abc
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.f.buckets: 1 }
+  - match: { aggregations.f.buckets.abc.doc_count: 11 }
+  - match: { profile.shards.0.aggregations.0.type: FilterByFilterAggregator }
+  # We can't assert that segments_with_doc_count_field is > 0 because we might
+  # end up with two shards and all of the documents with the _doc_count field
+  # may be on one field. We have a test for this in AggregationProfilerIT
+  # and here we'd prefer to have two shards to make sure that works.
+
+---
+"Filters agg with doc_count":
+  - skip:
+      version: " - 8.2.99"
+      reason: implementation changed when there is more than one bucket 8.3.0
       features: default_shards
 
   - do:
@@ -172,13 +200,12 @@ setup:
                   xyz:
                     match:
                       str: xyz
-
   - match: { hits.total.value: 5 }
   - length: { aggregations.f.buckets: 3 }
   - match: { aggregations.f.buckets.abc.doc_count: 11 }
   - match: { aggregations.f.buckets.foo.doc_count: 8 }
   - match: { aggregations.f.buckets.xyz.doc_count: 5 }
-  - match: { profile.shards.0.aggregations.0.type: FilterByFilterAggregator }
+  - match: { profile.shards.0.aggregations.0.type: FiltersAggregator.Compatible }
   # We can't assert that segments_with_doc_count_field is > 0 because we might
   # end up with two shards and all of the documents with the _doc_count field
   # may be on one field. We have a test for this in AggregationProfilerIT

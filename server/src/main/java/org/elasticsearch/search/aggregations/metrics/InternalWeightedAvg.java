@@ -25,10 +25,9 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     private final double weight;
 
     InternalWeightedAvg(String name, double sum, double weight, DocValueFormat format, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, format, metadata);
         this.sum = sum;
         this.weight = weight;
-        this.format = format;
     }
 
     /**
@@ -36,7 +35,6 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
      */
     public InternalWeightedAvg(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
         weight = in.readDouble();
     }

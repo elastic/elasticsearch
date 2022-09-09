@@ -6,9 +6,9 @@
 <titleabbrev>Stop trained model deployment</titleabbrev>
 ++++
 
-experimental::[]
-
 Stops a trained model deployment.
+
+preview::[]
 
 [[stop-trained-model-deployment-request]]
 == {api-request-title}

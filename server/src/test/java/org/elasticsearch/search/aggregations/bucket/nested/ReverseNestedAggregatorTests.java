@@ -13,14 +13,17 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -91,23 +94,29 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numParentDocs; i++) {
-                    List<Document> documents = new ArrayList<>();
+                    List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
                     for (int nested = 0; nested < numNestedDocs; nested++) {
                         Document document = new Document();
                         document.add(
-                            new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.NESTED_FIELD_TYPE)
+                            new Field(
+                                IdFieldMapper.NAME,
+                                Uid.encodeId(Integer.toString(i)),
+                                ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE
+                            )
                         );
                         document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                         expectedNestedDocs++;
                     }
-                    Document document = new Document();
-                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    LuceneDocument document = new LuceneDocument();
+                    document.add(
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
-                    document.add(SeqNoFieldMapper.SequenceIDFields.emptySeqID().primaryTerm);
+                    SeqNoFieldMapper.SequenceIDFields.emptySeqID().addFields(document);
                     if (numNestedDocs > 0) {
                         expectedMaxValue = Math.max(expectedMaxValue, value);
                         expectedParentDocs++;
@@ -148,7 +157,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numParentDocs; i++) {
-                    List<Document> documents = new ArrayList<>();
+                    List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
                     if (numNestedDocs > 0) {
                         expectedParentDocs++;
@@ -157,18 +166,24 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     for (int nested = 0; nested < numNestedDocs; nested++) {
                         Document document = new Document();
                         document.add(
-                            new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.NESTED_FIELD_TYPE)
+                            new Field(
+                                IdFieldMapper.NAME,
+                                Uid.encodeId(Integer.toString(i)),
+                                ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE
+                            )
                         );
                         document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                     }
-                    Document document = new Document();
-                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    LuceneDocument document = new LuceneDocument();
+                    document.add(
+                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
+                    );
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
 
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
-                    document.add(SeqNoFieldMapper.SequenceIDFields.emptySeqID().primaryTerm);
+                    SeqNoFieldMapper.SequenceIDFields.emptySeqID().addFields(document);
                     documents.add(document);
                     iw.addDocuments(documents);
                 }

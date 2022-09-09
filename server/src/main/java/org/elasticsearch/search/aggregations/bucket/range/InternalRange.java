@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
     implements
@@ -303,10 +302,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        out.writeVInt(ranges.size());
-        for (B bucket : ranges) {
-            bucket.writeTo(out);
-        }
+        out.writeCollection(ranges);
     }
 
     @Override
@@ -376,7 +372,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                         b.format
                     )
                 )
-                .collect(Collectors.toList()),
+                .toList(),
             format,
             keyed,
             getMetadata()

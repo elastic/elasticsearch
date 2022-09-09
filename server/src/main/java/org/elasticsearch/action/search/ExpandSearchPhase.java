@@ -106,7 +106,7 @@ final class ExpandSearchPhase extends SearchPhase {
         }
     }
 
-    private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
+    private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
         SearchSourceBuilder groupSource = new SearchSourceBuilder();
         groupSource.from(options.getFrom());
         groupSource.size(options.getSize());

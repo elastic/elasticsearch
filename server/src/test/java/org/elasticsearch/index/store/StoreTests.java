@@ -48,8 +48,8 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -1185,6 +1185,17 @@ public class StoreTests extends ESTestCase {
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.ES_VERSION));
             assertThat(segmentInfos.getUserData().get(Engine.ES_VERSION), is(equalTo(org.elasticsearch.Version.CURRENT.toString())));
+        }
+    }
+
+    public void testReadMetadataSnapshotReturnsEmptyWhenIndexIsCorrupted() throws IOException {
+        var shardId = new ShardId("index", "_na_", 1);
+        var dir = createTempDir();
+        try (Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(dir), new DummyShardLock(shardId))) {
+            store.createEmpty();
+            store.markStoreCorrupted(new IOException("test exception"));
+            var metadata = Store.readMetadataSnapshot(dir, shardId, (id, l, d) -> new DummyShardLock(id), logger);
+            assertThat(metadata, equalTo(Store.MetadataSnapshot.EMPTY));
         }
     }
 }

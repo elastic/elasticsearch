@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.inject.binder;
 
-import org.elasticsearch.common.inject.Scope;
-
 import java.lang.annotation.Annotation;
 
 /**
@@ -31,11 +29,6 @@ public interface ScopedBindingBuilder {
      * See the EDSL examples at {@link org.elasticsearch.common.inject.Binder}.
      */
     void in(Class<? extends Annotation> scopeAnnotation);
-
-    /**
-     * See the EDSL examples at {@link org.elasticsearch.common.inject.Binder}.
-     */
-    void in(Scope scope);
 
     /**
      * Instructs the {@link org.elasticsearch.common.inject.Injector} to eagerly initialize this

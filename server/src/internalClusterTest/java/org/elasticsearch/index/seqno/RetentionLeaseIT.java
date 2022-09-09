@@ -45,7 +45,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING;
@@ -72,7 +71,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         return Stream.concat(
             super.nodePlugins().stream(),
             Stream.of(RetentionLeaseSyncIntervalSettingPlugin.class, MockTransportService.TestPlugin.class)
-        ).collect(Collectors.toList());
+        ).toList();
     }
 
     public void testRetentionLeasesSyncedOnAdd() throws Exception {

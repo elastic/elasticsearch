@@ -22,8 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -53,7 +52,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -173,7 +171,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
             final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
-            PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(
+            PlainActionFuture.<RepositoryData, Exception>get(
                 f -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
                         shardGenerations,
@@ -181,7 +179,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                         Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                         new SnapshotInfo(
                             snapshot,
-                            shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                            shardGenerations.indices().stream().map(IndexId::getName).toList(),
                             Collections.emptyList(),
                             Collections.emptyList(),
                             null,
@@ -194,7 +192,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             Collections.emptyMap()
                         ),
                         Version.CURRENT,
-                        f
+                        f,
+                        info -> {}
                     )
                 )
             );

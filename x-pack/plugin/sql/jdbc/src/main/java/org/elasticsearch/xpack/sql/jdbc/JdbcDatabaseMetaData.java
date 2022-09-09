@@ -18,6 +18,7 @@ import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.sql.JDBCType.BIGINT;
@@ -1420,5 +1421,13 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         public void close() throws SQLException {
             // this cursor doesn't hold any resource - no need to clean up
         }
+
+        @Override
+        public List<String> warnings() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void clearWarnings() {}
     }
 }

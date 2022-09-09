@@ -27,7 +27,7 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
     private final NormalizeCharMap normMap;
 
     MappingCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name);
+        super(name);
 
         List<String> rules = Analysis.getWordList(env, settings, "mappings");
         if (rules == null) {

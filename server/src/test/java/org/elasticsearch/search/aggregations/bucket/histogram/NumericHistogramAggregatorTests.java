@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -436,8 +436,8 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 for (int innerIdx = 0; innerIdx < 20; innerIdx++) {
                     InternalHistogram.Bucket innerBucket = inner.getBuckets().get(innerIdx);
                     assertThat(innerBucket.getKey(), equalTo(5.0 * innerIdx));
-                    InternalMin min = innerBucket.getAggregations().get("min");
-                    assertThat(min.getValue(), equalTo(outerIdx * 5.0 + innerIdx * 500.0));
+                    Min min = innerBucket.getAggregations().get("min");
+                    assertThat(min.value(), equalTo(outerIdx * 5.0 + innerIdx * 500.0));
                 }
             }
         };

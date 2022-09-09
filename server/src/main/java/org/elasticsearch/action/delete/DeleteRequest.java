@@ -234,7 +234,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
-    public void process() {
+    public void process(IndexRouting indexRouting) {
         // Nothing to do
     }
 

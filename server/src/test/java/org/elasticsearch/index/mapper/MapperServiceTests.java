@@ -8,8 +8,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +23,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -69,6 +70,13 @@ public class MapperServiceTests extends MapperServiceTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> merge(mapperService, mapping(b -> b.startObject("newfield").field("type", "long").endObject()))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
+
+        // adding one more runtime field should trigger exception
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, runtimeMapping(b -> b.startObject("newfield").field("type", "long").endObject()))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
     }
@@ -317,8 +325,105 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         List<String> eagerFieldNames = StreamSupport.stream(mapperService.getEagerGlobalOrdinalsFields().spliterator(), false)
             .map(MappedFieldType::name)
-            .collect(Collectors.toList());
+            .toList();
         assertThat(eagerFieldNames, containsInAnyOrder("eager1", "eager2"));
     }
 
+    public void testMultiFieldChecks() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                 "field1" : {
+                   "type" : "keyword",
+                   "fields" : {
+                     "subfield1" : {
+                       "type" : "long"
+                     },
+                     "subfield2" : {
+                       "type" : "text"
+                     }
+                   }
+                 },
+                 "object.field2" : { "type" : "keyword" }
+              },
+              "runtime" : {
+                  "object.subfield1" : { "type" : "keyword" },
+                  "field1.subfield2" : { "type" : "keyword" }
+              }
+            } }
+            """);
+
+        assertFalse(mapperService.isMultiField("non_existent_field"));
+        assertFalse(mapperService.isMultiField("field1"));
+        assertTrue(mapperService.isMultiField("field1.subfield1"));
+        // not a multifield, because it's shadowed by a runtime field
+        assertFalse(mapperService.isMultiField("field1.subfield2"));
+        assertFalse(mapperService.isMultiField("object.field2"));
+        assertFalse(mapperService.isMultiField("object.subfield1"));
+    }
+
+    public void testMergeObjectSubfieldWhileParsing() throws IOException {
+        /*
+        If we are parsing mappings that hold the definition of the same field twice, the two are merged together. This can happen when
+        mappings have the same field specified using the object notation as well as the dot notation, as well as when applying index
+        templates, in which case the two definitions may come from separate index templates that end up in the same map (through
+        XContentHelper#mergeDefaults, see MetadataCreateIndexService#parseV1Mappings).
+        We had a bug (https://github.com/elastic/elasticsearch/issues/88573) triggered by this scenario that caused the merged leaf fields
+        to get the wrong path (missing the first portion).
+         */
+        MapperService mapperService = createMapperService("""
+            {
+              "_doc": {
+                "properties": {
+                  "obj": {
+                    "properties": {
+                      "sub": {
+                        "properties": {
+                          "string": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "obj.sub.string" : {
+                    "type" : "keyword"
+                  }
+                }
+              }
+            }
+            """);
+
+        assertNotNull(mapperService.mappingLookup().getMapper("obj.sub.string"));
+        MappedFieldType fieldType = mapperService.mappingLookup().getFieldType("obj.sub.string");
+        assertNotNull(fieldType);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "obj" : {
+                    "properties" : {
+                      "sub" : {
+                        "properties" : {
+                          "string" : {
+                            "type" : "keyword"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+
+        // check that with the resulting mappings a new document has the previously merged field indexed properly
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("""
+            {
+              "obj.sub.string" : "value"
+            }"""));
+
+        assertNull(parsedDocument.dynamicMappingsUpdate());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields("obj.sub.string");
+        assertEquals(2, fields.length);
+    }
 }

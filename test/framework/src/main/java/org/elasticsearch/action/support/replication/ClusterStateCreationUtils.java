@@ -26,8 +26,11 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -41,6 +44,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -162,7 +166,7 @@ public class ClusterStateCreationUtils {
         state.nodes(discoBuilder);
         state.metadata(Metadata.builder().put(indexMetadataBuilder.build(), false).generateClusterUuidIfNeeded());
         state.routingTable(
-            RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addIndexShard(indexShardRoutingTable)).build()
+            RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addIndexShard(indexShardRoutingBuilder)).build()
         );
         return state.build();
     }
@@ -194,11 +198,11 @@ public class ClusterStateCreationUtils {
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
         for (int i = 0; i < numberOfPrimaries; i++) {
             ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
-            IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
             indexShardRoutingBuilder.addShard(
                 TestShardRouting.newShardRouting(shardId, randomFrom(nodes), true, ShardRoutingState.STARTED)
             );
-            indexRoutingTable.addIndexShard(indexShardRoutingBuilder.build());
+            indexRoutingTable.addIndexShard(indexShardRoutingBuilder);
         }
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
@@ -241,14 +245,14 @@ public class ClusterStateCreationUtils {
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
             for (int i = 0; i < numberOfPrimaries; i++) {
                 ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 indexShardRoutingBuilder.addShard(
                     TestShardRouting.newShardRouting(shardId, nodesList.get(currentNodeToAssign++), true, ShardRoutingState.STARTED)
                 );
                 if (currentNodeToAssign == nodesList.size()) {
                     currentNodeToAssign = 0;
                 }
-                indexRoutingTable.addIndexShard(indexShardRoutingBuilder.build());
+                indexRoutingTable.addIndexShard(indexShardRoutingBuilder);
             }
 
             metadata.put(indexMetadata, false);
@@ -289,14 +293,14 @@ public class ClusterStateCreationUtils {
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
         for (int i = 0; i < numberOfShards; i++) {
             final ShardId shardId = new ShardId(index, "_na_", i);
-            IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
             indexShardRoutingBuilder.addShard(
                 TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, ShardRoutingState.STARTED)
             );
             indexShardRoutingBuilder.addShard(
                 TestShardRouting.newShardRouting(index, i, newNode(1).getId(), null, false, ShardRoutingState.STARTED)
             );
-            indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+            indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
         }
         state.routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build());
         return state.build();
@@ -339,7 +343,7 @@ public class ClusterStateCreationUtils {
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
             for (int i = 0; i < numberOfShards; i++) {
                 final ShardId shardId = new ShardId(index, "_na_", i);
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 indexShardRoutingBuilder.addShard(
                     TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, ShardRoutingState.STARTED)
                 );
@@ -348,7 +352,7 @@ public class ClusterStateCreationUtils {
                         TestShardRouting.newShardRouting(index, i, newNode(replica + 1).getId(), null, false, ShardRoutingState.STARTED)
                     );
                 }
-                indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+                indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
             }
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
@@ -424,6 +428,24 @@ public class ClusterStateCreationUtils {
      * @return cluster state
      */
     public static ClusterState state(DiscoveryNode localNode, DiscoveryNode masterNode, DiscoveryNode... allNodes) {
+        return state(localNode, masterNode, null, allNodes);
+    }
+
+    /**
+     * Creates a cluster state where local node, master and health node can be specified
+     *
+     * @param localNode  node in allNodes that is the local node
+     * @param masterNode node in allNodes that is the master node. Can be null if no master exists
+     * @param healthNode node in allNodes that is the health node. Can be null if no health node exists
+     * @param allNodes   all nodes in the cluster
+     * @return cluster state
+     */
+    public static ClusterState state(
+        DiscoveryNode localNode,
+        DiscoveryNode masterNode,
+        DiscoveryNode healthNode,
+        DiscoveryNode... allNodes
+    ) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : allNodes) {
             discoBuilder.add(node);
@@ -436,7 +458,11 @@ public class ClusterStateCreationUtils {
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
-        state.metadata(Metadata.builder().generateClusterUuidIfNeeded());
+        Metadata.Builder metadataBuilder = Metadata.builder().generateClusterUuidIfNeeded();
+        if (healthNode != null) {
+            addHealthNode(metadataBuilder, healthNode);
+        }
+        state.metadata(metadataBuilder);
         return state.build();
     }
 
@@ -454,5 +480,15 @@ public class ClusterStateCreationUtils {
         String selection = randomFrom(strings.toArray(new String[strings.size()]));
         strings.remove(selection);
         return selection;
+    }
+
+    private static Metadata.Builder addHealthNode(Metadata.Builder metadataBuilder, DiscoveryNode healthNode) {
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        PersistentTasksCustomMetadata.Assignment assignment = new PersistentTasksCustomMetadata.Assignment(
+            healthNode.getId(),
+            randomAlphaOfLength(10)
+        );
+        tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, HealthNodeTaskParams.INSTANCE, assignment);
+        return metadataBuilder.putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
     }
 }

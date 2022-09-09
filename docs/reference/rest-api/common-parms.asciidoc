@@ -313,9 +313,8 @@ end::http-format[]
 
 tag::frequency[]
 The interval between checks for changes in the source indices when the
-{transform} is running continuously. Also determines the retry interval in the
-event of transient failures while the {transform} is searching or indexing. The
-minimum value is `1s` and the maximum is `1h`. The default value is `1m`.
+{transform} is running continuously. The minimum value is `1s` and the maximum 
+is `1h`. The default value is `1m`.
 end::frequency[]
 
 tag::from[]
@@ -450,9 +449,16 @@ end::index-total[]
 tag::bulk-index[]
 `_index`::
 (Optional, string)
-Name of the data stream, index, or index alias to perform the action on. This
+Name of the index or index alias to perform the action on. This
 parameter is required if a `<target>` is not specified in the request path.
 end::bulk-index[]
+
+tag::bulk-index-ds[]
+`_index`::
+(Optional, string)
+Name of the data stream, index, or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
+end::bulk-index-ds[]
 
 tag::index-metric[]
 `<index-metric>`::
@@ -514,9 +520,6 @@ of each Lucene index file.
 
 `store`::
 Size of the index in <<byte-units, byte units>>.
-
-`suggest`::
-<<search-suggesters,Suggester>> statistics.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.
@@ -703,6 +706,7 @@ currently supported:
 * <<search-aggregations-metrics-min-aggregation,Min>>
 * <<search-aggregations-bucket-missing-aggregation,Missing>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
+* <<search-aggregations-bucket-range-aggregation,Range>>
 * <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
 * <<search-aggregations-metrics-stats-aggregation,Stats>>
@@ -999,11 +1003,14 @@ criteria is deleted from the destination index.
 end::transform-retention[]
 
 tag::transform-retention-time[]
-Specifies that the {transform} uses a time field to set the retention policy.
+Specifies that the {transform} uses a time field to set the retention policy. 
+Data is deleted if `time.field` for the retention policy exists and contains 
+data older than `max.age`.
 end::transform-retention-time[]
 
 tag::transform-retention-time-field[]
-The date field that is used to calculate the age of the document.
+The date field that is used to calculate the age of the document. Set 
+`time.field` to an existing date field.
 end::transform-retention-time-field[]
 
 tag::transform-retention-time-max-age[]
@@ -1047,6 +1054,20 @@ checkpoint. If circuit breaker exceptions occur, the page size is dynamically
 adjusted to a lower value. The minimum value is `10` and the maximum is `65,536`.
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
+
+tag::transform-settings-num-failure-retries[]
+Defines the number of retries on a recoverable failure before the {transform} task is marked as `failed`.
+The minimum value is `0` and the maximum is `100`.
+`-1` can be used to denote infinity. In this case, the {transform} never gives up on retrying a recoverable failure.
+The default value is the cluster-level setting `num_transform_failure_retries`.
+end::transform-settings-num-failure-retries[]
+
+tag::transform-settings-unattended[]
+If `true`, the {transform} runs in unattended mode. In unattended mode, the 
+{transform} retries indefinitely in case of an error which means the {transform} 
+never fails. Setting the number of retries other than infinite fails in 
+validation. Defaults to `false`.
+end::transform-settings-unattended[]
 
 tag::transform-sort[]
 Specifies the date field that is used to identify the latest documents.

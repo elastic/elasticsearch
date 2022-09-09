@@ -21,7 +21,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -128,7 +127,7 @@ public class ReleasableLockTests extends ESTestCase {
             } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
                 throw new AssertionError(e);
             }
-        })).collect(Collectors.toList());
+        })).toList();
         threads.forEach(Thread::start);
         try (ReleasableLock locked = randomBoolean() ? lock.acquire() : null) {
             barrier.await(10, TimeUnit.SECONDS);

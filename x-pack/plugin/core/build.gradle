@@ -28,6 +28,7 @@ tasks.named("dependencyLicenses").configure {
 
 dependencies {
   compileOnly project(":server")
+  api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-ssl-config")
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -56,11 +57,8 @@ dependencies {
     transitive = false
   }
 
-  // Needed for usage API cancellation test. TODO: do this another way or at least isolate!
-  internalClusterTestImplementation project(path: ':plugins:transport-nio')
-
   yamlRestTestImplementation project(':x-pack:plugin:core')
-
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 ext.expansions = [

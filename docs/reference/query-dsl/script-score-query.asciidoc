@@ -241,10 +241,11 @@ can efficiently skip non-competitive hits:
 
 [[script-score-function-score-transition]]
 ===== Transition from the function score query
-We are deprecating the <<query-dsl-function-score-query, `function_score`>>
-query. We recommend using the `script_score` query instead.
+We recommend using the `script_score` query instead of
+<<query-dsl-function-score-query, `function_score`>> query for the simplicity
+of the `script_score` query.
 
-You can implement the following functions from the `function_score` query using
+You can implement the following functions of the `function_score` query using
 the `script_score` query:
 
 * <<script-score>>

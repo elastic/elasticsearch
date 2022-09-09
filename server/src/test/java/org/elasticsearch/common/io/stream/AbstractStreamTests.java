@@ -13,6 +13,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
@@ -26,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -256,10 +256,30 @@ public abstract class AbstractStreamTests extends ESTestCase {
             StreamOutput::writeCollection,
             in -> in.readList(FooBar::new)
         );
+
+        runWriteReadCollectionTest(
+            () -> new FooBar(randomInt(), randomInt()),
+            StreamOutput::writeOptionalCollection,
+            in -> in.readOptionalList(FooBar::new)
+        );
+
+        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalCollection(null), in -> in.readOptionalList(FooBar::new));
     }
 
     public void testStringCollection() throws IOException {
         runWriteReadCollectionTest(() -> randomUnicodeOfLength(16), StreamOutput::writeStringCollection, StreamInput::readStringList);
+    }
+
+    public void testOptionalStringCollection() throws IOException {
+        runWriteReadCollectionTest(
+            () -> randomUnicodeOfLength(16),
+            StreamOutput::writeOptionalStringCollection,
+            StreamInput::readOptionalStringList
+        );
+    }
+
+    public void testOptionalStringCollectionWithNullInput() throws IOException {
+        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalStringCollection(null), StreamInput::readOptionalStringList);
     }
 
     private <T> void runWriteReadCollectionTest(
@@ -280,9 +300,21 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
     }
 
+    private <T> void runWriteReadOptionalCollectionWithNullInput(
+        final CheckedConsumer<StreamOutput, IOException> nullWriter,
+        final CheckedFunction<StreamInput, Collection<T>, IOException> reader
+    ) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            nullWriter.accept(out);
+            try (StreamInput in = getStreamInput(out.bytes())) {
+                assertNull(reader.apply(in));
+            }
+        }
+    }
+
     public void testSetOfLongs() throws IOException {
         final int size = randomIntBetween(0, 6);
-        final Set<Long> sourceSet = new HashSet<>(size);
+        final Set<Long> sourceSet = Sets.newHashSetWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             sourceSet.add(randomLongBetween(i * 1000, (i + 1) * 1000 - 1));
         }
@@ -455,6 +487,45 @@ public abstract class AbstractStreamTests extends ESTestCase {
     public void testObjectArrayIsWriteable() throws IOException {
         StreamOutput.checkWriteable(new Object[] { "a", "b" });
         assertNotWriteable(new Object[] { new Unwriteable() }, Unwriteable.class);
+    }
+
+    public void assertImmutableMapSerialization(Map<String, Integer> expected) throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.writeMap(expected, StreamOutput::writeString, StreamOutput::writeVInt);
+        final BytesReference bytesReference = output.bytes();
+
+        final StreamInput input = getStreamInput(bytesReference);
+        Map<String, Integer> got = input.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
+        assertThat(got, equalTo(expected));
+
+        expectThrows(UnsupportedOperationException.class, () -> got.put("blah", 1));
+    }
+
+    public void testImmutableMapSerialization() throws IOException {
+        assertImmutableMapSerialization(Map.of());
+        assertImmutableMapSerialization(Map.of("a", 1));
+        assertImmutableMapSerialization(Map.of("a", 1, "b", 2));
+    }
+
+    public <T> void assertImmutableListSerialization(List<T> expected, Writeable.Reader<T> reader, Writeable.Writer<T> writer)
+        throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.writeCollection(expected, writer);
+        final BytesReference bytesReference = output.bytes();
+
+        final StreamInput input = getStreamInput(bytesReference);
+        List<T> got = input.readImmutableList(reader);
+        assertThat(got, equalTo(expected));
+
+        expectThrows(UnsupportedOperationException.class, got::clear);
+    }
+
+    public void testImmutableListSerialization() throws IOException {
+        assertImmutableListSerialization(List.of(), StreamInput::readString, StreamOutput::writeString);
+        assertImmutableListSerialization(List.of("a"), StreamInput::readString, StreamOutput::writeString);
+        assertImmutableListSerialization(List.of("a", "b"), StreamInput::readString, StreamOutput::writeString);
+        assertImmutableListSerialization(List.of(1), StreamInput::readVInt, StreamOutput::writeVInt);
+        assertImmutableListSerialization(List.of(1, 2, 3), StreamInput::readVInt, StreamOutput::writeVInt);
     }
 
     private void assertSerialization(

@@ -11,10 +11,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -66,7 +62,18 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
-    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null, null);
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(
+        new ByteSizeValue(1),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
@@ -75,13 +82,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = MigrateAction.DISABLED;
-    private static final RollupILMAction TEST_ROLLUP_ACTION = new RollupILMAction(
-        new RollupActionConfig(
-            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("field", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("field", Collections.singletonList("max")))
-        ),
-        null
-    );
+    private static final DownsampleAction TEST_DOWNSAMPLE_ACTION = new DownsampleAction(DateHistogramInterval.DAY);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -252,7 +253,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(4));
         assertThat(
             ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT,
-            containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME, ForceMergeAction.NAME, RollupILMAction.NAME)
+            containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME, ForceMergeAction.NAME, DownsampleAction.NAME)
         );
     }
 
@@ -268,7 +269,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, downsample] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -289,7 +290,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [frozen] define one or more of [forcemerge, freeze, shrink, downsample] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -313,7 +314,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [warm,frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [warm,frozen] define one or more of [forcemerge, freeze, shrink, downsample] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -325,7 +326,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                 )
@@ -339,7 +340,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, downsample] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -1101,14 +1102,19 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                     ByteSizeValue.parseBytesSizeValue("0b", "test"),
                     TimeValue.ZERO,
                     1L,
-                    1L
+                    1L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
                 );
                 case ShrinkAction.NAME -> new ShrinkAction(1, null);
                 case FreezeAction.NAME -> FreezeAction.INSTANCE;
                 case SetPriorityAction.NAME -> new SetPriorityAction(0);
                 case UnfollowAction.NAME -> UnfollowAction.INSTANCE;
                 case MigrateAction.NAME -> MigrateAction.ENABLED;
-                case RollupILMAction.NAME -> TEST_ROLLUP_ACTION;
+                case DownsampleAction.NAME -> TEST_DOWNSAMPLE_ACTION;
                 case SearchableSnapshotAction.NAME -> TEST_SEARCHABLE_SNAPSHOT_ACTION;
                 default -> DeleteAction.WITH_SNAPSHOT_DELETE;
             };
@@ -1173,7 +1179,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             case UnfollowAction.NAME -> UnfollowAction.INSTANCE;
             case SearchableSnapshotAction.NAME -> TEST_SEARCHABLE_SNAPSHOT_ACTION;
             case MigrateAction.NAME -> TEST_MIGRATE_ACTION;
-            case RollupILMAction.NAME -> TEST_ROLLUP_ACTION;
+            case DownsampleAction.NAME -> TEST_DOWNSAMPLE_ACTION;
             default -> throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
         };
     }

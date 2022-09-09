@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -304,13 +303,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         return;
                     }
                 }
-                jobConfigProvider.getJob(datafeedConfig.getJobId(), jobListener);
+                jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         }, listener::onFailure);
 
-        datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), datafeedListener);
+        datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
     }
 
     static void checkRemoteClusterVersions(
@@ -407,7 +406,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(
-                        new ElasticsearchException("Starting datafeed [" + params.getDatafeedId() + "] timed out after [" + timeout + "]")
+                        new ElasticsearchStatusException(
+                            "Starting datafeed [{}] timed out after [{}]",
+                            RestStatus.REQUEST_TIMEOUT,
+                            params.getDatafeedId(),
+                            timeout
+                        )
                     );
                 }
             }
@@ -563,7 +567,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     public static class DatafeedTask extends AllocatedPersistentTask implements StartDatafeedAction.DatafeedTaskMatcher {
 
-        public enum StoppedOrIsolatedBeforeRunning {
+        public enum StoppedOrIsolated {
             NEITHER,
             ISOLATED,
             STOPPED
@@ -577,7 +581,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
          * the value of the {@code stoppedOrIsolatedBeforeRunning} flag.
          */
         private DatafeedRunner datafeedRunner;
-        private StoppedOrIsolatedBeforeRunning stoppedOrIsolatedBeforeRunning = StoppedOrIsolatedBeforeRunning.NEITHER;
+        private StoppedOrIsolated stoppedOrIsolated = StoppedOrIsolated.NEITHER;
 
         DatafeedTask(
             long id,
@@ -612,16 +616,27 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         /**
          * Set the datafeed runner <em>if</em> the task has not already been told to stop or isolate.
-         * @return A {@link StoppedOrIsolatedBeforeRunning} object that indicates whether the
+         * @return A {@link StoppedOrIsolated} object that indicates whether the
          *         datafeed task had previously been told to stop or isolate.  {@code datafeedRunner}
          *         will only be set to the supplied value if the return value of this method is
-         *         {@link StoppedOrIsolatedBeforeRunning#NEITHER}.
+         *         {@link StoppedOrIsolated#NEITHER}.
          */
-        synchronized StoppedOrIsolatedBeforeRunning setDatafeedRunner(DatafeedRunner datafeedRunner) {
-            if (stoppedOrIsolatedBeforeRunning == StoppedOrIsolatedBeforeRunning.NEITHER) {
-                this.datafeedRunner = Objects.requireNonNull(datafeedRunner);
+        StoppedOrIsolated setDatafeedRunner(DatafeedRunner datafeedRunner) {
+            return executeIfNotStoppedOrIsolated(() -> this.datafeedRunner = Objects.requireNonNull(datafeedRunner));
+        }
+
+        /**
+         * Run a command <em>if</em> the task has not already been told to stop or isolate.
+         * @param runnable The command to run.
+         * @return A {@link StoppedOrIsolated} object that indicates whether the datafeed task
+         *         had previously been told to stop or isolate. {@code runnable} will only be
+         *         run if the return value of this method is {@link StoppedOrIsolated#NEITHER}.
+         */
+        public synchronized StoppedOrIsolated executeIfNotStoppedOrIsolated(Runnable runnable) {
+            if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
+                runnable.run();
             }
-            return stoppedOrIsolatedBeforeRunning;
+            return stoppedOrIsolated;
         }
 
         @Override
@@ -641,32 +656,32 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         public void stop(String reason, TimeValue timeout) {
             synchronized (this) {
+                stoppedOrIsolated = StoppedOrIsolated.STOPPED;
                 if (datafeedRunner == null) {
-                    stoppedOrIsolatedBeforeRunning = StoppedOrIsolatedBeforeRunning.STOPPED;
                     return;
                 }
             }
             datafeedRunner.stopDatafeed(this, reason, timeout);
         }
 
-        public synchronized StoppedOrIsolatedBeforeRunning getStoppedOrIsolatedBeforeRunning() {
-            return stoppedOrIsolatedBeforeRunning;
+        public synchronized StoppedOrIsolated getStoppedOrIsolated() {
+            return stoppedOrIsolated;
         }
 
         public void isolate() {
             synchronized (this) {
+                // Stopped takes precedence over isolated for what we report externally,
+                // as stopped needs to cause the persistent task to be marked as completed
+                // (regardless of whether it was isolated) whereas isolated but not stopped
+                // mustn't do this.
+                if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
+                    stoppedOrIsolated = StoppedOrIsolated.ISOLATED;
+                }
                 if (datafeedRunner == null) {
-                    // Stopped takes precedence over isolated for what we report externally,
-                    // as stopped needs to cause the persistent task to be marked as completed
-                    // (regardless of whether it was isolated) whereas isolated but not stopped
-                    // mustn't do this.
-                    if (stoppedOrIsolatedBeforeRunning == StoppedOrIsolatedBeforeRunning.NEITHER) {
-                        stoppedOrIsolatedBeforeRunning = StoppedOrIsolatedBeforeRunning.ISOLATED;
-                    }
                     return;
                 }
             }
-            datafeedRunner.isolateDatafeed(getAllocationId());
+            datafeedRunner.isolateDatafeed(this);
         }
 
         void completeOrFailIfRequired(Exception error) {

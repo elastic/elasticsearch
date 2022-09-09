@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.security.action.apikey;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -33,17 +33,17 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(GetApiKeyAction.NAME, transportService, actionFilters, (Writeable.Reader<GetApiKeyRequest>) GetApiKeyRequest::new);
+        super(GetApiKeyAction.NAME, transportService, actionFilters, GetApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }
 
     @Override
     protected void doExecute(Task task, GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
-        String apiKeyId = request.getApiKeyId();
+        String[] apiKeyIds = Strings.hasText(request.getApiKeyId()) ? new String[] { request.getApiKeyId() } : null;
         String apiKeyName = request.getApiKeyName();
         String username = request.getUserName();
-        String realm = request.getRealmName();
+        String[] realms = Strings.hasText(request.getRealmName()) ? new String[] { request.getRealmName() } : null;
 
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
@@ -51,13 +51,13 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         }
         if (request.ownedByAuthenticatedUser()) {
             assert username == null;
-            assert realm == null;
+            assert realms == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
-            realm = ApiKeyService.getCreatorRealmName(authentication);
+            realms = ApiKeyService.getOwnersRealmNames(authentication);
         }
 
-        apiKeyService.getApiKeys(realm, username, apiKeyName, apiKeyId, listener);
+        apiKeyService.getApiKeys(realms, username, apiKeyName, apiKeyIds, request.withLimitedBy(), listener);
     }
 
 }

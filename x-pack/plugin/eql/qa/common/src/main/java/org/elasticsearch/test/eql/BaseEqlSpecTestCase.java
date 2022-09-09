@@ -9,37 +9,30 @@ package org.elasticsearch.test.eql;
 
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
-import org.elasticsearch.client.EqlClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.eql.EqlSearchRequest;
-import org.elasticsearch.client.eql.EqlSearchResponse;
-import org.elasticsearch.client.eql.EqlSearchResponse.Event;
-import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
-import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 
-import static java.util.stream.Collectors.toList;
-
-@SuppressWarnings("removal")
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     protected static final String PARAM_FORMATTING = "%2$s";
-
-    private RestHighLevelClient highLevelClient;
 
     private final String index;
     private final String query;
@@ -103,60 +96,52 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         assertResponse(runQuery(index, query));
     }
 
-    protected void assertResponse(EqlSearchResponse response) {
-        Hits hits = response.hits();
-        if (hits.events() != null) {
-            assertEvents(hits.events());
-        } else if (hits.sequences() != null) {
-            assertSequences(hits.sequences());
+    private void assertResponse(ObjectPath response) throws Exception {
+        List<Map<String, Object>> events = response.evaluate("hits.events");
+        List<Map<String, Object>> sequences = response.evaluate("hits.sequences");
+
+        if (events != null) {
+            assertEvents(events);
+        } else if (sequences != null) {
+            assertSequences(sequences);
         } else {
             fail("No events or sequences found");
         }
     }
 
-    protected EqlSearchResponse runQuery(String index, String query) throws Exception {
-        EqlSearchRequest request = new EqlSearchRequest(index, query);
-
-        request.eventCategoryField(eventCategory());
-        request.timestampField(timestamp());
+    private ObjectPath runQuery(String index, String query) throws Exception {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("query", query);
+        builder.field("event_category_field", eventCategory());
+        builder.field("timestamp_field", timestamp());
         String tiebreaker = tiebreaker();
         if (tiebreaker != null) {
-            request.tiebreakerField(tiebreaker());
+            builder.field("tiebreaker_field", tiebreaker);
         }
-        request.size(requestSize());
-        request.fetchSize(requestFetchSize());
-        request.resultPosition(requestResultPosition());
-        return runRequest(eqlClient(), request);
-    }
+        builder.field("size", requestSize());
+        builder.field("fetch_size", requestFetchSize());
+        builder.field("result_position", requestResultPosition());
+        builder.endObject();
 
-    protected EqlSearchResponse runRequest(EqlClient eqlClient, EqlSearchRequest request) throws IOException {
+        Request request = new Request("POST", "/" + index + "/_eql/search");
+        Boolean ccsMinimizeRoundtrips = ccsMinimizeRoundtrips();
+        if (ccsMinimizeRoundtrips != null) {
+            request.addParameter("ccs_minimize_roundtrips", ccsMinimizeRoundtrips.toString());
+        }
         int timeout = Math.toIntExact(timeout().millis());
-
         RequestConfig config = RequestConfig.copy(RequestConfig.DEFAULT)
             .setConnectionRequestTimeout(timeout)
             .setConnectTimeout(timeout)
             .setSocketTimeout(timeout)
             .build();
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-        Boolean ccsMinimizeRoundtrips = ccsMinimizeRoundtrips();
-        if (ccsMinimizeRoundtrips != null) {
-            optionsBuilder.addParameter("ccs_minimize_roundtrips", ccsMinimizeRoundtrips.toString());
-        }
-        return eqlClient.search(request, optionsBuilder.setRequestConfig(config).build());
+        request.setOptions(optionsBuilder.setRequestConfig(config).build());
+        request.setJsonEntity(Strings.toString(builder));
+        return ObjectPath.createFromResponse(client().performRequest(request));
     }
 
-    protected EqlClient eqlClient() {
-        return highLevelClient().eql();
-    }
-
-    private RestHighLevelClient highLevelClient() {
-        if (highLevelClient == null) {
-            highLevelClient = highLevelClient(client());
-        }
-        return highLevelClient;
-    }
-
-    protected void assertEvents(List<Event> events) {
+    private void assertEvents(List<Map<String, Object>> events) {
         assertNotNull(events);
         logger.debug("Events {}", new Object() {
             public String toString() {
@@ -180,31 +165,38 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         );
     }
 
-    private String eventsToString(List<Event> events) {
+    private String eventsToString(List<Map<String, Object>> events) {
         StringJoiner sj = new StringJoiner(",", "[", "]");
-        for (Event event : events) {
-            sj.add(event.id() + "|" + event.index());
-            sj.add(event.sourceAsMap().toString());
+        for (Map<String, Object> event : events) {
+            sj.add(event.get("_id") + "|" + event.get("_index"));
+            sj.add(event.get("_source").toString());
             sj.add("\n");
         }
         return sj.toString();
     }
 
-    private long[] extractIds(List<Event> events) {
+    @SuppressWarnings("unchecked")
+    private long[] extractIds(List<Map<String, Object>> events) {
         final int len = events.size();
         final long[] ids = new long[len];
         for (int i = 0; i < len; i++) {
-            Object field = events.get(i).sourceAsMap().get(tiebreaker());
+            Map<String, Object> event = events.get(i);
+            Map<String, Object> source = (Map<String, Object>) event.get("_source");
+            Object field = source.get(tiebreaker());
             ids[i] = ((Number) field).longValue();
         }
         return ids;
     }
 
-    protected void assertSequences(List<Sequence> sequences) {
-        List<Event> events = sequences.stream().flatMap(s -> s.events().stream()).collect(toList());
+    @SuppressWarnings("unchecked")
+    private void assertSequences(List<Map<String, Object>> sequences) {
+        List<Map<String, Object>> events = sequences.stream()
+            .flatMap(s -> ((List<Map<String, Object>>) s.getOrDefault("events", Collections.emptyList())).stream())
+            .toList();
         assertEvents(events);
-        List<Object> keys = sequences.stream().flatMap(s -> s.joinKeys().stream()).collect(toList());
-        assertEvents(events);
+        List<Object> keys = sequences.stream()
+            .flatMap(s -> ((List<Object>) s.getOrDefault("join_keys", Collections.emptyList())).stream())
+            .toList();
         assertJoinKeys(keys);
     }
 

@@ -6,13 +6,11 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
-import com.carrotsearch.hppc.DoubleArrayList;
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
@@ -21,6 +19,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -33,26 +32,27 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -93,8 +93,8 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(ignoreMalformed, meta, metric);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { ignoreMalformed, meta, metric };
         }
 
         @Override
@@ -172,7 +172,7 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
@@ -207,7 +207,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public DocValuesField<?> getScriptField(String name) {
+                        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                             throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
                         }
 
@@ -283,8 +283,8 @@ public class HistogramFieldMapper extends FieldMapper {
                 context.path().remove();
                 return;
             }
-            DoubleArrayList values = null;
-            IntArrayList counts = null;
+            ArrayList<Double> values = null;
+            ArrayList<Integer> counts = null;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
@@ -297,7 +297,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     token = subParser.nextToken();
                     // should be an array
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-                    values = new DoubleArrayList();
+                    values = new ArrayList<>();
                     token = subParser.nextToken();
                     double previousVal = -Double.MAX_VALUE;
                     while (token != XContentParser.Token.END_ARRAY) {
@@ -326,7 +326,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     token = subParser.nextToken();
                     // should be an array
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-                    counts = new IntArrayList();
+                    counts = new ArrayList<>();
                     token = subParser.nextToken();
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
@@ -450,5 +450,75 @@ public class HistogramFieldMapper extends FieldMapper {
             }
             return count;
         }
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (ignoreMalformed.value()) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [histogram] doesn't support synthetic source because it ignores malformed histograms"
+            );
+        }
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [histogram] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new SourceLoader.SyntheticFieldLoader() {
+            private final InternalHistogramValue value = new InternalHistogramValue();
+            private BytesRef binaryValue;
+
+            @Override
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.of();
+            }
+
+            @Override
+            public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+                BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
+                if (docValues == null) {
+                    // No values in this leaf
+                    binaryValue = null;
+                    return null;
+                }
+                return docId -> {
+                    if (docValues.advanceExact(docId)) {
+                        binaryValue = docValues.binaryValue();
+                        return true;
+                    }
+                    binaryValue = null;
+                    return false;
+                };
+            }
+
+            @Override
+            public boolean hasValue() {
+                return binaryValue != null;
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (binaryValue == null) {
+                    return;
+                }
+                b.startObject(simpleName());
+
+                value.reset(binaryValue);
+                b.startArray("values");
+                while (value.next()) {
+                    b.value(value.value());
+                }
+                b.endArray();
+
+                value.reset(binaryValue);
+                b.startArray("counts");
+                while (value.next()) {
+                    b.value(value.count());
+                }
+                b.endArray();
+
+                b.endObject();
+            }
+        };
     }
 }

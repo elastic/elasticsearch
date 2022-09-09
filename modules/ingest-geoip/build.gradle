@@ -15,14 +15,24 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   description 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+
+  bundleSpec.from("${project.buildDir}/ingest-geoip") {
+    into '/'
+  }
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.ingest.geoip.AbstractGeoIpIT'
+  baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
 dependencies {
-  api('com.maxmind.geoip2:geoip2:2.13.1')
+  implementation('com.maxmind.geoip2:geoip2:3.0.0')
   // geoip2 dependencies:
-  api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
-  api('com.maxmind.db:maxmind-db:1.3.1')
+  runtimeOnly("com.fasterxml.jackson.core:jackson-annotations:2.13.1")
+  runtimeOnly("com.fasterxml.jackson.core:jackson-databind:2.13.1")
+  runtimeOnly("com.fasterxml.jackson.core:jackson-core:2.13.1")
+  implementation('com.maxmind.db:maxmind-db:2.0.0')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
   internalClusterTestImplementation project(path: ":modules:reindex")
@@ -32,6 +42,10 @@ restResources {
   restApi {
     include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
   }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
 }
 
 def useFixture = providers.environmentVariable("geoip_use_service")
@@ -56,30 +70,6 @@ tasks.named("internalClusterTest").configure {
   }
 }
 
-tasks.named("bundlePlugin").configure {
-  from("${project.buildDir}/ingest-geoip") {
-    into '/'
-  }
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
-    'org.apache.http.HttpEntity',
-    'org.apache.http.HttpResponse',
-    'org.apache.http.StatusLine',
-    'org.apache.http.client.config.RequestConfig$Builder',
-    'org.apache.http.client.config.RequestConfig',
-    'org.apache.http.client.methods.CloseableHttpResponse',
-    'org.apache.http.client.methods.HttpGet',
-    'org.apache.http.client.utils.URIBuilder',
-    'org.apache.http.impl.auth.BasicScheme',
-    'org.apache.http.impl.client.CloseableHttpClient',
-    'org.apache.http.impl.client.HttpClientBuilder',
-    'org.apache.http.util.EntityUtils'
-  )
-}
-
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   tasks.named("test").configure {
     // Windows cannot cleanup database files properly unless it loads everything on heap.
@@ -95,6 +85,7 @@ tasks.named("forbiddenPatterns").configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /geoip.*/, to: 'maxmind-geolite2-eula'
   mapping from: /maxmind-db.*/, to: 'maxmind-db-reader'
+  mapping from: /jackson.*/, to: 'jackson'
   ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
 }
 
@@ -111,4 +102,5 @@ testClusters.configureEach {
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTestsByFilePattern("**/ingest_geoip/20_geoip_processor.yml", "from 8.0 yaml rest tests use geoip test fixture and default geoip are no longer packaged. In 7.x yaml tests used default databases which makes tests results very different, so skipping these tests")
+  // task.skipTest("lang_mustache/50_multi_search_template/Multi-search template with errors", "xxx")
 }

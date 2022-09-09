@@ -26,11 +26,10 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -98,7 +97,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81411")
     public void testSecurityNativeRealm() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createUser(true);
@@ -412,17 +410,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // read is ok
             final Request searchRequest = new Request("GET", ".security/_search");
-            // TODO: change the warning expectation to be always once #82837 is fixed
-            // Configure the warning to be optional due to #82837, it is ok since this test is for something else
-            searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-                if (warnings.isEmpty()) {
-                    return false;
-                } else if (warnings.size() == 1) {
-                    return false == warnings.get(0).startsWith("this request accesses system indices: [.security-7]");
-                } else {
-                    return true;
-                }
-            }).addHeader("Authorization", apiKeyAuthHeader));
+            searchRequest.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.security-7], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
+            );
             assertOK(client().performRequest(searchRequest));
 
             // write must not be allowed
@@ -431,7 +424,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 {
                   "doc_type": "foo"
                 }""");
-            indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
+            indexRequest.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.security-7], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
+            );
             final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(indexRequest));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("is unauthorized"));
@@ -630,11 +628,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
             try (
                 XContentParser parser = xContentType.xContent()
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        response.getEntity().getContent()
-                    )
+                    .createParser(XContentParserConfiguration.EMPTY, response.getEntity().getContent())
             ) {
                 assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));
             }

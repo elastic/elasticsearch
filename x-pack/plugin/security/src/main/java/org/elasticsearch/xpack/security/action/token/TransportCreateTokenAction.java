@@ -116,7 +116,10 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         }
     }
 
-    private Tuple<AuthenticationToken, Optional<Exception>> extractAuthenticationToken(GrantType grantType, CreateTokenRequest request) {
+    private static Tuple<AuthenticationToken, Optional<Exception>> extractAuthenticationToken(
+        GrantType grantType,
+        CreateTokenRequest request
+    ) {
         AuthenticationToken authToken = null;
         if (grantType == GrantType.PASSWORD) {
             authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());
@@ -137,7 +140,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         return new Tuple<>(authToken, Optional.empty());
     }
 
-    private void clearCredentialsFromRequest(GrantType grantType, CreateTokenRequest request) {
+    private static void clearCredentialsFromRequest(GrantType grantType, CreateTokenRequest request) {
         if (grantType == GrantType.PASSWORD) {
             request.getPassword().close();
         } else if (grantType == GrantType.KERBEROS) {

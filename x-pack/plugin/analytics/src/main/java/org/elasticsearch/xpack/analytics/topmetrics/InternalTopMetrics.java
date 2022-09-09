@@ -15,6 +15,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -170,23 +171,21 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     }
 
     @Override
-    public final double sortValue(String key) {
+    public final SortValue sortValue(String key) {
         int index = metricNames.indexOf(key);
         if (index < 0) {
             throw new IllegalArgumentException("unknown metric [" + key + "]");
         }
         if (topMetrics.isEmpty()) {
-            return Double.NaN;
+            return SortValue.empty();
         }
 
         MetricValue value = topMetrics.get(0).metricValues.get(index);
         if (value == null) {
-            return Double.NaN;
+            return SortValue.empty();
         }
 
-        // TODO it'd probably be nicer to have "compareTo" instead of assuming a double.
-        // non-numeric fields always return NaN
-        return value.numberValue().doubleValue();
+        return value.getValue();
     }
 
     @Override
@@ -205,6 +204,11 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
             }
             return value.getValue().format(value.getFormat());
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override

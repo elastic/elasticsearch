@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
+import org.elasticsearch.xpack.ml.process.BlackHoleResultIterator;
 
 import java.time.ZonedDateTime;
 import java.util.Arrays;
@@ -29,7 +30,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -161,33 +161,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     @Override
     public Iterator<AutodetectResult> readAutodetectResults() {
-        // Create a custom iterator here, because LinkedBlockingDeque iterator and stream are not blocking when empty:
-        return new Iterator<AutodetectResult>() {
-
-            AutodetectResult result;
-
-            @Override
-            public boolean hasNext() {
-                try {
-                    while (open) {
-                        result = results.poll(100, TimeUnit.MILLISECONDS);
-                        if (result != null) {
-                            return true;
-                        }
-                    }
-                    result = results.poll();
-                    return result != null;
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return false;
-                }
-            }
-
-            @Override
-            public AutodetectResult next() {
-                return result;
-            }
-        };
+        return new BlackHoleResultIterator<>(results, () -> open);
     }
 
     @Override

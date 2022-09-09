@@ -93,6 +93,11 @@ jdks {
   }
 }
 
+if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+  jdks.legacy.vendor = 'zulu'
+  jdks.legacy.distributionVersion = '8.56.0.23'
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   tasks.named("javaRestTest").configure {
@@ -172,4 +177,13 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     task.skipTest("update_by_query/70_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
 
     task.addAllowedWarningRegex("\\[types removal\\].*")
+}
+
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'update_by_query/80_scripting/Can\'t change _id',
+    'update_by_query/80_scripting/Set unsupported operation type',
+    'update_by_query/80_scripting/Setting bogus context is an error',
+
+  ].join(',')
 }

@@ -32,13 +32,14 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -88,6 +89,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -301,17 +303,16 @@ public class IngestServiceTests extends ESTestCase {
         // Delete pipeline:
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest("_id");
         previousClusterState = clusterState;
-        clusterState = IngestService.innerDelete(deleteRequest, clusterState);
+        clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), nullValue());
 
         // Delete not existing pipeline:
-        try {
-            IngestService.innerDelete(deleteRequest, clusterState);
-            fail("exception expected");
-        } catch (ResourceNotFoundException e) {
-            assertThat(e.getMessage(), equalTo("pipeline [_id] is missing"));
-        }
+        ClusterState finalClusterState = clusterState;
+        assertThat(
+            expectThrows(ResourceNotFoundException.class, () -> executeFailingDelete(deleteRequest, finalClusterState)).getMessage(),
+            equalTo("pipeline [_id] is missing")
+        );
     }
 
     public void testValidateNoIngestInfo() throws Exception {
@@ -339,7 +340,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidateNotInUse() {
         String pipeline = "pipeline";
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indices = new HashMap<>();
         int defaultIndicesCount = randomIntBetween(0, 4);
         List<String> defaultIndices = new ArrayList<>();
         for (int i = 0; i < defaultIndicesCount; i++) {
@@ -368,7 +369,7 @@ public class IngestServiceTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> IngestService.validateNotInUse(pipeline, indices.build())
+            () -> IngestService.validateNotInUse(pipeline, indices.values())
         );
 
         if (defaultIndices.size() > 0) {
@@ -430,7 +431,7 @@ public class IngestServiceTests extends ESTestCase {
               ]
             }"""), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -472,10 +473,10 @@ public class IngestServiceTests extends ESTestCase {
                 }
               ]
             }"""), XContentType.JSON);
-        clusterState = IngestService.innerPut(putRequest1, clusterState);
+        clusterState = executePut(putRequest1, clusterState);
         PutPipelineRequest putRequest2 = new PutPipelineRequest("_id2", new BytesArray("""
             {"processors": [{"set" : {"field": "_field", "value": "_value", "tag": "tag2"}}]}"""), XContentType.JSON);
-        clusterState = IngestService.innerPut(putRequest2, clusterState);
+        clusterState = executePut(putRequest2, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         assertThat(ingestService.getPipelineWithProcessorType(FakeProcessor.class, processor -> true), containsInAnyOrder("_id1", "_id2"));
@@ -513,7 +514,7 @@ public class IngestServiceTests extends ESTestCase {
 
         PutPipelineRequest putRequest1 = new PutPipelineRequest("_id1", new BytesArray("""
             {"processors": [{"set" : {"field": "_field", "value": "_value", "tag": "tag1"}}]}"""), XContentType.JSON);
-        clusterState = IngestService.innerPut(putRequest1, clusterState);
+        clusterState = executePut(putRequest1, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         {
@@ -582,7 +583,7 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("""
             {"processors": [{"complexSet" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -605,7 +606,7 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("""
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -616,7 +617,7 @@ public class IngestServiceTests extends ESTestCase {
 
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest(id);
         previousClusterState = clusterState;
-        clusterState = IngestService.innerDelete(deleteRequest, clusterState);
+        clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, nullValue());
@@ -632,7 +633,7 @@ public class IngestServiceTests extends ESTestCase {
         // add a new pipeline:
         PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": []}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -644,7 +645,7 @@ public class IngestServiceTests extends ESTestCase {
         putRequest = new PutPipelineRequest(id, new BytesArray("""
             {"processors": [], "description": "_description"}"""), XContentType.JSON);
         previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
@@ -666,7 +667,7 @@ public class IngestServiceTests extends ESTestCase {
             XContentType.JSON
         );
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
@@ -720,31 +721,33 @@ public class IngestServiceTests extends ESTestCase {
         // Delete pipeline matching wildcard
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest("p*");
         previousClusterState = clusterState;
-        clusterState = IngestService.innerDelete(deleteRequest, clusterState);
+        clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("p1"), nullValue());
         assertThat(ingestService.getPipeline("p2"), nullValue());
         assertThat(ingestService.getPipeline("q1"), notNullValue());
 
         // Exception if we used name which does not exist
-        try {
-            IngestService.innerDelete(new DeletePipelineRequest("unknown"), clusterState);
-            fail("exception expected");
-        } catch (ResourceNotFoundException e) {
-            assertThat(e.getMessage(), equalTo("pipeline [unknown] is missing"));
-        }
+        ClusterState finalClusterState = clusterState;
+        assertThat(
+            expectThrows(
+                ResourceNotFoundException.class,
+                () -> executeFailingDelete(new DeletePipelineRequest("unknown"), finalClusterState)
+            ).getMessage(),
+            equalTo("pipeline [unknown] is missing")
+        );
 
         // match all wildcard works on last remaining pipeline
         DeletePipelineRequest matchAllDeleteRequest = new DeletePipelineRequest("*");
         previousClusterState = clusterState;
-        clusterState = IngestService.innerDelete(matchAllDeleteRequest, clusterState);
+        clusterState = executeDelete(matchAllDeleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("p1"), nullValue());
         assertThat(ingestService.getPipeline("p2"), nullValue());
         assertThat(ingestService.getPipeline("q1"), nullValue());
 
         // match all wildcard does not throw exception if none match
-        IngestService.innerDelete(matchAllDeleteRequest, clusterState);
+        executeDelete(matchAllDeleteRequest, clusterState);
     }
 
     public void testDeleteWithExistingUnmatchedPipelines() {
@@ -762,13 +765,12 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("p1"), notNullValue());
 
-        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("z*");
-        try {
-            IngestService.innerDelete(deleteRequest, clusterState);
-            fail("exception expected");
-        } catch (ResourceNotFoundException e) {
-            assertThat(e.getMessage(), equalTo("pipeline [z*] is missing"));
-        }
+        ClusterState finalClusterState = clusterState;
+        assertThat(
+            expectThrows(ResourceNotFoundException.class, () -> executeFailingDelete(new DeletePipelineRequest("z*"), finalClusterState))
+                .getMessage(),
+            equalTo("pipeline [z*] is missing")
+        );
     }
 
     public void testDeleteWithIndexUsePipeline() {
@@ -806,7 +808,7 @@ public class IngestServiceTests extends ESTestCase {
                 .build();
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> IngestService.innerDelete(deleteRequest, finalClusterState)
+                () -> executeFailingDelete(deleteRequest, finalClusterState)
             );
             assertThat(e.getMessage(), containsString("default pipeline for 1 index(es) including [pipeline-index]"));
         }
@@ -823,14 +825,14 @@ public class IngestServiceTests extends ESTestCase {
                 .build();
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> IngestService.innerDelete(deleteRequest, finalClusterState)
+                () -> executeFailingDelete(deleteRequest, finalClusterState)
             );
             assertThat(e.getMessage(), containsString("final pipeline for 1 index(es) including [pipeline-index]"));
         }
 
         // Delete pipeline:
         previousClusterState = clusterState;
-        clusterState = IngestService.innerDelete(deleteRequest, clusterState);
+        clusterState = executeDelete(deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), nullValue());
     }
@@ -935,7 +937,7 @@ public class IngestServiceTests extends ESTestCase {
             XContentType.JSON
         );
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final SetOnce<Boolean> failure = new SetOnce<>();
 
@@ -983,7 +985,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -1030,7 +1032,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
@@ -1071,7 +1073,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
@@ -1098,7 +1100,7 @@ public class IngestServiceTests extends ESTestCase {
             {"processors": [], "description": "_description"}"""), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
@@ -1132,7 +1134,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final long newVersion = randomLong();
         final String versionType = randomFrom("internal", "external", "external_gt", "external_gte");
@@ -1151,6 +1153,8 @@ public class IngestServiceTests extends ESTestCase {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
                 } else if (metadata == IngestDocument.Metadata.DYNAMIC_TEMPLATES) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), Map.of("foo", "bar"));
+                } else if (metadata == IngestDocument.Metadata.TYPE) {
+                    // can't update _type
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }
@@ -1201,7 +1205,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
@@ -1261,7 +1265,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
@@ -1285,8 +1289,11 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteFailureWithNestedOnFailure() throws Exception {
         final Processor processor = mock(Processor.class);
+        when(processor.isAsync()).thenReturn(true);
         final Processor onFailureProcessor = mock(Processor.class);
+        when(onFailureProcessor.isAsync()).thenReturn(true);
         final Processor onFailureOnFailureProcessor = mock(Processor.class);
+        when(onFailureOnFailureProcessor.isAsync()).thenReturn(true);
         final List<Processor> processors = Collections.singletonList(onFailureProcessor);
         final List<Processor> onFailureProcessors = Collections.singletonList(onFailureOnFailureProcessor);
         final CompoundProcessor compoundProcessor = new CompoundProcessor(
@@ -1304,7 +1311,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
@@ -1357,6 +1364,7 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(processor.isAsync()).thenReturn(true);
         when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         Exception error = new RuntimeException();
         doAnswer(args -> {
@@ -1375,7 +1383,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
@@ -1401,7 +1409,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // Test to make sure that ingest respects content types other than the default index content type
         XContentType xContentType = randomFrom(
-            Arrays.stream(XContentType.values()).filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false).collect(Collectors.toList())
+            Arrays.stream(XContentType.values()).filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false).toList()
         );
 
         logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
@@ -1429,7 +1437,7 @@ public class IngestServiceTests extends ESTestCase {
             {"processors": [{"mock": {}}], "description": "_description"}"""), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
@@ -1459,6 +1467,8 @@ public class IngestServiceTests extends ESTestCase {
         final Processor processorFailure = mock(Processor.class);
         when(processor.getType()).thenReturn("mock");
         when(processor.getTag()).thenReturn("mockTag");
+        when(processor.isAsync()).thenReturn(true);
+        when(processorFailure.isAsync()).thenReturn(true);
         when(processorFailure.getType()).thenReturn("failure-mock");
         // avoid returning null and dropping the document
         doAnswer(args -> {
@@ -1489,11 +1499,11 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         putRequest = new PutPipelineRequest("_id2", new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         @SuppressWarnings("unchecked")
@@ -1554,7 +1564,7 @@ public class IngestServiceTests extends ESTestCase {
             XContentType.JSON
         );
         previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
         ingestService.executeBulkRequest(
@@ -1573,9 +1583,9 @@ public class IngestServiceTests extends ESTestCase {
         assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id1", 2, 0, 0);
         assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id2", 1, 0, 0);
         // The number of processors for the "id1" pipeline changed, so the per-processor metrics are not carried forward. This is
-        // due to the parallel array's used to identify which metrics to carry forward. With out unique ids or semantic equals for each
+        // due to the parallel array's used to identify which metrics to carry forward. Without unique ids or semantic equals for each
         // processor, parallel arrays are the best option for of carrying forward metrics between pipeline changes. However, in some cases,
-        // like this one it may not readily obvious why the metrics were not carried forward.
+        // like this one it may not be readily obvious why the metrics were not carried forward.
         assertProcessorStats(0, afterThirdRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(1, afterThirdRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(0, afterThirdRequestStats, "_id2", 1, 0, 0);
@@ -1584,7 +1594,7 @@ public class IngestServiceTests extends ESTestCase {
         putRequest = new PutPipelineRequest("_id1", new BytesArray("""
             {"processors": [{"failure-mock" : { "on_failure": [{"mock" : {}}]}}, {"mock" : {}}]}"""), XContentType.JSON);
         previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
         ingestService.executeBulkRequest(
@@ -1663,7 +1673,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -1736,7 +1746,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         // Sanity check that counter has been updated twice:
@@ -1757,7 +1767,7 @@ public class IngestServiceTests extends ESTestCase {
             new BytesArray("{\"processors\": [{\"foo\" : {}}]}"),
             XContentType.JSON
         );
-        clusterState = IngestService.innerPut(putRequest, clusterState);
+        clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), notNullValue());
 
@@ -1782,6 +1792,35 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         assertThat(reference.get(), is(instanceOf(byte[].class)));
+    }
+
+    public void testPostIngest() {
+        IngestService ingestService = createWithProcessors(
+            Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor())
+        );
+
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("idx").setPipeline("_id")
+            .setFinalPipeline("_id")
+            .source(Map.of(TimestampField.FIXED_TIMESTAMP_FIELD, 10));
+        IndexRequest indexRequest2 = new IndexRequest("idx").setPipeline("_id").setFinalPipeline("_id").source(Map.of("foo", "bar"));
+        bulkRequest.add(indexRequest1);
+        bulkRequest.add(indexRequest2);
+
+        ingestService.executeBulkRequest(2, bulkRequest.requests(), (integer, e) -> {}, (thread, e) -> {}, indexReq -> {}, Names.WRITE);
+
+        assertThat(indexRequest1.getRawTimestamp(), equalTo(10));
+        assertThat(indexRequest2.getRawTimestamp(), nullValue());
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
@@ -2011,14 +2050,14 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(listener.getFailureCount(), equalTo(0L));
     }
 
-    public void testPutPipelineWithVersionedUpdateWithoutExistingPipeline() throws Exception {
+    public void testPutPipelineWithVersionedUpdateWithoutExistingPipeline() {
         var pipelineId = randomAlphaOfLength(5);
         var clusterState = ClusterState.EMPTY_STATE;
 
         final Integer version = randomInt();
         var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
         assertThat(
             e.getMessage(),
             equalTo(
@@ -2043,7 +2082,7 @@ public class IngestServiceTests extends ESTestCase {
 
         final Integer requestedVersion = randomValueOtherThan(version, ESTestCase::randomInt);
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, requestedVersion);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
         assertThat(
             e.getMessage(),
             equalTo(
@@ -2068,7 +2107,7 @@ public class IngestServiceTests extends ESTestCase {
             .build();
 
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
         assertThat(
             e.getMessage(),
             equalTo(String.format(Locale.ROOT, "cannot update pipeline [%s] with the same version [%s]", pipelineId, version))
@@ -2087,7 +2126,7 @@ public class IngestServiceTests extends ESTestCase {
         final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
         var updatedPipelineString = "{\"version\": " + specifiedVersion + ", \"processors\": []}";
         var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
-        var updatedState = IngestService.innerPut(request, clusterState);
+        var updatedState = executePut(request, clusterState);
 
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
         assertThat(updatedConfig, notNullValue());
@@ -2105,7 +2144,7 @@ public class IngestServiceTests extends ESTestCase {
 
         var updatedPipelineString = "{\"processors\": []}";
         var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
-        var updatedState = IngestService.innerPut(request, clusterState);
+        var updatedState = executePut(request, clusterState);
 
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
         assertThat(updatedConfig, notNullValue());
@@ -2132,7 +2171,7 @@ public class IngestServiceTests extends ESTestCase {
         return argThat(new IngestDocumentMatcher("_index", "_type", "_id", -3L, VersionType.INTERNAL, source));
     }
 
-    private IngestDocument eqIndexTypeId(final Long version, final VersionType versionType, final Map<String, Object> source) {
+    private IngestDocument eqIndexTypeId(final long version, final VersionType versionType, final Map<String, Object> source) {
         return argThat(new IngestDocumentMatcher("_index", "_type", "_id", version, versionType, source));
     }
 
@@ -2167,6 +2206,7 @@ public class IngestServiceTests extends ESTestCase {
 
     private CompoundProcessor mockCompoundProcessor() {
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        doAnswer(args -> true).when(processor).isAsync();
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
             BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
@@ -2181,17 +2221,18 @@ public class IngestServiceTests extends ESTestCase {
         private final IngestDocument ingestDocument;
 
         IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, id, null, null, null, source);
+            this.ingestDocument = new IngestDocument(index, id, 1, null, null, source);
         }
 
-        IngestDocumentMatcher(String index, String type, String id, Long version, VersionType versionType, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, id, null, version, versionType, source);
+        IngestDocumentMatcher(String index, String type, String id, long version, VersionType versionType, Map<String, Object> source) {
+            this.ingestDocument = new IngestDocument(index, id, version, null, versionType, source);
         }
 
         @Override
         public boolean matches(IngestDocument other) {
-            // ingest metadata will not be the same (timestamp differs every time)
-            return Objects.equals(ingestDocument.getSourceAndMetadata(), other.getSourceAndMetadata());
+            // ingest metadata and IngestCtxMap will not be the same (timestamp differs every time)
+            return Objects.equals(ingestDocument.getSource(), other.getSource())
+                && Objects.equals(ingestDocument.getMetadata().getMap(), other.getMetadata().getMap());
         }
     }
 
@@ -2212,5 +2253,37 @@ public class IngestServiceTests extends ESTestCase {
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
         return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
+    }
+
+    private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(DeletePipelineRequest request) {
+        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(ActionListener.wrap(() -> fail("not called")), request));
+    }
+
+    private static ClusterState executeDelete(DeletePipelineRequest request, ClusterState clusterState) {
+        try {
+            return executeAndAssertSuccessful(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(request));
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static void executeFailingDelete(DeletePipelineRequest request, ClusterState clusterState) throws Exception {
+        ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(request));
+    }
+
+    private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(PutPipelineRequest request) {
+        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionListener.wrap(() -> fail("not called")), request));
+    }
+
+    private static ClusterState executePut(PutPipelineRequest request, ClusterState clusterState) {
+        try {
+            return executeAndAssertSuccessful(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(request));
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static void executeFailingPut(PutPipelineRequest request, ClusterState clusterState) throws Exception {
+        ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(request));
     }
 }

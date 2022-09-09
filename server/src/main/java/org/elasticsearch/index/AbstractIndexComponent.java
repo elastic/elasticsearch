@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 
-public abstract class AbstractIndexComponent implements IndexComponent {
+public abstract class AbstractIndexComponent {
 
     protected final Logger logger;
     protected final DeprecationLogger deprecationLogger;
@@ -27,7 +27,6 @@ public abstract class AbstractIndexComponent implements IndexComponent {
         this.indexSettings = indexSettings;
     }
 
-    @Override
     public Index index() {
         return indexSettings.getIndex();
     }

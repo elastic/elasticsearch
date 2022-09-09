@@ -47,6 +47,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -218,13 +219,16 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
      */
     private CollectorSource createCollectorSource() {
         Analyzer analyzer = context.getIndexAnalyzer(f -> { throw new IllegalArgumentException("No analyzer configured for field " + f); });
+        String[] fieldNames = Arrays.stream(this.sourceFieldNames)
+            .flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream())
+            .toArray(String[]::new);
         if (context.profiling()) {
             return new ProfilingSignificantTextCollectorSource(
                 context.lookup().source(),
                 context.bigArrays(),
                 fieldType,
                 analyzer,
-                sourceFieldNames,
+                fieldNames,
                 filterDuplicateText
             );
         }
@@ -233,7 +237,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.bigArrays(),
             fieldType,
             analyzer,
-            sourceFieldNames,
+            fieldNames,
             filterDuplicateText
         );
     }

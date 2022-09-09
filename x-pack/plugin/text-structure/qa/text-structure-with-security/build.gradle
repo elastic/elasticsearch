@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
+  yamlRestTestImplementation(testArtifact(project(':x-pack:plugin')))
 }
 
 // bring in text structure rest test suite
@@ -14,9 +14,6 @@ restResources {
   restTests {
     includeXpack 'text_structure'
   }
-}
-
-tasks.named("yamlRestTest").configure {
 }
 
 testClusters.configureEach {

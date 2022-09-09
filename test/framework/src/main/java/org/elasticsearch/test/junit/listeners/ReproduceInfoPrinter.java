@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.internal.AssumptionViolatedException;
@@ -92,7 +91,19 @@ public class ReproduceInfoPrinter extends RunListener {
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
+        if (isRestApiCompatibilityTest()) {
+            b.append(System.lineSeparator());
+            b.append(
+                "This is a Rest Api Compatibility Test. "
+                    + "See the developers guide for details how to troubleshoot - "
+                    + "https://github.com/elastic/elasticsearch/blob/master/REST_API_COMPATIBILITY.md"
+            );
+        }
         printToErr(b.toString());
+    }
+
+    private boolean isRestApiCompatibilityTest() {
+        return Boolean.parseBoolean(System.getProperty("tests.restCompat", "false"));
     }
 
     @SuppressForbidden(reason = "printing repro info")
@@ -161,7 +172,8 @@ public class ReproduceInfoPrinter extends RunListener {
                 "tests.heap.size",
                 "tests.bwc",
                 "tests.bwc.version",
-                "build.snapshot"
+                "build.snapshot",
+                "tests.configure_test_clusters_with_one_processor"
             );
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
@@ -169,7 +181,7 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
-            appendOpt("runtime.java", Integer.toString(JavaVersion.current().getVersion().get(0)));
+            appendOpt("runtime.java", Integer.toString(Runtime.version().feature()));
             appendOpt("license.key", System.getProperty("licence.key"));
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;

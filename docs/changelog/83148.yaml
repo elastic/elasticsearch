@@ -1,5 +1,0 @@
-pr: 83148
-summary: Handle `fields.with.dots` in `routing_path`
-area: TSDB
-type: feature
-issues: []

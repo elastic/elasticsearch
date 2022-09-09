@@ -192,13 +192,13 @@ endif::[]
 If you experience issues where the container where your first node is running
 exits when your second node starts, explicitly set values for the JVM heap size.
 To <<set-jvm-heap-size,manually configure the heap size>>, include the
-`CLI_JAVA_OPTS` variable and set values for `-Xms` and `-Xmx` when starting each
+`ES_JAVA_OPTS` variable and set values for `-Xms` and `-Xmx` when starting each
 node. For example, the following command starts node `es02` and sets the
 minimum and maximum JVM heap size to 1 GB:
 
 [source,sh,subs="attributes"]
 ----
-docker run -e CLI_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
+docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
 ----
 
 ===== Next steps
@@ -264,7 +264,7 @@ password for the `elastic` and `kibana_system` users with the
 referenced by the `docker-compose.yml` file.
 
 IMPORTANT: Your passwords must be alphanumeric, and cannot contain special
-characters such as `!` or `@`. The `bash` script included in the 
+characters such as `!` or `@`. The `bash` script included in the
 `docker-compose.yml` file only operates on alphanumeric characters.
 
 ["source","txt",subs="attributes"]
@@ -504,10 +504,10 @@ To manually set the heap size in production, bind mount a <<set-jvm-options,JVM
 options>> file under `/usr/share/elasticsearch/config/jvm.options.d` that
 includes your desired <<set-jvm-heap-size,heap size>> settings.
 
-For testing, you can also manually set the heap size using the `CLI_JAVA_OPTS`
+For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
-CLI_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `CLI_JAVA_OPTS` variable
-overrides all other JVM options. We do not recommend using `CLI_JAVA_OPTS` in
+ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
+overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in
 production. The `docker-compose.yml` file above sets the heap size to 512MB.
 
 

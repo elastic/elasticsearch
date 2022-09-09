@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
@@ -31,9 +33,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
  * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceComputer} and then takes
@@ -46,6 +51,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     private final ShardsAllocator delegateAllocator;
     private final DesiredBalanceComputer desiredBalanceComputer;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
+    private final NodeAllocationOrdering allocationOrdering;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
@@ -101,6 +107,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 return "DesiredBalanceShardsAllocator#updateDesiredBalanceAndReroute";
             }
         };
+        this.allocationOrdering = new NodeAllocationOrdering();
         this.queue = new PendingListenersQueue(threadPool);
     }
 
@@ -117,6 +124,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
         queue.pause();
+        allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
 
         var index = indexGenerator.incrementAndGet();
         logger.trace("Executing allocate for [{}]", index);
@@ -129,7 +137,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
         appliedDesiredBalance = currentDesiredBalance;
         logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
-        new DesiredBalanceReconciler(appliedDesiredBalance, allocation).run();
+        new DesiredBalanceReconciler(appliedDesiredBalance, allocation, allocationOrdering).run();
 
         queue.complete(appliedDesiredBalance.lastConvergedIndex());
         if (allocation.routingNodesChanged()) {
@@ -173,6 +181,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             queue.resume();
         } else {
             reset();
+            allocationOrdering.onNoLongerMaster();
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
         }
@@ -222,5 +231,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
         }
         return builder.append(newLine).toString();
+    }
+
+    private static Set<String> getNodeIds(RoutingNodes nodes) {
+        return nodes.stream().map(RoutingNode::nodeId).collect(toSet());
     }
 }

@@ -40,11 +40,17 @@ public class DesiredBalanceReconciler {
     private final DesiredBalance desiredBalance;
     private final RoutingAllocation allocation; // name chosen to align with code in BalancedShardsAllocator but TODO rename
     private final RoutingNodes routingNodes;
+    private final NodeAllocationOrdering allocationOrdering;
 
-    DesiredBalanceReconciler(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
+    DesiredBalanceReconciler(
+        DesiredBalance desiredBalance,
+        RoutingAllocation routingAllocation,
+        NodeAllocationOrdering allocationOrdering
+    ) {
         this.desiredBalance = desiredBalance;
         this.allocation = routingAllocation;
         this.routingNodes = routingAllocation.routingNodes();
+        this.allocationOrdering = allocationOrdering;
     }
 
     void run() {
@@ -211,7 +217,7 @@ public class DesiredBalanceReconciler {
                         }
                     }
 
-                    for (final var desiredNodeId : assignmentNodeIds) {
+                    for (final var desiredNodeId : allocationOrdering.sort(assignmentNodeIds)) {
                         final var routingNode = routingNodes.node(desiredNodeId);
                         if (routingNode == null) {
                             // desired node no longer exists
@@ -232,6 +238,7 @@ public class DesiredBalanceReconciler {
                                     allocation.routingTable()
                                 );
                                 routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
+                                allocationOrdering.recordAllocation(desiredNodeId);
                                 if (shard.primary() == false) {
                                     // copy over the same replica shards to the secondary array so they will get allocated
                                     // in a subsequent iteration, allowing replicas of other shards to be allocated first
@@ -420,5 +427,4 @@ public class DesiredBalanceReconciler {
     private Decision decideCanForceAllocateForVacate(ShardRouting shardRouting, RoutingNode target) {
         return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
     }
-
 }

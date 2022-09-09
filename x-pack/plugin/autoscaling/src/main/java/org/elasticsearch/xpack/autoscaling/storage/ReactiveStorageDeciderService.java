@@ -951,8 +951,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             if (out.getVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
                 out.writeCollection(unassignedShardIds);
                 out.writeCollection(assignedShardIds);
-                out.writeList(unassignedAllocationResults);
-                out.writeList(assignedAllocationResults);
             }
             if (out.getVersion().onOrAfter(UNASSIGNED_ALLOCATION_RESULTS_OUTPUT_VERSION)) {
                 out.writeList(unassignedAllocationResults);

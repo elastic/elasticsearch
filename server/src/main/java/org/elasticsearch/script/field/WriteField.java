@@ -77,7 +77,7 @@ public class WriteField implements Field<Object> {
      */
     public WriteField move(WriteField path) {
         if (path.isEmpty() == false) {
-            throw new IllegalArgumentException("Cannot move to non-empty destination [" + path + "]");
+            throw new IllegalArgumentException("Cannot move to non-empty destination [" + path.path + "]");
         }
         return overwrite(path);
     }
@@ -143,6 +143,8 @@ public class WriteField implements Field<Object> {
             setLeaf();
             set(value);
         }
+        // refresh argument field
+        path.resolveDepthFlat();
         return this;
     }
 

@@ -401,7 +401,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         terminate(threadPool);
     }
 
-
     @AwaitsFix(bugUrl = "desired balance")
     public void testCallListenersOnlyAfterProducingFreshInput() {
 
@@ -518,7 +517,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
     }
 
-
     @AwaitsFix(bugUrl = "desired balance")
     public void testFailListenersOnNoLongerMasterException() throws Exception {
 
@@ -592,7 +590,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             terminate(threadPool);
         }
     }
-
 
     @AwaitsFix(bugUrl = "desired balance")
     public void testConcurrency() throws Exception {

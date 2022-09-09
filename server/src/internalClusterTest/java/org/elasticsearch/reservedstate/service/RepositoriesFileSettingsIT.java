@@ -33,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -93,9 +94,9 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private void assertMasterNode(Client client, String node) {
+    private void assertMasterNode(Client client, String node) throws ExecutionException, InterruptedException {
         assertThat(
-            client.admin().cluster().prepareState().execute().actionGet().getState().nodes().getMasterNode().getName(),
+            client.admin().cluster().prepareState().execute().get().getState().nodes().getMasterNode().getName(),
             equalTo(node)
         );
     }
@@ -141,7 +142,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
         final var reposResponse = client().execute(
             GetRepositoriesAction.INSTANCE,
             new GetRepositoriesRequest(new String[] { "repo", "repo1" })
-        ).actionGet();
+        ).get();
 
         assertThat(
             reposResponse.repositories().stream().map(r -> r.name()).collect(Collectors.toSet()),
@@ -214,7 +215,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
         );
 
         // This should succeed, nothing was reserved
-        client().execute(PutRepositoryAction.INSTANCE, sampleRestRequest("err-repo")).actionGet();
+        client().execute(PutRepositoryAction.INSTANCE, sampleRestRequest("err-repo")).get();
     }
 
     public void testErrorSaved() throws Exception {

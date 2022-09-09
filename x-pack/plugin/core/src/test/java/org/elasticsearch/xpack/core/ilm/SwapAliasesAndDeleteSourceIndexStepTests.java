@@ -17,12 +17,14 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -43,7 +45,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             instance.getKey(),
             instance.getNextStepKey(),
             instance.getClient(),
-            instance.getTargetIndexPrefix()
+            instance.getTargetIndexNameSupplier(),
+            instance.getCreateSourceIndexAlias()
         );
     }
 
@@ -51,14 +54,16 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
     public SwapAliasesAndDeleteSourceIndexStep mutateInstance(SwapAliasesAndDeleteSourceIndexStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String restoredIndexPrefix = instance.getTargetIndexPrefix();
-        switch (between(0, 2)) {
+        BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
+        boolean createSourceIndexAlias = instance.getCreateSourceIndexAlias();
+        switch (between(0, 3)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 2 -> restoredIndexPrefix += randomAlphaOfLength(5);
+            case 2 -> indexNameSupplier = (index, state) -> index + randomAlphaOfLength(5);
+            case 3 -> createSourceIndexAlias = createSourceIndexAlias == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new SwapAliasesAndDeleteSourceIndexStep(key, nextKey, instance.getClient(), restoredIndexPrefix);
+        return new SwapAliasesAndDeleteSourceIndexStep(key, nextKey, instance.getClient(), indexNameSupplier, createSourceIndexAlias);
     }
 
     public void testPerformAction() {
@@ -67,6 +72,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
+        Boolean isHidden = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
         AliasMetadata.Builder aliasBuilder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             aliasBuilder.routing(randomAlphaOfLengthBetween(1, 10));
@@ -78,6 +84,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             aliasBuilder.indexRouting(randomAlphaOfLengthBetween(1, 10));
         }
         aliasBuilder.writeIndex(randomBoolean());
+        aliasBuilder.isHidden(isHidden);
         AliasMetadata aliasMetadata = aliasBuilder.build();
         IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.putAlias(aliasMetadata).build();
 
@@ -93,6 +100,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 .searchRouting(aliasMetadata.searchRouting())
                 .indexRouting(aliasMetadata.indexRouting())
                 .writeIndex(null)
+                .isHidden(isHidden)
         );
 
         try (NoOpClient client = getIndicesAliasAssertingClient(expectedAliasActions)) {

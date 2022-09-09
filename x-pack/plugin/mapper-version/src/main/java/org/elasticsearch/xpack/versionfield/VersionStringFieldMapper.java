@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -39,6 +40,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -47,19 +50,16 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
@@ -181,8 +181,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
-                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes(StandardCharsets.UTF_8);
-                            boolean accepted = compiled.runAutomaton.run(decoded, 0, decoded.length);
+                            BytesRef decoded = VersionEncoder.decodeVersion(term);
+                            boolean accepted = compiled.runAutomaton.run(decoded.bytes, decoded.offset, decoded.length);
                             if (accepted) {
                                 return AcceptStatus.YES;
                             }
@@ -234,8 +234,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
-                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes(StandardCharsets.UTF_8);
-                            boolean accepted = runAutomaton.run(decoded, 0, decoded.length);
+                            BytesRef decoded = VersionEncoder.decodeVersion(term);
+                            boolean accepted = runAutomaton.run(decoded.bytes, decoded.offset, decoded.length);
                             if (accepted) {
                                 return AcceptStatus.YES;
                             }
@@ -279,7 +279,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
         }
 
@@ -380,7 +380,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public String format(BytesRef value) {
-            return VersionEncoder.decodeVersion(value);
+            return VersionEncoder.decodeVersion(value).utf8ToString();
         }
 
         @Override
@@ -397,5 +397,26 @@ public class VersionStringFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new SortedSetDocValuesSyntheticFieldLoader(name(), simpleName(), null) {
+            @Override
+            protected BytesRef convert(BytesRef value) {
+                return VersionEncoder.decodeVersion(value);
+            }
+
+            @Override
+            protected BytesRef preserve(BytesRef value) {
+                // Convert copies the underlying bytes
+                return value;
+            }
+        };
     }
 }

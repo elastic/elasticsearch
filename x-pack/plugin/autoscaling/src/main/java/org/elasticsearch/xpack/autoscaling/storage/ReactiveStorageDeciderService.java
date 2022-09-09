@@ -143,14 +143,16 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         long unassignedBytes = unassignedBytesUnassignedShards.sizeInBytes();
         long maxShardSize = allocationState.maxShardSize();
         long maxNodeLockedSize = allocationState.maxNodeLockedSize();
-        long minimumNodeSize = nodeSizeForDataBelowLowWatermark(Math.max(maxShardSize, maxNodeLockedSize), diskThresholdSettings)
-            + NODE_DISK_OVERHEAD;
         assert assignedBytes >= 0;
         assert unassignedBytes >= 0;
         assert maxShardSize >= 0;
         String message = message(unassignedBytes, assignedBytes);
+        long requiredTotalStorage = autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes;
+        long minimumNodeSize = requiredTotalStorage > 0L
+            ? nodeSizeForDataBelowLowWatermark(Math.max(maxShardSize, maxNodeLockedSize), diskThresholdSettings) + NODE_DISK_OVERHEAD
+            : 0L;
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null, null)
+            .total(requiredTotalStorage, null, null)
             .node(minimumNodeSize, null, null)
             .build();
         return new AutoscalingDeciderResult(
@@ -218,18 +220,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
     }
 
-    static long nodeSizeForDataBelowLowWatermark(long bytes, DiskThresholdSettings thresholdSettings) {
-        ByteSizeValue bytesThreshold = thresholdSettings.getFreeBytesThresholdLow();
-        if (bytesThreshold.getBytes() != 0) {
-            return bytesThreshold.getBytes() + bytes;
-        } else {
-            double percentThreshold = thresholdSettings.getFreeDiskThresholdLow();
-            if (percentThreshold >= 0.0 && percentThreshold < 100.0) {
-                return (long) (100 * bytes / (100 - percentThreshold));
-            } else {
-                return bytes;
-            }
-        }
+    static long nodeSizeForDataBelowLowWatermark(long neededBytes, DiskThresholdSettings thresholdSettings) {
+        return thresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(neededBytes)).getBytes();
     }
 
     // todo: move this to top level class.
@@ -418,14 +410,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             IndexMetadata indexMetadata = indexMetadata(shard, allocation);
             Set<Decision.Type> decisionTypes = allocation.routingNodes()
                 .stream()
-                .map(
-                    node -> DataTierAllocationDecider.shouldFilter(
-                        indexMetadata,
-                        node.node().getRoles(),
-                        this::highestPreferenceTier,
-                        allocation
-                    )
-                )
+                .map(node -> DataTierAllocationDecider.shouldFilter(indexMetadata, node.node(), this::highestPreferenceTier, allocation))
                 .map(Decision::type)
                 .collect(Collectors.toSet());
             if (decisionTypes.contains(Decision.Type.NO)) {
@@ -502,20 +487,22 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             } else {
                 Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
                 if (resizeSourceIndex != null) {
-                    IndexMetadata sourceIndexMetadata = metadata.getIndexSafe(resizeSourceIndex);
-                    // ResizeAllocationDecider only handles clone or split, do the same here.
+                    IndexMetadata sourceIndexMetadata = metadata.index(resizeSourceIndex);
+                    // source indicators stay on the index even after started and also after source is deleted.
+                    if (sourceIndexMetadata != null) {
+                        // ResizeAllocationDecider only handles clone or split, do the same here.
+                        if (indexMetadata.getNumberOfShards() >= sourceIndexMetadata.getNumberOfShards()) {
+                            IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(resizeSourceIndex);
+                            long max = 0;
+                            for (int s = 0; s < sourceIndexMetadata.getNumberOfShards(); ++s) {
+                                ShardRouting shard = indexRoutingTable.shard(s).primaryShard();
+                                long size = sizeOf(shard);
+                                max = Math.max(max, size);
+                            }
 
-                    if (indexMetadata.getNumberOfShards() >= sourceIndexMetadata.getNumberOfShards()) {
-                        IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(resizeSourceIndex);
-                        long max = 0;
-                        for (int s = 0; s < sourceIndexMetadata.getNumberOfShards(); ++s) {
-                            ShardRouting shard = indexRoutingTable.shard(s).primaryShard();
-                            long size = sizeOf(shard);
-                            max = Math.max(max, size);
+                            // 2x to account for the extra copy residing on the same node
+                            return max * 2;
                         }
-
-                        // 2x to account for the extra copy residing on the same node
-                        return max * 2;
                     }
                 }
             }
@@ -547,20 +534,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return 0;
             }
 
-            long threshold = Math.max(
-                diskThresholdSettings.getFreeBytesThresholdHigh().getBytes(),
-                thresholdFromPercentage(diskThresholdSettings.getFreeDiskThresholdHigh(), diskUsage)
-            );
+            long threshold = diskThresholdSettings.getFreeBytesThresholdHighStage(ByteSizeValue.ofBytes(diskUsage.getTotalBytes()))
+                .getBytes();
             long missing = threshold - diskUsage.getFreeBytes();
             return Math.max(missing, shards.stream().mapToLong(this::sizeOf).min().orElseThrow());
-        }
-
-        private long thresholdFromPercentage(Double percentage, DiskUsage diskUsage) {
-            if (percentage == null) {
-                return 0L;
-            }
-
-            return (long) Math.ceil(diskUsage.getTotalBytes() * percentage / 100);
         }
 
         Stream<RoutingNode> nodesInTier(RoutingNodes routingNodes) {

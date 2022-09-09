@@ -23,9 +23,8 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -322,6 +321,33 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertThat(allBeforeStartTimeDescending(startTime1 - 1), empty());
     }
 
+    public void testLargeChunkedResponses() throws Exception {
+        final String repoName = "test-repo";
+        AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
+        for (int i = 0; i < 100; i++) {
+            createIndexWithContent("test-index-a-" + i);
+        }
+        final List<String> snapshotNamesWithoutIndex = AbstractSnapshotIntegTestCase.createNSnapshots(
+            logger,
+            repoName,
+            randomIntBetween(200, 300)
+        );
+
+        for (int i = 0; i < 100; i++) {
+            createIndexWithContent("test-index-b-" + i);
+        }
+
+        final List<String> snapshotNamesWithIndex = AbstractSnapshotIntegTestCase.createNSnapshots(
+            logger,
+            repoName,
+            randomIntBetween(200, 300)
+        );
+        final Collection<String> allSnapshotNames = new HashSet<>(snapshotNamesWithIndex);
+        allSnapshotNames.addAll(snapshotNamesWithoutIndex);
+        doTestSortOrder(repoName, allSnapshotNames, SortOrder.ASC);
+        doTestSortOrder(repoName, allSnapshotNames, SortOrder.DESC);
+    }
+
     // create a snapshot that is guaranteed to have a unique start time
     private SnapshotInfo createFullSnapshotWithUniqueStartTime(String repoName, String snapshotName, Set<Long> forbiddenStartTimes) {
         while (true) {
@@ -444,11 +470,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     private static GetSnapshotsResponse readSnapshotInfos(Response response) throws IOException {
         try (
             InputStream input = response.getEntity().getContent();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                input
-            )
+            XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, input)
         ) {
             return GetSnapshotsResponse.fromXContent(parser);
         }

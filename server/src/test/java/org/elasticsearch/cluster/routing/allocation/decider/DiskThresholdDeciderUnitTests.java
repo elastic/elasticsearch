@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderTests.DevNullClusterInfo;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -127,8 +128,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertThat(
             ((Decision.Single) decision).getExplanation(),
             containsString(
-                "the node is above the high watermark cluster "
-                    + "setting [cluster.routing.allocation.disk.watermark.high=90%], using more disk space than the maximum allowed [90.0%]"
+                "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%], "
+                    + "having less than the minimum required"
             )
         );
     }
@@ -200,15 +201,19 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());
 
+        double usedPercentage = 100.0 * (100 - freeBytes) / 100;
+
         assertThat(
             decision.getExplanation(),
             containsString(
                 "allocating the shard to this node will bring the node above the high watermark cluster setting "
                     + "[cluster.routing.allocation.disk.watermark.high=90%] "
-                    + "and cause it to have less than the minimum required [0b] of free space "
+                    + "and cause it to have less than the minimum required [10b] of free space "
                     + "(free: ["
                     + freeBytes
-                    + "b], estimated shard size: ["
+                    + "b], used: ["
+                    + Strings.format1Decimals(usedPercentage, "%")
+                    + "], estimated shard size: ["
                     + shardSize
                     + "b])"
             )
@@ -331,8 +336,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             ((Decision.Single) decision).getExplanation(),
             containsString(
                 "the shard cannot remain on this node because it is above the high watermark cluster setting "
-                    + "[cluster.routing.allocation.disk.watermark.high=90%] and there is less than the required [10.0%] "
-                    + "free disk on node, actual free: [9.0%]"
+                    + "[cluster.routing.allocation.disk.watermark.high=90%] and there is less than the required [10b] "
+                    + "free space on node, actual free: [9b], actual used: [91%]"
             )
         );
         try {

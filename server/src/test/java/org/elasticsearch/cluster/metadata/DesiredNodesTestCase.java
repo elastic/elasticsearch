@@ -56,11 +56,11 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
         if (randomBoolean()) {
             return randomDesiredNode(version, settings, randomProcessorRange());
         } else {
-            return randomDesiredNode(version, settings, randomIntBetween(1, 256) + randomFloat());
+            return randomDesiredNode(version, settings, randomNumberOfProcessors());
         }
     }
 
-    public static DesiredNode randomDesiredNode(Version version, Settings settings, float processors) {
+    public static DesiredNode randomDesiredNode(Version version, Settings settings, double processors) {
         return new DesiredNode(
             addExternalIdIfMissing(settings),
             processors,
@@ -81,7 +81,7 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode.ProcessorsRange randomProcessorRange() {
-        float minProcessors = randomFloat() + randomIntBetween(1, 16);
+        double minProcessors = randomNumberOfProcessors();
         return new DesiredNode.ProcessorsRange(minProcessors, randomBoolean() ? null : minProcessors + randomIntBetween(0, 10));
     }
 
@@ -127,7 +127,8 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(random()),
             randomLongBetween(0, Long.MAX_VALUE - 1000),
-            randomList(1, 100, DesiredNodesTestCase::randomDesiredNode)
+            randomList(1, 100, DesiredNodesTestCase::randomDesiredNode),
+            randomBoolean()
         );
     }
 
@@ -182,5 +183,9 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
             DiscoveryNodeRole.roles(),
             Version.CURRENT
         );
+    }
+
+    public static double randomNumberOfProcessors() {
+        return randomDoubleBetween(Double.MIN_VALUE, 512.99999999, true);
     }
 }

@@ -143,7 +143,7 @@ public class PermissionsIT extends ESRestTestCase {
                         equalTo(
                             "action [indices:monitor/stats] is unauthorized"
                                 + " for user [test_ilm]"
-                                + " with roles [ilm]"
+                                + " with effective roles [ilm]"
                                 + " on indices [not-ilm],"
                                 + " this action is granted by the index privileges [monitor,manage,all]"
                         )
@@ -275,7 +275,12 @@ public class PermissionsIT extends ESRestTestCase {
          * - Create role with just write and manage privileges on alias
          * - Create user and assign newly created role.
          */
-        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, null, 2L, null));
+        createNewSingletonPolicy(
+            adminClient(),
+            "foo-policy",
+            "hot",
+            new RolloverAction(null, null, null, 2L, null, null, null, null, null, null)
+        );
         createIndexTemplate("foo-template", "foo-logs-*", "foo_alias", "foo-policy");
         createIndexAsAdmin("foo-logs-000001", "foo_alias", randomBoolean());
         createRole("foo_alias_role", "foo_alias");

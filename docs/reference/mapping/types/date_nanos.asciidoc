@@ -148,7 +148,7 @@ default configuration. Synthetic `_source` cannot be used together with
 or with <<doc-values,`doc_values`>> disabled.
 
 Synthetic source always sorts `date_nanos` fields. For example:
-[source,console,id=synthetic-source-date-example]
+[source,console,id=synthetic-source-date-nanos-example]
 ----
 PUT idx
 {

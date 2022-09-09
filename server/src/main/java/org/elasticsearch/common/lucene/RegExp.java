@@ -12,55 +12,64 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.core.SuppressForbidden;
 
 /**
- * Simple wrapper for {@link org.apache.lucene.util.automaton.RegExp} that avoids throwing
- * StackOverflowErrors when working with regular expressions as this will crash an Elasticsearch node.
- * Instead, these StackOverflowErrors are turned into IllegalArgumentExceptions.
+ * Simple wrapper for {@link org.apache.lucene.util.automaton.RegExp} that
+ * avoids throwing {@link StackOverflowError}s when working with regular
+ * expressions as this will crash an Elasticsearch node. Instead, these
+ * {@linkplain StackOverflowError}s are turned into
+ * {@link IllegalArgumentException}s which elasticsearch returns as
+ * a http 400.
  */
-@SuppressForbidden(reason = "catches StackOverflowError")
 public class RegExp {
 
+    @SuppressForbidden(reason = "this class is the trusted wrapper")
     private final org.apache.lucene.util.automaton.RegExp wrapped;
 
+    @SuppressForbidden(reason = "catches StackOverflowError")
     public RegExp(String s) {
         try {
             wrapped = new org.apache.lucene.util.automaton.RegExp(s);
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp", e);
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
         }
     }
 
+    @SuppressForbidden(reason = "catches StackOverflowError")
     public RegExp(String s, int syntax_flags) {
         try {
             wrapped = new org.apache.lucene.util.automaton.RegExp(s, syntax_flags);
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp", e);
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
         }
     }
 
+    @SuppressForbidden(reason = "catches StackOverflowError")
     public RegExp(String s, int syntax_flags, int match_flags) {
         try {
             wrapped = new org.apache.lucene.util.automaton.RegExp(s, syntax_flags, match_flags);
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp", e);
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
         }
     }
 
+    @SuppressForbidden(reason = "catches StackOverflowError")
     public Automaton toAutomaton() {
         try {
             return wrapped.toAutomaton();
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp", e);
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
         }
     }
 
+    @SuppressForbidden(reason = "catches StackOverflowError")
     public Automaton toAutomaton(int determinizeWorkLimit) {
         try {
             return wrapped.toAutomaton(determinizeWorkLimit);
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp", e);
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
         }
     }
 
+    @SuppressForbidden(reason = "his class is the trusted wrapper")
     public String getOriginalString() {
         return wrapped.getOriginalString();
     }

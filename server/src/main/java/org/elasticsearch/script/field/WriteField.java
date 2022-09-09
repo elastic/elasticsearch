@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -545,8 +546,76 @@ public class WriteField implements Field<Object> {
     /**
      * Iterable over all {@link NestedDocument}s in this field.
      */
+    @SuppressWarnings("unchecked")
     public Iterable<NestedDocument> docs() {
-        throw new UnsupportedOperationException("unimplemented");
+        Object value = get(MISSING);
+        if (value == MISSING) {
+            return Collections.emptyList();
+        }
+
+        if (value instanceof Map<?, ?> map) {
+            return () -> new Iterator<NestedDocument>() {
+                private boolean done = false;
+
+                @Override
+                public boolean hasNext() {
+                    return done == false;
+                }
+
+                @Override
+                public NestedDocument next() {
+                    if (done) {
+                        throw new NoSuchElementException();
+                    }
+                    done = true;
+                    return new NestedDocument(WriteField.this, 0, (Map<String, Object>) map);
+                }
+
+                @Override
+                public void remove() {
+                    WriteField.this.remove();
+                }
+            };
+
+        } else if (value instanceof List<?> list) {
+            return () -> new Iterator<>() {
+                private final Iterator<?> it = list.iterator();
+                private int index;
+
+                @Override
+                public boolean hasNext() {
+                    return it.hasNext();
+                }
+
+                @Override
+                @SuppressWarnings("unchecked")
+                public NestedDocument next() {
+                    Object value = it.next();
+                    if (value instanceof Map<?, ?> map) {
+                        return new NestedDocument(WriteField.this, index++, (Map<String, Object>) map);
+                    }
+
+                    throw new IllegalStateException(
+                        "Unexpected value ["
+                            + value
+                            + "] of type ["
+                            + typeName(value)
+                            + "] at ["
+                            + path
+                            + "] and index ["
+                            + index
+                            + "] for docs() iterator"
+                    );
+                }
+
+                @Override
+                public void remove() {
+                    it.remove();
+                }
+            };
+        }
+
+        throw new IllegalStateException("Unexpected value [" + value + "] of type [" + typeName(value) + "] at [" + path + "] for docs()");
     }
 
     /**

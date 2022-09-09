@@ -46,8 +46,8 @@ class org.elasticsearch.script.IngestScript {
 class org.elasticsearch.script.field.WriteField {
     String getName()
     boolean exists()
-    WriteField move(String)
-    WriteField overwrite(String)
+    WriteField move(def)
+    WriteField overwrite(def)
     void remove()
     WriteField set(def)
     WriteField append(def)
@@ -70,4 +70,8 @@ class org.elasticsearch.script.field.NestedDocument {
     WriteField field(String)
     Stream fields(String)
     int index()
+    boolean isEmpty()
+    int size()
+    boolean exists()
+    void remove()
 }

@@ -56,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -408,7 +407,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
-        final AtomicBoolean listenerCalled = new AtomicBoolean();
         final FsRepository repository = new FsRepository(
             repositoryMetadata,
             createEnvironment(),
@@ -438,12 +436,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         SnapshotShardContext context = ShardSnapshotTaskRunnerTests.dummyContext();
         int noOfFiles = randomIntBetween(10, 100);
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(noOfFiles);
-        ActionListener<Collection<Void>> allFilesUploadListener = ActionListener.wrap(() -> listenerCalled.set(true));
+        PlainActionFuture<Void> listenerCalled = PlainActionFuture.newFuture();
+        ActionListener<Collection<Void>> allFilesUploadListener = ActionListener.wrap(() -> listenerCalled.onResponse(null));
         for (int i = 0; i < noOfFiles; i++) {
             files.add(ShardSnapshotTaskRunnerTests.dummyFileInfo());
         }
         repository.snapshotFiles(context, files, allFilesUploadListener);
-        assertBusy(() -> assertTrue(listenerCalled.get()));
+        listenerCalled.get();
     }
 
     private Environment createEnvironment() {

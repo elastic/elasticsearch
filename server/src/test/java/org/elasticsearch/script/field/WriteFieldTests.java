@@ -17,11 +17,14 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class WriteFieldTests extends ESTestCase {
 
@@ -389,9 +392,11 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals("foo", new WriteField("a.c", () -> root).get(0, "bar"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testDoc() {
         Map<String, Object> root = new HashMap<>();
-        WriteField wf = new WriteField("abc.def.hij", () -> root);
+        String path = "abc.def.hij";
+        WriteField wf = new WriteField(path, () -> root);
         NestedDocument doc = wf.doc();
         doc.field("lmn.opq").set(5);
         doc.field("lmn.r").append("foo").append("bar");
@@ -400,9 +405,146 @@ public class WriteFieldTests extends ESTestCase {
         doc.field("rst.uvw").set(6);
         doc.field("rst.x.y").append("baz").append("qux");
 
-        assertEquals(5, getMap(root, "abc.def.hij.lmn").get("opq"));
-        assertEquals(List.of("foo", "bar"), getList(root, "abc.def.hij.lmn.r"));
-        assertNull(root);
+        doc = wf.doc();
+        doc.field("alpha").set(7);
+
+        List<Object> docs = getList(root, path);
+        assertThat(docs, hasSize(3));
+
+        assertThat(docs.get(0), instanceOf(Map.class));
+        Map<String, Object> lmn = (Map<String, Object>) docs.get(0);
+        assertEquals(5, getMap(lmn, "lmn").get("opq"));
+        assertThat(getList(lmn, "lmn.r"), is(Arrays.asList("foo", "bar")));
+        assertEquals(lmn, wf.doc(0).getDoc());
+
+        assertThat(docs.get(1), instanceOf(Map.class));
+        Map<String, Object> rst = (Map<String, Object>) docs.get(1);
+        assertEquals(6, getMap(rst, "rst").get("uvw"));
+        assertThat(getList(rst, "rst.x.y"), is(Arrays.asList("baz", "qux")));
+        assertEquals(rst, wf.doc(1).getDoc());
+
+        assertThat(docs.get(2), instanceOf(Map.class));
+        Map<String, Object> alpha = (Map<String, Object>) docs.get(2);
+        assertEquals(7, alpha.get("alpha"));
+        assertEquals(alpha, wf.doc(2).getDoc());
+
+        Iterator<NestedDocument> it = wf.docs().iterator();
+
+        assertTrue(it.hasNext());
+        doc = it.next();
+        assertThat(doc.getDoc(), equalTo(lmn));
+        assertEquals(0, doc.index());
+
+        assertTrue(it.hasNext());
+        doc = it.next();
+        assertThat(doc.getDoc(), equalTo(rst));
+        assertEquals(1, doc.index());
+
+        assertTrue(it.hasNext());
+        doc = it.next();
+        assertThat(doc.getDoc(), equalTo(alpha));
+        assertEquals(2, doc.index());
+
+        assertFalse(it.hasNext());
+        expectThrows(NoSuchElementException.class, it::next);
+    }
+
+    public void testNonDoc() {
+        Map<String, Object> root = new HashMap<>();
+        Map<String, Object> a = new HashMap<>();
+        root.put("a", a);
+        a.put("b", "foo");
+        WriteField wf = new WriteField("a.b", () -> root);
+
+        IllegalStateException err = expectThrows(IllegalStateException.class, wf::doc);
+        assertEquals("Cannot append a doc at [a.b] to [foo] of type [java.lang.String]", err.getMessage());
+
+        IllegalArgumentException err2 = expectThrows(IllegalArgumentException.class, () -> wf.doc(0));
+        assertEquals(
+            "Expected NestedDocument at path [a.b] and index [0], found [foo] of type [java.lang.String] instead",
+            err2.getMessage()
+        );
+
+        err = expectThrows(IllegalStateException.class, () -> wf.doc(2));
+        assertEquals("Unexpected value [foo] of type [java.lang.String] at [a.b] when adding doc at [2]", err.getMessage());
+
+        err = expectThrows(IllegalStateException.class, wf::docs);
+        assertEquals("Unexpected value [foo] of type [java.lang.String] at [a.b] for docs()", err.getMessage());
+
+        wf.set(new HashMap<>());
+        wf.append("foo");
+        Iterator<NestedDocument> it = wf.docs().iterator();
+        it.next();
+        err = expectThrows(IllegalStateException.class, it::next);
+        assertEquals("Unexpected value [foo] of type [java.lang.String] at [a.b] and index [1] for docs() iterator", err.getMessage());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDocList() {
+        Map<String, Object> root = new HashMap<>();
+        String path = "a.b";
+        WriteField wf = new WriteField(path, () -> root);
+        wf.doc().field("c.d").set(123);
+        wf.doc().field("e.f").set(456);
+        Object value = wf.get(null);
+
+        assertThat(value, instanceOf(List.class));
+        List<Map<String, Object>> list = (List<Map<String, Object>>) value;
+        assertEquals(123, wf.doc(0).field("c.d").get(null));
+        assertThat(list.get(0), equalTo(wf.doc(0).getDoc()));
+        assertEquals(456, wf.doc(1).field("e.f").get(null));
+        assertThat(list.get(1), equalTo(wf.doc(1).getDoc()));
+
+        assertThat(list, hasSize(2));
+        wf.doc(5).field("h.i").set(789);
+        assertThat(list, hasSize(6));
+        assertEquals(789, wf.doc(5).field("h.i").get(null));
+        assertThat(wf.doc(5).getDoc(), equalTo(list.get(5)));
+    }
+
+    public void testDocMissing() {
+        Map<String, Object> root = new HashMap<>();
+        String path = "a.b";
+        WriteField wf = new WriteField(path, () -> root);
+        assertFalse(wf.docs().iterator().hasNext());
+        NestedDocument doc = wf.doc(3);
+        doc.field("c").set("foo");
+        assertEquals("foo", wf.doc(3).field("c").get("dne"));
+        doc = wf.doc(3);
+        assertEquals(3, doc.index());
+        assertThat(getList(root, "a.b").get(3), equalTo(Map.of("c", "foo")));
+    }
+
+    public void testDocWithOneMap() {
+        Map<String, Object> root = new HashMap<>();
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> b = new HashMap<>();
+        root.put("a", a);
+        a.put("b", b);
+        b.put("c", "foo");
+        String path = "a.b";
+        WriteField wf = new WriteField(path, () -> root);
+        Iterator<NestedDocument> it = wf.docs().iterator();
+        assertTrue(it.hasNext());
+        assertThat(it.next().getDoc(), equalTo(b));
+        expectThrows(NoSuchElementException.class, it::next);
+
+        wf.doc(2);
+        NestedDocument doc = wf.doc(0);
+        assertEquals(0, doc.index());
+        assertThat(getList(root, "a.b").get(0), equalTo(b));
+    }
+
+    public void testIllegalSetDoc() {
+        Map<String, Object> root = new HashMap<>();
+        WriteField wf = new WriteField("a", () -> root);
+        NestedDocument doc = wf.doc();
+        doc.field("foo").set("bar");
+        WriteField wfb = new WriteField("b", () -> root);
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> wfb.set(doc));
+        assertEquals("cannot set NestedDocument [{foo=bar}] as path [b]", err.getMessage());
+        err = expectThrows(IllegalArgumentException.class, () -> wfb.append(doc));
+        assertEquals("cannot append NestedDocument [{foo=bar}] to path [b]", err.getMessage());
     }
 
     public MapOfMaps addPath(Map<String, Object> root, String path, Object value) {
@@ -439,7 +581,6 @@ public class WriteFieldTests extends ESTestCase {
         return next;
     }
 
-
     @SuppressWarnings("unchecked")
     public List<Object> getList(Map<String, Object> map, String path) {
         String[] elements = path.split("\\.");
@@ -449,7 +590,6 @@ public class WriteFieldTests extends ESTestCase {
         assertThat(path, value, instanceOf(List.class));
         return (List<Object>) value;
     }
-
 
     private static class MapOfMaps {
         Map<String, Map<String, Object>> maps = new HashMap<>();

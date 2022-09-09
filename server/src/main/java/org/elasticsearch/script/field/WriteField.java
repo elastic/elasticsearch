@@ -189,7 +189,7 @@ public class WriteField implements Field<Object> {
     public WriteField set(Object value) {
         setLeaf();
         if (value instanceof NestedDocument doc) {
-            value = doc.getDoc();
+            throw new IllegalArgumentException("cannot set NestedDocument [" + doc.getDoc() + "] as path [" + path + "]");
         }
         container.put(leaf, value);
         return this;
@@ -213,7 +213,7 @@ public class WriteField implements Field<Object> {
                 values.add(v);
             }
             if (value instanceof NestedDocument doc) {
-                values.add(doc.getDoc());
+                throw new IllegalArgumentException("cannot append NestedDocument [" + doc.getDoc() + "] to path [" + path + "]");
             } else {
                 values.add(value);
             }
@@ -431,6 +431,7 @@ public class WriteField implements Field<Object> {
      * This will remove a value even if the underlying {@link List} has insertions or deletions without paying a performance
      * penalty where no modifications have occurred.
      */
+    @SuppressWarnings("unchecked")
     void removeExactValue(int index, Object exactValue) {
         Object value = container.getOrDefault(leaf, MISSING);
         if (value == MISSING) {
@@ -439,22 +440,27 @@ public class WriteField implements Field<Object> {
 
         if (value instanceof List<?> list) {
             if (index < list.size()) {
-                Object valueAtIndex = list.get(index);
+                Object valueAtIndex = list.remove(index);
                 if (valueAtIndex == exactValue) {
-                    list.remove(index);
                     return;
-                }
-            } else {
-                Iterator<?> it = list.iterator();
-                while (it.hasNext()) {
-                    if (it.next() == exactValue) {
-                        it.remove();
-                        return;
-                    }
+                } else {
+                    // wrong value
+                    ((List<Object>) list).set(index, valueAtIndex);
                 }
             }
-        } else if (index == 0 && container.get(leaf) == exactValue) {
-            container.remove(leaf);
+            Iterator<?> it = list.iterator();
+            while (it.hasNext()) {
+                if (it.next() == exactValue) {
+                    it.remove();
+                    return;
+                }
+            }
+        } else if (index == 0) {
+            Object valueAtIndex = container.remove(leaf);
+            if (valueAtIndex != exactValue) {
+                // wrong value
+                container.put(leaf, valueAtIndex);
+            }
         }
     }
 
@@ -467,7 +473,7 @@ public class WriteField implements Field<Object> {
         Object value = get(MISSING);
         if (value == MISSING) {
             NestedDocument doc = new NestedDocument(this, 0, new HashMap<>());
-            set(doc);
+            set(doc.getDoc());
             return doc;
         }
 
@@ -517,6 +523,7 @@ public class WriteField implements Field<Object> {
         List<Map<String, Object>> docs;
         NestedDocument doc = new NestedDocument(this, index, new HashMap<>());
 
+        // Are there any values?
         value = get(MISSING);
         if (value == MISSING) {
             docs = new ArrayList<>(index + 1);
@@ -537,7 +544,7 @@ public class WriteField implements Field<Object> {
             );
         }
 
-        for (int i = docs.size(); i <= index; i++) {
+        for (int i = docs.size(); i < index; i++) {
             docs.add(new HashMap<>());
         }
 

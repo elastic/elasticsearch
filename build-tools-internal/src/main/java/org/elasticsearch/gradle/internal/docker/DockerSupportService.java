@@ -33,8 +33,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
 import javax.inject.Inject;
 
 import static java.util.function.Predicate.not;
@@ -104,12 +104,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                         if (lastResult.isSuccess()) {
                             Result buildxResult = runCommand(dockerPath, "buildx", "inspect", "--bootstrap");
                             if (buildxResult.isSuccess()) {
-                                supportedArchitectures = buildxResult.stdout().lines()
+                                supportedArchitectures = buildxResult.stdout()
+                                    .lines()
                                     .filter(l -> l.startsWith("Platforms:"))
                                     .map(l -> l.substring(10))
-                                    .flatMap(l -> Arrays.stream(l.split(","))
-                                        .filter(not(String::isBlank))
-                                    )
+                                    .flatMap(l -> Arrays.stream(l.split(",")).filter(not(String::isBlank)))
                                     .map(String::trim)
                                     .map(s -> Arrays.stream(Architecture.values()).filter(a -> a.dockerPlatform.equals(s)).findAny())
                                     .filter(Optional::isPresent)

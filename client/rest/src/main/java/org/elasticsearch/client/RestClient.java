@@ -52,12 +52,14 @@ import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.protocol.HTTP;
+import org.elasticsearch.client.RestClientBuilder.CompressionScheme;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
@@ -120,6 +122,7 @@ public class RestClient implements Closeable {
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
+    private final CompressionScheme compressionScheme;
     private final boolean metaHeaderEnabled;
 
     RestClient(
@@ -133,6 +136,32 @@ public class RestClient implements Closeable {
         boolean compressionEnabled,
         boolean metaHeaderEnabled
     ) {
+        this(
+            client,
+            defaultHeaders,
+            nodes,
+            pathPrefix,
+            failureListener,
+            nodeSelector,
+            strictDeprecationMode,
+            compressionEnabled,
+            CompressionScheme.gzip,
+            metaHeaderEnabled
+        );
+    }
+
+    RestClient(
+        CloseableHttpAsyncClient client,
+        Header[] defaultHeaders,
+        List<Node> nodes,
+        String pathPrefix,
+        FailureListener failureListener,
+        NodeSelector nodeSelector,
+        boolean strictDeprecationMode,
+        boolean compressionEnabled,
+        CompressionScheme compressionScheme,
+        boolean metaHeaderEnabled
+    ) {
         this.client = client;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
@@ -140,6 +169,7 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
+        this.compressionScheme = compressionScheme;
         this.metaHeaderEnabled = metaHeaderEnabled;
         setNodes(nodes);
     }
@@ -593,36 +623,47 @@ public class RestClient implements Closeable {
         }
     }
 
-    private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity, boolean compressionEnabled) {
+    private static HttpRequestBase createHttpRequest(
+        String method,
+        URI uri,
+        HttpEntity entity,
+        boolean compressionEnabled,
+        CompressionScheme compressionScheme
+    ) {
         switch (method.toUpperCase(Locale.ROOT)) {
             case HttpDeleteWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpDeleteWithEntity(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpDeleteWithEntity(uri), entity, compressionEnabled, compressionScheme);
             case HttpGetWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpGetWithEntity(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpGetWithEntity(uri), entity, compressionEnabled, compressionScheme);
             case HttpHead.METHOD_NAME:
-                return addRequestBody(new HttpHead(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpHead(uri), entity, compressionEnabled, compressionScheme);
             case HttpOptions.METHOD_NAME:
-                return addRequestBody(new HttpOptions(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpOptions(uri), entity, compressionEnabled, compressionScheme);
             case HttpPatch.METHOD_NAME:
-                return addRequestBody(new HttpPatch(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpPatch(uri), entity, compressionEnabled, compressionScheme);
             case HttpPost.METHOD_NAME:
                 HttpPost httpPost = new HttpPost(uri);
-                addRequestBody(httpPost, entity, compressionEnabled);
+                addRequestBody(httpPost, entity, compressionEnabled, compressionScheme);
                 return httpPost;
             case HttpPut.METHOD_NAME:
-                return addRequestBody(new HttpPut(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpPut(uri), entity, compressionEnabled, compressionScheme);
             case HttpTrace.METHOD_NAME:
-                return addRequestBody(new HttpTrace(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpTrace(uri), entity, compressionEnabled, compressionScheme);
             default:
                 throw new UnsupportedOperationException("http method not supported: " + method);
         }
     }
 
-    private static HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity, boolean compressionEnabled) {
+    private static HttpRequestBase addRequestBody(
+        HttpRequestBase httpRequest,
+        HttpEntity entity,
+        boolean compressionEnabled,
+        CompressionScheme compressionScheme
+    ) {
         if (entity != null) {
             if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
                 if (compressionEnabled) {
-                    entity = new ContentCompressingEntity(entity);
+                    entity = new ContentCompressingEntity(entity, compressionScheme);
                 }
                 ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(entity);
             } else {
@@ -786,7 +827,7 @@ public class RestClient implements Closeable {
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
-            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled);
+            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled, compressionScheme);
             this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
             setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
@@ -808,7 +849,11 @@ public class RestClient implements Closeable {
                 }
             }
             if (compressionEnabled) {
-                req.addHeader("Accept-Encoding", "gzip");
+                if (compressionScheme == CompressionScheme.gzip) {
+                    httpRequest.addHeader("Accept-Encoding", "gzip");
+                } else {
+                    httpRequest.addHeader("content-encoding", compressionScheme.name());
+                }
             }
             if (metaHeaderEnabled) {
                 if (req.containsHeader(RestClientBuilder.META_HEADER_NAME) == false) {
@@ -946,16 +991,24 @@ public class RestClient implements Closeable {
      * A gzip compressing entity that also implements {@code getContent()}.
      */
     public static class ContentCompressingEntity extends GzipCompressingEntity {
+        private final CompressionScheme compressionScheme;
 
-        public ContentCompressingEntity(HttpEntity entity) {
+        public ContentCompressingEntity(HttpEntity entity, CompressionScheme compressionScheme) {
             super(entity);
+            this.compressionScheme = compressionScheme;
         }
 
         @Override
         public InputStream getContent() throws IOException {
             ByteArrayInputOutputStream out = new ByteArrayInputOutputStream(1024);
-            try (GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
-                wrappedEntity.writeTo(gzipOut);
+            if (compressionScheme == CompressionScheme.lz4) {
+                try (OutputStream lz4OutputStream = ReuseBuffersLZ4BlockOutputStream.compressedOutputStream(out)) {
+                    wrappedEntity.writeTo(lz4OutputStream);
+                }
+            } else {
+                try (GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
+                    wrappedEntity.writeTo(gzipOut);
+                }
             }
             return out.asInput();
         }
@@ -964,7 +1017,7 @@ public class RestClient implements Closeable {
     /**
      * A ByteArrayOutputStream that can be turned into an input stream without copying the underlying buffer.
      */
-    private static class ByteArrayInputOutputStream extends ByteArrayOutputStream {
+    static class ByteArrayInputOutputStream extends ByteArrayOutputStream {
         ByteArrayInputOutputStream(int size) {
             super(size);
         }

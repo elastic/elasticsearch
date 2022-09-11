@@ -9,7 +9,7 @@ without overriding every other default configuration that the `RestClient`
 is initialized with. This section describes some common scenarios that require
 additional configuration for the low-level Java REST Client.
 
-=== Timeouts
+=== Why Timeouts ?
 
 Configuring requests timeouts can be done by providing an instance of
 `RequestConfigCallback` while building the `RestClient` through its builder.

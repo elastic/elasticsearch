@@ -8,27 +8,26 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.LongSupplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -40,11 +39,7 @@ public class RestGetMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get mapping request is deprecated. "
         + "Use typeless api instead";
 
-    private final ThreadPool threadPool;
-
-    public RestGetMappingAction(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
+    public RestGetMappingAction() {}
 
     @Override
     public List<Route> routes() {
@@ -97,37 +92,25 @@ public class RestGetMappingAction extends BaseRestHandler {
         final HttpChannel httpChannel = request.getHttpChannel();
         return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
             .indices()
-            .getMappings(
-                getMappingsRequest,
-                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request).map(
-                    getMappingsResponse -> new RestGetMappingsResponse(getMappingsResponse, threadPool::relativeTimeInMillis, timeout)
-                )
-            );
-    }
-
-    private static final class RestGetMappingsResponse implements ToXContentObject {
-        private final GetMappingsResponse response;
-        private final LongSupplier relativeTimeSupplierMillis;
-        private final TimeValue timeout;
-        private final long startTimeMs;
-
-        private RestGetMappingsResponse(GetMappingsResponse response, LongSupplier relativeTimeSupplierMillis, TimeValue timeout) {
-            this.response = response;
-            this.relativeTimeSupplierMillis = relativeTimeSupplierMillis;
-            this.timeout = timeout;
-            this.startTimeMs = relativeTimeSupplierMillis.getAsLong();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (relativeTimeSupplierMillis.getAsLong() - startTimeMs > timeout.millis()) {
-                throw new ElasticsearchTimeoutException("Timed out getting mappings");
-            }
-
-            builder.startObject();
-            response.toXContent(builder, params);
-            builder.endObject();
-            return builder;
-        }
+            .getMappings(getMappingsRequest, new RestActionListener<>(channel) {
+                @Override
+                protected void processResponse(GetMappingsResponse getMappingsResponse) throws Exception {
+                    ensureOpen();
+                    channel.sendResponse(
+                        new RestResponse(
+                            RestStatus.OK,
+                            ChunkedRestResponseBody.fromXContent(
+                                () -> Iterators.concat(
+                                    Iterators.single((b, p) -> b.startObject()),
+                                    getMappingsResponse.toXContentChunked(),
+                                    Iterators.single((b, p) -> b.endObject())
+                                ),
+                                request,
+                                channel
+                            )
+                        )
+                    );
+                }
+            });
     }
 }

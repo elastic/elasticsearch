@@ -230,3 +230,38 @@ Which will reply with a date like:
   }
 }
 ----
+
+[[date-synthetic-source]]
+==== Synthetic source preview:[]
+`date` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<copy-to,`copy_to`>>, <<ignore-malformed,`ignore_malformed`>> set to true
+or with <<doc-values,`doc_values`>> disabled.
+
+Synthetic source always sorts `date` fields. For example:
+[source,console,id=synthetic-source-date-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "date": { "type": "date" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "date": ["2015-01-01T12:10:30Z", "2014-01-01T12:10:30Z"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "date": ["2014-01-01T12:10:30.000Z", "2015-01-01T12:10:30.000Z"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

@@ -27,7 +27,7 @@ import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.NumberSortScript;
-import org.elasticsearch.script.RawScript;
+import org.elasticsearch.script.RawDoubleValuesScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -139,8 +139,8 @@ public class ExpressionScriptEngine implements ScriptEngine {
             }
         },
 
-        RawScript.CONTEXT,
-        (Expression expr) -> new ExpressionRawScript(expr) {
+        RawDoubleValuesScript.CONTEXT,
+        (Expression expr) -> new ExpressionRawDoubleValuesScript(expr) {
             @Override
             public boolean isResultDeterministic() {
                 return true;

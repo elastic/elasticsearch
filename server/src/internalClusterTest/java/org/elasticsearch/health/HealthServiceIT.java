@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
@@ -55,20 +57,29 @@ public class HealthServiceIT extends ESIntegTestCase {
             waitForAllNodesToReportHealth();
             for (String node : internalCluster.getNodeNames()) {
                 HealthService healthService = internalCluster.getInstance(HealthService.class, node);
-                List<HealthIndicatorResult> resultList = healthService.getHealth(
-                    internalCluster.client(node),
-                    TestHealthIndicatorService.NAME,
-                    true
-                );
-                /*
-                 * The following is really just asserting that the TestHealthIndicatorService's calculate method was called. The
-                 * assertions that it actually got the HealthInfo data are in the calculate method of TestHealthIndicatorService.
-                 */
-                assertNotNull(resultList);
-                assertThat(resultList.size(), equalTo(1));
-                HealthIndicatorResult testIndicatorResult = resultList.get(0);
-                assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
-                assertThat(testIndicatorResult.symptom(), equalTo(TestHealthIndicatorService.SYMPTOM));
+                AtomicBoolean onResponseCalled = new AtomicBoolean(false);
+                ActionListener<List<HealthIndicatorResult>> listener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(List<HealthIndicatorResult> resultList) {
+                        /*
+                         * The following is really just asserting that the TestHealthIndicatorService's calculate method was called. The
+                         * assertions that it actually got the HealthInfo data are in the calculate method of TestHealthIndicatorService.
+                         */
+                        assertNotNull(resultList);
+                        assertThat(resultList.size(), equalTo(1));
+                        HealthIndicatorResult testIndicatorResult = resultList.get(0);
+                        assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
+                        assertThat(testIndicatorResult.symptom(), equalTo(TestHealthIndicatorService.SYMPTOM));
+                        onResponseCalled.set(true);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+                healthService.getHealth(internalCluster.client(node), listener, TestHealthIndicatorService.NAME, true);
+                assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
             }
         }
     }

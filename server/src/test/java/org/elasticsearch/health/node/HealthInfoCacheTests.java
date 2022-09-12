@@ -55,7 +55,7 @@ public class HealthInfoCacheTests extends ESTestCase {
         healthInfoCache.updateNodeHealth(node1.getId(), GREEN);
         healthInfoCache.updateNodeHealth(node2.getId(), RED);
 
-        Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getDiskHealthInfo();
+        Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
         healthInfoCache.updateNodeHealth(node1.getId(), RED);
 
         assertThat(diskHealthInfo.get(node1.getId()), equalTo(GREEN));
@@ -71,7 +71,7 @@ public class HealthInfoCacheTests extends ESTestCase {
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node1, new DiscoveryNode[] { node1 });
         healthInfoCache.clusterChanged(new ClusterChangedEvent("test", current, previous));
 
-        Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getDiskHealthInfo();
+        Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
         assertThat(diskHealthInfo.get(node1.getId()), equalTo(GREEN));
         assertThat(diskHealthInfo.get(node2.getId()), nullValue());
     }
@@ -85,7 +85,7 @@ public class HealthInfoCacheTests extends ESTestCase {
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node2, allNodes);
         healthInfoCache.clusterChanged(new ClusterChangedEvent("test", current, previous));
 
-        Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getDiskHealthInfo();
+        Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
         assertThat(diskHealthInfo.isEmpty(), equalTo(true));
     }
 }

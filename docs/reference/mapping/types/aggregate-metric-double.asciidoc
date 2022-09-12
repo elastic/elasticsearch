@@ -64,11 +64,8 @@ include::numeric.asciidoc[tag=time_series_metric]
 .Valid `time_series_metric` values for `aggregate_metric_double` fields
 [%collapsible%open]
 ====
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
 
 include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
-
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-summary]
 
 include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
 ====

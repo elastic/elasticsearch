@@ -10,34 +10,25 @@ package org.elasticsearch.xpack.sql.action.compute.data;
 import java.util.Arrays;
 
 /**
- * Block implementation that stores a list of long values
+ * Block implementation that stores a list of double values
  */
-public final class LongBlock extends Block {
+public class DoubleBlock extends Block {
 
-    private final long[] values;
+    private final double[] values;
 
-    public LongBlock(long[] values, int positionCount) {
+    public DoubleBlock(double[] values, int positionCount) {
         super(positionCount);
         this.values = values;
     }
 
-    public long[] getRawLongArray() {
-        return values;
-    }
-
     @Override
-    public long getLong(int position) {
+    public double getDouble(int position) {
         return values[checkPosition(position)];
     }
 
     @Override
-    public double getDouble(int position) {
-        return getLong(position);  // Widening primitive conversions, possible loss of precision
-    }
-
-    @Override
     public String toString() {
-        return "LongBlock{" + "values=" + Arrays.toString(values) + '}';
+        return "DoubleBlock{" + "values=" + Arrays.toString(values) + '}';
     }
 
     private int checkPosition(int position) {

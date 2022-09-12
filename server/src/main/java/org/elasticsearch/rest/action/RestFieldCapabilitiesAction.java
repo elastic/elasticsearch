@@ -9,15 +9,11 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -71,13 +67,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
             }
             fieldRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
         }
-        return channel -> client.fieldCaps(fieldRequest, new RestActionListener<>(channel) {
-            @Override
-            protected void processResponse(FieldCapabilitiesResponse response) throws IOException {
-                ensureOpen();
-                channel.sendResponse(new RestResponse(RestStatus.OK, ChunkedRestResponseBody.fromXContent(response, request, channel)));
-            }
-        });
+        return channel -> client.fieldCaps(fieldRequest, new RestChunkedToXContentListener<>(channel));
     }
 
     private static final ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");

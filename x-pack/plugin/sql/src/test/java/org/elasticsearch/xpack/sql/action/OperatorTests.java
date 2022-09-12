@@ -385,14 +385,7 @@ public class OperatorTests extends ESTestCase {
     // Tests avg aggregators with multiple intermediate partial blocks.
     public void testIntermediateAvgOperators() {
         Operator source = new SequenceLongBlockSourceOperator(LongStream.range(0, 100_000).boxed().toList());
-        List<Page> rawPages = new ArrayList<>();
-        Page page;
-        while ((page = source.getOutput()) != null) {
-            rawPages.add(page);
-        }
-        assert rawPages.size() > 0;
-        // shuffling provides a basic level of randomness to otherwise quite boring data
-        Collections.shuffle(rawPages, random());
+        List<Page> rawPages = drainSourceToPages(source);
 
         Aggregator partialAggregator = null;
         List<Aggregator> partialAggregators = new ArrayList<>();
@@ -420,6 +413,35 @@ public class OperatorTests extends ESTestCase {
         intermediateBlocks.stream().forEach(b -> finalAggregator.processPage(new Page(b)));
         Block resultBlock = finalAggregator.evaluate();
         assertEquals(49_999.5, resultBlock.getDouble(0), 0);
+    }
+
+    // Tests that overflows throw during summation.
+    public void testSumLongOverflow() {
+        Operator source = new SequenceLongBlockSourceOperator(List.of(Long.MAX_VALUE, 1L), 2);
+        List<Page> rawPages = drainSourceToPages(source);
+
+        Aggregator aggregator = new Aggregator(AggregatorFunction.sum, AggregatorMode.SINGLE, 0);
+        System.out.println(rawPages);
+        ArithmeticException ex = expectThrows(ArithmeticException.class, () -> {
+            for (Page page : rawPages) {
+                //rawPages.forEach(aggregator::processPage);
+                System.out.println("processing page: " + page);
+                aggregator.processPage(page);
+            }
+        });
+        assertTrue(ex.getMessage().contains("overflow"));
+    }
+
+    private static List<Page> drainSourceToPages(Operator source) {
+        List<Page> rawPages = new ArrayList<>();
+        Page page;
+        while ((page = source.getOutput()) != null) {
+            rawPages.add(page);
+        }
+        assert rawPages.size() > 0;
+        // shuffling provides a basic level of randomness to otherwise quite boring data
+        Collections.shuffle(rawPages, random());
+        return rawPages;
     }
 
     /** Tuple of groupId and respective value. Both of which are of type long. */
@@ -532,12 +554,16 @@ public class OperatorTests extends ESTestCase {
      */
     class SequenceLongBlockSourceOperator extends AbstractBlockSourceOperator {
 
-        static final int MAX_PAGE_POSITIONS = 16 * 1024;
+        static final int MAX_PAGE_POSITIONS = 8 * 1024;
 
         private final long[] values;
 
         SequenceLongBlockSourceOperator(List<Long> values) {
-            super(MAX_PAGE_POSITIONS);
+            this(values, MAX_PAGE_POSITIONS);
+        }
+
+        SequenceLongBlockSourceOperator(List<Long> values, int maxPagePositions) {
+            super(maxPagePositions);
             this.values = values.stream().mapToLong(Long::longValue).toArray();
         }
 
@@ -572,8 +598,10 @@ public class OperatorTests extends ESTestCase {
             this.maxPagePositions = maxPagePositions;
         }
 
+        /** The number of remaining elements that this source operator will produce. */
         abstract int remaining();
 
+        /** Creates a page containing a block with {@code length} positions, from the given position offset. */
         abstract Page createPage(int positionOffset, int length);
 
         @Override
@@ -585,7 +613,7 @@ public class OperatorTests extends ESTestCase {
                 finish();
                 return null;
             }
-            int length = Math.min(random().nextInt(maxPagePositions), remaining());
+            int length = Math.min(randomInt(maxPagePositions), remaining());
             return createPage(currentPosition, length);
         }
 

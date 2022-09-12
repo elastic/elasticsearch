@@ -37,6 +37,9 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] nodeIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         PrevalidateNodeRemovalRequest prevalidationRequest = new PrevalidateNodeRemovalRequest(nodeIds);
+        prevalidationRequest.masterNodeTimeout(request.paramAsTime("master_timeout", prevalidationRequest.masterNodeTimeout()));
+        // TODO: Do we need timeout?
+        // TODO: Do we need wait_for_completion?
         return channel -> client.execute(
             PrevalidateNodeRemovalAction.INSTANCE,
             prevalidationRequest,
@@ -44,4 +47,8 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
         );
     }
 
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

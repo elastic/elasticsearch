@@ -8,8 +8,7 @@
 
 package org.elasticsearch.plugins;
 
-import joptsimple.internal.Strings;
-
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;

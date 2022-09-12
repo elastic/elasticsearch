@@ -258,7 +258,6 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
 
     /**
      * Returns the package name for the given class name
-     * (from jdk.internal.loader.Loader)
      */
     private String packageName(String cn) {
         int pos = cn.lastIndexOf('.');

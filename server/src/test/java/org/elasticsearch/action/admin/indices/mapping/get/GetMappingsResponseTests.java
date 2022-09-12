@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<GetMappingsResponse> {
 
@@ -61,6 +64,22 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
         GetMappingsResponse resp = new GetMappingsResponse(Map.of("index-" + randomAlphaOfLength(5), createMappingsForIndex()));
         logger.debug("--> created: {}", resp);
         return resp;
+    }
+
+    public void testChunkedXContentUsesChunkPerIndex() {
+        final int indexCount = randomIntBetween(1, 10);
+        final var response = new GetMappingsResponse(
+            IntStream.range(0, indexCount)
+                .mapToObj(i -> "index-" + i)
+                .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> createMappingsForIndex()))
+        );
+        final var chunks = response.toXContentChunked();
+        int chunkCount = 0;
+        while (chunks.hasNext()) {
+            chunks.next();
+            chunkCount++;
+        }
+        assertEquals(indexCount, chunkCount);
     }
 
     // Not meant to be exhaustive

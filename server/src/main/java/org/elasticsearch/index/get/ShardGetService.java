@@ -256,9 +256,17 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         // put stored fields into result objects
         if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
+            Set<String> needed = new HashSet<>();
+            if (storedFields != null) {
+                Collections.addAll(needed, storedFields);
+            }
+            needed.add(RoutingFieldMapper.NAME); // we always return _routing if we see it, even if you don't ask for it.....
             documentFields = new HashMap<>();
             metadataFields = new HashMap<>();
             for (Map.Entry<String, List<Object>> entry : leafStoredFieldLoader.storedFields().entrySet()) {
+                if (false == needed.contains(entry.getKey())) {
+                    continue;
+                }
                 List<Object> values = FetchPhase.processStoredField(mapperService::fieldType, entry.getKey(), entry.getValue());
                 if (mapperService.isMetadataField(entry.getKey())) {
                     metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));

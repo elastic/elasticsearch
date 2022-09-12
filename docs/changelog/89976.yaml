@@ -1,5 +1,0 @@
-pr: 89976
-summary: Restrict the priority of `ShardSnapshotTask` to the same snapshot only
-area: Snapshot/Restore
-type: enhancement
-issues: []

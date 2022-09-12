@@ -142,18 +142,18 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 .Properties of `settings`
 [%collapsible%open]
 ====
-`dates_as_epoch_millis`:::
-(Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
-`docs_per_second`:::
-(Optional, float)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `align_checkpoints`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
+`dates_as_epoch_millis`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
 `deduce_mappings`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-deduce-mappings]
+`docs_per_second`:::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]

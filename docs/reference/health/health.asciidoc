@@ -262,16 +262,18 @@ details have contents and a structure that is unique to each indicator.
 ====
 
 `cluster_formation`::
-    (Optional, map) If there has been no elected master node recently, the node being queried attempts to
+    (Optional, array) If there has been no elected master node recently, the node being queried attempts to
     gather information about why the cluster has been unable to form, or why the node being queried has been
-    unable to join the cluster if it has formed. This could contain each master eligibles
-    node view on the cluster formation. The node id is the key in the map and its 
-    cluster formation information is the value.
+    unable to join the cluster if it has formed. This array could contain any entry for each master eligible
+    node's view of cluster formation.
 +
 .Properties of `cluster_formation`
 [%collapsible%open]
 ====
-`description`::
+`node_id`::
+    (string) The node id of a master-eligible node
+
+`cluster_formation_message`::
     (string) A detailed description explaining what went wrong with cluster formation, or why this node was
     unable to join the cluster if it has formed.
 ====
@@ -342,7 +344,7 @@ details have contents and a structure that is unique to each indicator.
 
 `unhealthy_policies`::
     (map) A detailed view on the policies that are considered unhealthy due to having
-    several consecutive unssuccesful invocations. 
+    several consecutive unssuccesful invocations.
     The `count` key represents the number of unhealthy policies (int).
     The `invocations_since_last_success` key will report a map where the unhealthy policy
     name is the key and it's corresponding number of failed invocations is the value.

@@ -392,8 +392,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.sourcePaths(fullName);
     }
 
+    /**
+     * Will there be {@code _source}.
+     */
     public boolean isSourceEnabled() {
         return mappingLookup.isSourceEnabled();
+    }
+
+    /**
+     * Does the source need to be rebuilt on the fly?
+     */
+    public boolean isSourceSynthetic() {
+        return mappingLookup.isSourceSynthetic();
     }
 
     /**

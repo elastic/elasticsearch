@@ -154,14 +154,15 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     public static boolean shouldInjectMigrateStepForPhase(Phase phase) {
+        if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
+            throw new IllegalArgumentException("Timeseries lifecycle does not support phase [" + phase.getName() + "]");
+        }
+
         // searchable snapshots automatically set their own allocation rules, no need to configure them with a migrate step.
         if (phase.getActions().get(SearchableSnapshotAction.NAME) != null) {
             return false;
         }
 
-        if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
-            throw new IllegalArgumentException("Timeseries lifecycle does not support phase [" + phase.getName() + "]");
-        }
         // do not inject if MigrateAction is not supported for this phase (such as hot, frozen, delete phase)
         if (ALLOWED_ACTIONS.get(phase.getName()).contains(MigrateAction.NAME) == false) {
             return false;

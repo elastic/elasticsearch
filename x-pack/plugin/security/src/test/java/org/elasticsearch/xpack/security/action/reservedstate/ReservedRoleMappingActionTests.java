@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.reservedstate.PostTransformResult;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +25,9 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -40,9 +44,29 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             var content = action.fromXContent(parser);
             var state = action.transform(content, prevState);
-            var modifiedKeys = state.postTransform().get();
 
-            return new TransformState(state.state(), modifiedKeys);
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<Set<String>> updatedKeys = new AtomicReference<>();
+            AtomicReference<Exception> error = new AtomicReference<>();
+            state.postTransform().accept(new ActionListener<>() {
+                @Override
+                public void onResponse(PostTransformResult postTransformResult) {
+                    updatedKeys.set(postTransformResult.updatedKeys());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    error.set(e);
+                    latch.countDown();
+                }
+            });
+
+            latch.await();
+            if (error.get() != null) {
+                throw error.get();
+            }
+            return new TransformState(state.state(), updatedKeys.get());
         }
     }
 
@@ -131,7 +155,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
                 // Simulate put role mapping async action taking a while
                 try {
                     Thread.sleep(1_000);
-                    ((ActionListener<Boolean>) invocation.getArgument(1)).onFailure(new IllegalStateException("done"));
+                    ((ActionListener<Boolean>) invocation.getArgument(1)).onFailure(new IllegalStateException("err_done"));
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -145,7 +169,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
                 // Simulate delete role mapping async action taking a while
                 try {
                     Thread.sleep(1_000);
-                    ((ActionListener<Boolean>) invocation.getArgument(1)).onFailure(new IllegalStateException("done"));
+                    ((ActionListener<Boolean>) invocation.getArgument(1)).onFailure(new IllegalStateException("err_done"));
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -168,30 +192,36 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
                      "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
                      "_reserved": true
                   }
+               },
+               "everyone_fleet": {
+                  "enabled": true,
+                  "roles": [ "fleet_user" ],
+                  "rules": { "field": { "username": "*" } },
+                  "metadata": {
+                     "uuid" : "a9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
+                     "_reserved": true
+                  }
                }
             }""";
 
         assertEquals(
-            "Error creating role mapping [everyone_kibana]",
+            "err_done",
             expectThrows(IllegalStateException.class, () -> processJSON(action, new TransformState(state, Collections.emptySet()), json))
                 .getMessage()
         );
 
-        // Now that we've tested that we wait on putRoleMapping correctly, let it finish without exception so we can test delete
+        // Now that we've tested that we wait on putRoleMapping correctly, let it finish without exception, so we can test error on delete
         doAnswer(invocation -> {
             ((ActionListener<Boolean>) invocation.getArgument(1)).onResponse(true);
             return null;
         }).when(nativeRoleMappingStore).putRoleMapping(any(), any());
 
         updatedState = processJSON(action, updatedState, json);
-        assertThat(updatedState.keys(), containsInAnyOrder("everyone_kibana"));
+        assertThat(updatedState.keys(), containsInAnyOrder("everyone_kibana", "everyone_fleet"));
 
         final TransformState currentState = new TransformState(updatedState.state(), updatedState.keys());
 
-        assertEquals(
-            "Error deleting role mapping [everyone_kibana]",
-            expectThrows(IllegalStateException.class, () -> processJSON(action, currentState, "")).getMessage()
-        );
+        assertEquals("err_done", expectThrows(IllegalStateException.class, () -> processJSON(action, currentState, "")).getMessage());
     }
 
     @SuppressWarnings("unchecked")

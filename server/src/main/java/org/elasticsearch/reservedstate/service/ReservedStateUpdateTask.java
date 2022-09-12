@@ -12,13 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.reservedstate.PostTransformResult;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 
@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.core.Strings.format;
@@ -49,7 +49,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     private final Map<String, ReservedClusterStateHandler<?>> handlers;
     private final Collection<String> orderedHandlers;
     private final BiConsumer<ClusterState, ErrorState> errorReporter;
-    private final ActionListener<ActionResponse.Empty> listener;
+    private final ActionListener<List<Consumer<ActionListener<PostTransformResult>>>> listener;
 
     public ReservedStateUpdateTask(
         String namespace,
@@ -57,7 +57,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         BiConsumer<ClusterState, ErrorState> errorReporter,
-        ActionListener<ActionResponse.Empty> listener
+        ActionListener<List<Consumer<ActionListener<PostTransformResult>>>> listener
     ) {
         this.namespace = namespace;
         this.stateChunk = stateChunk;
@@ -72,22 +72,22 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         listener.onFailure(e);
     }
 
-    ActionListener<ActionResponse.Empty> listener() {
+    ActionListener<List<Consumer<ActionListener<PostTransformResult>>>> listener() {
         return listener;
     }
 
-    protected ClusterState execute(final ClusterState currentState) {
+    protected UpdateResult execute(final ClusterState currentState) {
         ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(namespace);
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
 
         if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
-            return currentState;
+            return new UpdateResult(currentState, List.of());
         }
 
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
-        List<PostTransform> postTransforms = new ArrayList<>();
+        List<Consumer<ActionListener<PostTransformResult>>> postTransforms = new ArrayList<>();
 
         ClusterState state = currentState;
         // Transform the cluster state first
@@ -99,7 +99,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
                 state = transformState.state();
                 reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, transformState.keys()));
                 if (transformState.postTransform() != null) {
-                    postTransforms.add(new PostTransform(handlerName, transformState.postTransform()));
+                    postTransforms.add(transformState.postTransform());
                 }
             } catch (Exception e) {
                 errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
@@ -108,28 +108,13 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         checkAndThrowOnError(errors, currentState, reservedStateVersion);
 
-        // Run the postTransform loop for any handlers that need to perform updates to other things than the cluster state
-        for (var postTransform : postTransforms) {
-            try {
-                // postTransforms don't modify the cluster state, they however are given a chance to return a more
-                // up-to-date version of the modified keys we should save in the reserved state.
-                Set<String> newKeys = postTransform.supplier.get();
-                reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(postTransform.handlerName(), newKeys));
-            } catch (Exception e) {
-                errors.add(format("Error in post transform processing for [%s]: %s", postTransform.handlerName(), stackTrace(e)));
-            }
-        }
-
-        // Most errors should be caught in the transform phase, however we check if the post transform encountered any
-        checkAndThrowOnError(errors, currentState, reservedStateVersion);
-
         // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);
 
         ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(reservedMetadataBuilder.build());
 
-        return stateBuilder.metadata(metadataBuilder).build();
+        return new UpdateResult(stateBuilder.metadata(metadataBuilder).build(), postTransforms);
     }
 
     private void checkAndThrowOnError(List<String> errors, ClusterState currentState, ReservedStateVersion reservedStateVersion) {
@@ -205,5 +190,5 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return true;
     }
 
-    record PostTransform(String handlerName, Supplier<Set<String>> supplier) {}
+    record UpdateResult(ClusterState clusterState, List<Consumer<ActionListener<PostTransformResult>>> postTransforms) {}
 }

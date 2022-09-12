@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.security.action.rolemapping;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.reservedstate.PostTransformResult;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,8 +27,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
@@ -56,9 +56,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         return NAME;
     }
 
-    @SuppressWarnings("unchecked")
-    public Collection<PutRoleMappingRequest> prepare(Object input) {
-        List<ExpressionRoleMapping> roleMappings = (List<ExpressionRoleMapping>) input;
+    public Collection<PutRoleMappingRequest> prepare(List<ExpressionRoleMapping> roleMappings) {
         List<PutRoleMappingRequest> requests = roleMappings.stream().map(rm -> PutRoleMappingRequest.fromMapping(rm)).toList();
 
         var exceptions = new ArrayList<String>();
@@ -82,77 +80,51 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         // We execute the prepare() call to catch any errors in the transform phase.
         // Since we store the role mappings outside the cluster state, we do the actual save with a
         // post transform call.
-        prepare(source);
-        return new TransformState(prevState.state(), prevState.keys(), (() -> postTransform(source, prevState)));
+        @SuppressWarnings("unchecked")
+        var requests = prepare((List<ExpressionRoleMapping>) source);
+        return new TransformState(prevState.state(), prevState.keys(), ((l) -> postTransform(requests, prevState, l)));
     }
 
-    private Set<String> postTransform(Object source, TransformState prevState) {
-        var requests = prepare(source);
-
-        for (var request : requests) {
-            var completionLatch = new CountDownLatch(1);
-            var failure = new AtomicReference<Exception>();
-
-            roleMappingStore.putRoleMapping(request, new ActionListener<>() {
-                @Override
-                public void onResponse(Boolean aBoolean) {
-                    completionLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    failure.set(e);
-                    completionLatch.countDown();
-                }
-            });
-
-            // wait for the async operations to finish
-            try {
-                completionLatch.await();
-                if (failure.get() != null) {
-                    throw new IllegalStateException("Error creating role mapping [" + request.getName() + "]", failure.get());
-                }
-            } catch (InterruptedException ie) {
-                throw new RuntimeException(ie);
-            }
-        }
-
+    private Void postTransform(
+        Collection<PutRoleMappingRequest> requests,
+        TransformState prevState,
+        ActionListener<PostTransformResult> listener
+    ) {
         Set<String> entities = requests.stream().map(r -> r.getName()).collect(Collectors.toSet());
-
         Set<String> toDelete = new HashSet<>(prevState.keys());
         toDelete.removeAll(entities);
+
+        final int tasksCount = requests.size() + toDelete.size();
+
+        // Nothing to do, don't start a group listener with 0 actions
+        if (tasksCount == 0) {
+            listener.onResponse(new PostTransformResult(ReservedRoleMappingAction.NAME, Set.of()));
+            return null;
+        }
+
+        GroupedActionListener<Boolean> taskListener = new GroupedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Collection<Boolean> booleans) {
+                listener.onResponse(new PostTransformResult(ReservedRoleMappingAction.NAME, Collections.unmodifiableSet(entities)));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        }, tasksCount);
+
+        for (var request : requests) {
+            roleMappingStore.putRoleMapping(request, taskListener);
+        }
 
         for (var mappingToDelete : toDelete) {
             var deleteRequest = new DeleteRoleMappingRequest();
             deleteRequest.setName(mappingToDelete);
-            var completionLatch = new CountDownLatch(1);
-            var failure = new AtomicReference<Exception>();
-
-            roleMappingStore.deleteRoleMapping(deleteRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(Boolean aBoolean) {
-                    completionLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    failure.set(e);
-                    completionLatch.countDown();
-                }
-            });
-
-            // wait for the async operations to finish
-            try {
-                completionLatch.await();
-                if (failure.get() != null) {
-                    throw new IllegalStateException("Error deleting role mapping [" + mappingToDelete + "]", failure.get());
-                }
-            } catch (InterruptedException ie) {
-                throw new RuntimeException(ie);
-            }
+            roleMappingStore.deleteRoleMapping(deleteRequest, taskListener);
         }
 
-        return Collections.unmodifiableSet(entities);
+        return null;
     }
 
     @Override

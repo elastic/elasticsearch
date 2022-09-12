@@ -114,7 +114,8 @@ public record ReservedStateErrorMetadata(Long version, ErrorKind errorKind, List
     public enum ErrorKind {
         PARSING("parsing"),
         VALIDATION("validation"),
-        TRANSIENT("transient");
+        TRANSIENT("transient"),
+        POST_TRANSFORM("post_transform");
 
         private final String kind;
 

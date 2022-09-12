@@ -89,6 +89,14 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
              },
              "state": {
                  "role_mappings": {
+                       "everyone_fleet_ok": {
+                          "enabled": true,
+                          "roles": [ "fleet_user" ],
+                          "rules": { "field": { "username": "*" } },
+                          "metadata": {
+                             "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7"
+                          }
+                       },
                        "everyone_kibana_bad": {
                           "enabled": true,
                           "roles": [ "kibana_user" ],
@@ -145,7 +153,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         final ClusterStateResponse clusterStateResponse = client().admin()
             .cluster()
             .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .actionGet();
+            .get();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
             .metadata()
@@ -158,7 +166,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         var request = new GetRoleMappingsRequest();
         request.setNames("everyone_kibana", "everyone_fleet");
-        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).actionGet();
+        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
         assertTrue(response.hasMappings());
         assertThat(
             Arrays.stream(response.mappings()).map(r -> r.getName()).collect(Collectors.toSet()),
@@ -174,6 +182,15 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             expectThrows(
                 IllegalArgumentException.class,
                 () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet()
+            ).getMessage()
+        );
+        assertEquals(
+            "Failed to process request "
+                + "[org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest/unset] "
+                + "with errors: [[everyone_fleet] set as read-only by [file_settings]]",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet()
             ).getMessage()
         );
     }
@@ -217,7 +234,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(awaitSuccessful);
 
         // This should succeed, nothing was reserved
-        client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana_bad")).actionGet();
+        client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana_bad")).get();
+        client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet_ok")).get();
     }
 
     public void testErrorSaved() throws Exception {

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.reservedstate.PostTransformResult;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -146,7 +147,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 (clusterState, errorState) -> {},
                 new ActionListener<>() {
                     @Override
-                    public void onResponse(ActionResponse.Empty empty) {}
+                    public void onResponse(List<Consumer<ActionListener<PostTransformResult>>> empty) {}
 
                     @Override
                     public void onFailure(Exception e) {}
@@ -332,7 +333,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             (clusterState, errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },
             new ActionListener<>() {
                 @Override
-                public void onResponse(ActionResponse.Empty empty) {}
+                public void onResponse(List<Consumer<ActionListener<PostTransformResult>>> empty) {}
 
                 @Override
                 public void onFailure(Exception e) {}

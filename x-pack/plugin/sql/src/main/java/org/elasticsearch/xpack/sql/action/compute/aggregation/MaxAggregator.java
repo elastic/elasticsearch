@@ -66,6 +66,15 @@ public class MaxAggregator implements AggregatorFunction {
         return max;
     }
 
+    static double maxFromLongBlockl(LongBlock block) {
+        long max = Long.MIN_VALUE;
+        long[] values = block.getRawLongArray();
+        for (int i = 0; i < values.length; i++) {
+            max = Math.max(max, values[i]);
+        }
+        return (double)max;
+    }
+
     @Override
     public void addIntermediateInput(Block block) {
         assert channel == -1;

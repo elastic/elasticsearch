@@ -41,11 +41,11 @@ public class SumAggregator implements AggregatorFunction {
         Block block = page.getBlock(channel);
         double sum;
         if (block instanceof LongBlock longBlock) {
-            sum = sumFromLongBlock(longBlock);
+            long cur = (long) state.doubleValue();
+            state.doubleValue(Math.addExact(cur, sumFromLongBlock(longBlock)));
         } else {
-            sum = sumFromBlock(block);
+            state.doubleValue(state.doubleValue() + sumFromBlock(block));
         }
-        state.doubleValue(state.doubleValue() + sum);
     }
 
     static double sumFromBlock(Block block) {
@@ -56,11 +56,17 @@ public class SumAggregator implements AggregatorFunction {
         return sum;
     }
 
-    static double sumFromLongBlock(LongBlock block) {
-        double sum = 0;
+    static long sumFromLongBlock(LongBlock block) {
+        long sum = 0;
         long[] values = block.getRawLongArray();
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            sum += values[i];
+        for (int i = 0; i < values.length; i++) {
+            try {
+                sum = Math.addExact(sum, values[i]);
+            } catch (ArithmeticException e) {
+                var ex = new ArithmeticException("addition overflow"); // TODO: customize the exception
+                ex.initCause(e);
+                throw ex;
+            }
         }
         return sum;
     }
@@ -75,7 +81,7 @@ public class SumAggregator implements AggregatorFunction {
             DoubleState tmpState = new DoubleState();
             for (int i = 0; i < block.getPositionCount(); i++) {
                 blobBlock.get(i, tmpState);
-                state.doubleValue(Math.max(state.doubleValue(), tmpState.doubleValue()));
+                state.doubleValue(state.doubleValue() + tmpState.doubleValue());
             }
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);

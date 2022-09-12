@@ -15,6 +15,24 @@ setup:
                    type: keyword
 
   - do:
+      indices.create:
+        index: date_test_1
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: date_test_2
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date_field:
+                type : date
+
+  - do:
        bulk:
          refresh: true
          body:
@@ -42,13 +60,17 @@ setup:
            - int_field: 151
              double_field: 151.0
              string_field: foo
-
+           - index:
+               _index: date_test_2
+               _id: "5"
+           - date_field: "2021-05-01T00:00:00.000Z"
 ---
 "Basic test":
 
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             the_int_max:
@@ -69,6 +91,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           size: 0
           aggs:
@@ -90,6 +113,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           query:
             constant_score:
@@ -117,6 +141,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             the_missing_max:
@@ -134,6 +159,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             the_missing_max:
@@ -150,6 +176,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             the_int_max:
@@ -170,8 +197,27 @@ setup:
       catch: bad_request
       search:
         rest_total_hits_as_int: true
+        index: test_1
         body:
           aggs:
             the_string_avg:
               avg:
                 field: string_field
+
+---
+"Merging results with unmapped fields":
+  - skip:
+      version: " - 8.3.99"
+      reason: Fixed in 8.4.0
+      
+  - do:
+     search:
+       index: [date_test_1, date_test_2]
+       body:
+         aggs:
+           date_field_max:
+             max:
+               field: date_field
+
+  - match: { aggregations.date_field_max.value: 1619827200000 }
+  - match: { aggregations.date_field_max.value_as_string: "2021-05-01T00:00:00.000Z" }

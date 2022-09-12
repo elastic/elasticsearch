@@ -536,7 +536,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Field data is disabled on [field] in [index]. "
+                "Fielddata is disabled on [field] in [index]. "
                     + "Text fields are not optimised for operations that require per-document field data"
             )
         );

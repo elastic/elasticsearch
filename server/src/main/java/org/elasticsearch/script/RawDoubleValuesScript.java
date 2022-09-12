@@ -27,10 +27,15 @@ public abstract class RawDoubleValuesScript {
     public RawDoubleValuesScript() {}
 
     public abstract double evaluate(DoubleValues[] functionValues);
+
     public abstract DoubleValuesSource getDoubleValuesSource(Function<String, DoubleValuesSource> sourceProvider);
+
     public abstract SortField getSortField(Function<String, DoubleValuesSource> sourceProvider, boolean reverse);
+
     public abstract Rescorer getRescorer(Function<String, DoubleValuesSource> sourceProvider);
+
     public abstract String sourceText();
+
     public abstract String[] variables();
 
     /** A factory to construct {@link RawDoubleValuesScript} instances. */

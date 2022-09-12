@@ -37,6 +37,18 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
+    /*
+    We run parallel caches for the fields-access API ( field('f') ) and
+    the doc-access API.( doc['f'] ) for two reasons:
+    1. correctness - the field cache can store fields that retrieve values
+                     from both doc values and source whereas the doc cache
+                     can only store doc values. This leads to cases such as text
+                     field where sharing a cache could lead to incorrect results in a
+                     script that uses both types of access (likely common during upgrades)
+    2. performance - to keep the performance reasonable we move all caching updates to
+                     per-segment computation as opposed to per-document computation
+    Note that we share doc values between both caches when possible.
+    */
     private final Map<String, DocValuesScriptFieldFactory> fieldFactoryCache = Maps.newMapWithExpectedSize(4);
     private final Map<String, DocValuesScriptFieldFactory> docFactoryCache = Maps.newMapWithExpectedSize(4);
 
@@ -54,6 +66,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
+    /**
+     * @param fieldName the name of the field to retrieve data for
+     * @param isFieldAccess {@code true} if this uses the field-access API, {@code false} if
+     *                                  this uses the doc-access API
+     */
     protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, boolean isFieldAccess) {
         final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 
@@ -76,6 +93,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
                         docFactory = docFactoryCache.get(fieldName);
                     }
 
+                    // if this field has already been accessed via the doc-access API and the field-access API
+                    // uses doc values then we share to avoid double-loading
                     if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
                         factory = docFactory;
                     } else {
@@ -93,6 +112,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
                     if (fieldFactory != null) {
                         IndexFieldData<?> fieldIndexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
 
+                        // if this field has already been accessed via the field-access API and the field-access API
+                        // uses doc values then we share to avoid double-loading
                         if (fieldIndexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
                             factory = fieldFactory;
                         }

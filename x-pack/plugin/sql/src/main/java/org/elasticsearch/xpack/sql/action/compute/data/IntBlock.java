@@ -26,6 +26,11 @@ public class IntBlock extends Block {
     }
 
     @Override
+    public double getDouble(int position) {
+        return getInt(position);  // Widening primitive conversions, no loss of precision
+    }
+
+    @Override
     public String toString() {
         return "IntBlock{" + "values=" + Arrays.toString(values) + '}';
     }

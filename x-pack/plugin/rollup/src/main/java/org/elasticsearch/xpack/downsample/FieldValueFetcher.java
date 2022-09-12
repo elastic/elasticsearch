@@ -17,9 +17,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Utility class used for fetching field values by reading field data
@@ -71,33 +71,39 @@ class FieldValueFetcher {
         }
     }
 
+    private static Map<String, FieldValueFetcher> build(SearchExecutionContext context, String field) {
+        MappedFieldType fieldType = context.getFieldType(field);
+        assert fieldType != null : "Unknown field type for field: [" + field + "]";
+        Map<String, FieldValueFetcher> fetchers = new HashMap<>();
+
+        if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+            for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
+                IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
+                fetchers.put(metricSubField.name(), new FieldValueFetcher(metricSubField.name(), fieldType, fieldData));
+            }
+        } else {
+            IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+            fetchers.put(field, new FieldValueFetcher(field, fieldType, fieldData));
+        }
+        return Collections.unmodifiableMap(fetchers);
+    }
+
     /**
      * Retrieve field fetchers for a list of fields.
      */
-    private static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
-        List<FieldValueFetcher> fetchers = new ArrayList<>(fields.length);
+    private static Map<String, FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
+        Map<String, FieldValueFetcher> fetchers = new HashMap<>();
         for (String field : fields) {
-            MappedFieldType fieldType = context.getFieldType(field);
-            if (fieldType == null) {
-                throw new IllegalArgumentException("Unknown field: [" + field + "]");
-            } else if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
-                for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
-                    IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
-                    fetchers.add(new FieldValueFetcher(field, fieldType, fieldData));
-                }
-            } else {
-                IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                fetchers.add(new FieldValueFetcher(field, fieldType, fieldData));
-            }
+            fetchers.putAll(build(context, field));
         }
-        return Collections.unmodifiableList(fetchers);
+        return Collections.unmodifiableMap(fetchers);
     }
 
-    static List<FieldValueFetcher> forMetrics(SearchExecutionContext context, String[] metricFields) {
+    static Map<String, FieldValueFetcher> forMetrics(SearchExecutionContext context, String[] metricFields) {
         return build(context, metricFields);
     }
 
-    static List<FieldValueFetcher> forLabels(SearchExecutionContext context, String[] labelFields) {
+    static Map<String, FieldValueFetcher> forLabels(SearchExecutionContext context, String[] labelFields) {
         return build(context, labelFields);
     }
 

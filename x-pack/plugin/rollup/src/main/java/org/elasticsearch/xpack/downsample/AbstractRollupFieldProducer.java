@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+
 /**
  * Base class for classes that read metric and label fields.
  */
@@ -34,14 +38,14 @@ abstract class AbstractRollupFieldProducer<T> {
     }
 
     /**
-     * @return the value of the field.
-     */
-    public abstract Object value();
-
-    /**
      * Resets the collected value to the specific subclass reset value.
      */
     public abstract void reset();
+
+    /**
+     * Serialize the downsampled value.
+     */
+    public abstract void writeTo(XContentBuilder builder) throws IOException;
 
     /**
      * @return true if the field has not collected any value.

@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -114,12 +116,23 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
         public Object value() {
             return label().get();
         }
+
+        @Override
+        public void writeTo(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name(), value());
+            }
+        }
     }
 
     /**
      * Produce a collection of label field producers.
      */
-    static Map<String, LabelFieldProducer> buildLabelFieldProducers(SearchExecutionContext context, String[] labelFields) {
+    static Map<String, LabelFieldProducer> buildLabelFieldProducers(
+        SearchExecutionContext context,
+        String[] labelFields,
+        Map<String, FieldValueFetcher> fieldFetchers
+    ) {
         final Map<String, LabelFieldProducer> fields = new LinkedHashMap<>();
         for (String field : labelFields) {
             LabelFieldProducer producer = new LabelLastValueFieldProducer(field);

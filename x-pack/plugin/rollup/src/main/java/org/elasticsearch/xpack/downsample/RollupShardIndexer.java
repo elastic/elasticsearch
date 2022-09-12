@@ -61,13 +61,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * An indexer for rollups that iterates documents collected by {@link TimeSeriesIndexSearcher},
- * computes the rollup buckets and stores the buckets in the rollup index.
+ * An indexer for downsampling that iterates documents collected by {@link TimeSeriesIndexSearcher},
+ * computes the rollup buckets and stores the buckets in the downsampled index.
  *
  * The documents collected by the {@link TimeSeriesIndexSearcher} are expected to be sorted
  * by _tsid in ascending order and @timestamp in descending order.
@@ -91,8 +90,11 @@ class RollupShardIndexer {
     private final String[] dimensionFields;
     private final String[] metricFields;
     private final String[] labelFields;
-    private final List<FieldValueFetcher> metricFieldFetchers;
-    private final List<FieldValueFetcher> labelFieldFetchers;
+    private final Map<String, FieldValueFetcher> metricFieldFetchers;
+    private final Map<String, FieldValueFetcher> labelFieldFetchers;
+
+    private final Map<String, MetricFieldProducer> metricFieldProducers;
+    private final Map<String, LabelFieldProducer> labelFieldProducers;
 
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
@@ -116,7 +118,7 @@ class RollupShardIndexer {
         this.metricFields = metricFields;
         this.labelFields = labelFields;
 
-        this.searcher = indexShard.acquireSearcher("rollup");
+        this.searcher = indexShard.acquireSearcher("downsampling");
         Closeable toClose = searcher;
         try {
             this.searchExecutionContext = indexService.newSearchExecutionContext(
@@ -130,8 +132,16 @@ class RollupShardIndexer {
             this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
+
             this.metricFieldFetchers = FieldValueFetcher.forMetrics(searchExecutionContext, metricFields);
             this.labelFieldFetchers = FieldValueFetcher.forLabels(searchExecutionContext, labelFields);
+            this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(
+                searchExecutionContext,
+                metricFields,
+                metricFieldFetchers
+            );
+            this.labelFieldProducers = LabelFieldProducer.buildLabelFieldProducers(searchExecutionContext, labelFields, labelFieldFetchers);
+
             toClose = null;
         } finally {
             IOUtils.closeWhileHandlingException(toClose);
@@ -234,13 +244,13 @@ class RollupShardIndexer {
             final LeafReaderContext ctx = aggCtx.getLeafReaderContext();
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
-            final Map<String, FormattedDocValues> metricsFieldLeaves = new HashMap<>();
-            for (FieldValueFetcher fetcher : metricFieldFetchers) {
+            final Map<String, FormattedDocValues> metricsFieldLeaves = new HashMap<>(metricFieldFetchers.size());
+            for (FieldValueFetcher fetcher : metricFieldFetchers.values()) {
                 metricsFieldLeaves.put(fetcher.name(), fetcher.getLeaf(ctx));
             }
 
-            final Map<String, FormattedDocValues> labelFieldLeaves = new HashMap<>();
-            for (FieldValueFetcher fetcher : labelFieldFetchers) {
+            final Map<String, FormattedDocValues> labelFieldLeaves = new HashMap<>(labelFieldFetchers.size());
+            for (FieldValueFetcher fetcher : labelFieldFetchers.values()) {
                 labelFieldLeaves.put(fetcher.name(), fetcher.getLeaf(ctx));
             }
 
@@ -313,6 +323,7 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
+
                     for (Map.Entry<String, FormattedDocValues> e : fieldFetchers) {
                         final String fieldName = e.getKey();
                         final FormattedDocValues leafField = e.getValue();
@@ -372,12 +383,9 @@ class RollupShardIndexer {
         private BytesRef tsid;
         private long timestamp;
         private int docCount;
-        private final Map<String, MetricFieldProducer> metricFieldProducers;
-        private final Map<String, LabelFieldProducer> labelFieldProducers;
 
         RollupBucketBuilder() {
-            this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(searchExecutionContext, metricFields);
-            this.labelFieldProducers = LabelFieldProducer.buildLabelFieldProducers(searchExecutionContext, labelFields);
+
         }
 
         /**
@@ -394,8 +402,8 @@ class RollupShardIndexer {
         public RollupBucketBuilder resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
-            this.metricFieldProducers.values().forEach(MetricFieldProducer::reset);
-            this.labelFieldProducers.values().forEach(LabelFieldProducer::reset);
+            metricFieldProducers.values().forEach(MetricFieldProducer::reset);
+            labelFieldProducers.values().forEach(LabelFieldProducer::reset);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",
@@ -451,7 +459,7 @@ class RollupShardIndexer {
         }
 
         public XContentBuilder buildRollupDocument() throws IOException {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
+            final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
             if (isEmpty()) {
                 builder.endObject();
@@ -468,17 +476,14 @@ class RollupShardIndexer {
                 builder.field(e.getKey(), e.getValue());
             }
 
-            for (AbstractRollupFieldProducer<?> fieldProducer : Stream.concat(
-                metricFieldProducers.values().stream(),
-                labelFieldProducers.values().stream()
-            ).toList()) {
-                if (fieldProducer.isEmpty() == false) {
-                    String field = fieldProducer.name();
-                    Object value = fieldProducer.value();
-                    if (value != null) {
-                        builder.field(field, value);
-                    }
-                }
+            // Serialize all metric fields
+            for (var producer : metricFieldProducers.values()) {
+                producer.writeTo(builder);
+            }
+
+            // Serialize all label fields
+            for (var producer : labelFieldProducers.values()) {
+                producer.writeTo(builder);
             }
 
             builder.endObject();

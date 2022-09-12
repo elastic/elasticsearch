@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,17 +65,11 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
         isEmpty = false;
     }
 
-    /**
-     * Return the downsampled value as computed after collecting all raw values.
-     * @return
-     */
-    public abstract Object value();
-
     abstract static class Metric {
         final String name;
 
         /**
-         * Abstract class that defines the how a metric is computed.
+         * Abstract class that defines how a metric is computed.
          * @param name
          */
         protected Metric(String name) {
@@ -227,13 +225,19 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
     static class CounterMetricFieldProducer extends MetricFieldProducer {
 
         CounterMetricFieldProducer(String name) {
-            super(name, List.of(new LastValue()));
+            super(name, Collections.singletonList(new LastValue()));
+        }
+
+        public Object value() {
+            assert metrics().size() == 1 : "Single value producers must have only one metric";
+            return metrics().get(0).get();
         }
 
         @Override
-        public Object value() {
-            assert metrics().size() == 1 : "Counters have only one metric";
-            return metrics().get(0).get();
+        public void writeTo(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name(), value());
+            }
         }
     }
 
@@ -243,18 +247,41 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
     static class GaugeMetricFieldProducer extends MetricFieldProducer {
 
         GaugeMetricFieldProducer(String name) {
-            super(name, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
+            this(name, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
+        }
+
+        GaugeMetricFieldProducer(String name, List<Metric> metrics) {
+            super(name, metrics);
         }
 
         @Override
-        public Object value() {
-            Map<String, Object> metricValues = new HashMap<>();
-            for (MetricFieldProducer.Metric metric : metrics()) {
-                if (metric.get() != null) {
-                    metricValues.put(metric.name, metric.get());
+        public void writeTo(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.startObject(name());
+                for (MetricFieldProducer.Metric metric : metrics()) {
+                    if (metric.get() != null) {
+                        builder.field(metric.name, metric.get());
+                    }
                 }
+                builder.endObject();
             }
-            return Collections.unmodifiableMap(metricValues);
+        }
+    }
+
+    static class SilentMetricFieldProducer extends MetricFieldProducer {
+
+        SilentMetricFieldProducer(String name, Metric metric) {
+            super(name, Collections.singletonList(metric));
+        }
+
+        public Object value() {
+            assert metrics().size() == 1 : "Single value producers must have only one metric";
+            return metrics().get(0).get();
+        }
+
+        @Override
+        public void writeTo(XContentBuilder builder) throws IOException {
+            // No output. It's silent after all
         }
     }
 
@@ -262,19 +289,40 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
      * Produce a collection of metric field producers based on the metric_type mapping parameter in the field
      * mapping.
      */
-    static Map<String, MetricFieldProducer> buildMetricFieldProducers(SearchExecutionContext context, String[] metricFields) {
+    static Map<String, MetricFieldProducer> buildMetricFieldProducers(
+        SearchExecutionContext context,
+        String[] metricFields,
+        Map<String, FieldValueFetcher> fieldFetchers
+    ) {
         final Map<String, MetricFieldProducer> fields = new LinkedHashMap<>();
         for (String field : metricFields) {
             MappedFieldType fieldType = context.getFieldType(field);
-            assert fieldType.getMetricType() != null;
+            assert fieldType != null : "Unknown field type for field: [" + field + "]";
+            assert fieldType.getMetricType() != null : "Unknown metric type for metric field: [" + field + "]";
 
-            MetricFieldProducer producer = switch (fieldType.getMetricType()) {
-                case gauge -> new GaugeMetricFieldProducer(field);
-                case counter -> new CounterMetricFieldProducer(field);
-                default -> throw new IllegalArgumentException("Unsupported metric type [" + fieldType.getMetricType() + "]");
-            };
-
-            fields.put(field, producer);
+            if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+                List<Metric> metricOperations = new ArrayList<>(aggMetricFieldType.getMetricFields().size());
+                for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
+                    AggregateDoubleMetricFieldMapper.Metric metric = e.getKey();
+                    NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
+                    Metric metricOperation = switch (metric) {
+                        case max -> new Max();
+                        case min -> new Min();
+                        case sum, value_count -> new Sum(); // To aggregate value_count summary, we must sum all field values
+                    };
+                    metricOperations.add(metricOperation);
+                    MetricFieldProducer producer = new SilentMetricFieldProducer(metricSubField.name(), metricOperation);
+                    fields.put(metricSubField.name(), producer);
+                }
+                fields.put(field, new GaugeMetricFieldProducer(field, metricOperations));
+            } else {
+                MetricFieldProducer producer = switch (fieldType.getMetricType()) {
+                    case gauge -> new GaugeMetricFieldProducer(field);
+                    case counter -> new CounterMetricFieldProducer(field);
+                    default -> throw new IllegalArgumentException("Unsupported metric type [" + fieldType.getMetricType() + "]");
+                };
+                fields.put(field, producer);
+            }
         }
         return Collections.unmodifiableMap(fields);
     }

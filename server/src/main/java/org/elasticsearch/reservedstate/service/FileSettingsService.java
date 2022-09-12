@@ -83,13 +83,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
     }
 
-    // package private for testing
-    Path operatorSettingsDir() {
+    public Path operatorSettingsDir() {
         return operatorSettingsDir;
     }
 
-    // package private for testing
-    Path operatorSettingsFile() {
+    public Path operatorSettingsFile() {
         return operatorSettingsDir().resolve(SETTINGS_FILE_NAME);
     }
 

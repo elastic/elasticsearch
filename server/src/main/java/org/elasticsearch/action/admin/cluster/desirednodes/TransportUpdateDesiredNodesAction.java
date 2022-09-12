@@ -100,7 +100,9 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         if (request.isCompatibleWithVersion(minNodeVersion) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
-                    "Unable to use processor ranges or floating-point processors in mixed-clusters with nodes in version: " + minNodeVersion
+                    "Unable to use processor ranges, floating-point (with greater precision) processors "
+                        + "in mixed-clusters with nodes in version: "
+                        + minNodeVersion
                 )
             );
             return;
@@ -124,7 +126,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         );
 
         if (latestDesiredNodes != null) {
-            if (latestDesiredNodes.equals(proposedDesiredNodes)) {
+            if (latestDesiredNodes.equalsWithProcessorsCloseTo(proposedDesiredNodes)) {
                 return latestDesiredNodes;
             }
 

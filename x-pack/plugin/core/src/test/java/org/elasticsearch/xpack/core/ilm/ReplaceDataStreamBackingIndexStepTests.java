@@ -38,7 +38,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
         switch (between(0, 2)) {
             case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
             case 2 -> indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
             default -> throw new AssertionError("Illegal randomisation branch");
         }

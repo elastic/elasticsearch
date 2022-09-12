@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.elasticsearch.common.geo.SpatialPoint;
+
 import java.util.function.BiFunction;
 
 /**
@@ -15,12 +17,12 @@ import java.util.function.BiFunction;
  *
  * TODO: We could instead choose the point closer to the centroid which improves unbalanced trees
  */
-public class LabelPositionVisitor<T> extends TriangleTreeReader.DecodedVisitor {
+public class LabelPositionVisitor extends TriangleTreeReader.DecodedVisitor {
 
-    private T labelPosition;
-    private final BiFunction<Double, Double, T> pointMaker;
+    private SpatialPoint labelPosition;
+    private final BiFunction<Double, Double, SpatialPoint> pointMaker;
 
-    public LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, T> pointMaker) {
+    public LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker) {
         super(encoder);
         this.pointMaker = pointMaker;
     }
@@ -75,7 +77,7 @@ public class LabelPositionVisitor<T> extends TriangleTreeReader.DecodedVisitor {
         return labelPosition == null;
     }
 
-    public T labelPosition() {
+    public SpatialPoint labelPosition() {
         return labelPosition;
     }
 }

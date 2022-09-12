@@ -39,6 +39,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
     private final ScaleTimer scaleTimer;
     private final MlMemoryAutoscalingDecider memoryDecider;
+    private final MlProcessorAutoscalingDecider processorDecider;
 
     private volatile boolean isMaster;
 
@@ -66,6 +67,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             nodeLoadDetector,
             scaleTimer
         );
+        this.processorDecider = new MlProcessorAutoscalingDecider(scaleTimer, nodeAvailabilityZoneMapper);
         clusterService.addLocalNodeMasterListener(this);
     }
 
@@ -91,12 +93,21 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         final MlAutoscalingContext mlContext = new MlAutoscalingContext(clusterState);
         final NativeMemoryCapacity currentNativeMemoryCapacity = memoryDecider.currentScale(mlContext.mlNodes);
         final MlMemoryAutoscalingCapacity currentMemoryCapacity = memoryDecider.capacityFromNativeMemory(currentNativeMemoryCapacity);
+        final MlProcessorAutoscalingCapacity currentProcessorCapacity = processorDecider.computeCurrentCapacity(mlContext.mlNodes);
 
         final MlScalingReason.Builder reasonBuilder = MlScalingReason.builder(mlContext)
             .setCurrentMlCapacity(
                 new AutoscalingCapacity(
-                    new AutoscalingCapacity.AutoscalingResources(null, currentMemoryCapacity.tierSize(), null),
-                    new AutoscalingCapacity.AutoscalingResources(null, currentMemoryCapacity.nodeSize(), null)
+                    new AutoscalingCapacity.AutoscalingResources(
+                        null,
+                        currentMemoryCapacity.tierSize(),
+                        currentProcessorCapacity.tierProcessors()
+                    ),
+                    new AutoscalingCapacity.AutoscalingResources(
+                        null,
+                        currentMemoryCapacity.nodeSize(),
+                        currentProcessorCapacity.nodeProcessors()
+                    )
                 )
             )
             .setPassedConfiguration(configuration);
@@ -109,12 +120,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         }
 
         MlMemoryAutoscalingCapacity memoryCapacity = memoryDecider.scale(configuration, context, mlContext);
-        reasonBuilder.setSimpleReason(memoryCapacity.reason());
+        MlProcessorAutoscalingCapacity processorCapacity = processorDecider.scale(configuration, context, mlContext);
+        reasonBuilder.setSimpleReason(
+            String.format(Locale.ROOT, "[memory_decider] %s; [processor_decider] %s", memoryCapacity.reason(), processorCapacity.reason())
+        );
 
         return new AutoscalingDeciderResult(
             new AutoscalingCapacity(
-                new AutoscalingCapacity.AutoscalingResources(null, memoryCapacity.tierSize(), null),
-                new AutoscalingCapacity.AutoscalingResources(null, memoryCapacity.nodeSize(), null)
+                new AutoscalingCapacity.AutoscalingResources(null, memoryCapacity.tierSize(), processorCapacity.tierProcessors()),
+                new AutoscalingCapacity.AutoscalingResources(null, memoryCapacity.nodeSize(), processorCapacity.nodeProcessors())
             ),
             reasonBuilder.build()
         );

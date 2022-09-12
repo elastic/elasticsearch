@@ -145,48 +145,36 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Files.move(repo.resolve("index-" + repositoryData.getGenId()), repo.resolve("index-" + (repositoryData.getGenId() + 1)));
 
         logger.info("--> trying to create another snapshot in order for repository to be marked as corrupt");
-        try {
-            final SnapshotException ex = expectThrows(
-                SnapshotException.class,
-                () -> clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot2")
-                    .setIndices(indexFast)
-                    .setWaitForCompletion(true)
-                    .execute()
-                    .actionGet()
-            );
-            assertThat(ex.getMessage(), containsString("failed to update snapshot in repository"));
-        } catch (Exception ex) {
-            ;
-        }
+        final SnapshotException snapshotException = expectThrows(
+            SnapshotException.class,
+            () -> clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot2")
+                .setIndices(indexFast)
+                .setWaitForCompletion(true)
+                .execute()
+                .actionGet()
+        );
+        assertThat(snapshotException.getMessage(), containsString("failed to update snapshot in repository"));
         assertEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryMetadata(repoName).generation());
 
         logger.info("--> recreating the repository in order to reset corrupted state, which should fail due to ongoing snapshot");
-        try {
-            final RepositoryConflictException ex = expectThrows(
-                RepositoryConflictException.class,
-                () -> createRepository(repoName, "mock", Settings.builder().put(repoSettings))
-            );
-            assertThat(ex.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
-        } catch (Exception ex) {
-            ;
-        }
+        final RepositoryConflictException repoException = expectThrows(
+            RepositoryConflictException.class,
+            () -> createRepository(repoName, "mock", Settings.builder().put(repoSettings))
+        );
+        assertThat(repoException.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
 
         logger.info("--> unblocking slow snapshot and let it fail due to corrupt repository");
         assertThat(slowFuture.isDone(), is(false));
         unblockNode(repoName, slowDataNode);
-        try {
-            final ExecutionException ex = expectThrows(ExecutionException.class, () -> slowFuture.get().getSnapshotInfo());
-            assertThat(
-                // Inner exceptions: RemoteTransportException > RepositoryException (whose message we check)
-                ex.getCause().getCause().getMessage(),
-                containsString("Could not read repository data because the contents of the repository do not match its expected state")
-            );
-        } catch (Exception ex) {
-            ;
-        }
+        final ExecutionException executionException = expectThrows(ExecutionException.class, () -> slowFuture.get().getSnapshotInfo());
+        assertThat(
+            executionException.getCause().getMessage(), // Inner exception: RepositoryException (whose message we check)
+            containsString("Could not read repository data because the contents of the repository do not match its expected state")
+        );
 
         logger.info("--> without snapshots in progress, finally recreate repository to reset corrupted state");
         createRepository(repoName, "mock", Settings.builder().put(repoSettings));
+        assertNotEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryMetadata(repoName).generation());
     }
 
     public void testDeletesAreBatched() throws Exception {

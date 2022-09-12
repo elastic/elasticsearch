@@ -1901,7 +1901,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final List<String> visibleOpenIndices = new ArrayList<>();
             final List<String> allClosedIndices = new ArrayList<>();
             final List<String> visibleClosedIndices = new ArrayList<>();
-            final Map<String, IndexMetadata> indicesMap = indices;
+            final Map<String, IndexMetadata> indicesMap = new HashMap<>(indices);
 
             int oldestIndexVersionId = Version.CURRENT.id;
             int totalNumberOfShards = 0;

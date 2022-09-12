@@ -9,15 +9,18 @@
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
@@ -27,42 +30,57 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
-// TODO: should this instead extend TransportMasterNodeReadAction?
-public class TransportPrevalidateNodeRemovalAction extends TransportAction<PrevalidateNodeRemovalRequest, PrevalidateNodeRemovalResponse> {
+public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeReadAction<
+    PrevalidateNodeRemovalRequest,
+    PrevalidateNodeRemovalResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPrevalidateNodeRemovalAction.class);
 
-    private final NodeClient client;
-
     @Inject
-    public TransportPrevalidateNodeRemovalAction(ActionFilters actionFilters, TransportService transportService, NodeClient client) {
-        super(PrevalidateNodeRemovalAction.NAME, actionFilters, transportService.getTaskManager());
-        this.client = client;
+    public TransportPrevalidateNodeRemovalAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PrevalidateNodeRemovalAction.NAME,
+            false,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PrevalidateNodeRemovalRequest::new,
+            indexNameExpressionResolver,
+            PrevalidateNodeRemovalResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void doExecute(Task task, PrevalidateNodeRemovalRequest request, ActionListener<PrevalidateNodeRemovalResponse> listener) {
-        // TODO: Need to set masterNodeTimeOut?
-        client.admin().cluster().health(new ClusterHealthRequest(), new ActionListener<>() {
-            @Override
-            public void onResponse(ClusterHealthResponse clusterHealthResponse) {
-                doPrevalidation(request, clusterHealthResponse, listener);
-            }
+    protected void masterOperation(
+        Task task,
+        PrevalidateNodeRemovalRequest request,
+        ClusterState state,
+        ActionListener<PrevalidateNodeRemovalResponse> listener
+    ) throws Exception {
+        // TODO: Need to set masterNodeTimeOut
+        doPrevalidation(request, new ClusterStateHealth(state), listener);
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug("failed to get cluster health", e);
-                listener.onFailure(e);
-            }
-        });
+    @Override
+    protected ClusterBlockException checkBlock(PrevalidateNodeRemovalRequest request, ClusterState state) {
+        // Allow running this action even when there are blocks on the cluster
+        return null;
     }
 
     private void doPrevalidation(
         PrevalidateNodeRemovalRequest prevalidationRequest,
-        ClusterHealthResponse clusterHealthResponse,
+        ClusterStateHealth clusterStateHealth,
         ActionListener<PrevalidateNodeRemovalResponse> listener
     ) {
-        switch (clusterHealthResponse.getStatus()) {
+        switch (clusterStateHealth.getStatus()) {
             case GREEN, YELLOW -> {
                 Result overall = new Result(IsSafe.YES, "");
                 Map<String, Result> nodeResults = prevalidationRequest.getNodeIds()
@@ -71,6 +89,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportAction<Preva
                 listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(overall, nodeResults)));
             }
             case RED -> {
+                // TODO: search for RED indices which are searchable snapshot based.
                 Result overall = new Result(IsSafe.UNKNOWN, "cluster health is RED");
                 Map<String, Result> nodeResults = prevalidationRequest.getNodeIds()
                     .stream()

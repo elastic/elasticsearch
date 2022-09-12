@@ -50,10 +50,7 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
         return NAME;
     }
 
-    @SuppressWarnings("unchecked")
-    public Collection<PutAutoscalingPolicyAction.Request> prepare(Object input) {
-        List<PutAutoscalingPolicyAction.Request> policies = (List<PutAutoscalingPolicyAction.Request>) input;
-
+    private Collection<PutAutoscalingPolicyAction.Request> prepare(List<PutAutoscalingPolicyAction.Request> policies) {
         for (var policy : policies) {
             validate(policy);
         }
@@ -63,7 +60,8 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
 
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
-        var requests = prepare(source);
+        @SuppressWarnings("unchecked")
+        var requests = prepare((List<PutAutoscalingPolicyAction.Request>) source);
         ClusterState state = prevState.state();
 
         for (var request : requests) {

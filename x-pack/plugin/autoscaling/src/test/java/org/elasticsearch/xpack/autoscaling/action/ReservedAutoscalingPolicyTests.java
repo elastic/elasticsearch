@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
+import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 
@@ -101,6 +102,12 @@ public class ReservedAutoscalingPolicyTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, json);
         assertThat(updatedState.keys(), containsInAnyOrder("my_autoscaling_policy", "my_autoscaling_policy_1"));
+        AutoscalingMetadata autoMetadata = updatedState.state().metadata().custom(AutoscalingMetadata.NAME);
+        assertThat(autoMetadata.policies().keySet(), containsInAnyOrder("my_autoscaling_policy", "my_autoscaling_policy_1"));
+        assertThat(autoMetadata.policies().get("my_autoscaling_policy").policy().roles(), containsInAnyOrder("data_hot"));
+        assertThat(autoMetadata.policies().get("my_autoscaling_policy").policy().deciders().keySet(), containsInAnyOrder("fixed"));
+        assertThat(autoMetadata.policies().get("my_autoscaling_policy_1").policy().roles(), containsInAnyOrder("data_warm"));
+        assertThat(autoMetadata.policies().get("my_autoscaling_policy_1").policy().deciders().keySet(), containsInAnyOrder("fixed"));
 
         String halfJSON = """
             {

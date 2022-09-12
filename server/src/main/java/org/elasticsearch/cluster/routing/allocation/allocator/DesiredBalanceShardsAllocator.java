@@ -73,10 +73,20 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler
     ) {
+        this(delegateAllocator, threadPool, clusterService, new DesiredBalanceComputer(delegateAllocator), reconciler);
+    }
+
+    public DesiredBalanceShardsAllocator(
+        ShardsAllocator delegateAllocator,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        DesiredBalanceComputer desiredBalanceComputer,
+        DesiredBalanceReconcilerAction reconciler
+    ) {
         this.delegateAllocator = delegateAllocator;
         this.clusterService = clusterService;
         this.reconciler = reconciler;
-        this.desiredBalanceComputer = new DesiredBalanceComputer(delegateAllocator);
+        this.desiredBalanceComputer = desiredBalanceComputer;
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
@@ -90,6 +100,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 if (isFresh(desiredBalanceInput)) {
                     logger.trace("Scheduling a reconciliation");
                     submitReconcileTask(currentDesiredBalance);
+                } else {
+                    logger.trace("outdated");
                 }
             }
 

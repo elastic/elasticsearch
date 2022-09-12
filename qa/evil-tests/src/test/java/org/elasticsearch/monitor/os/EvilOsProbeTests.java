@@ -9,6 +9,7 @@
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -24,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class EvilOsProbeTests extends ESTestCase {
 
     public void testOsPrettyName() throws IOException {
-        final OsInfo osInfo = OsProbe.getInstance().osInfo(randomLongBetween(1, 100), randomIntBetween(1, 8));
+        final OsInfo osInfo = OsProbe.getInstance().osInfo(randomLongBetween(1, 100), Processors.of((double) randomIntBetween(1, 8)));
         if (Constants.LINUX) {
             final List<String> lines;
             if (Files.exists(PathUtils.get("/etc/os-release"))) {

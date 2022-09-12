@@ -1,0 +1,5 @@
+pr: 89934
+summary: Fix deadlock bug exposed by the test
+area: Infra/Core
+type: bug
+issues: []

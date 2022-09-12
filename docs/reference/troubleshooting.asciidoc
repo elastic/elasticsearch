@@ -44,6 +44,7 @@ fix problems that an {es} deployment might encounter.
 * <<monitoring-troubleshooting,Troubleshooting monitoring>>
 * <<transform-troubleshooting,Troubleshooting transforms>>
 * <<watcher-troubleshooting,Troubleshooting Watcher>>
+* <<troubleshooting-searches,Troubleshooting searches>>
 
 If none of these solutions relate to your issue, you can still get help:
 
@@ -103,3 +104,5 @@ include::monitoring/troubleshooting.asciidoc[]
 include::transform/troubleshooting.asciidoc[leveloffset=+1]
 
 include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
+
+include::troubleshooting/troubleshooting-searches.asciidoc[]

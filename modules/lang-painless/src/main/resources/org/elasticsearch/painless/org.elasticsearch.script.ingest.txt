@@ -69,7 +69,6 @@ class org.elasticsearch.script.field.WriteField {
 class org.elasticsearch.script.field.NestedDocument {
     WriteField field(String)
     Stream fields(String)
-    int index()
     boolean isEmpty()
     int size()
     boolean exists()

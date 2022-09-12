@@ -13,13 +13,11 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 public class NestedDocument {
-    private WriteField parent;
-    private int index;
-    private Map<String, Object> doc;
+    private final WriteField parent;
+    private final Map<String, Object> doc;
 
-    public NestedDocument(WriteField parent, int index, Map<String, Object> doc) {
+    public NestedDocument(WriteField parent, Map<String, Object> doc) {
         this.parent = parent;
-        this.index = index;
         this.doc = Objects.requireNonNull(doc);
     }
 
@@ -35,10 +33,6 @@ public class NestedDocument {
      */
     public Stream<WriteField> fields(String glob) {
         throw new UnsupportedOperationException("unimplemented");
-    }
-
-    public int index() {
-        return index;
     }
 
     /**
@@ -66,7 +60,7 @@ public class NestedDocument {
      * Remove this NestedDocument
      */
     public void remove() {
-        parent.removeExactValue(index, doc);
+        parent.remove(doc);
     }
 
     /**

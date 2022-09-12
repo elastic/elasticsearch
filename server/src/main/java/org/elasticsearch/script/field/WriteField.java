@@ -426,43 +426,25 @@ public class WriteField implements Field<Object> {
     }
 
     /**
-     * Removes the value at {@param index} if it is the same object as {@param exactValue} using reference equality.
-     *
-     * If {@param exactValue} is not at {@param index}, remove the first instance of {@param exactValue} in this {@code WriteField}.
-     *
-     * This will remove a value even if the underlying {@link List} has insertions or deletions without paying a performance
-     * penalty where no modifications have occurred.
+     * Removes the {@param o} if this WriteField contains {@param o} using reference equality.
      */
-    @SuppressWarnings("unchecked")
-    void removeExactValue(int index, Object exactValue) {
+    void remove(Object o) {
         Object value = container.getOrDefault(leaf, MISSING);
         if (value == MISSING) {
             return;
         }
 
         if (value instanceof List<?> list) {
-            if (index < list.size()) {
-                Object valueAtIndex = list.remove(index);
-                if (valueAtIndex == exactValue) {
-                    return;
-                } else {
-                    // wrong value
-                    ((List<Object>) list).set(index, valueAtIndex);
-                }
-            }
             Iterator<?> it = list.iterator();
+            // List.remove(Object) uses Objects.equals which will check content equality for Maps.
             while (it.hasNext()) {
-                if (it.next() == exactValue) {
+                if (it.next() == o) {
                     it.remove();
                     return;
                 }
             }
-        } else if (index == 0) {
-            Object valueAtIndex = container.remove(leaf);
-            if (valueAtIndex != exactValue) {
-                // wrong value
-                container.put(leaf, valueAtIndex);
-            }
+        } else if (container.get(leaf) == value) {
+            container.remove(leaf);
         }
     }
 
@@ -474,7 +456,7 @@ public class WriteField implements Field<Object> {
 
         Object value = get(MISSING);
         if (value == MISSING) {
-            NestedDocument doc = new NestedDocument(this, 0, new HashMap<>());
+            NestedDocument doc = new NestedDocument(this, new HashMap<>());
             set(doc.getDoc());
             return doc;
         }
@@ -492,7 +474,7 @@ public class WriteField implements Field<Object> {
             throw new IllegalStateException("Cannot append a doc at [" + path + "] to [" + value + "] of type [" + typeName(value) + "]");
         }
 
-        NestedDocument doc = new NestedDocument(this, docs.size(), new HashMap<>());
+        NestedDocument doc = new NestedDocument(this, new HashMap<>());
         docs.add(doc.getDoc());
         return doc;
     }
@@ -506,7 +488,7 @@ public class WriteField implements Field<Object> {
         Object value = get(index, MISSING);
         if (value != MISSING) {
             if (value instanceof Map<?, ?> map) {
-                return new NestedDocument(this, index, (Map<String, Object>) map);
+                return new NestedDocument(this, (Map<String, Object>) map);
             }
             throw new IllegalArgumentException(
                 "Expected NestedDocument at path ["
@@ -523,7 +505,7 @@ public class WriteField implements Field<Object> {
         }
 
         List<Map<String, Object>> docs;
-        NestedDocument doc = new NestedDocument(this, index, new HashMap<>());
+        NestedDocument doc = new NestedDocument(this, new HashMap<>());
 
         // Are there any values?
         value = get(MISSING);
@@ -579,7 +561,7 @@ public class WriteField implements Field<Object> {
                         throw new NoSuchElementException();
                     }
                     done = true;
-                    return new NestedDocument(WriteField.this, 0, (Map<String, Object>) map);
+                    return new NestedDocument(WriteField.this, (Map<String, Object>) map);
                 }
 
                 @Override
@@ -603,7 +585,8 @@ public class WriteField implements Field<Object> {
                 public NestedDocument next() {
                     Object value = it.next();
                     if (value instanceof Map<?, ?> map) {
-                        return new NestedDocument(WriteField.this, index++, (Map<String, Object>) map);
+                        index++;
+                        return new NestedDocument(WriteField.this, (Map<String, Object>) map);
                     }
 
                     throw new IllegalStateException(

@@ -605,17 +605,14 @@ public class WriteFieldTests extends ESTestCase {
         assertTrue(it.hasNext());
         doc = it.next();
         assertThat(doc.getDoc(), equalTo(lmn));
-        assertEquals(0, doc.index());
 
         assertTrue(it.hasNext());
         doc = it.next();
         assertThat(doc.getDoc(), equalTo(rst));
-        assertEquals(1, doc.index());
 
         assertTrue(it.hasNext());
         doc = it.next();
         assertThat(doc.getDoc(), equalTo(alpha));
-        assertEquals(2, doc.index());
 
         assertFalse(it.hasNext());
         expectThrows(NoSuchElementException.class, it::next);
@@ -683,7 +680,6 @@ public class WriteFieldTests extends ESTestCase {
         doc.field("c").set("foo");
         assertEquals("foo", wf.doc(3).field("c").get("dne"));
         doc = wf.doc(3);
-        assertEquals(3, doc.index());
         assertThat(getList(root, "a.b").get(3), equalTo(Map.of("c", "foo")));
     }
 
@@ -703,7 +699,6 @@ public class WriteFieldTests extends ESTestCase {
 
         wf.doc(2);
         NestedDocument doc = wf.doc(0);
-        assertEquals(0, doc.index());
         assertThat(getList(root, "a.b").get(0), equalTo(b));
     }
 

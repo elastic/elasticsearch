@@ -909,7 +909,7 @@ public class TextFieldMapper extends FieldMapper {
             } else if (operation == FielddataOperation.SEARCH) {
                 if (fielddata == false) {
                     throw new IllegalArgumentException(
-                        "Field data is disabled on ["
+                        "Fielddata is disabled on ["
                             + name()
                             + "] in ["
                             + fieldDataContext.fullyQualifiedIndexName()

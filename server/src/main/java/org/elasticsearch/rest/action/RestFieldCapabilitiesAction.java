@@ -9,11 +9,15 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -67,12 +71,18 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
             }
             fieldRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
         }
-        return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
+        return channel -> client.fieldCaps(fieldRequest, new RestActionListener<>(channel) {
+            @Override
+            protected void processResponse(FieldCapabilitiesResponse response) throws IOException {
+                ensureOpen();
+                channel.sendResponse(new RestResponse(RestStatus.OK, ChunkedRestResponseBody.fromXContent(response, request, channel)));
+            }
+        });
     }
 
-    private static ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
-    private static ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
-    private static ParseField FIELDS_FIELD = new ParseField("fields");
+    private static final ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
+    private static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+    private static final ParseField FIELDS_FIELD = new ParseField("fields");
 
     private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
 

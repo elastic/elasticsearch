@@ -214,7 +214,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * The likely cause is that a children aggregation has a terms aggregator with collection mode breadth_first and this
      * terms aggregator has a sub aggregation that requires score. See #37650
      * Sub aggregators of children aggregation can't access scores, because that information isn't kept track of by the children aggregator
-     * when collect mode is breath first. Keeping track of this scores in breath first mode would require a non-trivial amount of heap memory.
+     * when collect mode is breath first. Keeping track of this scores in breath first mode would require a non-trivial amount of heap
+     * memory.
      */
     private static void failInCaseOfBadScorer(String message) {
         String likelyExplanation =

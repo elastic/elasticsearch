@@ -1,5 +1,0 @@
-pr: 89457
-summary: Do not inject MigrateAction if it is not supported
-area: ILM+SLM
-type: enhancement
-issues: []

@@ -110,10 +110,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     static {
         final String property = System.getProperty("es.untrusted_remote_cluster_feature_flag_registered");
         if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.untrusted_remote_cluster_feature_flag_registered " +
-                "is only supported in non-snapshot builds");
+            throw new IllegalArgumentException(
+                "es.untrusted_remote_cluster_feature_flag_registered " + "is only supported in non-snapshot builds"
+            );
         }
         UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
+    }
+
+    public static boolean isUntrustedRemoteClusterEnabled() {
+        return Build.CURRENT.isSnapshot()
+            || (UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED != null && UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED);
     }
 
     private final boolean ignoreDeserializationErrors;

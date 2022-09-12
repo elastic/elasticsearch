@@ -274,7 +274,7 @@ join_keys = ["1.5.0"]
 
 
 [[queries]]
-name = "sequenceWithMultivalueOneToMany"
+name = "sequenceWithMultivalue_OneToMany"
 query = '''
   sequence by tags
     [ REQUEST where true ]
@@ -285,7 +285,7 @@ join_keys = ["tag1"]
 
 
 [[queries]]
-name = "sequenceWithMultivalueManyToOne"
+name = "sequenceWithMultivalue_ManyToOne"
 query = '''
   sequence by tags
     [ process where true ]
@@ -296,7 +296,7 @@ join_keys = ["tag6"]
 
 
 [[queries]]
-name = "sequenceWithMultivalueManyToMany"
+name = "sequenceWithMultivalue_ManyToMany"
 query = '''
   sequence by tags
     [ REQUEST where true ]
@@ -307,7 +307,7 @@ join_keys = ["tag1", "tag3", "tag4"]
 
 
 [[queries]]
-name = "sequenceWithMultivalueCartesianProduct"
+name = "sequenceWithMultivalue_CartesianProduct"
 query = '''
   sequence by tags, items
     [ REQUEST where true ]
@@ -315,3 +315,36 @@ query = '''
 '''
 expected_event_ids  = [4, 23, 4, 23, 4, 23, 4, 23]
 join_keys = ["tag3", "item1", "tag3", "item2", "tag4", "item1", "tag4", "item2"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_Duplicates"
+query = '''
+  sequence by tags_with_duplicates
+    [ process where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [12, 13, 12, 13]
+join_keys = ["tag1", "tag2"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_RandomOrder"
+query = '''
+  sequence by tags_unordered
+    [ file where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [14, 15, 14, 15]
+join_keys = ["tag1", "tag5"]
+
+
+[[queries]]
+name = "sequenceWithMultivalue_NullValues"
+query = '''
+  sequence by tags_with_null
+    [ any where true ]
+    [ any where true ]
+'''
+expected_event_ids  = [16, 19, 16, 20]
+join_keys = ["tag1", "tag2"]

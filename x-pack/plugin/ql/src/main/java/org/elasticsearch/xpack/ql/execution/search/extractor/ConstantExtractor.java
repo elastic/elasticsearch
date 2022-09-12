@@ -54,11 +54,6 @@ public class ConstantExtractor implements HitExtractor, BucketExtractor {
     }
 
     @Override
-    public Object extract(SearchHit hit, boolean allowMultivalue) {
-        return constant;
-    }
-
-    @Override
     public String hitName() {
         return null;
     }

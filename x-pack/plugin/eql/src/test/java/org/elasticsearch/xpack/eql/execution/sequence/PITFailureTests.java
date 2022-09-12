@@ -197,10 +197,5 @@ public class PITFailureTests extends ESTestCase {
         public Timestamp extract(SearchHit hit) {
             return Timestamp.of(String.valueOf(hit.docId()));
         }
-
-        @Override
-        public Timestamp extract(SearchHit hit, boolean allowMultivalue) {
-            return Timestamp.of(String.valueOf(hit.docId()));
-        }
     }
 }

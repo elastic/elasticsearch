@@ -78,40 +78,46 @@
   "event_type": "process",
   "transID": 2,
   "process.pid": 123,
-  "sequence": 12
+  "sequence": 12,
+  "tags_with_duplicates": ["tag1", "tag1", "tag2"]
  },
  {
   "@timestamp": "3",
   "event_type": "file",
   "transID": 0,
   "process.pid": 123,
-  "sequence": 13
+  "sequence": 13,
+  "tags_with_duplicates": ["tag1", "tag2", "tag2"]
  },
  {
   "@timestamp": "4",
   "event_type": "file",
   "transID": 0,
   "process.pid": 123,
-  "sequence": 14
+  "sequence": 14,
+  "tags_unordered": ["tag5", "tag1", "tag2"]
  },
  {
   "@timestamp": "5",
   "event_type": "file",
   "transID": 0,
   "process.pid": 123,
-  "sequence": 15
+  "sequence": 15,
+  "tags_unordered": ["tag7", "tag1", "tag5"]
  },
  {
   "@timestamp": "6",
   "event_type": "file",
   "transID": 0,
-  "sequence": 16
+  "sequence": 16,
+  "tags_with_null": ["tag1", null, "tag2"]
  },
   {
   "@timestamp": "6",
   "event_type": "file",
   "transID": 0,
-  "sequence": 17
+  "sequence": 17,
+  "tags_with_null": null
  },
  {
   "@timestamp": "7",
@@ -120,7 +126,8 @@
   "process.entity_id": 512,
   "process.pid": 123,
   "version": "1.5.0",
-  "sequence": 18
+  "sequence": 18,
+  "tags_with_null": [null]
  },
  {
   "@timestamp": "8",
@@ -129,7 +136,8 @@
   "process.entity_id": 512,
   "process.pid": 123,
   "version": "1.5.0",
-  "sequence": 19
+  "sequence": 19,
+  "tags_with_null": ["tag1"]
  },
  {
   "@timestamp": "9",
@@ -138,7 +146,8 @@
   "process.entity_id": 512,
   "process.pid": 123,
   "version": "1.2.4",
-  "sequence": 20
+  "sequence": 20,
+  "tags_with_null": "tag2"
  },
  {
   "@timestamp": "10",

@@ -113,11 +113,6 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
             }
 
             @Override
-            public Object extract(SearchHit hit, boolean allowMultivalue) {
-                return o;
-            }
-
-            @Override
             public String hitName() {
                 return null;
             }

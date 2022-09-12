@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -621,8 +622,8 @@ public class TumblingWindow implements Executable {
 
             return new Iterator<>() {
 
-                SearchHit lastHit = delegate.hasNext() ? delegate.next() : null;
-                List<Object[]> remainingHitJoinKeys = extractJoinKeys(lastHit);
+                SearchHit lastFetchedHit = delegate.hasNext() ? delegate.next() : null;
+                List<Object[]> remainingHitJoinKeys = lastFetchedHit == null ? Collections.emptyList() : extractJoinKeys(lastFetchedHit);
 
                 /**
                  * extract the join key from a hit. If there are multivalues, the result is the cartesian product.
@@ -641,8 +642,8 @@ public class TumblingWindow implements Executable {
 
                     for (int i = 0; originalKeys != null && i < originalKeys.length; i++) {
                         if (originalKeys[i] instanceof List<?>) {
-                            List<Object[]> newPartial = new ArrayList<>();
                             List<?> possibleValues = (List<?>) originalKeys[i];
+                            List<Object[]> newPartial = new ArrayList<>(possibleValues.size() * partial.size());
                             for (Object possibleValue : possibleValues) {
                                 for (Object[] partialKey : partial) {
                                     Object[] newKey = new Object[originalKeys.length];
@@ -665,20 +666,23 @@ public class TumblingWindow implements Executable {
 
                 @Override
                 public boolean hasNext() {
-                    return remainingHitJoinKeys != null && remainingHitJoinKeys.isEmpty() == false || delegate.hasNext();
+                    return CollectionUtils.isEmpty(remainingHitJoinKeys) == false || delegate.hasNext();
                 }
 
                 @Override
                 public Tuple<KeyAndOrdinal, HitReference> next() {
                     if (remainingHitJoinKeys.isEmpty()) {
-                        lastHit = delegate.next();
-                        remainingHitJoinKeys = extractJoinKeys(lastHit);
+                        lastFetchedHit = delegate.next();
+                        remainingHitJoinKeys = extractJoinKeys(lastFetchedHit);
                     }
                     Object[] joinKeys = remainingHitJoinKeys.remove(0);
 
                     SequenceKey k = key(joinKeys);
-                    Ordinal o = criterion.ordinal(lastHit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(qualifiedIndex(lastHit)), lastHit.getId()));
+                    Ordinal o = criterion.ordinal(lastFetchedHit);
+                    return new Tuple<>(
+                        new KeyAndOrdinal(k, o),
+                        new HitReference(cache(qualifiedIndex(lastFetchedHit)), lastFetchedHit.getId())
+                    );
                 }
             };
         };

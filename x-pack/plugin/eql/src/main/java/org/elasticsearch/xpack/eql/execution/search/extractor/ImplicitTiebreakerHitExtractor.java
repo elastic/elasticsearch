@@ -41,11 +41,6 @@ public class ImplicitTiebreakerHitExtractor implements HitExtractor {
     }
 
     @Override
-    public Object extract(SearchHit hit, boolean allowMultivalue) {
-        return extract(hit);
-    }
-
-    @Override
     public String hitName() {
         return null;
     }

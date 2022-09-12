@@ -70,7 +70,7 @@ public class Criterion<Q extends QueryRequest> {
         if (keySize > 0) {
             Object[] docKeys = new Object[keySize];
             for (int i = 0; i < keySize; i++) {
-                docKeys[i] = keys.get(i).extract(hit, true);
+                docKeys[i] = keys.get(i).extract(hit);
             }
             key = docKeys;
         }

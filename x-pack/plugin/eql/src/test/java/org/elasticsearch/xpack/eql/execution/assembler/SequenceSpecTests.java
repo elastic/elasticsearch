@@ -77,11 +77,6 @@ public class SequenceSpecTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {}
 
         @Override
-        public Object extract(SearchHit hit, boolean allowMultivalue) {
-            return extract(hit, false);
-        }
-
-        @Override
         public String hitName() {
             return null;
         }

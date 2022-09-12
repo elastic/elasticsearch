@@ -47,16 +47,16 @@ setup:
           index.blocks.write: true
 
 ---
-"Date histogram aggregation on time series index and rollup indexs":
+"Date histogram aggregation on time series index and rollup indices":
   - skip:
       version: " - 8.4.99"
       reason: "rollup: unsupported aggregations errors added in 8.5.0"
       features: close_to
 
   - do:
-      rollup.rollup:
+      indices.downsample:
         index: test
-        rollup_index: rollup-test
+        target_index: rollup-test
         body:  >
           {
             "fixed_interval": "1h"

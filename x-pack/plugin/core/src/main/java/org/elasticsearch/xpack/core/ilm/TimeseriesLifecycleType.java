@@ -159,6 +159,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
             return false;
         }
 
+        if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
+            throw new IllegalArgumentException("Timeseries lifecycle does not support phase [" + phase.getName() + "]");
+        }
         // do not inject if MigrateAction is not supported for this phase (such as hot, frozen, delete phase)
         if (ALLOWED_ACTIONS.get(phase.getName()).contains(MigrateAction.NAME) == false) {
             return false;

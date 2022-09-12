@@ -860,6 +860,16 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase phase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
+
+        {
+            // throw IllegalArgumentException for invalid phase
+            Phase phase = new Phase(HOT_PHASE + randomAlphaOfLength(5), TimeValue.ZERO, Collections.emptyMap());
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase)
+            );
+            assertThat(e.getMessage(), equalTo("Timeseries lifecycle does not support phase [" + phase.getName() + "]"));
+        }
     }
 
     public void testValidatingSearchableSnapshotRepos() {

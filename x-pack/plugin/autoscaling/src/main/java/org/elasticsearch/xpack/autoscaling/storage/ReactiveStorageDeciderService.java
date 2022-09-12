@@ -76,6 +76,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+
 public class ReactiveStorageDeciderService implements AutoscalingDeciderService {
     public static final String NAME = "reactive_storage";
     /**
@@ -315,8 +317,28 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             // track these to ensure we do not double account if they both cannot remain and allocated due to storage.
             List<ShardAllocationResults> unmovableShardNodeAllocationResults = candidates.stream()
                 .filter(s -> allocatedToTier(s, allocation))
-                .map(s -> cannotRemainDueToStorage(s, allocation))
-                .flatMap(r -> r.decision ? Stream.of(r) : Stream.empty())
+                .flatMap(shard -> {
+                    ShardAllocationResults shardAllocationResults = cannotRemainDueToStorage(shard, allocation);
+                    if (shardAllocationResults.decision == false) {
+                        return Stream.empty();
+                    }
+                    return Stream.of(
+                        new ShardAllocationResults(
+                            shard,
+                            true,
+                            Stream.concat(
+                                shardAllocationResults.nodeAllocationResults.stream(),
+                                state.getRoutingNodes()
+                                    .stream()
+                                    .filter(n -> nodeTierPredicate.test(n.node()))
+                                    .filter(n -> shard.currentNodeId().equals(n.nodeId()))
+                                    .map(
+                                        n -> new NodeAllocationResult(n.node(), null, allocationDeciders.canAllocate(shard, n, allocation))
+                                    )
+                            ).toList()
+                        )
+                    );
+                })
                 .toList();
             Set<ShardRouting> unmovableShards = unmovableShardNodeAllocationResults.stream().map(e -> e.shard).collect(Collectors.toSet());
 
@@ -329,8 +351,23 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
             List<ShardAllocationResults> unallocatedShardAllocationResults = candidates.stream()
                 .filter(Predicate.not(unmovableShards::contains))
-                .map(s -> cannotAllocateDueToStorage(s, allocation))
-                .flatMap(e -> e.decision ? Stream.of(e) : Stream.empty())
+                .flatMap(shard -> {
+                    ShardAllocationResults shardAllocationResults = cannotAllocateDueToStorage(shard, allocation);
+                    if (shardAllocationResults.decision == false) {
+                        return Stream.empty();
+                    }
+                    RoutingNode node = allocation.routingNodes().node(shard.currentNodeId());
+                    return Stream.of(
+                        new ShardAllocationResults(
+                            shard,
+                            true,
+                            appendToCopy(
+                                shardAllocationResults.nodeAllocationResults,
+                                new NodeAllocationResult(node.node(), null, allocationDeciders.canRemain(shard, node, allocation))
+                            )
+                        )
+                    );
+                })
                 .toList();
             long unallocatableBytes = unallocatedShardAllocationResults.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
 

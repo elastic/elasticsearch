@@ -26,6 +26,8 @@ public abstract class RawDoubleValuesScript {
 
     public RawDoubleValuesScript() {}
 
+    public abstract double execute();
+
     public abstract double evaluate(DoubleValues[] functionValues);
 
     public abstract DoubleValuesSource getDoubleValuesSource(Function<String, DoubleValuesSource> sourceProvider);

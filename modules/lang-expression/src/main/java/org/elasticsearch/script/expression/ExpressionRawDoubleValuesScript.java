@@ -35,6 +35,11 @@ public class ExpressionRawDoubleValuesScript implements RawDoubleValuesScript.Fa
     public RawDoubleValuesScript newInstance() {
         return new RawDoubleValuesScript() {
             @Override
+            public double execute() {
+                return exprScript.evaluate(new DoubleValues[0]);
+            }
+
+            @Override
             public double evaluate(DoubleValues[] functionValues) {
                 return exprScript.evaluate(functionValues);
             }

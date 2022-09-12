@@ -34,9 +34,7 @@ import java.util.Objects;
 public class FetchHealthInfoCacheAction extends ActionType<FetchHealthInfoCacheAction.Response> {
 
     public static class Request extends HealthNodeRequest {
-        public Request() {
-            super();
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -49,7 +47,7 @@ public class FetchHealthInfoCacheAction extends ActionType<FetchHealthInfoCacheA
 
         @Override
         public String getDescription() {
-            return "Fetching health information.";
+            return "Fetching health information from the health node.";
         }
     }
 

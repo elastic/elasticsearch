@@ -71,7 +71,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
 
         @Override
         public String getDescription() {
-            return "Update health info cache node [" + nodeId + "] health info [" + diskHealthInfo + "].";
+            return "Update health info cache for node [" + nodeId + "] with health info [" + diskHealthInfo + "].";
         }
 
         @Override

@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * This is base class for all the requests that will be sent to the health node.
+ * This is a base class for all the requests that will be sent to the health node.
  */
 public abstract class HealthNodeRequest extends ActionRequest {
 

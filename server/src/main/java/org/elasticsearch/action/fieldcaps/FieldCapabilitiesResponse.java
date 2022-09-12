@@ -10,20 +10,23 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,7 +35,7 @@ import java.util.stream.Collectors;
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
-public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject {
+public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject, ChunkedToXContent {
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
@@ -150,23 +153,29 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked() {
         if (indexResponses.size() > 0) {
             throw new IllegalStateException("cannot serialize non-merged response");
         }
-        builder.startObject();
-        builder.array(INDICES_FIELD.getPreferredName(), indices);
-        builder.startObject(FIELDS_FIELD.getPreferredName());
-        for (var r : responseMap.entrySet()) {
-            builder.xContentValuesMap(r.getKey(), r.getValue());
-        }
-        builder.endObject();
-        if (this.failures.size() > 0) {
-            builder.field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndices().length);
-            builder.xContentList(FAILURES_FIELD.getPreferredName(), failures);
-        }
-        builder.endObject();
-        return builder;
+
+        return Iterators.concat(
+            Iterators.single(
+                (b, p) -> b.startObject().array(INDICES_FIELD.getPreferredName(), indices).startObject(FIELDS_FIELD.getPreferredName())
+            ),
+            responseMap.entrySet().stream().map(r -> (ToXContent) (b, p) -> b.xContentValuesMap(r.getKey(), r.getValue())).iterator(),
+            this.failures.size() > 0
+                ? Iterators.concat(
+                    Iterators.single(
+                        (ToXContent) (b, p) -> b.endObject()
+                            .field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndices().length)
+                            .field(FAILURES_FIELD.getPreferredName())
+                            .startArray()
+                    ),
+                    failures.iterator(),
+                    Iterators.single((b, p) -> b.endArray().endObject())
+                )
+                : Iterators.single((b, p) -> b.endObject().endObject())
+        );
     }
 
     public static FieldCapabilitiesResponse fromXContent(XContentParser parser) throws IOException {

@@ -78,7 +78,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
                     filesToUpload
                 );
                 for (int i = 0; i < filesToUpload; i++) {
-                    taskRunner.enqueueFileSnapshot(context, dummyFileInfo(), uploadListener);
+                    taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, uploadListener);
                 }
             }
             finishedShardSnapshotTasks.incrementAndGet();
@@ -105,17 +105,17 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         }
     }
 
-    private static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
+    public static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
         String filename = randomAlphaOfLength(10);
         StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion.toString());
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
-    private SnapshotShardContext dummyContext() {
+    public static SnapshotShardContext dummyContext() {
         return dummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()), randomMillisUpToYear9999());
     }
 
-    private SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
+    public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
         IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
         Settings settings = Settings.builder()
@@ -164,30 +164,40 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
     public void testCompareToShardSnapshotTask() {
         ShardSnapshotTaskRunner workers = new ShardSnapshotTaskRunner(1, executor, context -> {}, (context, fileInfo) -> {});
-        SnapshotId s1 = new SnapshotId("s1", UUIDs.randomBase64UUID());
-        SnapshotId s2 = new SnapshotId("s2", UUIDs.randomBase64UUID());
-        SnapshotId s3 = new SnapshotId("s3", UUIDs.randomBase64UUID());
+        SnapshotId s1 = new SnapshotId("s1", "s1-uuid");
+        SnapshotId s2 = new SnapshotId("s2", "s2-uuid");
+        SnapshotId s3 = new SnapshotId("s3", "s3-uuid");
         ActionListener<Void> listener = ActionListener.noop();
         final long s1StartTime = threadPool.absoluteTimeInMillis();
         final long s2StartTime = s1StartTime + randomLongBetween(1, 1000);
         SnapshotShardContext s1Context = dummyContext(s1, s1StartTime);
         SnapshotShardContext s2Context = dummyContext(s2, s2StartTime);
         SnapshotShardContext s3Context = dummyContext(s3, s2StartTime);
-        // Two tasks with the same start time and of the same type have the same priority
-        assertThat(workers.new ShardSnapshotTask(s2Context).compareTo(workers.new ShardSnapshotTask(s3Context)), equalTo(0));
-        // Shard snapshot task always has a higher priority over file snapshot
+        // Shard snapshot and file snapshot tasks for earlier snapshots have higher priority
         assertThat(
-            workers.new ShardSnapshotTask(s1Context).compareTo(workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener)),
+            workers.new ShardSnapshotTask(s1Context).compareTo(
+                workers.new FileSnapshotTask(s2Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
+            ),
             lessThan(0)
         );
         assertThat(
-            workers.new ShardSnapshotTask(s2Context).compareTo(workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener)),
+            workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener).compareTo(
+                workers.new ShardSnapshotTask(s2Context)
+            ),
             lessThan(0)
         );
-        // File snapshots are prioritized by start time.
+        // Two tasks with the same start time and of the same type are ordered by snapshot UUID
+        assertThat(workers.new ShardSnapshotTask(s2Context).compareTo(workers.new ShardSnapshotTask(s3Context)), lessThan(0));
         assertThat(
-            workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener).compareTo(
-                workers.new FileSnapshotTask(s2Context, dummyFileInfo(), listener)
+            workers.new FileSnapshotTask(s2Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener).compareTo(
+                workers.new ShardSnapshotTask(s3Context)
+            ),
+            lessThan(0)
+        );
+        // Shard snapshot task has a higher priority over file snapshot within the same snapshot
+        assertThat(
+            workers.new ShardSnapshotTask(s1Context).compareTo(
+                workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
             ),
             lessThan(0)
         );

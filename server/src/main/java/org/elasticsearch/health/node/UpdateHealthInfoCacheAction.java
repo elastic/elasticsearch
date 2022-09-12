@@ -9,7 +9,6 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.health.node.action.HealthNodeRequest;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,7 +34,7 @@ import java.util.Objects;
  */
 public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse> {
 
-    public static class Request extends ActionRequest {
+    public static class Request extends HealthNodeRequest {
         private final String nodeId;
         private final DiskHealthInfo diskHealthInfo;
 
@@ -67,6 +67,11 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             super.writeTo(out);
             out.writeString(nodeId);
             diskHealthInfo.writeTo(out);
+        }
+
+        @Override
+        public String getDescription() {
+            return "Update health info cache for node [" + nodeId + "] with health info [" + diskHealthInfo + "].";
         }
 
         @Override

@@ -300,7 +300,7 @@ public class DiskThresholdSettings {
             if (low.isAbsolute()
                 && (lowHeadroom.equals(ByteSizeValue.MINUS_ONE) == false
                     || highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false
-                    || highHeadroom.equals(ByteSizeValue.MINUS_ONE) == false)) {
+                    || floodHeadroom.equals(ByteSizeValue.MINUS_ONE) == false)) {
                 // No need to check that the high or flood stage watermarks are absolute as well, since there is another check in
                 // WatermarkValidator that all low/high/flood watermarks should be either ratios/percentages or absolute values.
                 throw new IllegalArgumentException(

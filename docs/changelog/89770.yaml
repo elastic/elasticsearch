@@ -1,5 +1,5 @@
 pr: 89770
-summary: Enrich error message to clarify where to start troubleshooting
+summary: Clarified fielddata not supported for text fields error message
 area: Mapping
 type: enhancement
 issues: []

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
@@ -167,9 +168,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(slowFuture.isDone(), is(false));
         unblockNode(repoName, slowDataNode);
         final ExecutionException executionException = expectThrows(ExecutionException.class, () -> slowFuture.get().getSnapshotInfo());
+        final Throwable innermostException = Throwables.getRootCause(executionException);
+        assertThat(innermostException, instanceOf(RepositoryException.class));
         assertThat(
-            // Inner exceptions: RemoteTransportException > RepositoryException (whose message we check)
-            executionException.getCause().getCause().getMessage(),
+            innermostException.getMessage(),
             containsString("Could not read repository data because the contents of the repository do not match its expected state")
         );
 

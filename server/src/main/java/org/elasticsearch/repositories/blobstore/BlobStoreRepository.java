@@ -2906,12 +2906,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
             }
-            final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, filesToSnapshot.size(), allFilesUploadedListener);
-            for (FileInfo fileInfo : filesToSnapshot) {
-                shardSnapshotTaskRunner.enqueueFileSnapshot(context, fileInfo, filesListener);
-            }
+            snapshotFiles(context, filesToSnapshot, allFilesUploadedListener);
         } catch (Exception e) {
             context.onFailure(e);
+        }
+    }
+
+    protected void snapshotFiles(
+        SnapshotShardContext context,
+        BlockingQueue<FileInfo> filesToSnapshot,
+        ActionListener<Collection<Void>> allFilesUploadedListener
+    ) {
+        final int noOfFilesToSnapshot = filesToSnapshot.size();
+        final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, noOfFilesToSnapshot, allFilesUploadedListener);
+        for (int i = 0; i < noOfFilesToSnapshot; i++) {
+            shardSnapshotTaskRunner.enqueueFileSnapshot(context, filesToSnapshot::poll, filesListener);
         }
     }
 
@@ -3415,7 +3424,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Snapshot individual file
      * @param fileInfo file to snapshot
      */
-    private void snapshotFile(SnapshotShardContext context, FileInfo fileInfo) throws IOException {
+    protected void snapshotFile(SnapshotShardContext context, FileInfo fileInfo) throws IOException {
         final IndexId indexId = context.indexId();
         final Store store = context.store();
         final ShardId shardId = store.shardId();

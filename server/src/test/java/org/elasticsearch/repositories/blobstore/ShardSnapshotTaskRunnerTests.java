@@ -78,7 +78,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
                     filesToUpload
                 );
                 for (int i = 0; i < filesToUpload; i++) {
-                    taskRunner.enqueueFileSnapshot(context, dummyFileInfo(), uploadListener);
+                    taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, uploadListener);
                 }
             }
             finishedShardSnapshotTasks.incrementAndGet();
@@ -105,17 +105,17 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         }
     }
 
-    private static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
+    public static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
         String filename = randomAlphaOfLength(10);
         StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion.toString());
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
-    private SnapshotShardContext dummyContext() {
+    public static SnapshotShardContext dummyContext() {
         return dummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()), randomMillisUpToYear9999());
     }
 
-    private SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
+    public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
         IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
         Settings settings = Settings.builder()
@@ -177,17 +177,21 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         assertThat(workers.new ShardSnapshotTask(s2Context).compareTo(workers.new ShardSnapshotTask(s3Context)), equalTo(0));
         // Shard snapshot task always has a higher priority over file snapshot
         assertThat(
-            workers.new ShardSnapshotTask(s1Context).compareTo(workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener)),
+            workers.new ShardSnapshotTask(s1Context).compareTo(
+                workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
+            ),
             lessThan(0)
         );
         assertThat(
-            workers.new ShardSnapshotTask(s2Context).compareTo(workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener)),
+            workers.new ShardSnapshotTask(s2Context).compareTo(
+                workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
+            ),
             lessThan(0)
         );
         // File snapshots are prioritized by start time.
         assertThat(
-            workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener).compareTo(
-                workers.new FileSnapshotTask(s2Context, dummyFileInfo(), listener)
+            workers.new FileSnapshotTask(s1Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener).compareTo(
+                workers.new FileSnapshotTask(s2Context, ShardSnapshotTaskRunnerTests::dummyFileInfo, listener)
             ),
             lessThan(0)
         );

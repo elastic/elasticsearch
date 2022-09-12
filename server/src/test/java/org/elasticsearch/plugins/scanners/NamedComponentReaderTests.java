@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NamedComponentReaderTests extends ESTestCase {
-    ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("test_extensible.json");
+    ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("/test_extensible.json");
     NamedComponentReader namedComponentReader = new NamedComponentReader(extensiblesRegistry);
 
     @SuppressForbidden(reason = "test resource")

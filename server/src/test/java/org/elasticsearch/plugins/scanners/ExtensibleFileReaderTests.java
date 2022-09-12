@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExtensibleFileReaderTests extends ESTestCase {
 
     public void testLoadingFromFile() {
-        ExtensibleFileReader extensibleFileReader = new ExtensibleFileReader("test_extensible.json");
+        ExtensibleFileReader extensibleFileReader = new ExtensibleFileReader("/test_extensible.json");
 
         Map<String, String> stringStringMap = extensibleFileReader.readFromFile();
         assertThat(
@@ -28,7 +28,7 @@ public class ExtensibleFileReaderTests extends ESTestCase {
                     "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
                     "org.elasticsearch.plugins.scanners.extensible_test_classes.SubClass",
                     "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
-                    "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface" ,
+                    "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface",
                     "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface"
                 )
             )

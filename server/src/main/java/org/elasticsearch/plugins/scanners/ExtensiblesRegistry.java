@@ -64,7 +64,7 @@ public class ExtensiblesRegistry {
 
     private static final Logger logger = LogManager.getLogger(ExtensiblesRegistry.class);
 
-    private static final String EXTENSIBLES_FILE = "org/elasticsearch/plugins/scanner/extensibles.json";
+    private static final String EXTENSIBLES_FILE = "/org/elasticsearch/plugins/scanner/extensibles.json";
     public static final ExtensiblesRegistry INSTANCE = new ExtensiblesRegistry(EXTENSIBLES_FILE);
 
     // classname (potentially extending/implementing extensible) to interface/class annotated with extensible

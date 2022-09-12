@@ -32,7 +32,7 @@ public class ExtensibleFileReader {
     public Map<String, String> readFromFile() {
         Map<String, String> res = new HashMap<>();
         // todo should it be BufferedInputStream ?
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream(extensibleFile)) {
+        try (InputStream in = getClass().getResourceAsStream(extensibleFile)) {
             if (in != null) {
                 try (XContentParser parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, in)) {
                     // TODO should we validate the classes actually exist?

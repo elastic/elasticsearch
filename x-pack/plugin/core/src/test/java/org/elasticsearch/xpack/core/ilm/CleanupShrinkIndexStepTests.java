@@ -46,7 +46,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         StepKey nextKey = instance.getNextStepKey();
         switch (between(0, 1)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new CleanupShrinkIndexStep(key, nextKey, instance.getClient());

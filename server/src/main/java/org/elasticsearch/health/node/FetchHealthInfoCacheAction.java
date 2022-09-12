@@ -9,7 +9,6 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.health.node.action.HealthNodeRequest;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +33,7 @@ import java.util.Objects;
  */
 public class FetchHealthInfoCacheAction extends ActionType<FetchHealthInfoCacheAction.Response> {
 
-    public static class Request extends ActionRequest {
+    public static class Request extends HealthNodeRequest {
         public Request() {}
 
         public Request(StreamInput in) throws IOException {
@@ -43,6 +43,11 @@ public class FetchHealthInfoCacheAction extends ActionType<FetchHealthInfoCacheA
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public String getDescription() {
+            return "Fetching health information from the health node.";
         }
     }
 

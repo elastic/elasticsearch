@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -22,6 +23,9 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Transport action for unregister repository operation
@@ -68,5 +72,15 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
             request,
             listener.map(unregisterRepositoryResponse -> AcknowledgedResponse.of(unregisterRepositoryResponse.isAcknowledged()))
         );
+    }
+
+    @Override
+    protected Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedRepositoryAction.NAME);
+    }
+
+    @Override
+    protected Set<String> modifiedKeys(DeleteRepositoryRequest request) {
+        return Set.of(request.name());
     }
 }

@@ -339,7 +339,7 @@ public class ApiKeyService {
                         SECURITY_ORIGIN,
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        TransportBulkAction.<IndexResponse>wrapBulkResponseAsSingle(ActionListener.wrap(indexResponse -> {
+                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
                             assert request.getId().equals(indexResponse.getId());
                             assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                             final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();

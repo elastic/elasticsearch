@@ -21,7 +21,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * Use {@link TransportBulkAction} instead with {@link TransportBulkAction#wrapBulkResponseAsSingle(ActionListener)} as response wrapper.
+ * Use {@link TransportBulkAction} instead with {@link TransportBulkAction#unwrappingSingleItemBulkResponse(ActionListener)} as response wrapper.
  */
 @Deprecated
 public abstract class TransportSingleItemBulkWriteAction<
@@ -43,7 +43,7 @@ public abstract class TransportSingleItemBulkWriteAction<
 
     @Override
     protected void doExecute(Task task, final Request request, final ActionListener<Response> listener) {
-        bulkAction.execute(task, toSingleItemBulkRequest(request), TransportBulkAction.wrapBulkResponseAsSingle(listener));
+        bulkAction.execute(task, toSingleItemBulkRequest(request), TransportBulkAction.unwrappingSingleItemBulkResponse(listener));
     }
 
     public static BulkRequest toSingleItemBulkRequest(ReplicatedWriteRequest<?> request) {

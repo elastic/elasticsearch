@@ -632,7 +632,7 @@ public class ProfileService {
                 getActionOrigin(),
                 BulkAction.INSTANCE,
                 bulkRequest,
-                TransportBulkAction.<IndexResponse>wrapBulkResponseAsSingle(ActionListener.wrap(indexResponse -> {
+                TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
                     assert docId.equals(indexResponse.getId());
                     final VersionedDocument versionedDocument = new VersionedDocument(
                         profileDocument,

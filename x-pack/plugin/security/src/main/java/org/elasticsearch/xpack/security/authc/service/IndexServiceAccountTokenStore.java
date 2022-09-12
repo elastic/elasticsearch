@@ -154,7 +154,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     SECURITY_ORIGIN,
                     BulkAction.INSTANCE,
                     bulkRequest,
-                    TransportBulkAction.<IndexResponse>wrapBulkResponseAsSingle(ActionListener.wrap(response -> {
+                    TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
                         assert DocWriteResponse.Result.CREATED == response.getResult()
                             : "an successful response of an OpType.CREATE request must have result of CREATED";
                         listener.onResponse(CreateServiceAccountTokenResponse.created(token.getTokenName(), token.asBearerString()));

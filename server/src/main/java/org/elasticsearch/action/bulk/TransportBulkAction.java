@@ -171,7 +171,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return indexRequest;
     }
 
-    public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> wrapBulkResponseAsSingle(
+    public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
         final ActionListener<Response> listener
     ) {
         return ActionListener.wrap(bulkItemResponses -> {

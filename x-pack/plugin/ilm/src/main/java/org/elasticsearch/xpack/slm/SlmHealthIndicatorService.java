@@ -137,9 +137,9 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     .map(
                         policy -> "- ["
                             + policy.getName()
-                            + "] has not had ["
+                            + "] had ["
                             + policy.getInvocationsSinceLastSuccess()
-                            + "] successful executions since ["
+                            + "] repeated failures without successful execution since ["
                             + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp())
                             + "]"
                     )

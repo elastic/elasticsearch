@@ -212,9 +212,9 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                         new Diagnosis(
                             SlmHealthIndicatorService.checkRecentlyFailedSnapshots(
                                 "An automated snapshot policy is unhealthy:\n"
-                                    + "- [test-policy] has not had ["
+                                    + "- [test-policy] had ["
                                     + failedInvocations
-                                    + "] successful executions since ["
+                                    + "] repeated failures without successful execution since ["
                                     + FORMATTER.formatMillis(execTime)
                                     + "]",
                                 "Check the snapshot lifecycle policy for detailed failure info:\n- /_slm/policy/test-policy?human"

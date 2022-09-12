@@ -58,6 +58,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
     }
 
     public void testInnerPrepareRequestWithSourceParameter() {
+        when(licenseState.isAllowed(Security.USER_PROFILE_COLLABORATION_FEATURE)).thenReturn(true);
         String expectedName = "bob";
         final Map<String, String> params = new HashMap<>(
             Map.of("source", "{\"name\":\"" + expectedName + "\"}", "source_content_type", "application/json")
@@ -73,6 +74,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
     }
 
     public void testParsingDataParameter() {
+        when(licenseState.isAllowed(Security.USER_PROFILE_COLLABORATION_FEATURE)).thenReturn(true);
         final FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
             randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
         ).withPath("/_security/profile/_suggest");

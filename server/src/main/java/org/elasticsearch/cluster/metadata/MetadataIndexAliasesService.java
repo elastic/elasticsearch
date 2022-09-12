@@ -12,15 +12,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -55,6 +55,8 @@ public class MetadataIndexAliasesService {
 
     private final NamedXContentRegistry xContentRegistry;
 
+    private final ClusterStateTaskExecutor<ApplyAliasActions> executor = new ApplyAliasActions.Executor();
+
     @Inject
     public MetadataIndexAliasesService(
         ClusterService clusterService,
@@ -69,17 +71,9 @@ public class MetadataIndexAliasesService {
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        submitUnbatchedTask("index-aliases", new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return applyAliasActions(currentState, request.actions());
-            }
-        });
-    }
-
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
+        var task = new ApplyAliasActions(request.actions(), listener);
+        var config = ClusterStateTaskConfig.build(Priority.URGENT);
+        clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
     }
 
     /**
@@ -242,6 +236,54 @@ public class MetadataIndexAliasesService {
                     + indexAbstraction.getParentDataStream().getName()
                     + "]. Data stream backing indices don't support alias operations."
             );
+        }
+    }
+
+    /**
+     * A cluster state update task that applies the alias actions to the given cluster state.
+     */
+    private class ApplyAliasActions implements ClusterStateTaskListener {
+
+        private final Iterable<AliasAction> actions;
+        private final ActionListener<AcknowledgedResponse> listener;
+
+        ApplyAliasActions(Iterable<AliasAction> actions, ActionListener<AcknowledgedResponse> listener) {
+            this.actions = actions;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        private void onSuccess() {
+            listener.onResponse(AcknowledgedResponse.of(true));
+        }
+
+        /**
+         * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s by calling
+         * the {@link MetadataIndexAliasesService#applyAliasActions(ClusterState, Iterable)}.
+         */
+        public ClusterState execute(ClusterState currentState) {
+            return MetadataIndexAliasesService.this.applyAliasActions(currentState, actions);
+        }
+
+        static class Executor implements ClusterStateTaskExecutor<ApplyAliasActions> {
+
+            @Override
+            public ClusterState execute(BatchExecutionContext<ApplyAliasActions> batchExecutionContext) throws Exception {
+                ClusterState updatedState = batchExecutionContext.initialState();
+                for (TaskContext<ApplyAliasActions> taskContext : batchExecutionContext.taskContexts()) {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
+                        updatedState = taskContext.getTask().execute(updatedState);
+                        taskContext.success(() -> taskContext.getTask().onSuccess());
+                    } catch (Exception e) {
+                        taskContext.onFailure(e);
+                    }
+                }
+                return updatedState;
+            }
         }
     }
 }

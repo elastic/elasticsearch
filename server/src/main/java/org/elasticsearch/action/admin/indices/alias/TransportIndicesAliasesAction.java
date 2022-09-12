@@ -104,7 +104,6 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-
         // Expand the indices names
         List<AliasActions> actions = request.aliasActions();
         List<AliasAction> finalActions = new ArrayList<>();

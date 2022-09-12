@@ -1,0 +1,5 @@
+pr: 89873
+summary: Fix memory leak when double invoking `RestChannel.sendResponse`
+area: Network
+type: bug
+issues: []

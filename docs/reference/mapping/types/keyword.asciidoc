@@ -173,12 +173,11 @@ Dimension fields have the following constraints:
 ==== Synthetic source preview:[]
 `keyword` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
-<<ignore-above,`ignore_above`>>, a <<normalizer,`normalizer`>>,
-<<copy-to,`copy_to`>>, or with <<doc-values,`doc_values`>> disabled.
+a <<normalizer,`normalizer`>> or <<copy-to,`copy_to`>>.
 
-Synthetic source always sorts `keyword` fields and removes duplicates. For
-example:
-[source,console,id=synthetic-source-keyword-example]
+By default, synthetic source sorts `keyword` fields and removes duplicates.
+For example:
+[source,console,id=synthetic-source-keyword-example-default]
 ----
 PUT idx
 {
@@ -205,6 +204,67 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
+
+If a `keyword` field sets `store` to `true` then order and duplicates
+are preserved. For example:
+[source,console,id=synthetic-source-keyword-example-stored]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "kwd": { "type": "keyword", "store": true }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", "foo", "bar", "baz"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "kwd": ["foo", "foo", "bar", "baz"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+Values longer than `ignore_above` are preserved but sorted to the end.
+For example:
+[source,console,id=synthetic-source-keyword-example-ignore-above]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "kwd": { "type": "keyword", "ignore_above": 3 }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", "foo", "bang", "bar", "baz"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "kwd": ["bar", "baz", "foo", "bang"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
 
 include::constant-keyword.asciidoc[]
 

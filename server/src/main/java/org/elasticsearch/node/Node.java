@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -131,9 +132,9 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
@@ -825,6 +826,8 @@ public class Node implements Closeable {
                 indicesService
             );
 
+            actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoryService));
+
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
                 actionModule.getReservedClusterStateService(),
@@ -1182,7 +1185,7 @@ public class Node implements Closeable {
     ) {
         final List<RecoveryPlannerPlugin> recoveryPlannerPlugins = pluginsService.filterPlugins(RecoveryPlannerPlugin.class);
         if (recoveryPlannerPlugins.isEmpty()) {
-            return new SourceOnlyRecoveryPlannerService();
+            return new PeerOnlyRecoveryPlannerService();
         }
 
         if (recoveryPlannerPlugins.size() > 1) {

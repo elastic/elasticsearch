@@ -482,9 +482,6 @@ public class MachineLearning extends Plugin
 
     private static final long DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
     private static final double DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
-    // This is for performance testing. It's not exposed to the end user.
-    // Recompile if you want to compare performance with C++ tokenization.
-    public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
 
     public static final LicensedFeature.Persistent ML_ANOMALY_JOBS_FEATURE = LicensedFeature.persistent(
         MachineLearningField.ML_FEATURE_FAMILY,
@@ -557,7 +554,11 @@ public class MachineLearning extends Plugin
     private static final String PRE_V8_MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
-    public static final String ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors";
+
+    // TODO Remove if compatibility with 8.x is no longer necessary
+    public static final String PRE_V_8_5_ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors";
+
+    public static final String ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors_double";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS = Setting.intSetting(
         "xpack.ml.node_concurrent_job_allocations",
         2,
@@ -753,6 +754,7 @@ public class MachineLearning extends Plugin
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + PRE_V8_MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
+        String deprecatedAllocatedProcessorsAttrName = "node.attr." + PRE_V_8_5_ALLOCATED_PROCESSORS_NODE_ATTR;
         String allocatedProcessorsAttrName = "node.attr." + ALLOCATED_PROCESSORS_NODE_ATTR;
 
         if (enabled == false) {
@@ -768,11 +770,22 @@ public class MachineLearning extends Plugin
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
+            addMlNodeAttribute(
+                additionalSettings,
+                deprecatedAllocatedProcessorsAttrName,
+                Integer.toString(EsExecutors.allocatedProcessors(settings))
+            );
             addMlNodeAttribute(additionalSettings, allocatedProcessorsAttrName, Double.toString(getAllocatedProcessors().count()));
             // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, allocatedProcessorsAttrName);
+            disallowMlNodeAttributes(
+                maxOpenJobsPerNodeNodeAttrName,
+                machineMemoryAttrName,
+                jvmSizeAttrName,
+                deprecatedAllocatedProcessorsAttrName,
+                allocatedProcessorsAttrName
+            );
         }
         return additionalSettings.build();
     }

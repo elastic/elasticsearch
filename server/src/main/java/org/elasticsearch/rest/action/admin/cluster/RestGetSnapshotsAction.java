@@ -9,16 +9,12 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -84,14 +80,6 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .getSnapshots(getSnapshotsRequest, new RestActionListener<>(channel) {
-                @Override
-                protected void processResponse(GetSnapshotsResponse getSnapshotsResponse) throws IOException {
-                    ensureOpen();
-                    channel.sendResponse(
-                        new RestResponse(RestStatus.OK, ChunkedRestResponseBody.fromXContent(getSnapshotsResponse, request, channel))
-                    );
-                }
-            });
+            .getSnapshots(getSnapshotsRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -105,7 +106,14 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
                     }
                 };
                 if (task != null) {
-                    transportService.sendChildRequest(healthNode, actionName, request, task, TransportRequestOptions.EMPTY, handler);
+                    transportService.sendChildRequest(
+                        healthNode,
+                        actionName,
+                        request,
+                        task,
+                        TransportRequestOptions.timeout(TimeValue.timeValueSeconds(10)), // expected to be lightweight and time-sensitive
+                        handler
+                    );
                 } else {
                     transportService.sendRequest(healthNode, actionName, request, handler);
                 }

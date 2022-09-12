@@ -168,7 +168,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, slowDataNode);
         final ExecutionException executionException = expectThrows(ExecutionException.class, () -> slowFuture.get().getSnapshotInfo());
         assertThat(
-            executionException.getCause().getMessage(), // Inner exception: RepositoryException (whose message we check)
+            // Inner exceptions: RemoteTransportException > RepositoryException (whose message we check)
+            executionException.getCause().getCause().getMessage(),
             containsString("Could not read repository data because the contents of the repository do not match its expected state")
         );
 

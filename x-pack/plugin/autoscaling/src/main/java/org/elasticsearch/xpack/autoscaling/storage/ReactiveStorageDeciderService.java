@@ -331,7 +331,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                                 state.getRoutingNodes()
                                     .stream()
                                     .filter(n -> nodeTierPredicate.test(n.node()))
-                                    .filter(n -> shard.currentNodeId().equals(n.nodeId()))
+                                    .filter(n -> shard.currentNodeId().equals(n.nodeId()) == false)
                                     .map(
                                         n -> new NodeAllocationResult(n.node(), null, allocationDeciders.canAllocate(shard, n, allocation))
                                     )

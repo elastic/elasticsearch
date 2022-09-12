@@ -961,7 +961,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     onPublicationSuccess.run();
                 }
             } catch (Exception e) {
-                logger.error(() -> format("exception thrown by listener while notifying of new cluster state:\n%s", newClusterState), e);
+                logger.error("exception thrown by listener while notifying of new cluster state", e);
             }
         }
 
@@ -978,7 +978,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     onPublicationSuccess.run();
                 }
             } catch (Exception e) {
-                logger.error(() -> format("exception thrown by listener while notifying of unchanged cluster state:\n%s", clusterState), e);
+                logger.error("exception thrown by listener while notifying of unchanged cluster state", e);
             }
         }
 

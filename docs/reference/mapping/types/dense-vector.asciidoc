@@ -178,3 +178,7 @@ Defaults to `16`.
 The number of candidates to track while assembling the list of nearest
 neighbors for each new node. Defaults to `100`.
 ====
+
+[[dense-vector-synthetic-source]]
+==== Synthetic source preview:[]
+`dense_vector` fields support <<synthetic-source,synthetic `_source`>> .

@@ -243,4 +243,9 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     protected boolean supportsEmptyInputArray() {
         return false;
     }
+
+    @Override
+    protected boolean addsValueWhenNotSupplied() {
+        return true;
+    }
 }

@@ -537,7 +537,7 @@ public class GeoUtils {
                 @Override
                 public double doubleValue() throws IOException {
                     final GeoPoint from = fromPoints[0];
-                    final GeoPoint to = singleValues.geoPointValue();
+                    final GeoPoint to = singleValues.pointValue();
                     return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
                 }
 

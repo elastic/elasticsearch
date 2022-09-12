@@ -13,9 +13,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -446,6 +448,35 @@ public class TransformIT extends TransformRestTestCase {
 
         stopTransform(config.getId());
         deleteTransform(config.getId());
+    }
+
+    public void testStartTransform_GivenTimeout_Returns408() throws Exception {
+        String indexName = "start-transform-timeout-index";
+        String transformId = "start-transform-timeout";
+        createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
+        groups.put("by-user", new TermsGroupSource("user_id", null, false));
+        groups.put("by-business", new TermsGroupSource("business_id", null, false));
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        TransformConfig config = createTransformConfigBuilder(transformId, indexName + "-dest", QueryConfig.matchAll(), indexName)
+            .setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
+            .build();
+
+        putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addParameter("timeout", "1nanos").build())
+        );
+
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
     }
 
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {

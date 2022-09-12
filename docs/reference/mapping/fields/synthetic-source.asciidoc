@@ -31,10 +31,14 @@ types:
 ** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
 ** <<boolean-synthetic-source,`boolean`>>
 ** <<numeric-synthetic-source,`byte`>>
+** <<date-synthetic-source,`date`>>
+** <<date-nanos-synthetic-source,`date_nanos`>>
+** <<dense-vector-synthetic-source,`dense_vector`>>
 ** <<numeric-synthetic-source,`double`>>
 ** <<numeric-synthetic-source,`float`>>
 ** <<geo-point-synthetic-source,`geo_point`>>
 ** <<numeric-synthetic-source,`half_float`>>
+** <<histogram-synthetic-source,`histogram`>>
 ** <<numeric-synthetic-source,`integer`>>
 ** <<ip-synthetic-source,`ip`>>
 ** <<keyword-synthetic-source,`keyword`>>
@@ -42,6 +46,7 @@ types:
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>> (with a `keyword` sub-field)
+** <<version-synthetic-source,`version`>>
 
 Runtime fields cannot, at this stage, use synthetic `_source`.
 

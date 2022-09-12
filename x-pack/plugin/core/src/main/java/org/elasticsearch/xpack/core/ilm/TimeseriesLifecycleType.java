@@ -56,7 +56,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         UnfollowAction.NAME,
         RolloverAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
+        IndexSettings.isTimeSeriesModeEnabled() ? DownsampleAction.NAME : null,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
@@ -65,7 +65,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
+        IndexSettings.isTimeSeriesModeEnabled() ? DownsampleAction.NAME : null,
         AllocateAction.NAME,
         MigrateAction.NAME,
         ShrinkAction.NAME,
@@ -75,7 +75,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
+        IndexSettings.isTimeSeriesModeEnabled() ? DownsampleAction.NAME : null,
         SearchableSnapshotAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
@@ -107,13 +107,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ReadOnlyAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
-        RollupILMAction.NAME,
+        DownsampleAction.NAME,
         SearchableSnapshotAction.NAME
     );
     // Set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot.
     // It's ordered to produce consistent error messages which can be unit tested.
     public static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Collections.unmodifiableSet(
-        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, RollupILMAction.NAME))
+        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, DownsampleAction.NAME))
     );
 
     private TimeseriesLifecycleType() {}

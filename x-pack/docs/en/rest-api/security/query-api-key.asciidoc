@@ -33,6 +33,16 @@ Use this API to retrieve the API keys created with the
 <<security-api-create-api-key,create API key API>> in a paginated manner.
 You can optionally filter the results with a query.
 
+[[security-api-query-api-key-query-params]]
+==== {api-path-parms-title}
+
+`with_limited_by`::
+(Optional, Boolean) A boolean flag to return the snapshot of the owner user's role descriptors
+associated with the API key. An API key's actual permission is the intersection of
+its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's role descriptors
+(effectively limited by it). An API key cannot retrieve any API key's limited-by role descriptors
+(including itself) unless it has `manage_api_key` or higher privileges.
+
 [[security-api-query-api-key-request-body]]
 ==== {api-request-body-title}
 
@@ -229,7 +239,7 @@ Use the information from the response to retrieve the API key by ID:
 
 [source,console]
 ----
-GET /_security/_query/api_key
+GET /_security/_query/api_key?with_limited_by=true
 {
   "query": {
     "ids": {
@@ -242,6 +252,61 @@ GET /_security/_query/api_key
 ----
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
+
+A successful call returns a JSON structure for API key information including its limited-by role descriptors:
+
+[source,js]
+--------------------------------------------------
+{
+  "api_keys": [
+    {
+      "id": "VuaCfGcBCdbkQm-e5aOx",
+      "name": "application-key-1",
+      "creation": 1548550550158,
+      "expiration": 1548551550158,
+      "invalidated": false,
+      "username": "myuser",
+      "realm": "native1",
+      "metadata": {
+        "application": "my-application"
+      },
+      "role_descriptors": { },
+      "limited_by": [ <1>
+        {
+          "role-power-user": {
+            "cluster": [
+              "monitor"
+            ],
+            "indices": [
+              {
+                "names": [
+                  "*"
+                ],
+                "privileges": [
+                  "read"
+                ],
+                "allow_restricted_indices": false
+              }
+            ],
+            "applications": [ ],
+            "run_as": [ ],
+            "metadata": { },
+            "transient_metadata": {
+              "enabled": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The owner user's permissions associated with the API key.
+It is a point-in-time snapshot captured at <<security-api-create-api-key,creation>> and
+subsequent <<security-api-update-api-key,updates>>. An API key's
+effective permissions are an intersection of its assigned privileges and
+the owner user's permissions.
 
 You can also retrieve the API key by name:
 

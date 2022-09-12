@@ -12,6 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -68,40 +71,51 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
-            ShapeFieldMapper gsfm = (ShapeFieldMapper) m;
+            AbstractShapeGeometryFieldMapper<?> gsfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
-            ShapeFieldMapper gpfm = (ShapeFieldMapper) m;
+            AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertTrue(gpfm.ignoreMalformed());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
-            ShapeFieldMapper gpfm = (ShapeFieldMapper) m;
+            AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertFalse(gpfm.ignoreZValue());
         });
         checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
-            ShapeFieldMapper gpfm = (ShapeFieldMapper) m;
+            AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertTrue(gpfm.coerce());
         });
+    }
+
+    protected AbstractShapeGeometryFieldType<?> fieldType(Mapper fieldMapper) {
+        AbstractShapeGeometryFieldMapper<?> shapeFieldMapper = (AbstractShapeGeometryFieldMapper<?>) fieldMapper;
+        return (AbstractShapeGeometryFieldType<?>) shapeFieldMapper.fieldType();
+    }
+
+    protected Class<? extends AbstractShapeGeometryFieldMapper<?>> fieldMapperClass() {
+        return ShapeFieldMapper.class;
     }
 
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
-        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(Orientation.RIGHT));
-        assertTrue(shapeFieldMapper.fieldType().hasDocValues());
+        AbstractShapeGeometryFieldType<?> fieldType = fieldType(fieldMapper);
+        assertThat(fieldType.orientation(), equalTo(Orientation.RIGHT));
+        assertTrue(fieldType.hasDocValues());
     }
 
     public void testDefaultDocValueConfigurationOnPre8_4() throws IOException {
+        // TODO verify which version this test is actually valid for (when PR is actually merged)
         Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_8_3_0);
         DocumentMapper defaultMapper = createDocumentMapper(oldVersion, fieldMapping(this::minimalMapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
         ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
         assertFalse(shapeFieldMapper.fieldType().hasDocValues());
@@ -117,9 +131,10 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("orientation", "left");
         }));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        Orientation orientation = ((ShapeFieldMapper) fieldMapper).fieldType().orientation();
+        AbstractShapeGeometryFieldType<?> fieldType = fieldType(fieldMapper);
+        Orientation orientation = fieldType.orientation();
         assertThat(orientation, equalTo(Orientation.CLOCKWISE));
         assertThat(orientation, equalTo(Orientation.LEFT));
         assertThat(orientation, equalTo(Orientation.CW));
@@ -130,9 +145,10 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("orientation", "right");
         }));
         fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        orientation = ((ShapeFieldMapper) fieldMapper).fieldType().orientation();
+        fieldType = fieldType(fieldMapper);
+        orientation = fieldType.orientation();
         assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(Orientation.RIGHT));
         assertThat(orientation, equalTo(Orientation.CCW));
@@ -148,9 +164,9 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("coerce", true);
         }));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        boolean coerce = ((ShapeFieldMapper) fieldMapper).coerce();
+        boolean coerce = ((AbstractShapeGeometryFieldMapper<?>) fieldMapper).coerce();
         assertThat(coerce, equalTo(true));
 
         defaultMapper = createDocumentMapper(fieldMapping(b -> {
@@ -158,9 +174,9 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("coerce", false);
         }));
         fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        coerce = ((ShapeFieldMapper) fieldMapper).coerce();
+        coerce = ((AbstractShapeGeometryFieldMapper<?>) fieldMapper).coerce();
         assertThat(coerce, equalTo(false));
 
     }
@@ -174,9 +190,9 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("ignore_z_value", true);
         }));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        boolean ignoreZValue = ((ShapeFieldMapper) fieldMapper).ignoreZValue();
+        boolean ignoreZValue = ((AbstractGeometryFieldMapper<?>) fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
@@ -185,9 +201,9 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("ignore_z_value", false);
         }));
         fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        ignoreZValue = ((ShapeFieldMapper) fieldMapper).ignoreZValue();
+        ignoreZValue = ((AbstractGeometryFieldMapper<?>) fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
     }
 
@@ -201,9 +217,9 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("ignore_malformed", true);
         }));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        boolean ignoreMalformed = ((ShapeFieldMapper) fieldMapper).ignoreMalformed();
+        boolean ignoreMalformed = ((AbstractGeometryFieldMapper<?>) fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed, equalTo(true));
 
         // explicit false ignore_malformed test
@@ -212,9 +228,9 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("ignore_malformed", false);
         }));
         fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        ignoreMalformed = ((ShapeFieldMapper) fieldMapper).ignoreMalformed();
+        ignoreMalformed = ((AbstractGeometryFieldMapper<?>) fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed, equalTo(false));
     }
 
@@ -231,11 +247,11 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
         {
             BytesReference arrayedDoc = BytesReference.bytes(
-                XContentFactory.jsonBuilder().startObject().field("field", "Bad shape").endObject()
+                XContentFactory.jsonBuilder().startObject().field(FIELD_NAME, "Bad shape").endObject()
             );
             SourceToParse sourceToParse = new SourceToParse("1", arrayedDoc, XContentType.JSON);
             ParsedDocument document = ignoreMapper.parse(sourceToParse);
-            assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
+            assertThat(document.docs().get(0).getFields(FIELD_NAME).length, equalTo(0));
             MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
             assertThat(exception.getCause().getMessage(), containsString("Unknown geometry type: bad"));
         }
@@ -244,7 +260,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .field(
-                        "field",
+                        FIELD_NAME,
                         "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869036, 18.9401790919517 "
                             + "-33.9681188869036, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
                     )
@@ -252,7 +268,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             );
             SourceToParse sourceToParse = new SourceToParse("1", arrayedDoc, XContentType.JSON);
             ParsedDocument document = ignoreMapper.parse(sourceToParse);
-            assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
+            assertThat(document.docs().get(0).getFields(FIELD_NAME).length, equalTo(0));
             MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
             assertThat(exception.getCause().getMessage(), containsString("at least three non-collinear points required"));
         }
@@ -267,10 +283,10 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("type", getFieldName());
             b.field("doc_values", true);
         }));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        boolean hasDocValues = ((ShapeFieldMapper) fieldMapper).fieldType().hasDocValues();
+        boolean hasDocValues = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().hasDocValues();
         assertTrue(hasDocValues);
 
         // explicit false doc_values
@@ -278,10 +294,10 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("type", getFieldName());
             b.field("doc_values", false);
         }));
-        fieldMapper = defaultMapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        hasDocValues = ((ShapeFieldMapper) fieldMapper).fieldType().hasDocValues();
+        hasDocValues = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().hasDocValues();
         assertFalse(hasDocValues);
     }
 
@@ -297,10 +313,10 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         }));
 
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
 
-        ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
-        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
+        AbstractShapeGeometryFieldType<?> fieldType = fieldType(fieldMapper);
+        assertThat(fieldType.orientation(), equalTo(Orientation.CW));
     }
 
     public void testSerializeDefaults() throws Exception {
@@ -316,7 +332,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.field("type", getFieldName());
             b.field("doc_values", docValues);
         }));
-        String serialized = toXContentString((ShapeFieldMapper) mapper.mappers().getMapper("field"));
+        String serialized = toXContentString((ShapeFieldMapper) mapper.mappers().getMapper(FIELD_NAME));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
     }
@@ -357,7 +373,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to [shape] mappers has no effect and will be forbidden in future");
+        assertWarnings("Adding multifields to [" + getFieldName() + "] mappers has no effect and will be forbidden in future");
     }
 
     public void testSelfIntersectPolygon() throws IOException {
@@ -369,7 +385,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(ex.getCause().getMessage(), containsString("Polygon self-intersection at lat=0.5 lon=0.5"));
     }
 
-    public String toXContentString(ShapeFieldMapper mapper, boolean includeDefaults) {
+    public String toXContentString(AbstractShapeGeometryFieldMapper<?> mapper, boolean includeDefaults) {
         if (includeDefaults) {
             ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
             return Strings.toString(mapper, params);
@@ -378,7 +394,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         }
     }
 
-    public String toXContentString(ShapeFieldMapper mapper) {
+    public String toXContentString(AbstractShapeGeometryFieldMapper<?> mapper) {
         return toXContentString(mapper, true);
     }
 

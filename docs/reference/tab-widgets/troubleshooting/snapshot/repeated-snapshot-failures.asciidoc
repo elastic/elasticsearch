@@ -84,8 +84,15 @@ The response will look like this:
 +
 
 Snapshots can fail for a variety reasons. If the failures are due to configuration errors, consult the
-documentation for the repository that the automated snapshots are using. In the event that snapshots are failing for
-other reasons check the logs on the elected master node during the snapshot execution period for more information.
+documentation for the repository that the automated snapshots are using. Refer to the
+https://www.elastic.co/guide/en/cloud-enterprise/current/ece-manage-repositories.html[guide on managing repositories in ECE]
+if you are using such a deployment.
+
+One common failure scenario is repository corruption. This occurs most often when multiple instances of {es} write to
+the same repository location. There is a <<add-repository, separate troubleshooting guide>> to fix this problem.
+
+In the event that snapshots are failing for other reasons check the logs on the elected master node during the snapshot
+execution period for more information.
 
 
 //end::kibana-api-ex[]
@@ -153,8 +160,13 @@ The response will look like this:
 <4> Error details containing the reason for the snapshot failure.
 
 Snapshots can fail for a variety reasons. If the failures are due to configuration errors, consult the
-documentation for the repository that the automated snapshots are using. In the event that snapshots are failing for
-other reasons check the logs on the elected master node during the snapshot execution period for more information.
+documentation for the repository that the automated snapshots are using.
+
+One common failure scenario is repository corruption. This occurs most often when multiple instances of {es} write to
+the same repository location. There is a <<add-repository, separate troubleshooting guide>> to fix this problem.
+
+In the event that snapshots are failing for other reasons check the logs on the elected master node during the snapshot
+execution period for more information.
 
 // end::self-managed[]
 

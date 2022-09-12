@@ -233,31 +233,34 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
-                client.bulk(toSingleItemBulkRequest(indexRequest), unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
-                    UpdateResponse update = new UpdateResponse(
-                        response.getShardInfo(),
-                        response.getShardId(),
-                        response.getId(),
-                        response.getSeqNo(),
-                        response.getPrimaryTerm(),
-                        response.getVersion(),
-                        response.getResult()
-                    );
-                    update.setGetResult(
-                        UpdateHelper.extractGetResult(
-                            request,
-                            request.concreteIndex(),
+                client.bulk(
+                    toSingleItemBulkRequest(indexRequest),
+                    unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                        UpdateResponse update = new UpdateResponse(
+                            response.getShardInfo(),
+                            response.getShardId(),
+                            response.getId(),
                             response.getSeqNo(),
                             response.getPrimaryTerm(),
                             response.getVersion(),
-                            result.updatedSourceAsMap(),
-                            result.updateSourceContentType(),
-                            indexSourceBytes
-                        )
-                    );
-                    update.setForcedRefresh(response.forcedRefresh());
-                    listener.onResponse(update);
-                }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))));
+                            response.getResult()
+                        );
+                        update.setGetResult(
+                            UpdateHelper.extractGetResult(
+                                request,
+                                request.concreteIndex(),
+                                response.getSeqNo(),
+                                response.getPrimaryTerm(),
+                                response.getVersion(),
+                                result.updatedSourceAsMap(),
+                                result.updateSourceContentType(),
+                                indexSourceBytes
+                            )
+                        );
+                        update.setForcedRefresh(response.forcedRefresh());
+                        listener.onResponse(update);
+                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
+                );
             }
             case DELETED -> {
                 DeleteRequest deleteRequest = result.action();

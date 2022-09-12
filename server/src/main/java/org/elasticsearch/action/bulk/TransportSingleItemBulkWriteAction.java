@@ -21,7 +21,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * Use {@link TransportBulkAction} instead with {@link TransportBulkAction#unwrappingSingleItemBulkResponse(ActionListener)} as response wrapper.
+ * Use {@link TransportBulkAction} instead with {@link TransportBulkAction#unwrappingSingleItemBulkResponse(ActionListener)}
+ * to unwrap response.
  */
 @Deprecated
 public abstract class TransportSingleItemBulkWriteAction<

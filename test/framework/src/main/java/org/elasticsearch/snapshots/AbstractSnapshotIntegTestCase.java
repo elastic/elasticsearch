@@ -74,6 +74,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -797,5 +798,17 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static String[] matchAllPattern() {
         return randomBoolean() ? new String[] { "*" } : new String[] { TransportGetRepositoriesAction.ALL_PATTERN };
+    }
+
+    public RepositoryMetadata getRepositoryMetadata(String repo) {
+        RepositoriesMetadata repositories = clusterService().state()
+            .metadata()
+            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories()
+            .stream()
+            .filter(x -> x.name().equals(repo))
+            .findFirst();
+        assertTrue(repositoryMetadata.isPresent());
+        return repositoryMetadata.get();
     }
 }

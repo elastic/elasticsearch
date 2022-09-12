@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.PluginBundle;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
@@ -29,7 +28,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
 /**
  * Reads named components declared by a plugin in a cache file.
  * Cache file is expected to be present in plugin's lib directory
- *
+ * <p>
  * The content of a cache file is a JSON representation of a map where:
  * keys -> name of the extensible interface (a class/interface marked with @Extensible)
  * values -> a map of name to implementation class name
@@ -44,7 +43,7 @@ public class NamedComponentReader {
     private final ExtensiblesRegistry extensiblesRegistry;
 
     public NamedComponentReader() {
-        this.extensiblesRegistry = ExtensiblesRegistry.INSTANCE;
+        this(ExtensiblesRegistry.INSTANCE);
     }
 
     NamedComponentReader(ExtensiblesRegistry extensiblesRegistry) {
@@ -83,23 +82,30 @@ public class NamedComponentReader {
     Map<String, NameToPluginInfo> readFromFile(Path namedComponent, ClassLoader pluginClassLoader) throws IOException {
         Map<String, NameToPluginInfo> res = new HashMap<>();
 
-        try (var json = new BufferedInputStream(Files.newInputStream(namedComponent))) {
-            try (XContentParser parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-                Map<String, Object> map = parser.map();
-                for (Map.Entry<String, Object> fileAsMap : map.entrySet()) {
-                    String extensibleInterface = fileAsMap.getKey();
+        try (
+            var json = new BufferedInputStream(Files.newInputStream(namedComponent));
+            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)
+        ) {
+            Map<String, Object> map = parser.map();
+            for (Map.Entry<String, Object> fileAsMap : map.entrySet()) {
+                String extensibleInterface = fileAsMap.getKey();
+                validateExtensible(extensibleInterface);
+                Map<String, Object> components = (Map<String, Object>) fileAsMap.getValue();
+                for (Map.Entry<String, Object> nameToComponent : components.entrySet()) {
+                    String name = nameToComponent.getKey();
+                    String value = (String) nameToComponent.getValue();
 
-                    Map<String, Object> components = (Map<String, Object>) fileAsMap.getValue();
-                    for (Map.Entry<String, Object> nameToComponent : components.entrySet()) {
-                        String name = nameToComponent.getKey();
-                        String value = (String) nameToComponent.getValue();
-
-                        res.computeIfAbsent(extensibleInterface, k -> new NameToPluginInfo())
-                            .put(name, new PluginInfo(name, value, pluginClassLoader));
-                    }
+                    res.computeIfAbsent(extensibleInterface, k -> new NameToPluginInfo())
+                        .put(name, new PluginInfo(name, value, pluginClassLoader));
                 }
             }
         }
         return res;
+    }
+
+    private void validateExtensible(String extensibleInterface) {
+        if (extensiblesRegistry.hasExtensible(extensibleInterface) == false) {
+            throw new IllegalStateException("Unknown extensible name " + extensibleInterface);
+        }
     }
 }

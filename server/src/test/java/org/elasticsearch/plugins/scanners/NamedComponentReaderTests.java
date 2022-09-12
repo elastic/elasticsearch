@@ -19,11 +19,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NamedComponentReaderTests extends ESTestCase {
-    ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("file_does_not_exist.txt");// forcing to do classpath scan
+    ExtensiblesRegistry extensiblesRegistry = new ExtensiblesRegistry("test_extensible.json");
     NamedComponentReader namedComponentReader = new NamedComponentReader(extensiblesRegistry);
 
     @SuppressForbidden(reason = "test resource")
@@ -49,8 +48,22 @@ public class NamedComponentReaderTests extends ESTestCase {
         );
     }
 
-    static byte[] bytes(String str) {
-        return str.getBytes(UTF_8);
+    public void testUnknownExtensible() throws IOException {
+        final Path tmp = createTempDir();
+        final Path pluginDir = tmp.resolve("plugin-dir");
+        Files.createDirectories(pluginDir);
+        Path namedComponentFile = pluginDir.resolve("named_components.json");
+        Files.writeString(namedComponentFile, """
+            {
+              "org.elasticsearch.plugins.scanners.extensible_test_classes.UnknownExtensible": {
+                "a_component": "p.A",
+                "b_component": "p.B"
+              }
+            }
+            """);
+
+        ClassLoader classLoader = NamedComponentReaderTests.class.getClassLoader();
+        expectThrows(IllegalStateException.class, () -> namedComponentReader.findNamedComponents(pluginDir, classLoader));
     }
 
     public void testFindNamedComponentInJarWithNamedComponentscacheFile() throws IOException {
@@ -66,8 +79,6 @@ public class NamedComponentReaderTests extends ESTestCase {
               }
             }
             """);
-
-        // jar can be ignored.. cached file is only read atm, verification maybe later?
 
         ClassLoader classLoader = NamedComponentReaderTests.class.getClassLoader();
         Map<String, NameToPluginInfo> namedComponents = namedComponentReader.findNamedComponents(pluginDir, classLoader);

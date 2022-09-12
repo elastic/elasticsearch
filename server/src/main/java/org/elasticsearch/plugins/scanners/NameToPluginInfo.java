@@ -10,49 +10,29 @@ package org.elasticsearch.plugins.scanners;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
-public class NameToPluginInfo {
+public record NameToPluginInfo(Map<String, PluginInfo> nameToPluginInfoMap) {
 
-    // plugin name to NamedPluginInfo
-    private Map<String, PluginInfo> namedPluginInfoMap = new HashMap<>();
-
-    public void put(String name, PluginInfo pluginInfo) {
-        namedPluginInfoMap.put(name, pluginInfo);
+    public NameToPluginInfo() {
+        this(new HashMap<>());
     }
 
-    public void putAll(Map<String, PluginInfo> namedPluginInfoMap) {
-        this.namedPluginInfoMap.putAll(namedPluginInfoMap);
-    }
-
-    public void put(NameToPluginInfo nameToPluginInfo) {
-        this.namedPluginInfoMap.putAll(nameToPluginInfo.namedPluginInfoMap);
-    }
-
-    public PluginInfo getForPluginName(String pluginName) {
-        return namedPluginInfoMap.get(pluginName);
-    }
-
-    @Override
-    public String toString() {
-        return "NameToPluginInfo{" + "namedPluginInfoMap=" + namedPluginInfoMap + '}';
-    }
-
-    public NameToPluginInfo with(String name, PluginInfo pluginInfo) {
-        put(name, pluginInfo);
+    public NameToPluginInfo put(String name, PluginInfo pluginInfo) {
+        nameToPluginInfoMap.put(name, pluginInfo);
         return this;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        NameToPluginInfo that = (NameToPluginInfo) o;
-        return Objects.equals(namedPluginInfoMap, that.namedPluginInfoMap);
+    public void putAll(Map<String, PluginInfo> namedPluginInfoMap) {
+        this.nameToPluginInfoMap.putAll(namedPluginInfoMap);
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(namedPluginInfoMap);
+    public NameToPluginInfo put(NameToPluginInfo nameToPluginInfo) {
+        putAll(nameToPluginInfo.nameToPluginInfoMap);
+        return this;
     }
+
+    public PluginInfo getForPluginName(String pluginName) {
+        return nameToPluginInfoMap.get(pluginName);
+    }
+
 }

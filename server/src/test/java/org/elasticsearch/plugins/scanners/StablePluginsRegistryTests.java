@@ -25,15 +25,15 @@ public class StablePluginsRegistryTests extends ESTestCase {
         ClassLoader loader = Mockito.mock(ClassLoader.class);
         ClassLoader loader2 = Mockito.mock(ClassLoader.class);
 
-        NameToPluginInfo pluginInfo1 = new NameToPluginInfo().with(
+        NameToPluginInfo pluginInfo1 = new NameToPluginInfo().put(
             "namedComponentName1",
             new PluginInfo("namedComponentName1", "XXClassName", loader)
         );
-        NameToPluginInfo pluginInfo2 = new NameToPluginInfo().with(
+        NameToPluginInfo pluginInfo2 = new NameToPluginInfo().put(
             "namedComponentName2",
             new PluginInfo("namedComponentName2", "YYClassName", loader)
         );
-        NameToPluginInfo pluginInfo3 = new NameToPluginInfo().with(
+        NameToPluginInfo pluginInfo3 = new NameToPluginInfo().put(
             "namedComponentName3",
             new PluginInfo("namedComponentName3", "ZZClassName", loader2)
         );
@@ -53,10 +53,10 @@ public class StablePluginsRegistryTests extends ESTestCase {
             Matchers.equalTo(
                 Map.of(
                     "extensibleInterfaceName",
-                    new NameToPluginInfo().with("namedComponentName1", new PluginInfo("namedComponentName1", "XXClassName", loader))
-                        .with("namedComponentName2", new PluginInfo("namedComponentName2", "YYClassName", loader)),
+                    new NameToPluginInfo().put("namedComponentName1", new PluginInfo("namedComponentName1", "XXClassName", loader))
+                        .put("namedComponentName2", new PluginInfo("namedComponentName2", "YYClassName", loader)),
                     "extensibleInterfaceName2",
-                    new NameToPluginInfo().with("namedComponentName3", new PluginInfo("namedComponentName3", "ZZClassName", loader2))
+                    new NameToPluginInfo().put("namedComponentName3", new PluginInfo("namedComponentName3", "ZZClassName", loader2))
                 )
             )
         );

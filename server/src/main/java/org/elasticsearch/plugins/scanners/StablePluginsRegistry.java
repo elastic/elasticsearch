@@ -44,16 +44,11 @@ public class StablePluginsRegistry {
     public void scanBundleForStablePlugins(PluginBundle bundle, ClassLoader pluginClassLoader) {
         Map<String, NameToPluginInfo> namedComponentsFromPlugin = namedComponentsScanner.findNamedComponents(bundle, pluginClassLoader);
         for (Map.Entry<String, NameToPluginInfo> entry : namedComponentsFromPlugin.entrySet()) {
-            if (namedComponents.containsKey(entry.getKey())) {
-                NameToPluginInfo nameToPluginInfo = namedComponents.get(entry.getKey());
-                nameToPluginInfo.put(entry.getValue());
-            } else {
-                namedComponents.put(entry.getKey(), entry.getValue());
-            }
+            namedComponents.compute(entry.getKey(), (k, v) -> v != null ? v.put(entry.getValue()) : entry.getValue());
         }
     }
 
-    // TODO this will be removed. getPluginForName or similar wil be created
+    // TODO this will be removed. getPluginForName or similar will be created
     public Map<String, NameToPluginInfo> getNamedComponents() {
         return namedComponents;
     }

@@ -64,21 +64,23 @@ public class ExtensiblesRegistry {
 
     private static final Logger logger = LogManager.getLogger(ExtensiblesRegistry.class);
 
-    private static final String EXTENSIBLES_FILE = "extensibles.json";
+    private static final String EXTENSIBLES_FILE = "org/elasticsearch/plugins/scanner/extensibles.json";
     public static final ExtensiblesRegistry INSTANCE = new ExtensiblesRegistry(EXTENSIBLES_FILE);
 
-    private final ExtensibleFileReader extensibleFileReader;
     // classname (potentially extending/implementing extensible) to interface/class annotated with extensible
     private final Map<String, String> loadedExtensible;
 
     ExtensiblesRegistry(String extensiblesFile) {
-        extensibleFileReader = new ExtensibleFileReader(extensiblesFile);
+        ExtensibleFileReader extensibleFileReader = new ExtensibleFileReader(extensiblesFile);
 
         this.loadedExtensible = extensibleFileReader.readFromFile();
         if (loadedExtensible.size() > 0) {
             logger.debug(() -> format("Loaded extensible from cache file %s", loadedExtensible));
         }
+    }
 
+    public boolean hasExtensible(String extensibleName) {
+        return loadedExtensible.containsKey(extensibleName);
     }
 
 }

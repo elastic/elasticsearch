@@ -27,10 +27,11 @@ public class ExtensibleFileReaderTests extends ESTestCase {
                     "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
                     "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
                     "org.elasticsearch.plugins.scanners.extensible_test_classes.SubClass",
-                    "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass"
+                    "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleClass",
+                    "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface" ,
+                    "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface"
                 )
             )
         );
-
     }
 }

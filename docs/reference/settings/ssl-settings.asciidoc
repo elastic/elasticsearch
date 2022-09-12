@@ -26,12 +26,14 @@ Defaults to +{client-auth-default}+.
 endif::client-auth-default[]
 endif::server[]
 
-ifdef::verifies[]
+ifdef::server[]
 +{ssl-prefix}.ssl.verification_mode+::
 (<<static-cluster-setting,Static>>)
-Controls the verification of certificates.
+Defines how to verify the certificates presented by another party in the TLS 
+connection. This setting accepts the following values for TLS _clients_, but 
+should not be set for TLS _servers_:
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
-endif::verifies[]
+endif::server[]
 
 +{ssl-prefix}.ssl.cipher_suites+::
 (<<static-cluster-setting,Static>>)
@@ -73,10 +75,6 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 +{ssl-prefix}.ssl.certificate_authorities+::
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
-
-+{ssl-prefix}.ssl.verification_mode+::
-(<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode]
 
 ===== Java keystore files
 

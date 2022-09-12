@@ -11,34 +11,6 @@ List of paths to PEM encoded certificate files that should be trusted.
 This setting and `ssl.truststore.path` cannot be used at the same time.
 end::ssl-certificate-authorities[]
 
-tag::ssl-verification-mode[]
-Defines how to verify the certificates presented by the other party in the TLS 
-connection. This setting accepts the following values for TLS _clients_, but 
-should not be set for TLS _servers_:
-+
-.Valid values
-[%collapsible%open]
-=====
-`full`::
-(Required) Verifies that the certificate has a valid issue date that's 
-within the `not_before` and `not_after` dates, chains to a trusted 
-Certificate Authority (CA), and has a Subject Alternative Name (SAN, or `hostname`) 
-that matches the intended connection address.
-
-`certificate`::
-(Required) Checks the validity and trust chain (CA) of the certificate, but
-doesn't check the SAN (`hostname`).
-
-`none`::
-(Required) Performs no certificate validation.
-+
-IMPORTANT: Setting certificate validation to `none` is very dangerous. When set
-to this value, {es} performs no checks on the validity, trust chain, or `hostname`
-for a certificate. Only set this value if instructed by Elastic Support for
-debugging purposes.
-=====
-end::ssl-verification-mode[]
-
 tag::ssl-cipher-suites-values[]
 Supported cipher suites vary depending on which version of Java you use. For
 example, for version 12 the default value is `TLS_AES_256_GCM_SHA384`,
@@ -177,20 +149,28 @@ Otherwise, it defaults to `jks`.
 end::ssl-truststore-type[]
 
 tag::ssl-verification-mode-values[]
-Controls the verification of certificates.
 +
-Valid values are:
+.Valid values
+[%collapsible%open]
+=====
+`full`::
+Validates that the provided certificate: has an issue date that's
+within the `not_before` and `not_after` dates; chains to a trusted Certificate
+Authority (CA); has a `hostname` or IP address that matches the names within
+the certificate.
 
- * `full`, which verifies that the provided certificate is signed by a trusted
-authority (CA) and also verifies that the server's hostname (or IP address)
-matches the names identified within the certificate.
- * `certificate`, which verifies that the provided certificate is signed by a
-trusted authority (CA), but does not perform any hostname verification.
- * `none`, which performs _no verification_ of the server's certificate. This
-mode disables many of the security benefits of SSL/TLS and should only be used
-after very careful consideration. It is primarily intended as a temporary
-diagnostic mechanism when attempting to resolve TLS errors; its use on
-production clusters is strongly discouraged.
+`certificate`::
+Validates the provided certificate and verifies that it's signed by a 
+trusted authority (CA), but doesn't check the certificate `hostname`.
+
+`none`::
+Performs no certificate validation.
 +
-The default value is `full`.
+IMPORTANT: Setting certificate validation to `none` disables many security
+benefits of SSL/TLS, which is very dangerous. Only set this value if instructed
+by Elastic Support as a temporary diagnostic mechanism when attempting to
+resolve TLS errors.
+=====
++
+Defaults to `full`.
 end::ssl-verification-mode-values[]

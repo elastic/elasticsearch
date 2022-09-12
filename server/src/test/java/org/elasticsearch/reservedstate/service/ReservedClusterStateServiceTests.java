@@ -155,7 +155,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             )
         );
 
-        doReturn(state).when(task).execute(any());
+        doReturn(new ReservedStateUpdateTask.UpdateResult(state, List.of())).when(task).execute(any());
 
         ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> taskContext = new ClusterStateTaskExecutor.TaskContext<>() {
             @Override

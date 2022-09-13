@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
@@ -25,9 +26,11 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -114,6 +117,67 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, dataNode);
 
         assertSuccessful(createSlowFuture);
+    }
+
+    public void testRecreateCorruptedRepositoryDuringSnapshotsFails() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String slowDataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        logger.info("--> issue a long-running slow snapshot");
+        createIndexWithContent("index-slow");
+        final ActionFuture<CreateSnapshotResponse> slowFuture = startFullSnapshotBlockedOnDataNode("slow-snapshot", repoName, slowDataNode);
+
+        logger.info("--> execute a concurrent fast snapshot");
+        final String fastDataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(3);
+        final String indexFast = "index-fast";
+        createIndexWithContent(indexFast, fastDataNode, slowDataNode);
+        assertSuccessful(
+            clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot").setIndices(indexFast).setWaitForCompletion(true).execute()
+        );
+
+        logger.info("--> corrupting the repository by moving index-N blob to next generation");
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        Settings repoSettings = getRepositoryMetadata(repoName).settings();
+
+        Path repo = PathUtils.get(repoSettings.get("location"));
+        Files.move(repo.resolve("index-" + repositoryData.getGenId()), repo.resolve("index-" + (repositoryData.getGenId() + 1)));
+
+        logger.info("--> trying to create another snapshot in order for repository to be marked as corrupt");
+        final SnapshotException snapshotException = expectThrows(
+            SnapshotException.class,
+            () -> clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot2")
+                .setIndices(indexFast)
+                .setWaitForCompletion(true)
+                .execute()
+                .actionGet()
+        );
+        assertThat(snapshotException.getMessage(), containsString("failed to update snapshot in repository"));
+        assertEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryMetadata(repoName).generation());
+
+        logger.info("--> recreating the repository in order to reset corrupted state, which should fail due to ongoing snapshot");
+        final RepositoryConflictException repoException = expectThrows(
+            RepositoryConflictException.class,
+            () -> createRepository(repoName, "mock", Settings.builder().put(repoSettings))
+        );
+        assertThat(repoException.getMessage(), containsString("trying to modify or unregister repository that is currently used"));
+
+        logger.info("--> unblocking slow snapshot and let it fail due to corrupt repository");
+        assertThat(slowFuture.isDone(), is(false));
+        unblockNode(repoName, slowDataNode);
+        final ExecutionException executionException = expectThrows(ExecutionException.class, () -> slowFuture.get().getSnapshotInfo());
+        final Throwable innermostException = Throwables.getRootCause(executionException);
+        assertThat(innermostException, instanceOf(RepositoryException.class));
+        assertThat(
+            innermostException.getMessage(),
+            containsString("Could not read repository data because the contents of the repository do not match its expected state")
+        );
+
+        logger.info("--> without snapshots in progress, finally recreate repository to reset corrupted state");
+        createRepository(repoName, "mock", Settings.builder().put(repoSettings));
+        assertNotEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryMetadata(repoName).generation());
     }
 
     public void testDeletesAreBatched() throws Exception {

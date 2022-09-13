@@ -347,11 +347,13 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         List.of(
             "search-" + randomAlphaOfLengthBetween(1, 20),
+            ".elastic-analytics-collections",
             ".ent-search-" + randomAlphaOfLengthBetween(1, 20),
             ".monitoring-ent-search-" + randomAlphaOfLengthBetween(1, 20),
             "metricbeat-ent-search-" + randomAlphaOfLengthBetween(1, 20),
             "enterprise-search-" + randomAlphaOfLengthBetween(1, 20),
             "logs-app_search.analytics-default",
+            "logs-elastic_analytics.events-" + randomAlphaOfLengthBetween(1, 20) + "-" + randomAlphaOfLengthBetween(1, 20),
             "logs-enterprise_search.api-default",
             "logs-enterprise_search.audit-default",
             "logs-app_search.search_relevance_suggestions-default",

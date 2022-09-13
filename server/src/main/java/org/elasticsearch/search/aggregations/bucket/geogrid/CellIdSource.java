@@ -169,7 +169,7 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
 
         @Override
         public boolean advanceExact(int docId) throws IOException {
-            return geoValues.advanceExact(docId) && advance(geoValues.geoPointValue());
+            return geoValues.advanceExact(docId) && advance(geoValues.pointValue());
         }
 
         @Override

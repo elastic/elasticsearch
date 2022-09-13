@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class CompletionStats implements Writeable, ToXContentFragment {
 
@@ -82,5 +83,18 @@ public class CompletionStats implements Writeable, ToXContentFragment {
                 fields.add(completion.fields);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CompletionStats that = (CompletionStats) o;
+        return sizeInBytes == that.sizeInBytes && Objects.equals(fields, that.fields);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(sizeInBytes, fields);
     }
 }

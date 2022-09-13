@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.NodeDecision;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;
 import java.util.SortedSet;
 
-record ShardsAllocationResults(long sizeInBytes, SortedSet<ShardId> shardIds, List<NodeAllocationResult> nodeAllocationResults) {}
+record ShardsAllocationResults(
+    long sizeInBytes,
+    SortedSet<ShardId> shardIds,
+    List<NodeDecision> canAllocateDecisions,
+    List<NodeDecision> canRemainDecisions
+) {}

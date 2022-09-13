@@ -16,9 +16,8 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.NodeDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -115,9 +114,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             .get("reactive_storage")
             .reason();
         assertEquals(1, reactiveReason.assignedAllocationResults().size());
-        NodeAllocationResult nodeAllocationResult = reactiveReason.assignedAllocationResults().get(0);
-        assertEquals(AllocationDecision.NO, nodeAllocationResult.getNodeDecision());
-        Decision decision = nodeAllocationResult.getCanAllocateDecision()
+        NodeDecision nodeAllocationResult = reactiveReason.assignedAllocationResults().get(0);
+        Decision decision = nodeAllocationResult.decision()
             .getDecisions()
             .stream()
             .filter(d -> d.type() == Decision.Type.NO)

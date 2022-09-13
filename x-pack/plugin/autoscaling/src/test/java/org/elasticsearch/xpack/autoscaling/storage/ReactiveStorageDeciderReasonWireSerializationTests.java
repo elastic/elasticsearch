@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.NodeDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -100,7 +100,7 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     instance.assigned(),
                     instance.assignedShardIds(),
-                    randomList(8, this::randomNodeAllocationResult),
+                    randomList(8, this::randomNodeDecision),
                     instance.assignedAllocationResults()
                 );
             case 7:
@@ -111,7 +111,7 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.assigned(),
                     instance.assignedShardIds(),
                     instance.unassignedAllocationResults(),
-                    randomList(8, this::randomNodeAllocationResult)
+                    randomList(8, this::randomNodeDecision)
                 );
             case 8:
                 return new ReactiveStorageDeciderService.ReactiveReason(
@@ -120,8 +120,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     instance.assigned(),
                     instance.assignedShardIds(),
-                    randomList(8, this::randomNodeAllocationResult),
-                    randomList(8, this::randomNodeAllocationResult)
+                    randomList(8, this::randomNodeDecision),
+                    randomList(8, this::randomNodeDecision)
                 );
             default:
                 fail("unexpected");
@@ -137,16 +137,15 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
             new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
             randomNonNegativeLong(),
             new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
-            randomList(8, this::randomNodeAllocationResult),
-            randomList(8, this::randomNodeAllocationResult)
+            randomList(8, this::randomNodeDecision),
+            randomList(8, this::randomNodeDecision)
         );
     }
 
-    private NodeAllocationResult randomNodeAllocationResult() {
-        return new NodeAllocationResult(
+    private NodeDecision randomNodeDecision() {
+        return new NodeDecision(
             new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            randomFrom(Decision.NO, Decision.YES, Decision.THROTTLE),
-            randomInt()
+            randomFrom(Decision.NO, Decision.YES, Decision.THROTTLE)
         );
     }
 }

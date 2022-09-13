@@ -37,6 +37,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
         FLOAT
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90004")
     public void testUpgradeDesiredNodes() throws Exception {
         // Desired nodes was introduced in 8.1
         if (UPGRADE_FROM_VERSION.before(Version.V_8_1_0)) {

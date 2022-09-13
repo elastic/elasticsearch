@@ -1,0 +1,6 @@
+{
+  "org.elasticsearch.plugin.analysis.api.AnalyzerFactory":"org.elasticsearch.plugin.analysis.api.AnalyzerFactory",
+  "org.elasticsearch.plugin.analysis.api.CharFilterFactory":"org.elasticsearch.plugin.analysis.api.CharFilterFactory",
+  "org.elasticsearch.plugin.analysis.api.TokenFilterFactory":"org.elasticsearch.plugin.analysis.api.TokenFilterFactory",
+  "org.elasticsearch.plugin.analysis.api.TokenizerFactory":"org.elasticsearch.plugin.analysis.api.TokenizerFactory"
+}

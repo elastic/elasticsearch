@@ -115,14 +115,13 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         this.clusterServiceHolder.set(clusterService);
-        return List.of(
-            new AutoscalingCalculateCapacityService.Holder(this),
-            autoscalingLicenseChecker,
-            new AutoscalingNodeInfoService(clusterService, client)
-        );
+        this.allocationDeciders.set(allocationDeciders);
+        var capacityServiceHolder = new AutoscalingCalculateCapacityService.Holder(this);
+        return List.of(capacityServiceHolder, autoscalingLicenseChecker, new AutoscalingNodeInfoService(clusterService, client));
     }
 
     @Override
@@ -222,9 +221,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         );
     }
 
-    public Set<AutoscalingDeciderService> createDeciderServices(AllocationDeciders deciders) {
-        this.allocationDeciders.set(deciders);
+    public Set<AutoscalingDeciderService> createDeciderServices() {
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
-
 }

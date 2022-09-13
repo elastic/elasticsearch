@@ -47,7 +47,6 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         assertThat(e.getMessage(), equalTo("results can not be empty"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89854")
     public void testRequiredCapacity() {
         AutoscalingCapacity single = randomBoolean() ? randomAutoscalingCapacity() : null;
         verifyRequiredCapacity(single, single);
@@ -63,7 +62,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
 
         List<AutoscalingCapacity> autoscalingCapacities = new ArrayList<>();
         autoscalingCapacities.add(large);
-        IntStream.range(0, 10).mapToObj(i -> randomCapacity(node, storage, memory, processor, 0, 1000)).forEach(autoscalingCapacities::add);
+        IntStream.range(0, 10).mapToObj(i -> randomCapacity(node, storage, memory, processor, 1, 1000)).forEach(autoscalingCapacities::add);
 
         Randomness.shuffle(autoscalingCapacities);
         verifyRequiredCapacity(large, autoscalingCapacities.toArray(AutoscalingCapacity[]::new));

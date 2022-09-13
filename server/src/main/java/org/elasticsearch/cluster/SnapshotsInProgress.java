@@ -1426,6 +1426,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @SuppressWarnings("unchecked")
         EntryDiff(Entry before, Entry after) {
+            try {
+                verifyDiffable(before, after);
+            } catch (Exception e) {
+                final IllegalArgumentException ex = new IllegalArgumentException("Cannot diff [" + before + "] and [" + after + "]");
+                assert false : ex;
+                throw ex;
+            }
             this.indexByIndexNameDiff = DiffableUtils.diff(
                 before.indices,
                 after.indices,
@@ -1451,6 +1458,37 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 );
             } else {
                 this.shardsByRepoShardIdDiff = null;
+            }
+        }
+
+        private static void verifyDiffable(Entry before, Entry after) {
+            if (before.snapshot().equals(after.snapshot()) == false) {
+                throw new IllegalArgumentException("snapshot changed from [" + before.snapshot() + "] to [" + after.snapshot() + "]");
+            }
+            if (before.startTime() != after.startTime()) {
+                throw new IllegalArgumentException("start time changed from [" + before.startTime() + "] to [" + after.startTime() + "]");
+            }
+            if (Objects.equals(before.source(), after.source()) == false) {
+                throw new IllegalArgumentException("source changed from [" + before.source() + "] to [" + after.source() + "]");
+            }
+            if (before.includeGlobalState() != after.includeGlobalState()) {
+                throw new IllegalArgumentException(
+                    "include global state changed from [" + before.includeGlobalState() + "] to [" + after.includeGlobalState() + "]"
+                );
+            }
+            if (before.partial() != after.partial()) {
+                throw new IllegalArgumentException("partial changed from [" + before.partial() + "] to [" + after.partial() + "]");
+            }
+            if (before.featureStates().equals(after.featureStates()) == false) {
+                throw new IllegalArgumentException(
+                    "feature states changed from " + before.featureStates() + " to " + after.featureStates()
+                );
+            }
+            if (Objects.equals(before.userMetadata(), after.userMetadata()) == false) {
+                throw new IllegalArgumentException("user metadata changed from " + before.userMetadata() + " to " + after.userMetadata());
+            }
+            if (before.version().equals(after.version()) == false) {
+                throw new IllegalArgumentException("version changed from " + before.version() + " to " + after.version());
             }
         }
 

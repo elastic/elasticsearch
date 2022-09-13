@@ -796,7 +796,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex(indexName), 0));
 
         assertThat(shard.getTotalIndexingTimeInNanos(), is(greaterThan(0L)));
-        assertThat(shard.getTotalRefreshTimeInNanos(), is(greaterThan(0L)));
         assertThat(shard.getShardIndexingTimeStats().inFlightOps(), is(equalTo(0)));
     }
 

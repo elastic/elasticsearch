@@ -21,10 +21,13 @@ import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygonFactory;
 import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /** Implementation of a lucene {@link LatLonGeometry} that covers the extent of a provided H3 bin. Note that
@@ -74,7 +77,7 @@ public class H3LatLonGeometry extends LatLonGeometry {
      * </ul>
      * TODO: Move this comment to the public class comment above for more visibility
      */
-    private static class H3Polygon2D implements Component2D {
+    static class H3Polygon2D implements Component2D {
 
         // We want to make are edges a bit bigger because spatial3d and h3 edges do not fully agree in
         // membership of points around he edges.
@@ -108,7 +111,25 @@ public class H3LatLonGeometry extends LatLonGeometry {
             this.maxX = Math.min(GeoUtils.MAX_LON_INCL, maxX + BBOX_EDGE_DELTA);
             this.minY = Math.max(GeoUtils.MIN_LAT_INCL, minY - BBOX_EDGE_DELTA);
             this.maxY = Math.min(GeoUtils.MAX_LAT_INCL, maxY + BBOX_EDGE_DELTA);
+        }
 
+        /**
+         * Interface allowing external code to perform inspections of this class.
+         * Just call the H3Polygon2D.inspect method with an instance of this interface to be informed.
+         * Currently, this is used primary for testing purposes.
+         */
+        interface CellInspector {
+            void inspect(long h3, int res, double minX, double maxX, double minY, double maxY, List<Point> boundary);
+        }
+
+        void inspect(CellInspector inspect) {
+            final CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3);
+            ArrayList<Point> boundary = new ArrayList<>(cellBoundary.numPoints());
+            for (int i = 0; i < cellBoundary.numPoints(); i++) {
+                final LatLng latLng = cellBoundary.getLatLon(i);
+                boundary.add(new Point(latLng.getLonDeg(), latLng.getLatDeg()));
+            }
+            inspect.inspect(h3, res, minX, maxX, minY, maxY, boundary);
         }
 
         private GeoPolygon getGeoPolygon(CellBoundary cellBoundary) {
@@ -257,6 +278,8 @@ public class H3LatLonGeometry extends LatLonGeometry {
             if (ab && crossesLine(aX, aY, bX, bY)) {
                 return WithinRelation.NOTWITHIN;
             }
+            // If the line is not part of the original shape (ie. inner triangle line), it does not matter if it crosses the hexagon or not
+            // TODO: Verify why we never return CANDIDATE (this code is copied from Polygon2D which returns DISJOINT at this point)
             return WithinRelation.DISJOINT;
         }
 

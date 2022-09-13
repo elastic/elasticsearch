@@ -388,11 +388,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             .filter(o -> subjectShards.contains(o))
             .collect(Collectors.toCollection(TreeSet::new));
 
-        verify(
-            ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            nodes,
-            shardIds,
-            List::isEmpty,
+        verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, nodes, shardIds, nodeDecisions -> {
+            assertEquals(hotNodes - 1, nodeDecisions.size());
+            assertTrue(nodeDecisions.stream().map(NodeDecision::decision).allMatch(d -> d.type() == Decision.Type.NO));
+            return true;
+        },
             nodeAllocationResults -> singleNoDecision(nodeAllocationResults.get(0)).equals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test")
             ),
@@ -418,11 +418,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         );
 
         // only consider it once (move case) if both cannot remain and cannot allocate.
-        verify(
-            ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            nodes,
-            shardIds,
-            List::isEmpty,
+        verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, nodes, shardIds, nodeDecisions -> {
+            assertEquals(hotNodes - 1, nodeDecisions.size());
+            assertTrue(nodeDecisions.stream().map(NodeDecision::decision).allMatch(d -> d.type() == Decision.Type.NO));
+            return true;
+        },
             nodeAllocationResults -> singleNoDecision(nodeAllocationResults.get(0)).equals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test")
             ),

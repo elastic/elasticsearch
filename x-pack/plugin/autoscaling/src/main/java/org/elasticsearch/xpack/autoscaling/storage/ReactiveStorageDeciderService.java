@@ -324,6 +324,20 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .filter(s -> allocatedToTier(s, allocation))
                 .flatMap(shard -> cannotRemainDueToStorage(shard, allocation).stream())
                 .toList();
+            List<ShardNodeDecisions> otherNodesOnTierAllocationDecisions = unmovableShardNodeAllocationResults.stream()
+                .map(ShardNodeDecisions::shard)
+                .map(
+                    shard -> new ShardNodeDecisions(
+                        shard,
+                        state.getRoutingNodes()
+                            .stream()
+                            .filter(n -> nodeTierPredicate.test(n.node()))
+                            .filter(n -> shard.currentNodeId().equals(n.nodeId()) == false)
+                            .map(n -> new NodeDecision(n.node(), allocationDeciders.canAllocate(shard, n, allocation)))
+                            .toList()
+                    )
+                )
+                .toList();
             Set<ShardRouting> unmovableShards = unmovableShardNodeAllocationResults.stream().map(e -> e.shard).collect(Collectors.toSet());
 
             long unmovableBytes = unmovableShards.stream()
@@ -344,7 +358,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedShardNodeAllocationResults.stream())
                     .map(e -> e.shard.shardId())
                     .collect(Collectors.toCollection(TreeSet::new)),
-                unallocatedShardNodeAllocationResults.stream()
+                Stream.concat(unallocatedShardNodeAllocationResults.stream(), otherNodesOnTierAllocationDecisions.stream())
                     .filter(e -> e.nodeAllocationResults.size() > 0)
                     .min(Comparator.comparing(e -> e.shard.shardId()))
                     .map(e -> e.nodeAllocationResults)

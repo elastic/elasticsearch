@@ -393,12 +393,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     repositoryName
                 );
                 if (request.partial() == false) {
-                    Set<String> missing = new HashSet<>();
-                    for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards.entrySet()) {
-                        if (entry.getValue().state() == ShardState.MISSING) {
-                            missing.add(entry.getKey().getIndex().getName());
-                        }
-                    }
+                    Set<String> missing = shards.entrySet().stream()
+                        .filter(e -> e.getValue().state() == ShardState.MISSING)
+                        .map(e -> e.getKey().getIndex().getName())
+                        .collect(Collectors.toSet());
+
                     if (missing.isEmpty() == false) {
                         throw new SnapshotException(
                             new Snapshot(repositoryName, snapshotId),
@@ -1355,7 +1354,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         if (snapshotChanged) {
-            return shards;
+            return Collections.unmodifiableMap(shards);
         } else {
             return null;
         }
@@ -2770,10 +2769,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
             if (changed && newIndexIdsToRefresh.isEmpty() == false) {
-                final Map<IndexId, IndexId> updatedIndexIds = Maps.newMapWithExpectedSize(newIndexIdsToRefresh.size());
-                for (IndexId indexIdToRefresh : newIndexIdsToRefresh) {
-                    updatedIndexIds.put(indexIdToRefresh, new IndexId(indexIdToRefresh.getName(), UUIDs.randomBase64UUID()));
-                }
+                Map<IndexId, IndexId> updatedIndexIds = newIndexIdsToRefresh.stream()
+                    .collect(Collectors.toMap(Function.identity(), i -> new IndexId(i.getName(), UUIDs.randomBase64UUID())));
                 snapshotEntries.replaceAll(e -> e.withUpdatedIndexIds(updatedIndexIds));
             }
             return changed ? snapshotsInProgress.withUpdatedEntriesForRepo(repoName, snapshotEntries) : null;
@@ -2897,7 +2894,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
 
-        return shards;
+        return Collections.unmodifiableMap(shards);
     }
 
     /**

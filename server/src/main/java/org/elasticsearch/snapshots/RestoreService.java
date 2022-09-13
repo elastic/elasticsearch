@@ -723,8 +723,7 @@ public class RestoreService implements ClusterStateApplier {
         RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
         for (RestoreInProgress.Entry entry : oldRestore) {
             Map<ShardId, ShardRestoreStatus> shards = null;
-            for (Map.Entry<ShardId, ShardRestoreStatus> cursor : entry.shards().entrySet()) {
-                ShardId shardId = cursor.getKey();
+            for (ShardId shardId : entry.shards().keySet()) {
                 if (deletedIndices.contains(shardId.getIndex())) {
                     changesMade = true;
                     if (shards == null) {

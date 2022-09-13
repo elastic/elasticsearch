@@ -56,6 +56,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     private Environment env;
     private ClusterService clusterService;
     private FileSettingsService fileSettingsService;
+    private ReservedClusterStateService controller;
     private ThreadPool threadpool;
 
     @Before
@@ -86,10 +87,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        ReservedClusterStateService controller = new ReservedClusterStateService(
-            clusterService,
-            List.of(new ReservedClusterSettingsAction(clusterSettings))
-        );
+        controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
 
         fileSettingsService = new FileSettingsService(clusterService, controller, env);
     }
@@ -216,5 +214,94 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         service.stop();
         service.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStopWorksInMiddleOfProcessing() throws Exception {
+        var spiedController = spy(controller);
+        var fsService = new FileSettingsService(clusterService, spiedController, env);
+
+        FileSettingsService service = spy(fsService);
+        CountDownLatch processFileLatch = new CountDownLatch(1);
+        CountDownLatch deadThreadLatch = new CountDownLatch(1);
+
+        doAnswer((Answer<Void>) invocation -> {
+            processFileLatch.countDown();
+            new Thread(() -> {
+                // Simulate a thread that never comes back and decrements the
+                // countdown latch in FileSettingsService.processFileSettings
+                try {
+                    deadThreadLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }).start();
+            return null;
+        }).when(spiedController).process(any(String.class), any(XContentParser.class), any(Consumer.class));
+
+        service.start();
+        assertTrue(service.watching());
+
+        Files.createDirectories(service.operatorSettingsDir());
+
+        // Make some fake settings file to cause the file settings service to process it
+        Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
+
+        // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
+        // on Linux is instantaneous. Windows is instantaneous too.
+        processFileLatch.await(30, TimeUnit.SECONDS);
+
+        // Stopping the service should interrupt the watcher thread, we should be able to stop
+        service.stop();
+        assertFalse(service.watching());
+        service.close();
+        // let the deadlocked thread end, so we can cleanly exit the test
+        deadThreadLatch.countDown();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStopWorksIfProcessingDidntReturnYet() throws Exception {
+        var spiedController = spy(controller);
+        var fsService = new FileSettingsService(clusterService, spiedController, env);
+
+        FileSettingsService service = spy(fsService);
+        CountDownLatch processFileLatch = new CountDownLatch(1);
+        CountDownLatch deadThreadLatch = new CountDownLatch(1);
+
+        doAnswer((Answer<Void>) invocation -> {
+            processFileLatch.countDown();
+            // allow the other thread to continue, but hold on a bit to avoid
+            // setting the count-down latch in the main watcher loop.
+            Thread.sleep(1_000);
+            new Thread(() -> {
+                // Simulate a thread that never comes back and decrements the
+                // countdown latch in FileSettingsService.processFileSettings
+                try {
+                    deadThreadLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }).start();
+            return null;
+        }).when(spiedController).process(any(String.class), any(XContentParser.class), any(Consumer.class));
+
+        service.start();
+        assertTrue(service.watching());
+
+        Files.createDirectories(service.operatorSettingsDir());
+
+        // Make some fake settings file to cause the file settings service to process it
+        Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
+
+        // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
+        // on Linux is instantaneous. Windows is instantaneous too.
+        processFileLatch.await(30, TimeUnit.SECONDS);
+
+        // Stopping the service should interrupt the watcher thread, we should be able to stop
+        service.stop();
+        assertFalse(service.watching());
+        service.close();
+        // let the deadlocked thread end, so we can cleanly exit the test
+        deadThreadLatch.countDown();
     }
 }

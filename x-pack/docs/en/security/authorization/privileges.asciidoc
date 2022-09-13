@@ -187,10 +187,6 @@ All read-only security-related operations, such as getting users, user profiles,
 {es} API keys, {es} service accounts, roles and role mappings.
 Allows <<security-api-query-api-key,querying>> and <<security-api-get-api-key,retrieving information>>
 on all {es} API keys.
-It also allows checking the user and user profile privileges with the
-<<security-api-has-privileges,user has privileges API>> and the
-<<security-api-has-privileges-user-profile,user profile has privileges API>>
-respectively.
 
 `transport_client`::
 All privileges necessary for a transport client to connect. Required by the remote

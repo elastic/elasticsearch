@@ -147,6 +147,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         DIAGNOSE_SHARDS_ACTION_GUIDE
     );
 
+    public static final String FIX_DELAYED_SHARDS_GUIDE = "http://ela.st/fix-delayed-shard-allocation";
+    public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS = new Diagnosis.Definition(
+        "delayed_shard_allocations",
+        "Elasticsearch is not allocating some shards because they are marked for delayed allocation. Shards that have become "
+            + "unavailable are usually marked for delayed allocation because it is more efficient to wait and see if the shards return "
+            + "on their own than to recover the shard immediately.",
+        "Elasticsearch will reallocate the shards when the delay has elapsed. No action is required by the user.",
+        FIX_DELAYED_SHARDS_GUIDE
+    );
+
     public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "http://ela.st/fix-index-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
         "enable_index_allocations",
@@ -413,10 +423,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     actions.add(ACTION_RESTORE_FROM_SNAPSHOT);
                 }
                 break;
+            case NO_ATTEMPT:
+                if (shardRouting.unassignedInfo().isDelayed()) {
+                    actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
+                } else {
+                    actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
+                }
+                break;
             case DECIDERS_NO:
                 actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 break;
-            default:
+            case DELAYED_ALLOCATION:
+                actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 break;
         }
         if (actions.isEmpty()) {

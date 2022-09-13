@@ -40,7 +40,7 @@ abstract class AbstractRollupFieldProducer<T> {
     }
 
     /**
-     * Resets the collected value to the specific subclass reset value.
+     * Resets the producer to an empty value.
      */
     public abstract void reset();
 

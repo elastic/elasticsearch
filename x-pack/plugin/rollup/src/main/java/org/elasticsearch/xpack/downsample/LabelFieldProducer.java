@@ -57,8 +57,8 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
         final String name;
 
         /**
-         * Abstract class that defines how a label is computed.
-         * @param name
+         * Abstract class that defines how a label is downsampled.
+         * @param name the name of the field as it will be stored in the downsampled document
          */
         protected Label(String name) {
             this.name = name;

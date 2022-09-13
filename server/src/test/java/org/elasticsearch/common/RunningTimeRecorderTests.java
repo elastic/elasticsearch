@@ -76,21 +76,6 @@ public class RunningTimeRecorderTests extends ESTestCase {
         assertThat(runningTimeRecorder.totalRunningTimeInNanos(), equalTo(200L * runningOps.size()));
     }
 
-    public void testMultipleCloseCallsDoNotOverCountTotalTime() {
-        final AtomicLong clock = new AtomicLong();
-        final RunningTimeRecorder runningTimeRecorder = new RunningTimeRecorder(clock::get);
-
-        final Releasable tracker = runningTimeRecorder.trackRunningTime();
-
-        // Advance the clock 100ns
-        clock.set(100);
-
-        tracker.close();
-        tracker.close();
-
-        assertThat(runningTimeRecorder.totalRunningTimeInNanos(), equalTo(100L));
-    }
-
     public void testConcurrentCloseAndTotalRunningTimeInNanosCallsDoesNotOverCount() throws Exception {
         final AtomicLong clock = new AtomicLong();
         final RunningTimeRecorder runningTimeRecorder = new RunningTimeRecorder(clock::get);

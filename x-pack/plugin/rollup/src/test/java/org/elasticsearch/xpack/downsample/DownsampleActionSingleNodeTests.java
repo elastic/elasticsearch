@@ -823,15 +823,22 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_INDEX_HIDDEN)
         );
 
-        if (indexSettingsResp.getSetting(sourceIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()) != null) {
+        Settings sourceSettings = indexSettingsResp.settings().get(sourceIndex);
+        Settings rollupSettings = indexSettingsResp.settings().get(rollupIndex);
+        if (sourceSettings.keySet().contains(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             assertNotNull(indexSettingsResp.getSetting(rollupIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()));
         }
-        if (indexSettingsResp.getSetting(sourceIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()) != null
-            && indexSettingsResp.getSetting(rollupIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()) != null)
+
+        if (sourceSettings.keySet().contains(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
+            && rollupSettings.keySet().contains(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             assertEquals(
                 indexSettingsResp.getSetting(sourceIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()),
                 indexSettingsResp.getSetting(rollupIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
             );
+        } else {
+            assertFalse(sourceSettings.keySet().contains(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()));
+            assertFalse(rollupSettings.keySet().contains(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()));
+        }
     }
 
     private AggregationBuilder buildAggregations(

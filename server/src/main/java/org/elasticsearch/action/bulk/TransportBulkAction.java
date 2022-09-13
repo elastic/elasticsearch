@@ -278,7 +278,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         } else {
             final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
             for (String index : autoCreateIndices) {
-                createIndex(index, bulkRequest.timeout(), minNodeVersion, new ActionListener<>() {
+                createIndex(index, bulkRequest.timeout(), new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse result) {
                         if (counter.decrementAndGet() == 0) {
@@ -427,7 +427,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
+    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest();
         createIndexRequest.index(index);
         createIndexRequest.cause("auto(bulk api)");

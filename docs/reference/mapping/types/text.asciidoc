@@ -162,12 +162,14 @@ The following parameters are accepted by `text` fields:
 [[text-synthetic-source]]
 ==== Synthetic source preview:[]
 `text` fields support <<synthetic-source,synthetic `_source`>> if they have
-a `keyword` sub-field that supports synthetic `_source` and *do not* have
-<<copy-to,`copy_to`>>.
+a <<keyword-synthetic-source, `keyword`>> sub-field that supports synthetic
+`_source` or if the `text` field sets `store` to `true`. Either way, it may
+not have <<copy-to,`copy_to`>>.
 
-Synthetic source always sorts `keyword` fields and removes duplicates, so
-`text` fields are sorted based on the sub-`keyword` field. For example:
-[source,console,id=synthetic-source-text-example]
+If using a sub-`keyword` field then the values are sorted in the same way as
+a `keyword` field's values are sorted. By default, that means sorted with
+duplicates removed. So:
+[source,console,id=synthetic-source-text-example-default]
 ----
 PUT idx
 {
@@ -213,6 +215,43 @@ NOTE: Reordering text fields can have an effect on <<query-dsl-match-query-phras
       <<position-increment-gap,`position_increment_gap`>> for more detail. You
       can avoid this by making sure the `slop` parameter on the phrase queries
       is lower than the `position_increment_gap`. This is the default.
+
+If the `text` field sets `store` to true then order and duplicates
+are preserved.
+[source,console,id=synthetic-source-text-example-stored]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "text": { "type": "text", "store": true }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "text": [
+    "the quick brown fox",
+    "the quick brown fox",
+    "jumped over the lazy dog"
+  ]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "text": [
+    "the quick brown fox",
+    "the quick brown fox",
+    "jumped over the lazy dog"
+  ]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
 
 [[fielddata-mapping-param]]
 ==== `fielddata` mapping parameter

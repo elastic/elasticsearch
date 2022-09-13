@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import java.io.IOException;
 
@@ -44,7 +44,7 @@ public abstract class GeoGridTiler {
      *
      * @return the number of cells the geoValue intersects
      */
-    public abstract int setValues(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue) throws IOException;
+    public abstract int setValues(GeoShapeCellValues docValues, ShapeValues.ShapeValue geoValue) throws IOException;
 
     /** Maximum number of cells that can be created by this tiler */
     protected abstract long getMaxCells();

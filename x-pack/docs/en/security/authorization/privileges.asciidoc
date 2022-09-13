@@ -33,9 +33,9 @@ ability to manage security.
 All security-related operations on {es} API keys including
 <<security-api-create-api-key,creating new API keys>>,
 <<security-api-get-api-key,retrieving information about API keys>>,
-<<security-api-query-api-key,querying API keys>>, 
-<<security-api-update-api-key,update API key>>,
-<<security-api-bulk-update-api-keys,bulk update API keys>>, and
+<<security-api-query-api-key,querying API keys>>,
+<<security-api-update-api-key,updating API key>>,
+<<security-api-bulk-update-api-keys,bulk updating API keys>>, and
 <<security-api-invalidate-api-key,invalidating API keys>>.
 +
 --
@@ -93,9 +93,9 @@ All security-related operations on {es} API keys that are owned by the current
 authenticated user. The operations include
 <<security-api-create-api-key,creating new API keys>>,
 <<security-api-get-api-key,retrieving information about API keys>>,
-<<security-api-query-api-key,querying API keys>>, 
-<<security-api-update-api-key,update API key>>,
-<<security-api-bulk-update-api-keys,bulk update API keys>>, and
+<<security-api-query-api-key,querying API keys>>,
+<<security-api-update-api-key,updating API key>>,
+<<security-api-bulk-update-api-keys,bulk updating API keys>>, and
 <<security-api-invalidate-api-key,invalidating API keys>>.
 
 `manage_pipeline`::

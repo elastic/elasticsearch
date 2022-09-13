@@ -2,4 +2,5 @@ pr: 89790
 summary: Introduce the new `read_security` cluster privilege
 area: Authorization
 type: feature
-issues: []
+issues:
+ - 89245

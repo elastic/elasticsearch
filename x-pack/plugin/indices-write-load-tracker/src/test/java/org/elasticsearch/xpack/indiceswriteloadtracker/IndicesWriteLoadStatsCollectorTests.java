@@ -86,6 +86,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -244,7 +245,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
                 final HistogramSnapshot indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
 
-                assertThat(indexingLoadHistogramSnapshot.max(), is(lessThanOrEqualTo(0.6)));
+                assertThat(indexingLoadHistogramSnapshot.max(), is(lessThanOrEqualTo(1.0)));
             }
 
             // Run a few bulk operations with a slow fsync, increasing the max cpu usage.
@@ -267,7 +268,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 final HistogramSnapshot indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
 
                 assertThat(indexingLoadHistogramSnapshot.max(), is(greaterThan(0.0)));
-                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(1, 0.8)));
+                assertThat(indexingLoadHistogramSnapshot.max(), is(greaterThanOrEqualTo(1.0)));
             }
         }
     }
@@ -300,12 +301,11 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             runBeforeCreateOutput.set((fileName) -> {
                 // Refresh flushes in-memory lucene structures to disk,
                 // in order to simulate some load, we sleep the refresh
-                // thread for the sampling period time (- 10% to account for
-                // the real work) when the Lucene<Version>SegmentInfoFormat
+                // thread for the sampling period time when the Lucene<Version>SegmentInfoFormat
                 // is created (with .si file extension) this file contains
                 // meta-information about the flushed lucene segment.
                 if (fileName.endsWith(".si")) {
-                    sleep(samplingFrequency.millis() - (samplingFrequency.millis() / 10));
+                    sleep(samplingFrequency.millis());
                 }
             });
             shard.refresh("test");
@@ -320,7 +320,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
             final HistogramSnapshot refreshLoadHistogramSnapshot = shardWriteLoadDistribution.refreshLoadHistogramSnapshot();
             assertThat(refreshLoadHistogramSnapshot.max(), is(greaterThan(0.0)));
-            assertThat(refreshLoadHistogramSnapshot.max(), is(closeTo(1.0, 0.8)));
+            assertThat(refreshLoadHistogramSnapshot.max(), is(greaterThanOrEqualTo(1.0)));
         }
     }
 

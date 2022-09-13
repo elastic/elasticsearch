@@ -362,8 +362,8 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testLongIncludeExclude() {
-        String longString = Strings.repeat('a', 10000);
+        String longString = Strings.repeat('a', 100000);
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(longString, null, null, null));
-        assertThat(iae.getMessage(), equalTo("failed to parse regexp due to stack overflow"));
+        assertThat(iae.getMessage(), equalTo("failed to parse regexp due to stack overflow: " + longString));
     }
 }

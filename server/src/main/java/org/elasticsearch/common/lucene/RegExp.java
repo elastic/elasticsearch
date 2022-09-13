@@ -29,7 +29,7 @@ public class RegExp {
         try {
             wrapped = new org.apache.lucene.util.automaton.RegExp(s);
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow: " + s);
         }
     }
 
@@ -38,7 +38,7 @@ public class RegExp {
         try {
             wrapped = new org.apache.lucene.util.automaton.RegExp(s, syntax_flags);
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow: " + s);
         }
     }
 
@@ -47,8 +47,13 @@ public class RegExp {
         try {
             wrapped = new org.apache.lucene.util.automaton.RegExp(s, syntax_flags, match_flags);
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow: " + s);
         }
+    }
+
+    @SuppressForbidden(reason = "we are the trusted wrapper")
+    private RegExp(org.apache.lucene.util.automaton.RegExp wrapped) {
+        this.wrapped = wrapped;
     }
 
     @SuppressForbidden(reason = "catches StackOverflowError")
@@ -56,7 +61,7 @@ public class RegExp {
         try {
             return wrapped.toAutomaton();
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow: " + this);
         }
     }
 
@@ -65,7 +70,7 @@ public class RegExp {
         try {
             return wrapped.toAutomaton(determinizeWorkLimit);
         } catch (StackOverflowError e) {
-            throw new IllegalArgumentException("failed to parse regexp due to stack overflow");
+            throw new IllegalArgumentException("failed to parse regexp due to stack overflow: " + this);
         }
     }
 
@@ -78,5 +83,53 @@ public class RegExp {
     public String toString() {
         // don't call wrapped.toString() to avoid StackOverflowError
         return getOriginalString();
+    }
+
+    /**
+     * The type of expression.
+     */
+    @SuppressForbidden(reason = "we are the trusted wrapper")
+    public org.apache.lucene.util.automaton.RegExp.Kind kind() {
+        return wrapped.kind;
+    }
+
+    /**
+     * Child expressions held by a container type expression.
+     */
+    @SuppressForbidden(reason = "we are the trusted wrapper")
+    public RegExp exp1() {
+        return new RegExp(wrapped.exp1);
+    }
+
+    /**
+     * Child expressions held by a container type expression.
+     */
+    @SuppressForbidden(reason = "we are the trusted wrapper")
+    public RegExp exp2() {
+        return new RegExp(wrapped.exp2);
+    }
+
+    /**
+     * Limits for repeatable type expressions.
+     */
+    @SuppressForbidden(reason = "we are the trusted wrapper")
+    public int min() {
+        return wrapped.min;
+    }
+
+    /**
+     * String expression.
+     */
+    @SuppressForbidden(reason = "we are the trusted wrapper")
+    public String s() {
+        return wrapped.s;
+    }
+
+    /**
+     * Character expression.
+     */
+    @SuppressForbidden(reason = "we are the trusted wrapper")
+    public int c() {
+        return wrapped.c;
     }
 }

@@ -92,7 +92,11 @@ public class AnalysisRegistryTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         emptyRegistry = emptyAnalysisRegistry(settings);
         // Module loaded to register in-built normalizers for testing
-        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(new MockAnalysisPlugin()), new StablePluginsRegistry());
+        AnalysisModule module = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            singletonList(new MockAnalysisPlugin()),
+            new StablePluginsRegistry()
+        );
         nonEmptyRegistry = module.getAnalysisRegistry();
     }
 
@@ -254,9 +258,11 @@ public class AnalysisRegistryTests extends ESTestCase {
                 return singletonMap("mock", MockFactory::new);
             }
         };
-        IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(plugin), new StablePluginsRegistry())
-            .getAnalysisRegistry()
-            .build(idxSettings);
+        IndexAnalyzers indexAnalyzers = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            singletonList(plugin),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry().build(idxSettings);
 
         // This shouldn't contain English stopwords
         try (NamedAnalyzer custom_analyser = indexAnalyzers.get("custom_analyzer_with_camel_case")) {

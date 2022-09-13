@@ -387,7 +387,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             ).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
             IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
-            AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), emptyList(), new StablePluginsRegistry());
+            AnalysisModule analysisModule = new AnalysisModule(
+                TestEnvironment.newEnvironment(nodeSettings),
+                emptyList(),
+                new StablePluginsRegistry()
+            );
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());

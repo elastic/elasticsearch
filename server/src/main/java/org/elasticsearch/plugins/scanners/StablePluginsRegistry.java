@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugins.scanners;
 
-import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
 import org.elasticsearch.plugins.PluginBundle;
 
 import java.util.Collection;
@@ -51,10 +50,9 @@ public class StablePluginsRegistry {
         }
     }
 
-
     public Collection<PluginInfo> getPluginInfosForExtensible(String extensibleClassName) {
         NameToPluginInfo nameToPluginInfo = namedComponents.get(extensibleClassName);
-        if(nameToPluginInfo != null){
+        if (nameToPluginInfo != null) {
             return nameToPluginInfo.nameToPluginInfoMap().values();
         }
         return Collections.emptyList();

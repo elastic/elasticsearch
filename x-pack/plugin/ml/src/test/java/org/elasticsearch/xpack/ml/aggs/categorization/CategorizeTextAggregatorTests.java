@@ -48,7 +48,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
             ),
             List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin()),
-            new StablePluginsRegistry());
+            new StablePluginsRegistry()
+        );
     }
 
     @Override

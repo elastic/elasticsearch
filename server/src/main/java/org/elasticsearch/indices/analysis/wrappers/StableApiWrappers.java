@@ -25,21 +25,20 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class StableApiWrappers {
-    public static Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.CharFilterFactory>>
-    oldApiForStableCharFilterFactory(StablePluginsRegistry stablePluginRegistry) {
-        Collection<PluginInfo> pluginInfosForExtensible =
-            stablePluginRegistry.getPluginInfosForExtensible(CharFilterFactory.class.getCanonicalName());
+    public static
+        Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.CharFilterFactory>>
+        oldApiForStableCharFilterFactory(StablePluginsRegistry stablePluginRegistry) {
+        Collection<PluginInfo> pluginInfosForExtensible = stablePluginRegistry.getPluginInfosForExtensible(
+            CharFilterFactory.class.getCanonicalName()
+        );
 
         Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.CharFilterFactory>> oldCharFilters =
             pluginInfosForExtensible.stream()
-                .collect(Collectors.toMap(PluginInfo::name,
-                    p -> analysisProviderWrapper(p, StableApiWrappers::wrapCharFilterFactory)));
+                .collect(Collectors.toMap(PluginInfo::name, p -> analysisProviderWrapper(p, StableApiWrappers::wrapCharFilterFactory)));
 
         return oldCharFilters;
     }
-    //StableApiWrappers.<CharFilterFactory, org.elasticsearch.index.analysis.CharFilterFactory>analysisProviderWrapper
-
-
+    // StableApiWrappers.<CharFilterFactory, org.elasticsearch.index.analysis.CharFilterFactory>analysisProviderWrapper
 
     /*
     ableApiWrappers.java:49: warning: [unchecked] unchecked cast
@@ -61,12 +60,11 @@ public class StableApiWrappers {
             @Override
             public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
                 try {
-                    Class<? extends F> clazz = (Class<? extends F>)
-                        pluginInfo.loader().loadClass(pluginInfo.className());
+                    Class<? extends F> clazz = (Class<? extends F>) pluginInfo.loader().loadClass(pluginInfo.className());
                     F instance = createInstance(clazz, indexSettings, environment.settings(), settings, environment);
                     return wrapper.apply(instance);
                 } catch (ClassNotFoundException e) {
-                    e.printStackTrace();
+                    // e.printStackTrace();
                 }
                 return null;
             }
@@ -87,7 +85,7 @@ public class StableApiWrappers {
         };
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static <T> T createInstance(
         Class<T> clazz,
         IndexSettings indexSettings,
@@ -101,7 +99,7 @@ public class StableApiWrappers {
             return constructor.newInstance();
 
         } catch (Exception e) {
-            e.printStackTrace();
+            // e.printStackTrace();
         }
         throw new RuntimeException("cannot create instance of " + clazz + ", no injectable ctr found");
     }

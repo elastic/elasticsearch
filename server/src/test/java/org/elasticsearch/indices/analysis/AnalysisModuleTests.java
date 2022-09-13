@@ -262,7 +262,8 @@ public class AnalysisModuleTests extends ESTestCase {
                     );
                 }
             }),
-            new StablePluginsRegistry()).getAnalysisRegistry();
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -327,7 +328,8 @@ public class AnalysisModuleTests extends ESTestCase {
                     );
                 }
             }),
-            new StablePluginsRegistry()).getAnalysisRegistry();
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -413,7 +415,8 @@ public class AnalysisModuleTests extends ESTestCase {
                     );
                 }
             }),
-            new StablePluginsRegistry()).getAnalysisRegistry();
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(

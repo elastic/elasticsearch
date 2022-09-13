@@ -55,8 +55,11 @@ public class AnalysisTestsHelper {
             actualSettings = settings;
         }
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", actualSettings);
-        final AnalysisRegistry analysisRegistry = new AnalysisModule(new Environment(actualSettings, configPath), Arrays.asList(plugins), new StablePluginsRegistry())
-            .getAnalysisRegistry();
+        final AnalysisRegistry analysisRegistry = new AnalysisModule(
+            new Environment(actualSettings, configPath),
+            Arrays.asList(plugins),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
         return new ESTestCase.TestAnalysis(
             analysisRegistry.build(indexSettings),
             analysisRegistry.buildTokenFilterFactories(indexSettings),

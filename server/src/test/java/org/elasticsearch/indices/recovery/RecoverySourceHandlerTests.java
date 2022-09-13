@@ -67,9 +67,9 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
@@ -134,7 +134,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
     );
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
+    private final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
 
     private ThreadPool threadPool;
     private Executor recoveryExecutor;
@@ -1078,7 +1078,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
         long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
         assertTrue(
-            handler.canSkipPhase1(
+            handler.hasSameLegacySyncId(
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)
             )
@@ -1093,7 +1093,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 maxSeqNo,
                 () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
             );
-            handler.canSkipPhase1(
+            handler.hasSameLegacySyncId(
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
                 newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs)
             );
@@ -1117,6 +1117,17 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             writer.commit();
             writer.close();
             when(shard.state()).thenReturn(IndexShardState.STARTED);
+            final var indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                        .build()
+                )
+                .build();
+            IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+            when(shard.indexSettings()).thenReturn(indexSettings);
 
             TestRecoveryTargetHandler recoveryTarget = new Phase1RecoveryTargetHandler();
             AtomicReference<ShardRecoveryPlan> computedRecoveryPlanRef = new AtomicReference<>();

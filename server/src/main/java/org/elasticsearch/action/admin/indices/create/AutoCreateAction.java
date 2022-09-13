@@ -124,7 +124,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     }
                 }
                 if (state != batchExecutionContext.initialState()) {
-                    state = allocationService.reroute(state, "auto-create", listener.reroute());
+                    try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                        state = allocationService.reroute(state, "auto-create", listener.reroute());
+                    }
                 } else {
                     listener.noRerouteNeeded();
                 }

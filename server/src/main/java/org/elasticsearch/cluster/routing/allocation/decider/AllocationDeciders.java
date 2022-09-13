@@ -28,6 +28,12 @@ public class AllocationDeciders {
 
     private static final Logger logger = LogManager.getLogger(AllocationDeciders.class);
 
+    private static final Decision NO_IGNORING_SHARD_FOR_NODE = Decision.single(
+        Decision.Type.NO,
+        "ignored_shards_for_node",
+        "shard temporarily ignored for node due to earlier failure"
+    );
+
     private final AllocationDecider[] allocations;
 
     public AllocationDeciders(Collection<AllocationDecider> allocations) {
@@ -54,7 +60,7 @@ public class AllocationDeciders {
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            return Decision.NO;
+            return NO_IGNORING_SHARD_FOR_NODE;
         }
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -87,7 +93,7 @@ public class AllocationDeciders {
             if (logger.isTraceEnabled()) {
                 logger.trace("Shard [{}] should be ignored for node [{}]", shardRouting, node.nodeId());
             }
-            return Decision.NO;
+            return NO_IGNORING_SHARD_FOR_NODE;
         }
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         if (allocation.debugDecision()) {
@@ -206,7 +212,7 @@ public class AllocationDeciders {
         assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard routing " + shardRouting;
 
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            return Decision.NO;
+            return NO_IGNORING_SHARD_FOR_NODE;
         }
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider decider : allocations) {
@@ -253,7 +259,7 @@ public class AllocationDeciders {
 
     public Decision canAllocateReplicaWhenThereIsRetentionLease(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            return Decision.NO;
+            return NO_IGNORING_SHARD_FOR_NODE;
         }
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {

@@ -111,7 +111,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
                         actionName,
                         request,
                         task,
-                        TransportRequestOptions.timeout(TimeValue.timeValueSeconds(10)), // expected to be lightweight and time-sensitive
+                        TransportRequestOptions.timeout(TimeValue.timeValueSeconds(5)), // expected to be lightweight and time-sensitive
                         handler
                     );
                 } else {

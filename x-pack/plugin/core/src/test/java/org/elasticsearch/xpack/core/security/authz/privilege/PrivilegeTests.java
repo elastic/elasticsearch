@@ -253,7 +253,7 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.READ_SECURITY,
             GetServiceAccountNodesCredentialsAction.NAME,
-            GetServiceAccountCredentialsAction.NAME + "whatever"
+            GetServiceAccountCredentialsAction.NAME + randomFrom("", "whatever")
         );
         verifyClusterActionDenied(
             ClusterPrivilegeResolver.READ_SECURITY,

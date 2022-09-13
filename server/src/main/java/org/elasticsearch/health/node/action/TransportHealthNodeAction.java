@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -34,7 +33,7 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * A base class for operations that need to be performed on the health node.
  */
-public abstract class TransportHealthNodeAction<Request extends ActionRequest, Response extends ActionResponse> extends
+public abstract class TransportHealthNodeAction<Request extends HealthNodeRequest, Response extends ActionResponse> extends
     HandledTransportAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportHealthNodeAction.class);
@@ -80,7 +79,7 @@ public abstract class TransportHealthNodeAction<Request extends ActionRequest, R
             DiscoveryNode healthNode = HealthNode.findHealthNode(clusterState);
             DiscoveryNode localNode = clusterState.nodes().getLocalNode();
             if (healthNode == null) {
-                listener.onFailure(new HealthNodeNotDiscoveredException("Health node was null"));
+                listener.onFailure(new HealthNodeNotDiscoveredException());
             } else if (localNode.getId().equals(healthNode.getId())) {
                 threadPool.executor(executor).execute(() -> {
                     try {

@@ -148,25 +148,25 @@ public class CentroidCalculatorTests extends ESTestCase {
         {
             Line line = new Line(new double[] { 180.0, 180.0 }, new double[] { latA, latB });
             GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(line);
-            assertThat(value.lon(), anyOf(equalTo(179.99999991618097), equalTo(-180.0)));
+            assertThat(value.getX(), anyOf(equalTo(179.99999991618097), equalTo(-180.0)));
         }
 
         {
             Line line = new Line(new double[] { -180.0, -180.0 }, new double[] { latA, latB });
             GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(line);
-            assertThat(value.lon(), anyOf(equalTo(179.99999991618097), equalTo(-180.0)));
+            assertThat(value.getX(), anyOf(equalTo(179.99999991618097), equalTo(-180.0)));
         }
 
         {
             Line line = new Line(new double[] { lonA, lonB }, new double[] { 90.0, 90.0 });
             GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(line);
-            assertThat(value.lat(), equalTo(89.99999995809048));
+            assertThat(value.getY(), equalTo(89.99999995809048));
         }
 
         {
             Line line = new Line(new double[] { lonA, lonB }, new double[] { -90.0, -90.0 });
             GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(line);
-            assertThat(value.lat(), equalTo(-90.0));
+            assertThat(value.getY(), equalTo(-90.0));
         }
     }
 

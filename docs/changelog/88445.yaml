@@ -1,5 +1,0 @@
-pr: 88445
-summary: Add issuer to GET _ssl/certificates
-area: TLS
-type: enhancement
-issues: []

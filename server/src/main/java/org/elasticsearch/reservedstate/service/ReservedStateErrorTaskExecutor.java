@@ -14,8 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 
-import java.util.List;
-
 /**
  * Reserved cluster error state task executor
  * <p>
@@ -25,13 +23,16 @@ record ReservedStateErrorTaskExecutor() implements ClusterStateTaskExecutor<Rese
     private static final Logger logger = LogManager.getLogger(ReservedStateErrorTaskExecutor.class);
 
     @Override
-    public ClusterState execute(ClusterState currentState, List<TaskContext<ReservedStateErrorTask>> taskContexts) {
-        for (final var taskContext : taskContexts) {
+    public ClusterState execute(BatchExecutionContext<ReservedStateErrorTask> batchExecutionContext) {
+        var updatedState = batchExecutionContext.initialState();
+        for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
-            currentState = task.execute(currentState);
+            try (var ignored = taskContext.captureResponseHeaders()) {
+                updatedState = task.execute(updatedState);
+            }
             taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
         }
-        return currentState;
+        return updatedState;
     }
 
     @Override

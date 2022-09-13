@@ -114,8 +114,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
 
             @Override
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+                // do nothing as balance is not computed yet (during allocate)
+            }
+
+            @Override
             protected void submitReconcileTask(DesiredBalance desiredBalance) {
-                reconcile(desiredBalance, lastAllocation);
+                // reconcile synchronously rather than in cluster state update task
+                super.reconcile(desiredBalance, lastAllocation);
             }
         };
     }

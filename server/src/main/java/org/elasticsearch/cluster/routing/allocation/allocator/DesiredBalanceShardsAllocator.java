@@ -183,7 +183,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         );
     }
 
-    protected final void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+    protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
         new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering).run();
     }

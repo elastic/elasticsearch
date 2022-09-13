@@ -43,7 +43,9 @@ import org.elasticsearch.xpack.sql.SqlUsageTransportAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
+import org.elasticsearch.xpack.sql.action.compute.planner.PlanNode;
 import org.elasticsearch.xpack.sql.action.compute.transport.ComputeAction;
+import org.elasticsearch.xpack.sql.action.compute.transport.RestComputeAction;
 import org.elasticsearch.xpack.sql.action.compute.transport.TransportComputeAction;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
@@ -142,7 +144,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             new RestSqlStatsAction(),
             new RestSqlAsyncGetResultsAction(),
             new RestSqlAsyncGetStatusAction(),
-            new RestSqlAsyncDeleteResultsAction()
+            new RestSqlAsyncDeleteResultsAction(),
+            new RestComputeAction()
         );
     }
 
@@ -162,5 +165,10 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             usageAction,
             infoAction
         );
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return PlanNode.getNamedXContentParsers();
     }
 }

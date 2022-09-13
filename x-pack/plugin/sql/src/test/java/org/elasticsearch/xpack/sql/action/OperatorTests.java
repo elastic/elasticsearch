@@ -421,11 +421,11 @@ public class OperatorTests extends ESTestCase {
         List<Page> rawPages = drainSourceToPages(source);
 
         Aggregator aggregator = new Aggregator(AggregatorFunction.sum, AggregatorMode.SINGLE, 0);
-        System.out.println(rawPages);
+        logger.info(rawPages);
         ArithmeticException ex = expectThrows(ArithmeticException.class, () -> {
             for (Page page : rawPages) {
-                //rawPages.forEach(aggregator::processPage);
-                System.out.println("processing page: " + page);
+                // rawPages.forEach(aggregator::processPage);
+                logger.info("processing page: {}", page);
                 aggregator.processPage(page);
             }
         });

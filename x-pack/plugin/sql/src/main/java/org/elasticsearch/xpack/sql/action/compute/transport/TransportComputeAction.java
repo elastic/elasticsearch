@@ -25,6 +25,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
 import org.elasticsearch.xpack.sql.action.compute.operator.Driver;
 import org.elasticsearch.xpack.sql.action.compute.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.sql.action.compute.planner.PlanNode;
@@ -33,6 +34,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
 /**
@@ -98,15 +101,16 @@ public class TransportComputeAction extends TransportAction<ComputeRequest, Comp
                     .collect(Collectors.toList())
             );
 
+            final Queue<Page> results = new ConcurrentLinkedQueue<>();
             LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
-                new PlanNode.OutputNode(request.plan(), (l, p) -> request.getPageConsumer().accept(p))
+                new PlanNode.OutputNode(request.plan(), (l, p) -> results.add(p))
             );
             Driver.start(threadPool.executor(ThreadPool.Names.SEARCH), localExecutionPlan.createDrivers())
                 .addListener(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
                         Releasables.close(searchContexts);
-                        listener.onResponse(new ComputeResponse());
+                        listener.onResponse(new ComputeResponse(results.stream().toList()));
                     }
 
                     @Override

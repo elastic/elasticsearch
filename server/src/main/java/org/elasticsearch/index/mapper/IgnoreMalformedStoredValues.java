@@ -37,6 +37,7 @@ public abstract class IgnoreMalformedStoredValues {
      * stored fields support, so we encode steal the {@code byte[]}
      * to mean "value with encoded type information" and then encode
      * type information in the first byte.
+     * </p>
      */
     public static StoredField storedField(String fieldName, XContentParser parser) throws IOException {
         String name = name(fieldName);

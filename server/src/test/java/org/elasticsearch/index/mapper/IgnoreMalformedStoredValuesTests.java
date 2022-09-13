@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.document.StoredField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
@@ -26,7 +24,6 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@Repeat(iterations = 1000)
 public class IgnoreMalformedStoredValuesTests extends ESTestCase {
     public void testIgnoreMalformedBoolean() throws IOException {
         boolean b = randomBoolean();

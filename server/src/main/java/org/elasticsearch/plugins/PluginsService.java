@@ -28,6 +28,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+import org.elasticsearch.plugins.scanners.NameToPluginInfo;
+import org.elasticsearch.plugins.scanners.PluginInfo;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
@@ -65,6 +69,10 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService implements ReportingService<PluginsAndModules> {
 
+    public StablePluginsRegistry getStablePluginRegistry() {
+        return stablePluginsRegistry;
+    }
+
     /**
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
      * @param descriptor Metadata about the plugin, usually loaded from plugin properties
@@ -101,6 +109,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
+    private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
         "plugin.mandatory",
@@ -457,6 +466,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
+            if(bundle.pluginDescriptor().isStable()){
+                stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
+            }
+
+            if(bundle.pluginDescriptor().getName().contains("analysis-common")) {
+                stablePluginsRegistry.namedComponents.put(CharFilterFactory.class.getCanonicalName(),
+                    new NameToPluginInfo(Map.of("xx",
+                        new PluginInfo("xx", "org.elasticsearch.analysis.common.XX",
+                            pluginClassLoader))));
+            }
 
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
             if (pluginClassLoader != pluginClass.getClassLoader()) {

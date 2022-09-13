@@ -8,8 +8,11 @@
 
 package org.elasticsearch.plugins.scanners;
 
+import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
 import org.elasticsearch.plugins.PluginBundle;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,7 +31,7 @@ public class StablePluginsRegistry {
     org.elasticsearch.plugin.analysis.api.TokenFilterFactory ->
         {"nori" -> {nori, org.elasticserach.plugin.analysis.new_nori.NoriReadingFormFilterFactory, classloaderInstance}
      */
-    private final Map<String /*Extensible */, NameToPluginInfo> namedComponents;
+    public final Map<String /*Extensible */, NameToPluginInfo> namedComponents;
     private final NamedComponentReader namedComponentsScanner;
 
     public StablePluginsRegistry() {
@@ -48,9 +51,13 @@ public class StablePluginsRegistry {
         }
     }
 
-    // TODO this will be removed. getPluginForName or similar will be created
-    public Map<String, NameToPluginInfo> getNamedComponents() {
-        return namedComponents;
+
+    public Collection<PluginInfo> getPluginInfosForExtensible(String extensibleClassName) {
+        NameToPluginInfo nameToPluginInfo = namedComponents.get(extensibleClassName);
+        if(nameToPluginInfo != null){
+            return nameToPluginInfo.nameToPluginInfoMap().values();
+        }
+        return Collections.emptyList();
     }
 
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -92,7 +93,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
                     return AnalysisPlugin.super.getCharFilters();
                 }
-            })).getAnalysisRegistry();
+            }), new StablePluginsRegistry()).getAnalysisRegistry();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -260,8 +261,8 @@ public class AnalysisModuleTests extends ESTestCase {
                         )
                     );
                 }
-            })
-        ).getAnalysisRegistry();
+            }),
+            new StablePluginsRegistry()).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -325,8 +326,8 @@ public class AnalysisModuleTests extends ESTestCase {
                         )
                     );
                 }
-            })
-        ).getAnalysisRegistry();
+            }),
+            new StablePluginsRegistry()).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -411,8 +412,8 @@ public class AnalysisModuleTests extends ESTestCase {
                         )
                     );
                 }
-            })
-        ).getAnalysisRegistry();
+            }),
+            new StablePluginsRegistry()).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -457,7 +458,7 @@ public class AnalysisModuleTests extends ESTestCase {
             public Map<String, Dictionary> getHunspellDictionaries() {
                 return singletonMap("foo", dictionary);
             }
-        }));
+        }), new StablePluginsRegistry());
         assertSame(dictionary, module.getHunspellService().getDictionary("foo"));
     }
 

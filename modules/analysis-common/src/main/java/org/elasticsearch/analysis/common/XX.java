@@ -6,8 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.scanners;
+package org.elasticsearch.analysis.common;
 
-public record PluginInfo(String name, String className, ClassLoader loader) {
+import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+import org.elasticsearch.plugin.api.NamedComponent;
 
+import java.io.Reader;
+
+@NamedComponent(name = "xxx")
+public class XX implements CharFilterFactory {
+    @Override
+    public Reader create(Reader reader) {
+        return reader;
+    }
 }

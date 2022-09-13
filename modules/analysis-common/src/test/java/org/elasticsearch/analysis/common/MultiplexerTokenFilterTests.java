@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -41,8 +42,8 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
 
         IndexAnalyzers indexAnalyzers = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisPlugin())
-        ).getAnalysisRegistry().build(idxSettings);
+            Collections.singletonList(new CommonAnalysisPlugin()),
+            new StablePluginsRegistry()).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
@@ -75,8 +76,8 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
 
         IndexAnalyzers indexAnalyzers = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisPlugin())
-        ).getAnalysisRegistry().build(idxSettings);
+            Collections.singletonList(new CommonAnalysisPlugin()),
+            new StablePluginsRegistry()).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);

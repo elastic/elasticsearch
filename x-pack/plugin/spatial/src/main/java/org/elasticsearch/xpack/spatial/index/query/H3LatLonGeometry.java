@@ -18,6 +18,7 @@ import org.apache.lucene.spatial3d.geom.GeoPath;
 import org.apache.lucene.spatial3d.geom.GeoPathFactory;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
+import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
 import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygonFactory;
 import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
@@ -27,6 +28,7 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -138,7 +140,9 @@ public class H3LatLonGeometry extends LatLonGeometry {
                 final LatLng latLng = cellBoundary.getLatLon(i);
                 points[i] = new GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad());
             }
-            return GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
+            return points.length > 6
+                ? GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, Arrays.stream(points).toList())
+                : GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
         }
 
         @Override

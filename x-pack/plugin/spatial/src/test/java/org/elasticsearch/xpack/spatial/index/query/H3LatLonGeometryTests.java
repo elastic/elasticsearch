@@ -43,8 +43,6 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.junit.Assume.assumeThat;
 
 public class H3LatLonGeometryTests extends ESTestCase {
 
@@ -130,7 +128,7 @@ public class H3LatLonGeometryTests extends ESTestCase {
             addH3Polygon(sb, h3geom.toComponent2D(), point, false, false);
         }
         sb.append(")");
-        //System.out.println(sb);
+        // System.out.println(sb);
     }
 
     public void testRandomPointAllLevels() {
@@ -145,14 +143,14 @@ public class H3LatLonGeometryTests extends ESTestCase {
         addH3Polygon(sb, component, origin, true, boxPoint);
         sb.append(")");
         // Uncomment this line to get WKT printout of H3 cell and origin point
-        //System.out.println(sb);
+        // System.out.println(sb);
     }
 
     private void addH3Polygon(StringBuilder sb, Component2D component, Point origin, boolean bbox, boolean boxPoint) {
         final double BBOX_EDGE_DELTA = 1e-4;
         if (component instanceof H3LatLonGeometry.H3Polygon2D h3Polygon) {
             h3Polygon.inspect((h3, res, minX, maxX, minY, maxY, boundary) -> {
-                //System.out.println("H3 Cell: " + H3.h3ToString(h3));
+                // System.out.println("H3 Cell: " + H3.h3ToString(h3));
                 if (sb.length() == 0) {
                     sb.append("GEOMETRYCOLLECTION(POLYGON((");
                 } else {
@@ -204,7 +202,7 @@ public class H3LatLonGeometryTests extends ESTestCase {
         debugH3Polygon2D(component, point, false);
         CellBoundary boundary = H3.h3ToGeoBoundary(h3);
         String cellName = "H3[l" + level + ":b" + boundary.numPoints() + "]";
-        assumeThat("We only test convex hexagons for now", boundary.numPoints(), lessThanOrEqualTo(6));
+        // assumeThat("We only test convex hexagons for now", boundary.numPoints(), lessThanOrEqualTo(6));
         assertThat(h3geom.toString(), containsString(H3.h3ToString(h3)));
         assertThat(
             "Expect the point from which the " + cellName + " cell was created to match the cell",

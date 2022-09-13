@@ -205,6 +205,7 @@ public class StableApiWrappers {
     ) {
         try {
             Constructor<T> constructor = clazz.getConstructor();
+//            constructor.setAccessible(true);//TODO why? what permissions?
             return constructor.newInstance();
         } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new IllegalStateException("cannot create instance of " + clazz, e);

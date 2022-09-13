@@ -182,78 +182,45 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
         }
 
-        XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject(FIELD_TIMESTAMP)
-            .field("type", "date")
-            .endObject()
-            .startObject(FIELD_DIMENSION_1)
-            .field("type", "keyword")
-            .field("time_series_dimension", true)
-            .endObject()
-            .startObject(FIELD_DIMENSION_2)
-            .field("type", "long")
-            .field("time_series_dimension", true)
-            .endObject()
-            .startObject(FIELD_NUMERIC_1)
-            .field("type", "long")
-            .field("time_series_metric", "gauge")
-            .endObject()
-            .startObject(FIELD_NUMERIC_2)
-            .field("type", "double")
-            .field("time_series_metric", "counter")
-            .endObject()
-            .startObject(FIELD_AGG_METRIC)
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
+        mapping.startObject(FIELD_TIMESTAMP).field("type", "date").endObject();
+
+        // Dimensions
+        mapping.startObject(FIELD_DIMENSION_1).field("type", "keyword").field("time_series_dimension", true).endObject();
+        mapping.startObject(FIELD_DIMENSION_2).field("type", "long").field("time_series_dimension", true).endObject();
+
+        // Metrics
+        mapping.startObject(FIELD_NUMERIC_1).field("type", "long").field("time_series_metric", "gauge").endObject();
+        mapping.startObject(FIELD_NUMERIC_2).field("type", "double").field("time_series_metric", "counter").endObject();
+        mapping.startObject(FIELD_AGG_METRIC)
             .field("type", "aggregate_metric_double")
             .field("time_series_metric", "gauge")
             .array("metrics", new String[] { "min", "max", "sum", "value_count" })
             .field("default_metric", "value_count")
-            .endObject()
-            .startObject(FIELD_LABEL_DOUBLE)
-            .field("type", "double")
-            .endObject()
-            .startObject(FIELD_LABEL_INTEGER)
-            .field("type", "integer")
-            .endObject()
-            .startObject(FIELD_LABEL_KEYWORD)
-            .field("type", "keyword")
-            .endObject()
-            .startObject(FIELD_LABEL_TEXT)
-            .field("type", "text")
-            .endObject()
-            .startObject(FIELD_LABEL_BOOLEAN)
-            .field("type", "boolean")
-            .endObject()
-            .startObject(FIELD_METRIC_LABEL_DOUBLE)
+            .endObject();
+        mapping.startObject(FIELD_METRIC_LABEL_DOUBLE)
             .field("type", "double") /* numeric label indexed as a metric */
             .field("time_series_metric", "counter")
-            .endObject()
-            .startObject(FIELD_LABEL_IPv4_ADDRESS)
-            .field("type", "ip")
-            .endObject()
-            .startObject(FIELD_LABEL_IPv6_ADDRESS)
-            .field("type", "ip")
-            .endObject()
-            .startObject(FIELD_LABEL_DATE)
-            .field("type", "date")
-            .field("format", "date_optional_time")
-            .endObject()
-            .startObject(FIELD_LABEL_KEYWORD_ARRAY)
-            .field("type", "keyword")
-            .endObject()
-            .startObject(FIELD_LABEL_DOUBLE_ARRAY)
-            .field("type", "double")
-            .endObject()
-            .startObject(FIELD_LABEL_AGG_METRIC)
+            .endObject();
+
+        // Labels
+        mapping.startObject(FIELD_LABEL_DOUBLE).field("type", "double").endObject();
+        mapping.startObject(FIELD_LABEL_INTEGER).field("type", "integer").endObject();
+        mapping.startObject(FIELD_LABEL_KEYWORD).field("type", "keyword").endObject();
+        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").endObject();
+        mapping.startObject(FIELD_LABEL_BOOLEAN).field("type", "boolean").endObject();
+        mapping.startObject(FIELD_LABEL_IPv4_ADDRESS).field("type", "ip").endObject();
+        mapping.startObject(FIELD_LABEL_IPv6_ADDRESS).field("type", "ip").endObject();
+        mapping.startObject(FIELD_LABEL_DATE).field("type", "date").field("format", "date_optional_time").endObject();
+        mapping.startObject(FIELD_LABEL_KEYWORD_ARRAY).field("type", "keyword").endObject();
+        mapping.startObject(FIELD_LABEL_DOUBLE_ARRAY).field("type", "double").endObject();
+        mapping.startObject(FIELD_LABEL_AGG_METRIC)
             .field("type", "aggregate_metric_double")
             .array("metrics", new String[] { "min", "max", "sum", "value_count" })
             .field("default_metric", "value_count")
-            .endObject()
-            .endObject()
-            .endObject()
             .endObject();
 
+        mapping.endObject().endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
     }
 
@@ -334,11 +301,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .endObject();
         };
         bulkIndex(sourceSupplier);
+
+        // Downsample the source indexe
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
 
-        // Downsample the rollupIndex
+        // Downsample the rollupIndex. The downsampling interval is a multiple of the previous downsampling interval.
         String rollupIndex2 = rollupIndex + "-2";
         DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)));
         rollup(rollupIndex, rollupIndex2, config2);

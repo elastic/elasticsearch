@@ -63,7 +63,10 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
                     .putInSyncAllocationIds(0, Set.of("x", "y"))
             )
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsNew(metadata.index("test"))
+            .addAsRecovery(metadata.index("test-old"))
+            .build();
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).routingTable(routingTable).build();
@@ -107,7 +110,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
 
         // in-sync allocation ids should not be updated
-        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(3));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(6));
         assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(3));
 
         // force empty primary

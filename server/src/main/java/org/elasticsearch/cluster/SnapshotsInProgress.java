@@ -101,7 +101,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public SnapshotsInProgress withAddedEntry(Entry entry) {
-        final List<Entry> forRepo = new ArrayList<>(entries.getOrDefault(entry.repository(), ByRepo.EMPTY).entries);
+        final List<Entry> forRepo = new ArrayList<>(forRepo(entry.repository()));
         forRepo.add(entry);
         return withUpdatedEntriesForRepo(entry.repository(), forRepo);
     }
@@ -1618,7 +1618,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public static Map<String, Integer> toPositionMap(ByRepo part) {
             final Map<String, Integer> res = Maps.newMapWithExpectedSize(part.entries.size());
             for (int i = 0; i < part.entries.size(); i++) {
-                res.put(part.entries.get(i).snapshot().getSnapshotId().getUUID(), i);
+                final String snapshotUUID = part.entries.get(i).snapshot().getSnapshotId().getUUID();
+                assert res.containsKey(snapshotUUID) == false;
+                res.put(snapshotUUID, i);
             }
             return res;
         }
@@ -1626,7 +1628,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public static Map<String, Entry> toMapByUUID(ByRepo part) {
             final Map<String, Entry> res = Maps.newMapWithExpectedSize(part.entries.size());
             for (Entry entry : part.entries) {
-                res.put(entry.snapshot().getSnapshotId().getUUID(), entry);
+                final String snapshotUUID = entry.snapshot().getSnapshotId().getUUID();
+                assert res.containsKey(snapshotUUID) == false;
+                res.put(snapshotUUID, entry);
             }
             return res;
         }

@@ -143,12 +143,15 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         if (randomBoolean()) {
             // modify some elements
             for (List<Entry> perRepoEntries : updatedInstance.entriesByRepo()) {
-                final List<Entry> entries = new ArrayList<>(perRepoEntries);
+                List<Entry> entries = new ArrayList<>(perRepoEntries);
                 for (int i = 0; i < entries.size(); i++) {
                     if (randomBoolean()) {
                         final Entry entry = entries.get(i);
                         entries.set(i, mutateEntryWithLegalChange(entry));
                     }
+                }
+                if (randomBoolean()) {
+                    entries = shuffledList(entries);
                 }
                 updatedInstance = updatedInstance.withUpdatedEntriesForRepo(perRepoEntries.get(0).repository(), entries);
             }
@@ -317,7 +320,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 );
             }
             case 1 -> {
-                long repositoryStateId = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
+                long repositoryStateId = randomValueOtherThan(entry.repositoryStateId(), ESTestCase::randomLong);
                 return Entry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),

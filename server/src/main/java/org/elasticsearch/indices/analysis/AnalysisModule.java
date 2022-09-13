@@ -170,6 +170,8 @@ public final class AnalysisModule {
         );
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
+        tokenFilters.register(StableApiWrappers.oldApiForTokenFilterFactory(stablePluginRegistry));
+
         return tokenFilters;
     }
 
@@ -261,6 +263,7 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = new NamedRegistry<>("tokenizer");
         tokenizers.register("standard", StandardTokenizerFactory::new);
         tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);
+        tokenizers.register(StableApiWrappers.oldApiForTokenizerFactory(stablePluginRegistry));
         return tokenizers;
     }
 
@@ -276,6 +279,7 @@ public final class AnalysisModule {
         analyzers.register("whitespace", WhitespaceAnalyzerProvider::new);
         analyzers.register("keyword", KeywordAnalyzerProvider::new);
         analyzers.extractAndRegister(plugins, AnalysisPlugin::getAnalyzers);
+        analyzers.register(StableApiWrappers.oldApiForAnalyzerFactory(stablePluginRegistry));
         return analyzers;
     }
 

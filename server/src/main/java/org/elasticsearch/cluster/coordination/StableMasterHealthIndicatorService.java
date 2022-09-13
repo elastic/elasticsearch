@@ -67,7 +67,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     /**
      * This is the list of the impacts to be reported when the master node is determined to be unstable.
      */
-    private static final List<HealthIndicatorImpact> UNSTABLE_MASTER_IMPACTS = List.of(
+    public static final List<HealthIndicatorImpact> UNSTABLE_MASTER_IMPACTS = List.of(
         new HealthIndicatorImpact(1, UNSTABLE_MASTER_INGEST_IMPACT, List.of(ImpactArea.INGEST)),
         new HealthIndicatorImpact(1, UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)),
         new HealthIndicatorImpact(3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP))

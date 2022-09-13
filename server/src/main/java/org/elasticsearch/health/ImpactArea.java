@@ -12,7 +12,8 @@ public enum ImpactArea {
     SEARCH("search"),
     INGEST("ingest"),
     BACKUP("backup"),
-    DEPLOYMENT_MANAGEMENT("deployment_management");
+    DEPLOYMENT_MANAGEMENT("deployment_management"),
+    ANALYTICS("analytics");
 
     private final String displayValue;
 

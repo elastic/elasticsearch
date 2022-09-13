@@ -87,21 +87,20 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         );
         ClusterService clusterService = createClusterService(false, discoveryNodesInClusterState);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
-        HealthStatus expectedStatus = HealthStatus.UNKNOWN;
         {
             HealthInfo healthInfo = createHealthInfo(HealthStatus.GREEN, discoveryNodes);
             HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
-            assertThat(result.status(), equalTo(expectedStatus));
+            assertThat(result.status(), equalTo(HealthStatus.GREEN));
         }
         {
             HealthInfo healthInfo = createHealthInfo(HealthStatus.YELLOW, discoveryNodes);
             HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
-            assertThat(result.status(), equalTo(expectedStatus));
+            assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         }
         {
             HealthInfo healthInfo = createHealthInfo(HealthStatus.RED, discoveryNodes);
             HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
-            assertThat(result.status(), equalTo(expectedStatus));
+            assertThat(result.status(), equalTo(HealthStatus.RED));
         }
     }
 

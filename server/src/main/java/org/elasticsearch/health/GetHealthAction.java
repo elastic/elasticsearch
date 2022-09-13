@@ -165,15 +165,15 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
             healthService.getHealth(
                 client,
+                request.indicatorName,
+                request.explain,
                 responseListener.map(
                     healthIndicatorResults -> new Response(
                         clusterService.getClusterName(),
                         healthIndicatorResults,
                         request.indicatorName == null
                     )
-                ),
-                request.indicatorName,
-                request.explain
+                )
             );
         }
     }

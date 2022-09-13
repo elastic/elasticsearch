@@ -73,17 +73,17 @@ public class HealthService {
      * Returns the list of HealthIndicatorResult for this cluster.
      *
      * @param client        A client to be used to fetch the health data from the health node
-     * @param listener      A listener to be notified of the list of all HealthIndicatorResult if indicatorName is null, or one
-     *                      HealthIndicatorResult if indicatorName is not null
      * @param indicatorName If not null, the returned results will only have this indicator
      * @param explain       Whether to compute the details portion of the results
+     * @param listener      A listener to be notified of the list of all HealthIndicatorResult if indicatorName is null, or one
+     *                      HealthIndicatorResult if indicatorName is not null
      * @throws ResourceNotFoundException if an indicator name is given and the indicator is not found
      */
     public void getHealth(
         Client client,
-        ActionListener<List<HealthIndicatorResult>> listener,
         @Nullable String indicatorName,
-        boolean explain
+        boolean explain,
+        ActionListener<List<HealthIndicatorResult>> listener
     ) {
         // Determine if cluster is stable enough to calculate health before running other indicators
         List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()
@@ -106,24 +106,39 @@ public class HealthService {
                         public void onResponse(FetchHealthInfoCacheAction.Response response) {
                             HealthInfo healthInfo = response.getHealthInfo();
                             combineResultsAndNotifyListener(
-                                listener,
                                 indicatorName,
                                 preflightResults,
-                                filteredIndicators.map(service -> service.calculate(explain, healthInfo)).toList()
+                                filteredIndicators.map(service -> service.calculate(explain, healthInfo)).toList(),
+                                listener
                             );
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            getHealthNoHealthInfo(listener, indicatorName, preflightResults, filteredIndicators.toList(), explain);
+                            combineResultsAndNotifyListener(
+                                indicatorName,
+                                preflightResults,
+                                filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO)).toList(),
+                                listener
+                            );
                         }
                     });
                 } catch (NodeNotConnectedException | HealthNodeNotDiscoveredException e) {
-                    logger.info("Could not fetch data from health node", e);
-                    getHealthNoHealthInfo(listener, indicatorName, preflightResults, filteredIndicators.toList(), explain);
+                    logger.debug("Could not fetch data from health node", e);
+                    combineResultsAndNotifyListener(
+                        indicatorName,
+                        preflightResults,
+                        filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO)).toList(),
+                        listener
+                    );
                 }
             } else {
-                getHealthNoHealthInfo(listener, indicatorName, preflightResults, filteredIndicators.toList(), explain);
+                combineResultsAndNotifyListener(
+                    indicatorName,
+                    preflightResults,
+                    filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO)).toList(),
+                    listener
+                );
             }
         } else {
             // Mark remaining indicators as UNKNOWN
@@ -131,54 +146,27 @@ public class HealthService {
             List<HealthIndicatorResult> filteredIndicatorResults = filteredIndicators.map(
                 service -> generateUnknownResult(service, UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED, unknownDetails)
             ).toList();
-            combineResultsAndNotifyListener(listener, indicatorName, preflightResults, filteredIndicatorResults);
+            combineResultsAndNotifyListener(indicatorName, preflightResults, filteredIndicatorResults, listener);
         }
-    }
-
-    /**
-     * This method calls calculate on the filteredIndicators using HealthInfo.EMPTY_HEALTH_INFO, and passes on these results and the
-     * preflight results to aggregateHealthAndNotifyListener.
-     * @param listener A listener to be notified of the list of all HealthIndicatorResult if indicatorName is null, or one
-     *                           HealthIndicatorResult if indicatorName is not null
-     * @param indicatorName If not null, the returned results will only have this indicator
-     * @param preflightResults The results of the preflight health indicators
-     * @param filteredIndicators The remaining health indicators that need to be calculated
-     * @param explain       Whether to compute the details portion of the results
-     */
-    private void getHealthNoHealthInfo(
-        ActionListener<List<HealthIndicatorResult>> listener,
-        String indicatorName,
-        List<HealthIndicatorResult> preflightResults,
-        List<HealthIndicatorService> filteredIndicators,
-        boolean explain
-    ) {
-        combineResultsAndNotifyListener(
-            listener,
-            indicatorName,
-            preflightResults,
-            filteredIndicators.stream().map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO)).toList()
-        );
     }
 
     /**
      * This method combines the preflight indicator results with the non-preflight indicator results, and notifies the listener. If there
      * are no results and the indicator name is not null, the listener will be notified of failure. Otherwise the listener will be
      * notified with the results.
-     * @param listener A listener to be notified of the list of all HealthIndicatorResult if indicatorName is null, or one
-     *                               HealthIndicatorResult if indicatorName is not null
-     * @param indicatorName If not null, the returned results will only have this indicator
-     * @param preflightResults The results of the preflight health indicators
+     *
+     * @param indicatorName            If not null, the returned results will only have this indicator
+     * @param preflightResults         The results of the preflight health indicators
      * @param filteredIndicatorResults The results of the non-preflight health indicators
+     * @param listener                 A listener to be notified of the list of all HealthIndicatorResult if indicatorName is null, or one
+     *                                 HealthIndicatorResult if indicatorName is not null
      */
     private void combineResultsAndNotifyListener(
-        ActionListener<List<HealthIndicatorResult>> listener,
         String indicatorName,
         List<HealthIndicatorResult> preflightResults,
-        List<HealthIndicatorResult> filteredIndicatorResults
+        List<HealthIndicatorResult> filteredIndicatorResults,
+        ActionListener<List<HealthIndicatorResult>> listener
     ) {
-        // Filter the cluster indicator results by indicator name if present
-        Stream<HealthIndicatorResult> filteredPreflightResults = preflightResults.stream()
-            .filter(result -> indicatorName == null || result.name().equals(indicatorName));
         List<HealthIndicatorResult> results = Stream.concat(filteredPreflightResults, filteredIndicatorResults.stream()).toList();
         assert findDuplicatesByName(results).isEmpty()
             : String.format(Locale.ROOT, "Found multiple indicators with the same name: %s", findDuplicatesByName(results));

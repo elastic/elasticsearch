@@ -12,16 +12,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.node.DiskHealthInfo;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
-import org.elasticsearch.health.node.HealthInfoCache;
-import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -36,7 +34,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -78,7 +75,7 @@ public class HealthServiceIT extends ESIntegTestCase {
                         throw new RuntimeException(e);
                     }
                 };
-                healthService.getHealth(internalCluster.client(node), listener, TestHealthIndicatorService.NAME, true);
+                healthService.getHealth(internalCluster.client(node), TestHealthIndicatorService.NAME, true, listener);
                 assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
             }
         }
@@ -95,12 +92,12 @@ public class HealthServiceIT extends ESIntegTestCase {
                 .setNodes(true)
                 .get()
                 .getState();
-            DiscoveryNode healthNode = HealthNode.findHealthNode(state);
-            assertNotNull(healthNode);
-            Map<String, DiskHealthInfo> healthInfoCache = internalCluster().getInstance(HealthInfoCache.class, healthNode.getName())
-                .getHealthInfo()
-                .diskInfoByNode();
-            assertThat(healthInfoCache.size(), equalTo(state.getNodes().getNodes().keySet().size()));
+            FetchHealthInfoCacheAction.Response healthResponse = internalCluster().client()
+                .execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request())
+                .get();
+            for (String nodeId : state.getNodes().getNodes().keySet()) {
+                assertThat(healthResponse.getHealthInfo().diskInfoByNode().containsKey(nodeId), equalTo(true));
+            }
         });
     }
 

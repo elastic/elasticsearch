@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.tasks.CancellableTask;
@@ -39,10 +40,22 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
 
     private static final Logger logger = LogManager.getLogger(TransportHealthNodeAction.class);
 
+    /**
+     * This is the amount of time given as the timeout for transport requests to the health node. The default is fairly low because these
+     * actions are expected to be lightweight and time-sensitive.
+     */
+    public static final Setting<TimeValue> HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT = Setting.timeSetting(
+        "health_node.transport_action_timeout",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
+
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ThreadPool threadPool;
     protected final String executor;
+    private final TimeValue healthNodeTransportActionTimeout;
 
     private final Writeable.Reader<Response> responseReader;
 
@@ -62,6 +75,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
         this.threadPool = threadPool;
         this.executor = executor;
         this.responseReader = response;
+        this.healthNodeTransportActionTimeout = HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT.get(clusterService.getSettings());
     }
 
     protected abstract void healthOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
@@ -111,7 +125,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
                         actionName,
                         request,
                         task,
-                        TransportRequestOptions.timeout(TimeValue.timeValueSeconds(5)), // expected to be lightweight and time-sensitive
+                        TransportRequestOptions.timeout(healthNodeTransportActionTimeout),
                         handler
                     );
                 } else {

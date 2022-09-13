@@ -69,9 +69,9 @@ public class HealthServiceTests extends ESTestCase {
         AtomicBoolean onResponseCalled = new AtomicBoolean(false);
         service.getHealth(
             client,
-            getExpectedHealthIndicatorResultsActionListener(onResponseCalled, expectedHealthIndicatorResults),
             indicatorName,
-            false
+            false,
+            getExpectedHealthIndicatorResultsActionListener(onResponseCalled, expectedHealthIndicatorResults)
         );
         assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
     }
@@ -160,7 +160,7 @@ public class HealthServiceTests extends ESTestCase {
             expectedMessage
         );
         try {
-            service.getHealth(client, listener, indicatorName, explain);
+            service.getHealth(client, indicatorName, explain, listener);
         } catch (Throwable t) {
             if (expectedInOnFail || (expectedType.isInstance(t) == false)) {
                 throw new RuntimeException("Unexpected throwable", t);
@@ -328,7 +328,7 @@ public class HealthServiceTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         };
-        service.getHealth(client, listener, indicatorName, false);
+        service.getHealth(client, indicatorName, false, listener);
         assertBusy(() -> assertNotNull(resultReference.get()));
         return resultReference.get();
     }

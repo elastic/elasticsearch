@@ -41,7 +41,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class MetadataDeleteIndexServiceTests extends ESTestCase {
@@ -115,9 +114,6 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertNull(after.metadata().getIndices().get(index));
         assertNull(after.routingTable().index(index));
         assertNull(after.blocks().indices().get(index));
-
-        // Make sure we actually attempted to reroute
-        verify(allocationService).reroute(any(ClusterState.class), any(String.class));
     }
 
     public void testDeleteIndexWithAnAlias() {

@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(SingleShardNoReplicasRoutingTests.class);
 
+    @AwaitsFix(bugUrl = "desired balance")
     public void testSingleIndexStartedShard() {
         AllocationService strategy = createAllocationService(
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()

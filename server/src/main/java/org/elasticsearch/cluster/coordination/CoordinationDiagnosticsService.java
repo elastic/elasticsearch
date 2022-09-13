@@ -1116,7 +1116,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 );
             }
         }, e -> {
-            logger.warn("Exception connecting to master masterEligibleNode", e);
+            logger.warn("Exception connecting to master " + masterEligibleNode, e);
             responseConsumer.accept(responseTransformationFunction.apply(null, e));
         });
 

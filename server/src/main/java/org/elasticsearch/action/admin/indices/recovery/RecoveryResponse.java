@@ -11,19 +11,22 @@ package org.elasticsearch.action.admin.indices.recovery;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Information regarding the recovery state of indices and their associated shards.
  */
-public class RecoveryResponse extends BroadcastResponse {
+public class RecoveryResponse extends BroadcastResponse implements ChunkedToXContent {
 
     private final Map<String, List<RecoveryState>> shardRecoveryStates;
 
@@ -62,27 +65,27 @@ public class RecoveryResponse extends BroadcastResponse {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (hasRecoveries()) {
-            for (String index : shardRecoveryStates.keySet()) {
-                List<RecoveryState> recoveryStates = shardRecoveryStates.get(index);
-                if (recoveryStates == null || recoveryStates.size() == 0) {
-                    continue;
-                }
-                builder.startObject(index);
-                builder.startArray("shards");
-                for (RecoveryState recoveryState : recoveryStates) {
-                    builder.startObject();
-                    recoveryState.toXContent(builder, params);
-                    builder.endObject();
-                }
-                builder.endArray();
-                builder.endObject();
-            }
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<ToXContent> toXContentChunked() {
+        return Iterators.concat(
+            Iterators.single((b, p) -> b.startObject()),
+            shardRecoveryStates.entrySet()
+                .stream()
+                .filter(entry -> entry != null && entry.getValue().isEmpty() == false)
+                .map(entry -> (ToXContent) (b, p) -> {
+                    b.startObject(entry.getKey());
+                    b.startArray("shards");
+                    for (RecoveryState recoveryState : entry.getValue()) {
+                        b.startObject();
+                        recoveryState.toXContent(b, p);
+                        b.endObject();
+                    }
+                    b.endArray();
+                    b.endObject();
+                    return b;
+                })
+                .iterator(),
+            Iterators.single((b, p) -> b.endObject())
+        );
     }
 
     @Override

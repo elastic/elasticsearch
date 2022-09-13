@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
@@ -24,6 +25,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleValue {
 
@@ -36,6 +38,7 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     double resetCompensation = 0;
     double currentEndValue = -1;
     double currentStartValue = -1;
+    BytesRef currentTsid = null;        // TODO use global ordinals for faster tsid comparison
 
     protected TimeSeriesRateAggregator(
         String name,
@@ -58,11 +61,23 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
 
     private void calculateLastBucket() {
         if (currentBucket != -1) {
+            System.out.println("currentEnd " + currentEndValue + " currentStart " + currentStartValue + " comp " + resetCompensation);
             long timespan = currentEndTime - currentStartTime;
             double increase = currentEndValue - currentStartValue + resetCompensation;
             double rate = timespan == 0 ? Double.NaN : increase / timespan;
             values.set(currentBucket, rate);
+            System.out.println("bucket" + currentBucket + " increase " + increase + " timespan " + timespan + " rate " + rate);
         }
+    }
+
+    private double checkForResets(double latestValue) {
+        if (latestValue > currentStartValue) {
+            // reset detected
+            resetCompensation += currentEndValue;
+            currentEndValue = latestValue;
+            System.out.println("reset! currentEnd " + currentEndValue + " currentStart " + currentStartValue + " comp " + resetCompensation);
+        }
+        return latestValue;
     }
 
     @Override
@@ -71,29 +86,32 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                // 74 150 50 90 40
-                boolean hasValue = leafValues.advanceExact(doc);
-                double latestValue = hasValue ? leafValues.nextValue() : -1;   // assume singleton values
+                leafValues.advanceExact(doc);   // TODO handle missing values
+                double latestValue = leafValues.nextValue();   // assume singleton values
+
                 if (bucket != currentBucket) {
                     values = bigArrays().grow(values, bucket + 1);
-                    calculateLastBucket();
+                    if (Objects.equals(currentTsid, aggCtx.getTsid()) == false) {
+                        // if we're on a new tsid then we need to calculate the last bucket
+                        System.out.println("new tsid " + aggCtx.getTsid().utf8ToString());
+                        calculateLastBucket();
+                        currentTsid = aggCtx.getTsid();
+                    } else {
+                        // if we're in a new bucket but in the same tsid then we update the
+                        // timestamp and last value before we calculate the last bucket
+                        System.out.println("new bucket");
+                        currentStartTime = aggCtx.getTimestamp();
+                        currentStartValue = checkForResets(latestValue);
+                        calculateLastBucket();
+                    }
                     currentBucket = bucket;
-                    currentEndTime = currentStartTime = aggCtx.getTimestamp();
-                    currentEndValue = currentStartValue = latestValue;
+                    currentStartTime = currentEndTime = aggCtx.getTimestamp();
+                    currentStartValue = currentEndValue = latestValue;
                     resetCompensation = 0;
+                } else {
+                    currentStartTime = aggCtx.getTimestamp();
+                    currentStartValue = checkForResets(latestValue);
                 }
-                if (latestValue > currentStartValue) {
-                    // reset detected
-                    resetCompensation += currentEndValue;
-                    currentEndValue = latestValue;
-                }
-                if (currentEndValue == -1) {
-                    // missing end value
-                    currentEndValue = latestValue;
-                    currentEndTime = aggCtx.getTimestamp();;
-                }
-                currentStartValue = latestValue;
-                currentStartTime = aggCtx.getTimestamp();
             }
         };
     }

@@ -22,6 +22,9 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.timeseries.InternalTimeSeries;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
@@ -35,6 +38,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
@@ -67,8 +71,44 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             tsBuilder,
             new MatchAllDocsQuery(),
             iw -> {
-                iw.addDocuments(docs(1000, "1", 15, 37, 60, 14));
-                iw.addDocuments(docs(1000, "2", 74, 150, 50, 90, 40));
+                iw.addDocuments(docs(1000, "1", 15, 37, 60, /*reset*/ 14));
+                iw.addDocuments(docs(1000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
+            },
+            verifier,
+            timeStampField(),
+            counterField("counter_field")
+        );
+    }
+
+    public void testNestedWithinDateHistogram() throws IOException {
+        RateAggregationBuilder builder = new RateAggregationBuilder("counter_field").field("counter_field");
+        DateHistogramAggregationBuilder dateBuilder = new DateHistogramAggregationBuilder("date");
+        dateBuilder.field("@timestamp");
+        dateBuilder.fixedInterval(DateHistogramInterval.seconds(2));
+        dateBuilder.subAggregation(builder);
+        TimeSeriesAggregationBuilder tsBuilder = new TimeSeriesAggregationBuilder("tsid");
+        tsBuilder.subAggregation(dateBuilder);
+
+        Consumer<InternalTimeSeries> verifier = r -> {
+            assertThat(r.getBuckets(), hasSize(2));
+            assertThat(r.getBucketByKey("{dim=1}"), instanceOf(InternalTimeSeries.InternalBucket.class));
+            InternalDateHistogram hb = r.getBucketByKey("{dim=1}").getAggregations().get("date");
+            {
+                Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), closeTo((60 - 37 + 14) / 2000.0, 0.00001));
+            }
+            {
+                Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), closeTo((37 - 15) / 1000.0, 0.00001));
+            }
+        };
+
+        testCase(
+            tsBuilder,
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
+                iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
             },
             verifier,
             timeStampField(),

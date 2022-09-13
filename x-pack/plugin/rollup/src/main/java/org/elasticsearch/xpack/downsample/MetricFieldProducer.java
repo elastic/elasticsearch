@@ -335,7 +335,6 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
                     producer.addMetric(metricSubField.name(), metricOperation);
                     fields.put(metricSubField.name(), producer);
                 }
-                fields.put(field, producer);
             } else {
                 MetricFieldProducer producer = switch (fieldType.getMetricType()) {
                     case gauge -> new GaugeMetricFieldProducer(field);

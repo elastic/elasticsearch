@@ -285,10 +285,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
                 .startObject(FIELD_AGG_METRIC)
-                .field("min", 1)
-                .field("max", 8)
-                .field("sum", 120)
-                .field("value_count", 40)
+                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
+                .field("value_count", randomIntBetween(100, 1000))
                 .endObject()
                 .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
@@ -308,6 +308,41 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
+    }
+
+    public void testRollupOfRollups() throws IOException {
+        int intervalMinutes = randomIntBetween(10, 120);
+        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes));
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
+
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .startObject(FIELD_AGG_METRIC)
+                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
+                .endObject();
+        };
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
+
+        // Downsample the rollupIndex
+        String rollupIndex2 = rollupIndex + "-2";
+        DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)));
+        rollup(rollupIndex, rollupIndex2, config2);
+        assertRollupIndex(sourceIndex, rollupIndex2, config2);
     }
 
     private Date randomDate() {

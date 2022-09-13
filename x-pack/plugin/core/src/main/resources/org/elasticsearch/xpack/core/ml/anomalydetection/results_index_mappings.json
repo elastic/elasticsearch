@@ -59,9 +59,6 @@
         "probability" : {
           "type" : "double"
         },
-        "probability_explanations" : {
-          "type": "keyword"
-        },
         "raw_anomaly_score" : {
           "type" : "double"
         },
@@ -148,9 +145,6 @@
         },
         "probability" : {
           "type" : "double"
-        },
-        "probability_explanations" : {
-          "type": "keyword"
         },
         "typical" : {
           "type" : "double"
@@ -431,9 +425,6 @@
     },
     "probability" : {
       "type" : "double"
-    },
-    "probability_explanations" : {
-      "type": "keyword"
     },
     "processed_field_count" : {
       "type" : "long"

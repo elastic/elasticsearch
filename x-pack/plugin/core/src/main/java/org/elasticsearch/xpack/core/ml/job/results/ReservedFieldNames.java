@@ -62,7 +62,6 @@ public final class ReservedFieldNames {
         AnomalyCause.FIELD_NAME.getPreferredName(),
 
         AnomalyRecord.PROBABILITY.getPreferredName(),
-        AnomalyRecord.PROBABILITY_EXPLANATIONS.getPreferredName(),
         AnomalyRecord.MULTI_BUCKET_IMPACT.getPreferredName(),
         AnomalyRecord.BY_FIELD_NAME.getPreferredName(),
         AnomalyRecord.BY_FIELD_VALUE.getPreferredName(),

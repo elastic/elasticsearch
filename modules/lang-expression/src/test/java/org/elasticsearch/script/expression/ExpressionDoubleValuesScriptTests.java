@@ -8,10 +8,12 @@
 
 package org.elasticsearch.script.expression;
 
-import org.apache.lucene.expressions.Expression;
+import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.DoubleValuesSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.RawDoubleValuesScript;
+import org.elasticsearch.script.DoubleValuesScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptModule;
@@ -25,9 +27,9 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * Tests compiling of scripts into their raw {@link Expression} form through the {@link ScriptService}
+ * Tests {@link ExpressionDoubleValuesScript} through the {@link ScriptService}
  */
-public class ExpressionRawDoubleValuesScriptTests extends ESTestCase {
+public class ExpressionDoubleValuesScriptTests extends ESTestCase {
     private ExpressionScriptEngine engine;
     private ScriptService scriptService;
 
@@ -40,9 +42,9 @@ public class ExpressionRawDoubleValuesScriptTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private RawDoubleValuesScript compile(String expression) {
+    private DoubleValuesScript compile(String expression) {
         var script = new Script(ScriptType.INLINE, "expression", expression, Collections.emptyMap());
-        return scriptService.compile(script, RawDoubleValuesScript.CONTEXT).newInstance();
+        return scriptService.compile(script, DoubleValuesScript.CONTEXT).newInstance();
     }
 
     public void testCompileError() {
@@ -51,14 +53,35 @@ public class ExpressionRawDoubleValuesScriptTests extends ESTestCase {
         assertEquals("Invalid expression '10 * log(10)': Unrecognized function call (log).", e.getCause().getMessage());
     }
 
-    public void testCompileToExpression() throws IOException {
+    public void testEvaluate() {
         var expression = compile("10 * log10(10)");
         assertEquals("10 * log10(10)", expression.sourceText());
         assertEquals(10.0, expression.evaluate(new DoubleValues[0]), 0.00001);
+        assertEquals(10.0, expression.execute(), 0.00001);
 
         expression = compile("20 * log10(a)");
         assertEquals("20 * log10(a)", expression.sourceText());
         assertEquals(20.0, expression.evaluate(new DoubleValues[] { DoubleValues.withDefault(DoubleValues.EMPTY, 10.0) }), 0.00001);
+    }
+
+    public void testDoubleValuesSource() throws IOException {
+        SimpleBindings bindings = new SimpleBindings();
+        bindings.add("popularity", DoubleValuesSource.constant(5));
+
+        var expression = compile("10 * log10(popularity)");
+        var doubleValues = expression.getDoubleValuesSource((name) -> bindings.getDoubleValuesSource(name));
+        assertEquals("expr(10 * log10(popularity))", doubleValues.toString());
+        var values = doubleValues.getValues(null, null);
+        assertTrue(values.advanceExact(0));
+        assertEquals(6, (int) values.doubleValue());
+
+        var sortField = expression.getSortField((name) -> bindings.getDoubleValuesSource(name), false);
+        assertEquals("expr(10 * log10(popularity))", sortField.getField());
+        assertEquals(SortField.Type.CUSTOM, sortField.getType());
+        assertFalse(sortField.getReverse());
+
+        var rescorer = expression.getRescorer((name) -> bindings.getDoubleValuesSource(name));
+        assertNotNull(rescorer);
     }
 
 }

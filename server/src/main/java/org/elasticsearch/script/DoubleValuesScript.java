@@ -16,15 +16,11 @@ import org.apache.lucene.search.SortField;
 import java.util.function.Function;
 
 /**
- * A script compiled into it's raw executable form
- * <p>
- * The raw executable script can be used by other scripting engines as a
- * base for their internal execution. This class provides the means for building
- * scripting engines on top of other scripting engines.
+ * A custom script that can be used for various DoubleValue Lucene operations.
  */
-public abstract class RawDoubleValuesScript {
+public abstract class DoubleValuesScript {
 
-    public RawDoubleValuesScript() {}
+    public DoubleValuesScript() {}
 
     public abstract double execute();
 
@@ -40,11 +36,11 @@ public abstract class RawDoubleValuesScript {
 
     public abstract String[] variables();
 
-    /** A factory to construct {@link RawDoubleValuesScript} instances. */
+    /** A factory to construct {@link DoubleValuesScript} instances. */
     public interface Factory extends ScriptFactory {
-        RawDoubleValuesScript newInstance();
+        DoubleValuesScript newInstance();
     }
 
     @SuppressWarnings("rawtypes")
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("raw_double_values", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("double_values", Factory.class);
 }

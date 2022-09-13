@@ -14,26 +14,26 @@ import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.script.RawDoubleValuesScript;
+import org.elasticsearch.script.DoubleValuesScript;
 
 import java.util.function.Function;
 
 /**
- * A factory for raw compiled {@link Expression} scripts
+ * A factory for a custom compiled {@link Expression} scripts
  * <p>
- * Instead of an execution result, we return the compiled {@link Expression} object, which
- * can later be used for other execution engines based on lucene expressions.
+ * Instead of an execution result, we return a wrapper to an {@link Expression} object, which
+ * can be used for all supported double values operations.
  */
-public class ExpressionRawDoubleValuesScript implements RawDoubleValuesScript.Factory {
+public class ExpressionDoubleValuesScript implements DoubleValuesScript.Factory {
     private final Expression exprScript;
 
-    ExpressionRawDoubleValuesScript(Expression e) {
+    ExpressionDoubleValuesScript(Expression e) {
         this.exprScript = e;
     }
 
     @Override
-    public RawDoubleValuesScript newInstance() {
-        return new RawDoubleValuesScript() {
+    public DoubleValuesScript newInstance() {
+        return new DoubleValuesScript() {
             @Override
             public double execute() {
                 return exprScript.evaluate(new DoubleValues[0]);

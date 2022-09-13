@@ -53,7 +53,7 @@ public class RunningTimeRecorder {
      * @return a {@link Releasable} that should be called once the operation is finished to stop the running time recording.
      */
     public Releasable trackRunningTime() {
-        final var recorder = new OperationRunningTimeRecorder(relativeTimeSupplier.getAsLong());
+        final var recorder = new OperationRunningTimeRecorder(getCurrentTimeInNanos());
         operationRunningTimeRecorders.add(recorder);
         return recorder;
     }
@@ -79,7 +79,7 @@ public class RunningTimeRecorder {
             final long previousReadingTime = latestReadingRelativeTime.getAndSet(FINISHED_OP_SENTINEL);
             assert previousReadingTime != FINISHED_OP_SENTINEL : previousReadingTime;
 
-            onOperationComplete(this, relativeTimeSupplier.getAsLong() - previousReadingTime);
+            onOperationComplete(this, getCurrentTimeInNanos() - previousReadingTime);
         }
 
         private long getPartialRunningTimeAndUpdateLatestReadingTime() {
@@ -87,7 +87,7 @@ public class RunningTimeRecorder {
             long updatedReadingTime;
             do {
                 previousReadingTime = latestReadingRelativeTime.get();
-                updatedReadingTime = relativeTimeSupplier.getAsLong();
+                updatedReadingTime = getCurrentTimeInNanos();
             } while (previousReadingTime != FINISHED_OP_SENTINEL
                 && latestReadingRelativeTime.compareAndSet(previousReadingTime, updatedReadingTime) == false);
             return previousReadingTime == FINISHED_OP_SENTINEL ? 0 : updatedReadingTime - previousReadingTime;
@@ -111,5 +111,10 @@ public class RunningTimeRecorder {
 
     public int inFlightOps() {
         return operationRunningTimeRecorders.size();
+    }
+
+    private long getCurrentTimeInNanos() {
+        long currentTimeInNanos = relativeTimeSupplier.getAsLong();
+        return currentTimeInNanos == OperationRunningTimeRecorder.FINISHED_OP_SENTINEL ? currentTimeInNanos + 1 : currentTimeInNanos;
     }
 }

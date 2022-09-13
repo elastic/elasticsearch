@@ -104,8 +104,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                         if (lastResult.isSuccess()) {
                             Result buildxResult = runCommand(dockerPath, "buildx", "inspect", "--bootstrap");
                             if (buildxResult.isSuccess()) {
-                                supportedArchitectures = buildxResult.stdout()
-                                    .lines()
+                                supportedArchitectures = buildxResult.stdout.lines()
                                     .filter(l -> l.startsWith("Platforms:"))
                                     .map(l -> l.substring(10))
                                     .flatMap(l -> Arrays.stream(l.split(",")).filter(not(String::isBlank)))
@@ -371,7 +370,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         final Result lastCommand;
 
         // Supported build architectures
-        public final Set<Architecture> supportedArchitectures
+        public final Set<Architecture> supportedArchitectures;
 
         DockerAvailability(
             boolean isAvailable,

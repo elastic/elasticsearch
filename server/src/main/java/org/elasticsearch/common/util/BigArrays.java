@@ -164,7 +164,8 @@ public class BigArrays {
             this.array = new byte[(int) size << 2];
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             int intSize = (int) size();
             out.writeVInt(intSize * 4);
             out.write(array, 0, intSize * Integer.BYTES);

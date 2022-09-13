@@ -62,7 +62,12 @@ class ReleasableIntArray implements IntArray {
 
     @Override
     public long ramBytesUsed() {
-        return 0; // NOCOMMIT How much? 2 objects? I think we'd double count if we used the usage of the bytes ref
+        /*
+         * We really have no idea how much heap we're using. We have a pretty
+         * good idea how much of the underlying buffer we're using, but that
+         * is already accounted otherwise.
+         */
+        return 0;
     }
 
     @Override

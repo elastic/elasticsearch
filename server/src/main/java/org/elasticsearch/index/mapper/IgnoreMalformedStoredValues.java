@@ -23,7 +23,15 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * Saves malformed values to stored fields so they can be loaded for synthetic
+ * {@code _source}.
+ */
 public abstract class IgnoreMalformedStoredValues {
+    /**
+     * Build a {@link StoredField} for the value on which the parser is
+     * currently positioned.
+     */
     public static StoredField storedField(String fieldName, XContentParser parser) throws IOException {
         String name = name(fieldName);
         return switch (parser.currentToken()) {
@@ -38,22 +46,38 @@ public abstract class IgnoreMalformedStoredValues {
                 };
             case VALUE_BOOLEAN -> new StoredField(name, new byte[] { parser.booleanValue() ? (byte) 't' : (byte) 'f' });
             case VALUE_EMBEDDED_OBJECT -> new StoredField(name, encode(parser.binaryValue()));
-            default -> throw new IllegalStateException();
+            default -> throw new IllegalArgumentException("synthetic _source doesn't support malformed objects");
         };
     }
 
+    /**
+     * Build a {@link IgnoreMalformedStoredValues} that never contains any values.
+     */
     public static IgnoreMalformedStoredValues empty() {
         return EMPTY;
     }
 
+    /**
+     * Build a {@link IgnoreMalformedStoredValues} that loads from stored fields.
+     */
     public static IgnoreMalformedStoredValues stored(String fieldName) {
         return new Stored(fieldName);
     }
 
+    /**
+     * A {@link Stream} mapping stored field paths to a place to put them
+     * so they can be included in the next document.
+     */
     public abstract Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders();
 
+    /**
+     * How many values has this field loaded for this document?
+     */
     public abstract int count();
 
+    /**
+     * Write values for this document.
+     */
     public abstract void write(XContentBuilder b) throws IOException;
 
     private static final Empty EMPTY = new Empty();
